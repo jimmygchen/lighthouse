@@ -48,6 +48,8 @@ jobs:
 
       - name: rust-cache
         uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
 
       - name: Install lighthouse
         run: make && make install-lcli
