@@ -25,6 +25,7 @@ use reqwest::{IntoUrl, RequestBuilder, Response};
 pub use reqwest::{StatusCode, Url};
 pub use sensitive_url::SensitiveUrl;
 use serde::{de::DeserializeOwned, Serialize};
+use ssz::Decode;
 use std::convert::TryFrom;
 use std::fmt;
 use std::iter::Iterator;
@@ -113,6 +114,7 @@ pub struct Timeouts {
     pub sync_committee_contribution: Duration,
     pub sync_duties: Duration,
     pub get_beacon_blocks_ssz: Duration,
+    pub get_blobs_sidecars_ssz: Duration,
     pub get_debug_beacon_states: Duration,
     pub get_deposit_snapshot: Duration,
 }
@@ -128,6 +130,7 @@ impl Timeouts {
             sync_committee_contribution: timeout,
             sync_duties: timeout,
             get_beacon_blocks_ssz: timeout,
+            get_blobs_sidecars_ssz: timeout,
             get_debug_beacon_states: timeout,
             get_deposit_snapshot: timeout,
         }
@@ -763,6 +766,21 @@ impl BeaconNodeHttpClient {
 
         let GenericResponse { data } = response.json().await?;
         Ok(Some(GenericResponse { data }))
+    }
+
+    /// `GET lighthouse/beacon/blobs_sidecars/{block_id}` as SSZ
+    ///
+    /// Returns `Ok(None)` on a 404 error.
+    pub async fn get_blobs_sidecar_ssz<T: EthSpec>(
+        &self,
+        block_id: BlockId,
+    ) -> Result<Option<BlobsSidecar<T>>, Error> {
+        let path = self.get_blobs_sidecar_path(block_id)?;
+
+        self.get_bytes_opt_accept_header(path, Accept::Ssz, self.timeouts.get_blobs_sidecars_ssz)
+            .await?
+            .map(|bytes| BlobsSidecar::from_ssz_bytes(&*bytes).map_err(Error::InvalidSsz))
+            .transpose()
     }
 
     /// `GET v1/beacon/blinded_blocks/{block_id}`

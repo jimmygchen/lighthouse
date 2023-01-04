@@ -1,4 +1,4 @@
-//! Generic tests that make use of the (newer) `InteractiveApiTester`
+//! Generic tests that make use of the (newer) `InteractiveTester`
 use crate::common::*;
 use beacon_chain::{
     chain_config::ReOrgThreshold,
