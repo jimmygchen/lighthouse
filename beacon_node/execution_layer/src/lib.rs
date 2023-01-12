@@ -36,7 +36,7 @@ use tokio::{
 };
 use tokio_stream::wrappers::WatchStream;
 use types::execution_payload::{ExecutionPayloadAndBlobsSidecar, PayloadWrapper};
-use types::{AbstractExecPayload, Blob, ExecPayload, KzgCommitment};
+use types::{AbstractExecPayload, BeaconStateError, Blob, ExecPayload, KzgCommitment};
 use types::{
     BlindedPayload, BlockType, ChainSpec, Epoch, ExecutionBlockHash, ForkName,
     ProposerPreparationData, PublicKeyBytes, Signature, SignedBeaconBlock, Slot, Uint256,
@@ -96,6 +96,13 @@ pub enum Error {
     FeeRecipientUnspecified,
     MissingLatestValidHash,
     InvalidJWTSecret(String),
+    BeaconStateError(BeaconStateError),
+}
+
+impl From<BeaconStateError> for Error {
+    fn from(e: BeaconStateError) -> Self {
+        Error::BeaconStateError(e)
+    }
 }
 
 impl From<ApiError> for Error {
@@ -151,17 +158,17 @@ impl<T: EthSpec, Payload: AbstractExecPayload<T>> BlockProposalContents<T, Paylo
             } => payload,
         }
     }
-    pub fn default_at_fork(fork_name: ForkName) -> Self {
-        match fork_name {
+    pub fn default_at_fork(fork_name: ForkName) -> Result<Self, BeaconStateError> {
+        Ok(match fork_name {
             ForkName::Base | ForkName::Altair | ForkName::Merge | ForkName::Capella => {
-                BlockProposalContents::Payload(Payload::default_at_fork(fork_name))
+                BlockProposalContents::Payload(Payload::default_at_fork(fork_name)?)
             }
             ForkName::Eip4844 => BlockProposalContents::PayloadAndBlobs {
-                payload: Payload::default_at_fork(fork_name),
+                payload: Payload::default_at_fork(fork_name)?,
                 blobs: VariableList::default(),
                 kzg_commitments: VariableList::default(),
             },
-        }
+        })
     }
 }
 

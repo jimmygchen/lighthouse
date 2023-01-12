@@ -11,11 +11,11 @@ use crate::{
     StateSkipConfig,
 };
 use bls::get_withdrawal_credentials;
-use execution_layer::test_utils::DEFAULT_JWT_SECRET;
 use execution_layer::{
     auth::JwtKey,
     test_utils::{
-        ExecutionBlockGenerator, MockExecutionLayer, TestingBuilder, DEFAULT_TERMINAL_BLOCK,
+        ExecutionBlockGenerator, MockExecutionLayer, TestingBuilder, DEFAULT_JWT_SECRET,
+        DEFAULT_TERMINAL_BLOCK,
     },
     ExecutionLayer,
 };
@@ -23,6 +23,7 @@ use fork_choice::CountUnrealized;
 use futures::channel::mpsc::Receiver;
 pub use genesis::{interop_genesis_state, DEFAULT_ETH1_BLOCK_HASH};
 use int_to_bytes::int_to_bytes32;
+use kzg::TrustedSetup;
 use merkle_proof::MerkleTree;
 use parking_lot::Mutex;
 use parking_lot::RwLockWriteGuard;
@@ -383,14 +384,43 @@ where
         self
     }
 
+    pub fn recalculate_fork_times_with_genesis(mut self, genesis_time: u64) -> Self {
+        let mock = self
+            .mock_execution_layer
+            .as_mut()
+            .expect("must have mock execution layer to recalculate fork times");
+        let spec = self
+            .spec
+            .clone()
+            .expect("cannot recalculate fork times without spec");
+        mock.server.execution_block_generator().shanghai_time =
+            spec.capella_fork_epoch.map(|epoch| {
+                genesis_time + spec.seconds_per_slot * E::slots_per_epoch() * epoch.as_u64()
+            });
+        mock.server.execution_block_generator().eip4844_time =
+            spec.eip4844_fork_epoch.map(|epoch| {
+                genesis_time + spec.seconds_per_slot * E::slots_per_epoch() * epoch.as_u64()
+            });
+
+        self
+    }
+
     pub fn mock_execution_layer(mut self) -> Self {
         let spec = self.spec.clone().expect("cannot build without spec");
+        let shanghai_time = spec.capella_fork_epoch.map(|epoch| {
+            HARNESS_GENESIS_TIME + spec.seconds_per_slot * E::slots_per_epoch() * epoch.as_u64()
+        });
+        let eip4844_time = spec.eip4844_fork_epoch.map(|epoch| {
+            HARNESS_GENESIS_TIME + spec.seconds_per_slot * E::slots_per_epoch() * epoch.as_u64()
+        });
         let mock = MockExecutionLayer::new(
             self.runtime.task_executor.clone(),
             spec.terminal_total_difficulty,
             DEFAULT_TERMINAL_BLOCK,
             spec.terminal_block_hash,
             spec.terminal_block_hash_activation_epoch,
+            shanghai_time,
+            eip4844_time,
             Some(JwtKey::from_slice(&DEFAULT_JWT_SECRET).unwrap()),
             None,
         );
@@ -405,12 +435,20 @@ where
         let builder_url = SensitiveUrl::parse(format!("http://127.0.0.1:{port}").as_str()).unwrap();
 
         let spec = self.spec.clone().expect("cannot build without spec");
+        let shanghai_time = spec.capella_fork_epoch.map(|epoch| {
+            HARNESS_GENESIS_TIME + spec.seconds_per_slot * E::slots_per_epoch() * epoch.as_u64()
+        });
+        let eip4844_time = spec.eip4844_fork_epoch.map(|epoch| {
+            HARNESS_GENESIS_TIME + spec.seconds_per_slot * E::slots_per_epoch() * epoch.as_u64()
+        });
         let mock_el = MockExecutionLayer::new(
             self.runtime.task_executor.clone(),
             spec.terminal_total_difficulty,
             DEFAULT_TERMINAL_BLOCK,
             spec.terminal_block_hash,
             spec.terminal_block_hash_activation_epoch,
+            shanghai_time,
+            eip4844_time,
             Some(JwtKey::from_slice(&DEFAULT_JWT_SECRET).unwrap()),
             Some(builder_url.clone()),
         )
@@ -456,6 +494,10 @@ where
         let validator_keypairs = self
             .validator_keypairs
             .expect("cannot build without validator keypairs");
+        let trusted_setup: TrustedSetup =
+            serde_json::from_reader(eth2_network_config::TRUSTED_SETUP)
+                .map_err(|e| format!("Unable to read trusted setup file: {}", e))
+                .unwrap();
 
         let mut builder = BeaconChainBuilder::new(self.eth_spec_instance)
             .logger(log.clone())
@@ -472,7 +514,8 @@ where
                 log.clone(),
                 5,
             )))
-            .monitor_validators(true, vec![], log);
+            .monitor_validators(true, vec![], log)
+            .trusted_setup(trusted_setup);
 
         builder = if let Some(mutator) = self.initial_mutator {
             mutator(builder)
@@ -1459,7 +1502,7 @@ where
         let proposer_index = state.get_beacon_proposer_index(slot, &self.spec).unwrap();
 
         let signed_block = block.sign(
-            &self.validator_keypairs[proposer_index as usize].sk,
+            &self.validator_keypairs[proposer_index].sk,
             &state.fork(),
             state.genesis_validators_root(),
             &self.spec,
