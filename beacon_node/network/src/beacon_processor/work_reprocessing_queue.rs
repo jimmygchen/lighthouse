@@ -70,7 +70,7 @@ const MAXIMUM_QUEUED_ATTESTATIONS: usize = 16_384;
 const MAXIMUM_QUEUED_LIGHT_CLIENT_UPDATES: usize = 128;
 
 // Process backfill batch 50%, 60%, 80% through each slot
-pub const BACKFILL_SCHEDULE_IN_SLOT: [f32; 3] = [0.5f32, 0.6, 0.8];
+pub const BACKFILL_SCHEDULE_IN_SLOT: [f32; 2] = [0.5f32, 0.8];
 
 /// Messages that the scheduler can receive.
 pub enum ReprocessQueueMessage<T: BeaconChainTypes> {
