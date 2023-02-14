@@ -2,7 +2,7 @@
 #![cfg(test)]
 
 use crate::beacon_processor::work_reprocessing_queue::{
-    QUEUED_ATTESTATION_DELAY, QUEUED_RPC_BLOCK_DELAY,
+    BACKFILL_SCHEDULE_IN_SLOT, QUEUED_ATTESTATION_DELAY, QUEUED_RPC_BLOCK_DELAY,
 };
 use crate::beacon_processor::*;
 use crate::{service::NetworkMessage, sync::SyncMessage};
@@ -19,9 +19,11 @@ use lighthouse_network::{
 use slot_clock::SlotClock;
 use std::cmp;
 use std::iter::Iterator;
+use std::ops::Add;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc;
+use tokio::time::Instant;
 use types::{
     Attestation, AttesterSlashing, Epoch, EthSpec, MainnetEthSpec, ProposerSlashing,
     SignedBeaconBlock, SignedVoluntaryExit, SubnetId,
@@ -892,18 +894,32 @@ async fn test_rpc_block_reprocessing() {
 #[tokio::test]
 async fn test_backfill_sync_processing() {
     let mut rig = TestRig::new(SMALL_CHAIN).await;
-    // Note: to verify the exact event times in an integration test is not straight forward here
-    // (not straight forward to manipulate `TestingSlotClock` due to cloning of `SlotClock` in code)
-    // and makes the test very slow, hence timing calculation is unit tested separately in
-    // `work_reprocessing_queue`.
-    for _ in 0..1 {
+    let slot_duration_secs = rig.chain.slot_clock.slot_duration().as_secs_f32();
+
+    let event_times = BACKFILL_SCHEDULE_IN_SLOT
+        .map(|percentage_in_slot| Duration::from_secs_f32(percentage_in_slot * slot_duration_secs));
+
+    let slot_start_instant = Instant::now();
+    let slot_start = rig
+        .chain
+        .slot_clock
+        .start_of(rig.next_block.slot())
+        .unwrap();
+    rig.chain.slot_clock.set_current_time(slot_start);
+
+    for event_time in event_times.iter() {
         rig.enqueue_backfill_batch();
-        // ensure queued batch is not processed until later
         rig.assert_no_events_for(Duration::from_millis(100)).await;
-        // A new batch should be processed within a slot.
+
+        println!("sleeping until {} secs", event_time.as_secs());
+        rig.chain
+            .slot_clock
+            .set_current_time(slot_start.add(*event_time));
+        tokio::time::sleep_until(slot_start_instant.add(*event_time)).await;
+
         rig.assert_event_journal_with_timeout(
             &[CHAIN_SEGMENT, WORKER_FREED, NOTHING_TO_DO],
-            rig.chain.slot_clock.slot_duration(),
+            Duration::from_millis(500),
         )
         .await;
     }
@@ -923,9 +939,6 @@ async fn test_backfill_sync_processing_rate_limiting_disabled() {
     }
 
     // ensure all batches are processed
-    rig.assert_event_journal_with_timeout(
-        &[CHAIN_SEGMENT, CHAIN_SEGMENT, CHAIN_SEGMENT],
-        Duration::from_millis(100),
-    )
-    .await;
+    rig.assert_event_journal_contains_ordered(&[CHAIN_SEGMENT, CHAIN_SEGMENT, CHAIN_SEGMENT])
+        .await;
 }
