@@ -190,7 +190,7 @@ impl<T: SlotClock + 'static, E: EthSpec> BlockService<T, E> {
                         let slots_per_epoch = E::slots_per_epoch();
                         let slot_offset = slot % slots_per_epoch;
                         if slot_offset == (slots_per_epoch - 1) {
-                            let delay = Duration::from_millis(4000);
+                            let delay = Duration::from_millis(1000);
                             debug!(
                                 service.context.log(),
                                 "Delaying block production by {}ms",
