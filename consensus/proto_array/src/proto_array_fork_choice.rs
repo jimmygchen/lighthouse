@@ -542,7 +542,8 @@ impl ProtoArrayForkChoice {
         // Check shuffling stability.
         let shuffling_stable = re_org_block_slot % E::slots_per_epoch() != 0;
         if !shuffling_stable {
-            return Err(DoNotReOrg::ShufflingUnstable.into());
+            // [JC] Allow re-orgs to happen on epoch boundaries for testing.
+            // return Err(DoNotReOrg::ShufflingUnstable.into());
         }
 
         // Check FFG.

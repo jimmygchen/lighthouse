@@ -185,6 +185,22 @@ impl<T: SlotClock + 'static, E: EthSpec> BlockService<T, E> {
                         sleep(delay).await;
                     }
 
+                    // Delay block production for slot 31 of every epoch.
+                    if let Some(slot) = service.slot_clock.now() {
+                        let slots_per_epoch = E::slots_per_epoch();
+                        let slot_offset = slot % slots_per_epoch;
+                        if slot_offset == (slots_per_epoch - 1) {
+                            let delay = Duration::from_millis(4000);
+                            debug!(
+                                service.context.log(),
+                                "Delaying block production by {}ms",
+                                delay.as_millis();
+                                "slot" => slot.as_u64(),
+                            );
+                            sleep(delay).await;
+                        }
+                    }
+
                     service.do_update(notif).await.ok();
                 }
                 debug!(log, "Block service shutting down");
