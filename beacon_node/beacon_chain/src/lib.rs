@@ -20,6 +20,7 @@ pub mod eth1_chain;
 mod eth1_finalization_cache;
 pub mod events;
 pub mod execution_payload;
+pub mod fork_choice_dump_reader;
 pub mod fork_choice_signal;
 pub mod fork_revert;
 mod head_tracker;

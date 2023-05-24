@@ -359,7 +359,7 @@ pub type PersistedForkChoiceStore = PersistedForkChoiceStoreV17;
 /// A container which allows persisting the `BeaconForkChoiceStore` to the on-disk database.
 #[superstruct(
     variants(V11, V17),
-    variant_attributes(derive(Encode, Decode)),
+    variant_attributes(derive(Encode, Decode, Debug)),
     no_enum
 )]
 pub struct PersistedForkChoiceStore {
