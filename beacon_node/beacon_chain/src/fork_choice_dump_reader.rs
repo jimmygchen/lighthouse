@@ -12,33 +12,29 @@ mod tests {
     #[test]
     fn print_persisted_fc() {
         type E = MainnetEthSpec;
+        type ForkChoiceStore = BeaconForkChoiceStore<E, MemoryStore<E>, MemoryStore<E>>;
+
         let vec = fs::read("/Users/jimmychen/Workspace/eth/lighthouse/frk_0x0000…0000.ssz")
             .expect("should open file");
         println!("length {}", vec.len());
-        let fc_persisted = PersistedForkChoice::from_ssz_bytes(&*vec).expect("should decode");
+
+        let fc_persisted = PersistedForkChoice::from_ssz_bytes(&vec).expect("should decode");
         let log = null_logger().unwrap();
-        let fc = ForkChoice::<BeaconForkChoiceStore<E, MemoryStore<E>, MemoryStore<E>>, E>::proto_array_from_persisted(
+
+        let fc_store = fc_persisted.fork_choice_store;
+        dbg!(fc_store.finalized_checkpoint);
+        dbg!(fc_store.justified_checkpoint);
+        dbg!(fc_store.unrealized_justified_checkpoint);
+        dbg!(fc_store.unrealized_finalized_checkpoint);
+        dbg!(fc_store.proposer_boost_root);
+
+        let fc = ForkChoice::<ForkChoiceStore, E>::proto_array_from_persisted(
             &fc_persisted.fork_choice,
             ResetPayloadStatuses::OnlyWithInvalidPayload,
             &E::default_spec(),
             &log,
         )
-            .expect("should load proto array fc");
-
-        dbg!(fc_persisted.fork_choice_store.finalized_checkpoint);
-        dbg!(fc_persisted.fork_choice_store.justified_checkpoint);
-        dbg!(
-            fc_persisted
-                .fork_choice_store
-                .unrealized_justified_checkpoint
-        );
-        dbg!(
-            fc_persisted
-                .fork_choice_store
-                .unrealized_finalized_checkpoint
-        );
-        dbg!(fc_persisted.fork_choice_store.proposer_boost_root);
-
+        .expect("should load proto array fc");
         let proto_array = fc.core_proto_array();
         dbg!(proto_array);
     }
