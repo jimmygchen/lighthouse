@@ -1,4 +1,5 @@
 use crate::{ForkChoiceStore, InvalidationOperation};
+use hiatus::step;
 use proto_array::{
     Block as ProtoBlock, DisallowedReOrgOffsets, ExecutionStatus, ProposerHeadError,
     ProposerHeadInfo, ProtoArrayForkChoice, ReOrgThreshold,
@@ -11,6 +12,7 @@ use state_processing::{
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
 use std::marker::PhantomData;
+use std::process::{exit, Command};
 use std::time::Duration;
 use types::{
     consts::merge::INTERVALS_PER_SLOT, AbstractExecPayload, AttestationShufflingId,
@@ -906,6 +908,15 @@ where
             self.fc_store
                 .set_justified_checkpoint(justified_checkpoint)
                 .map_err(Error::UnableToSetJustifiedCheckpoint)?;
+
+            println!("Sending SIGINT...");
+            send_sigint();
+            println!("SIGINT sent, waiting for fork choice to be persisted before continuing to process further.");
+
+            let _ = step(2);
+            println!(
+                "Step 2 started, fork choice already persisted. The program should exit soon."
+            );
         }
 
         // Update finalized checkpoint.
@@ -1600,5 +1611,27 @@ mod tests {
         let (queued, dequeued) = test_queued_attestations(Slot::new(4));
         assert!(queued.is_empty());
         assert_eq!(dequeued, vec![1, 2, 3]);
+    }
+}
+
+pub fn send_sigint() {
+    // Get the current process ID
+    let pid = std::process::id();
+
+    // Spawn a separate process to send a SIGINT signal to the current process
+    match Command::new("kill")
+        .arg("-2") // -2 represents the SIGINT signal
+        .arg(format!("{}", pid))
+        .spawn()
+    {
+        Ok(_) => {
+            // Handle successful spawning of the process
+            // Your program code here
+        }
+        Err(err) => {
+            // Handle the error if the process failed to spawn
+            eprintln!("Failed to send SIGINT signal: {}", err);
+            exit(1);
+        }
     }
 }

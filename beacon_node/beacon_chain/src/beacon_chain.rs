@@ -69,6 +69,7 @@ use fork_choice::{
     InvalidationOperation, PayloadVerificationStatus, ResetPayloadStatuses,
 };
 use futures::channel::mpsc::Sender;
+use hiatus::step;
 use itertools::process_results;
 use itertools::Itertools;
 use operation_pool::{AttestationRef, OperationPool, PersistedOperationPool, ReceivedPreCapella};
@@ -5915,7 +5916,17 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
 impl<T: BeaconChainTypes> Drop for BeaconChain<T> {
     fn drop(&mut self) {
         let drop = || -> Result<(), Error> {
+            let s1 = step(1);
+            info!(
+                self.log,
+                "SIGINT triggered. Step 1 started, persisting head and fork choice..."
+            );
             self.persist_head_and_fork_choice()?;
+            info!(
+                self.log,
+                "Successfully persisted head and fork choice. Step 1 completed, and onto step 2.."
+            );
+            drop(s1);
             self.persist_op_pool()?;
             self.persist_eth1_cache()
         };

@@ -610,6 +610,7 @@ where
         BeaconChain<Witness<TSlotClock, TEth1Backend, TEthSpec, THotStore, TColdStore>>,
         String,
     > {
+        hiatus::enable();
         let log = self.log.ok_or("Cannot build without a logger")?;
         let slot_clock = self
             .slot_clock
