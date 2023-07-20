@@ -52,3 +52,6 @@ hash256-std-hasher = "0.15.2"
 triehash = "0.8.4"
 hash-db = "0.15.2"
 pretty_reqwest_error = { path = "../../common/pretty_reqwest_error" }
+
+[patch."https://github.com/ralexstokes/mev-rs"]
+mev-rs = { git = "https://github.com/jimmygchen/mev-rs", rev = "41b1d9cceadb1e6224de60fbdb86a472673a3fab" }
