@@ -504,12 +504,12 @@ pub fn to_ssz_rs<T: Encode, U: SimpleSerialize>(ssz_data: &T) -> Result<U, MevEr
     ssz_rs::deserialize::<U>(&ssz_data.as_ssz_bytes()).map_err(convert_err)
 }
 
-fn convert_err<E: Debug>(e: E) -> MevError {
+pub fn convert_err<E: Debug>(e: E) -> MevError {
     custom_err(format!("{e:?}"))
 }
 
 // This is a bit of a hack since the `Custom` variant was removed from `mev_rs::Error`.
-fn custom_err(s: String) -> MevError {
+pub fn custom_err(s: String) -> MevError {
     MevError::Consensus(ethereum_consensus::state_transition::Error::Io(
         std::io::Error::new(std::io::ErrorKind::Other, s),
     ))

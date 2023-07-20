@@ -582,6 +582,11 @@ pub struct SyncingData {
     pub sync_distance: Slot,
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct ExpectedWithdrawalsQuery {
+    pub proposal_slot: Option<Slot>,
+}
+
 #[derive(Clone, PartialEq, Debug, Deserialize)]
 #[serde(try_from = "String", bound = "T: FromStr")]
 pub struct QueryVec<T: FromStr> {
@@ -1259,6 +1264,14 @@ pub struct ForkChoiceNode {
     pub weight: u64,
     pub validity: Option<String>,
     pub execution_block_hash: Option<Hash256>,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(bound = "T: Serialize + serde::de::DeserializeOwned")]
+pub struct NextWithdrawalsResponse<T: Serialize + serde::de::DeserializeOwned> {
+    pub execution_optimistic: bool,
+    pub finalized: bool,
+    pub data: T,
 }
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
