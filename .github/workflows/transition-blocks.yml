@@ -1,0 +1,19 @@
+name: test transition blocks
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  transition_blkock:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-2019, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+      - name: Transition block
+        run: cargo run --package lcli --profile maxperf --bin lcli -- transition-blocks --pre-state-path state.ssz --block-path block.ssz --runs 1
