@@ -25,11 +25,11 @@ jobs:
         uses: actions/setup-node@v2
         with:
           node-version: '14'
-        if: matrix.os == windows-2019
+        if: matrix.os == 'windows-2019'
       - name: Install windows build tools
         run: |
           choco install python protoc visualstudio2019-workload-vctools -y
           npm config set msvs_version 2019
-        if: matrix.os == windows-2019
+        if: matrix.os == 'windows-2019'
       - name: Transition block
         run: cargo run --package lcli --profile maxperf --bin lcli -- transition-blocks --pre-state-path state.ssz --block-path block.ssz --runs 1
