@@ -17,7 +17,7 @@ jobs:
           lfs: true
       - uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
+          toolchain: 1.70.0
       # ================================
       # Windows dependencies
       # ================================
@@ -31,7 +31,6 @@ jobs:
         run: echo "LIBCLANG_PATH=$((gcm clang).source -replace "clang.exe")" >> $env:GITHUB_ENV
 
       - name: Install Protoc
-        if: contains(matrix.os, 'windows')
         uses: arduino/setup-protoc@e52d9eb8f7b63115df1ac544a1376fdbf5a39612
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
