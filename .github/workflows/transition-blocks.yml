@@ -7,6 +7,7 @@ on:
 jobs:
   transition_blkock:
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-2019, macos-latest]
     runs-on: ${{ matrix.os }}
@@ -15,5 +16,20 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
+      - name: Install Protoc
+        uses: arduino/setup-protoc@e52d9eb8f7b63115df1ac544a1376fdbf5a39612
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+        if: matrix.os != windows-2019
+      - name: Use Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: '14'
+        if: matrix.os == windows-2019
+      - name: Install windows build tools
+        run: |
+          choco install python protoc visualstudio2019-workload-vctools -y
+          npm config set msvs_version 2019
+        if: matrix.os == windows-2019
       - name: Transition block
         run: cargo run --package lcli --profile maxperf --bin lcli -- transition-blocks --pre-state-path state.ssz --block-path block.ssz --runs 1
