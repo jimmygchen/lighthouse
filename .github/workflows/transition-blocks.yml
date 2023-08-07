@@ -34,4 +34,4 @@ jobs:
           npm config set msvs_version 2019
         if: matrix.os == 'windows-2019'
       - name: Transition block
-        run: cargo run --package lcli --profile maxperf --bin lcli -- transition-blocks --pre-state-path state.ssz --block-path block.ssz --runs 1
+        run: cargo run --package lcli --profile maxperf --bin lcli -- transition-blocks --pre-state-path state.ssz --block-path block.ssz --runs 100
