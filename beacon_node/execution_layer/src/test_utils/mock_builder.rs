@@ -18,6 +18,7 @@ use mev_rs::{
             BuilderBid as BuilderBidBellatrix, SignedBuilderBid as SignedBuilderBidBellatrix,
         },
         capella::{BuilderBid as BuilderBidCapella, SignedBuilderBid as SignedBuilderBidCapella},
+        deneb::{BuilderBid as BuilderBidDeneb, SignedBuilderBid as SignedBuilderBidDeneb},
         BidRequest, BuilderBid, ExecutionPayload as ServerPayload, SignedBlindedBeaconBlock,
         SignedBuilderBid, SignedValidatorRegistration,
     },
@@ -35,6 +36,7 @@ use std::time::Duration;
 use task_executor::TaskExecutor;
 use tempfile::NamedTempFile;
 use tree_hash::TreeHash;
+use types::builder_bid::BlindedBlobsBundle;
 use types::{
     Address, BeaconState, BlindedPayload, ChainSpec, EthSpec, ExecPayload, ForkName, Hash256, Slot,
     Uint256,
@@ -90,60 +92,50 @@ pub trait BidStuff {
     fn to_signed_bid(self, signature: BlsSignature) -> SignedBuilderBid;
 }
 
+macro_rules! map_builder_bid {
+    ($self_ident:ident, |$var:ident| $expr:expr) => {
+        match $self_ident {
+            BuilderBid::Bellatrix($var) => $expr,
+            BuilderBid::Capella($var) => $expr,
+            BuilderBid::Deneb($var) => $expr,
+        }
+    };
+}
+
 impl BidStuff for BuilderBid {
     fn fee_recipient_mut(&mut self) -> &mut ExecutionAddress {
-        match self {
-            Self::Bellatrix(bid) => &mut bid.header.fee_recipient,
-            Self::Capella(bid) => &mut bid.header.fee_recipient,
-        }
+        map_builder_bid!(self, |bid| &mut bid.header.fee_recipient)
     }
 
     fn gas_limit_mut(&mut self) -> &mut u64 {
-        match self {
-            Self::Bellatrix(bid) => &mut bid.header.gas_limit,
-            Self::Capella(bid) => &mut bid.header.gas_limit,
-        }
+        map_builder_bid!(self, |bid| &mut bid.header.gas_limit)
     }
 
     fn value_mut(&mut self) -> &mut U256 {
-        match self {
-            Self::Bellatrix(bid) => &mut bid.value,
-            Self::Capella(bid) => &mut bid.value,
-        }
+        map_builder_bid!(self, |bid| &mut bid.value)
     }
 
     fn parent_hash_mut(&mut self) -> &mut Hash32 {
-        match self {
-            Self::Bellatrix(bid) => &mut bid.header.parent_hash,
-            Self::Capella(bid) => &mut bid.header.parent_hash,
-        }
+        map_builder_bid!(self, |bid| &mut bid.header.parent_hash)
     }
 
     fn prev_randao_mut(&mut self) -> &mut Hash32 {
-        match self {
-            Self::Bellatrix(bid) => &mut bid.header.prev_randao,
-            Self::Capella(bid) => &mut bid.header.prev_randao,
-        }
+        map_builder_bid!(self, |bid| &mut bid.header.prev_randao)
     }
 
     fn block_number_mut(&mut self) -> &mut u64 {
-        match self {
-            Self::Bellatrix(bid) => &mut bid.header.block_number,
-            Self::Capella(bid) => &mut bid.header.block_number,
-        }
+        map_builder_bid!(self, |bid| &mut bid.header.block_number)
     }
 
     fn timestamp_mut(&mut self) -> &mut u64 {
-        match self {
-            Self::Bellatrix(bid) => &mut bid.header.timestamp,
-            Self::Capella(bid) => &mut bid.header.timestamp,
-        }
+        map_builder_bid!(self, |bid| &mut bid.header.timestamp)
     }
 
     fn withdrawals_root_mut(&mut self) -> Result<&mut Root, MevError> {
         match self {
             Self::Bellatrix(_) => Err(MevError::InvalidFork),
             Self::Capella(bid) => Ok(&mut bid.header.withdrawals_root),
+            Self::Deneb(bid) => Ok(&mut bid.header.withdrawals_root),
         }
     }
 
@@ -152,10 +144,11 @@ impl BidStuff for BuilderBid {
         signing_key: &SecretKey,
         context: &Context,
     ) -> Result<Signature, Error> {
-        match self {
-            Self::Bellatrix(message) => sign_builder_message(message, signing_key, context),
-            Self::Capella(message) => sign_builder_message(message, signing_key, context),
-        }
+        map_builder_bid!(self, |message| sign_builder_message(
+            message,
+            signing_key,
+            context
+        ))
     }
 
     fn to_signed_bid(self, signature: Signature) -> SignedBuilderBid {
@@ -165,6 +158,9 @@ impl BidStuff for BuilderBid {
             }
             Self::Capella(message) => {
                 SignedBuilderBid::Capella(SignedBuilderBidCapella { message, signature })
+            }
+            Self::Deneb(message) => {
+                SignedBuilderBid::Deneb(SignedBuilderBidDeneb { message, signature })
             }
         }
     }
@@ -284,6 +280,10 @@ impl<E: EthSpec> MockBuilder<E> {
             op.apply(bid)?;
         }
         Ok(())
+    }
+
+    pub fn pubkey(&self) -> ethereum_consensus::crypto::PublicKey {
+        self.builder_sk.public_key()
     }
 }
 
@@ -425,7 +425,7 @@ impl<E: EthSpec> mev_rs::BlindedBlockProvider for MockBuilder<E> {
             finalized_hash: Some(finalized_execution_hash),
         };
 
-        let payload = self
+        let (payload, maybe_commitments, maybe_blob_roots, maybe_proofs) = self
             .el
             .get_full_payload_caching::<BlindedPayload<E>>(
                 head_execution_hash,
@@ -435,24 +435,39 @@ impl<E: EthSpec> mev_rs::BlindedBlockProvider for MockBuilder<E> {
             )
             .await
             .map_err(convert_err)?
-            .to_payload()
-            .to_execution_payload_header();
+            .deconstruct();
 
-        let json_payload = serde_json::to_string(&payload).map_err(convert_err)?;
+        let header = payload.to_execution_payload_header();
+        let maybe_blinded_blobs = match (maybe_commitments, maybe_blob_roots, maybe_proofs) {
+            (Some(commitments), Some(blob_roots), Some(proofs)) => Some(BlindedBlobsBundle::<E> {
+                commitments,
+                proofs,
+                blob_roots,
+            }),
+            _ => None,
+        };
+
         let mut message = match fork {
+            ForkName::Deneb => {
+                let blinded_blobs = maybe_blinded_blobs.unwrap_or_default();
+                BuilderBid::Deneb(BuilderBidDeneb {
+                    header: to_ssz_rs(&header)?,
+                    blinded_blobs_bundle: to_ssz_rs(&blinded_blobs)?,
+                    value: to_ssz_rs(&Uint256::from(DEFAULT_BUILDER_PAYLOAD_VALUE_WEI))?,
+                    public_key: self.builder_sk.public_key(),
+                })
+            }
             ForkName::Capella => BuilderBid::Capella(BuilderBidCapella {
-                header: serde_json::from_str(json_payload.as_str()).map_err(convert_err)?,
+                header: to_ssz_rs(&header)?,
                 value: to_ssz_rs(&Uint256::from(DEFAULT_BUILDER_PAYLOAD_VALUE_WEI))?,
                 public_key: self.builder_sk.public_key(),
             }),
             ForkName::Merge => BuilderBid::Bellatrix(BuilderBidBellatrix {
-                header: serde_json::from_str(json_payload.as_str()).map_err(convert_err)?,
+                header: to_ssz_rs(&header)?,
                 value: to_ssz_rs(&Uint256::from(DEFAULT_BUILDER_PAYLOAD_VALUE_WEI))?,
                 public_key: self.builder_sk.public_key(),
             }),
-            ForkName::Base | ForkName::Altair | ForkName::Deneb => {
-                return Err(MevError::InvalidFork)
-            }
+            ForkName::Base | ForkName::Altair => return Err(MevError::InvalidFork),
         };
         *message.gas_limit_mut() = cached_data.gas_limit;
 
@@ -478,6 +493,12 @@ impl<E: EthSpec> mev_rs::BlindedBlockProvider for MockBuilder<E> {
             SignedBlindedBeaconBlock::Capella(block) => {
                 block.message.body.execution_payload_header.hash_tree_root()
             }
+            SignedBlindedBeaconBlock::Deneb(block_and_blobs) => block_and_blobs
+                .signed_blinded_block
+                .message
+                .body
+                .execution_payload_header
+                .hash_tree_root(),
         }
         .map_err(convert_err)?;
 
@@ -504,12 +525,12 @@ pub fn to_ssz_rs<T: Encode, U: SimpleSerialize>(ssz_data: &T) -> Result<U, MevEr
     ssz_rs::deserialize::<U>(&ssz_data.as_ssz_bytes()).map_err(convert_err)
 }
 
-fn convert_err<E: Debug>(e: E) -> MevError {
+pub fn convert_err<E: Debug>(e: E) -> MevError {
     custom_err(format!("{e:?}"))
 }
 
 // This is a bit of a hack since the `Custom` variant was removed from `mev_rs::Error`.
-fn custom_err(s: String) -> MevError {
+pub fn custom_err(s: String) -> MevError {
     MevError::Consensus(ethereum_consensus::state_transition::Error::Io(
         std::io::Error::new(std::io::ErrorKind::Other, s),
     ))
