@@ -11,6 +11,7 @@ mod block_id;
 mod block_packing_efficiency;
 mod block_rewards;
 mod build_block_contents;
+mod builder_states;
 mod database;
 mod metrics;
 mod proposer_duties;
@@ -30,6 +31,7 @@ use beacon_chain::{
     BeaconChainTypes, ProduceBlockVerification, WhenSlotSkipped,
 };
 pub use block_id::BlockId;
+use builder_states::get_next_withdrawals;
 use bytes::Bytes;
 use directory::DEFAULT_ROOT_DIR;
 use eth2::types::{
@@ -2234,6 +2236,56 @@ pub fn serve<T: BeaconChainTypes>(
         });
 
     /*
+     * builder/states
+     */
+
+    let builder_states_path = eth_v1
+        .and(warp::path("builder"))
+        .and(warp::path("states"))
+        .and(chain_filter.clone());
+
+    // GET builder/states/{state_id}/expected_withdrawals
+    let get_expected_withdrawals = builder_states_path
+        .clone()
+        .and(warp::path::param::<StateId>())
+        .and(warp::path("expected_withdrawals"))
+        .and(warp::query::<api_types::ExpectedWithdrawalsQuery>())
+        .and(warp::path::end())
+        .and(warp::header::optional::<api_types::Accept>("accept"))
+        .and_then(
+            |chain: Arc<BeaconChain<T>>,
+             state_id: StateId,
+             query: api_types::ExpectedWithdrawalsQuery,
+             accept_header: Option<api_types::Accept>| {
+                blocking_response_task(move || {
+                    let (state, execution_optimistic, finalized) = state_id.state(&chain)?;
+                    let proposal_slot = query.proposal_slot.unwrap_or(state.slot() + 1);
+                    let withdrawals =
+                        get_next_withdrawals::<T>(&chain, state, state_id, proposal_slot)?;
+
+                    match accept_header {
+                        Some(api_types::Accept::Ssz) => Response::builder()
+                            .status(200)
+                            .header("Content-Type", "application/octet-stream")
+                            .body(withdrawals.as_ssz_bytes().into())
+                            .map_err(|e| {
+                                warp_utils::reject::custom_server_error(format!(
+                                    "failed to create response: {}",
+                                    e
+                                ))
+                            }),
+                        _ => Ok(warp::reply::json(&api_types::NextWithdrawalsResponse {
+                            data: withdrawals,
+                            execution_optimistic,
+                            finalized,
+                        })
+                        .into_response()),
+                    }
+                })
+            },
+        );
+
+    /*
      * beacon/rewards
      */
 
@@ -4179,6 +4231,7 @@ pub fn serve<T: BeaconChainTypes>(
                 .uor(get_lighthouse_block_packing_efficiency)
                 .uor(get_lighthouse_merge_readiness)
                 .uor(get_events)
+                .uor(get_expected_withdrawals)
                 .uor(lighthouse_log_events.boxed())
                 .recover(warp_utils::reject::handle_rejection),
         )
