@@ -62,5 +62,7 @@ exec $lighthouse_binary \
 	--http-port $http_port \
 	--disable-packet-filter \
 	--target-peers $((BN_COUNT - 1)) \
+  --builder http://localhost:8650 \
+  --always-prefer-builder-payload \
   --execution-endpoint $execution_endpoint \
   --execution-jwt $execution_jwt
