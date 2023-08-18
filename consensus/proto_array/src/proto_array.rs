@@ -964,12 +964,8 @@ impl ProtoArray {
         let mut correct_justified = self.justified_checkpoint.epoch == genesis_epoch
             || voting_source.epoch == self.justified_checkpoint.epoch;
 
-        if let Some(node_unrealized_justified_checkpoint) = node.unrealized_justified_checkpoint {
-            if !correct_justified && self.justified_checkpoint.epoch + 1 == current_epoch {
-                correct_justified = node_unrealized_justified_checkpoint.epoch
-                    >= self.justified_checkpoint.epoch
-                    && voting_source.epoch + 2 >= current_epoch;
-            }
+        if !correct_justified && self.justified_checkpoint.epoch + 1 == current_epoch {
+            correct_justified = voting_source.epoch + 2 >= current_epoch;
         }
 
         let correct_finalized = self.finalized_checkpoint.epoch == genesis_epoch
