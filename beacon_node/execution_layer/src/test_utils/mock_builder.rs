@@ -482,7 +482,9 @@ impl<E: EthSpec> mev_rs::BlindedBlockProvider for MockBuilder<E> {
             }),
             ForkName::Base | ForkName::Altair => return Err(MevError::InvalidFork),
         };
-        *message.gas_limit_mut() = cached_data.gas_limit;
+        // TODO(jimmy): not sure why this line was here, but I had to remove it because it changes
+        // the payload cache key (tree hash root of the payload)
+        // *message.gas_limit_mut() = cached_data.gas_limit;
 
         self.apply_operations(&mut message)?;
         let mut signature =
