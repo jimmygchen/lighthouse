@@ -528,10 +528,10 @@ checksum = "8c3c1a368f70d6cf7302d78f8f7093da241fb8e8807c05cc9e51a125895a6d5b"
 [[package]]
 name = "beacon-api-client"
 version = "0.1.0"
-source = "git+https://github.com/ralexstokes/beacon-api-client?rev=7f28993#7f28993615fde52d563dd601a0511c34fe9b7c38"
+source = "git+https://github.com/ralexstokes/beacon-api-client?rev=7f28993615fde52d563dd601a0511c34fe9b7c38#7f28993615fde52d563dd601a0511c34fe9b7c38"
 dependencies = [
  "clap 4.3.21",
- "ethereum-consensus 0.1.1 (git+https://github.com/ralexstokes/ethereum-consensus?rev=12508c1f9b0c8f4bf4c5e9b6d441e840c1b37fd9)",
+ "ethereum-consensus",
  "http",
  "itertools",
  "reqwest",
@@ -2413,30 +2413,6 @@ dependencies = [
 [[package]]
 name = "ethereum-consensus"
 version = "0.1.1"
-source = "git+https://github.com/ralexstokes/ethereum-consensus?rev=12508c1#12508c1f9b0c8f4bf4c5e9b6d441e840c1b37fd9"
-dependencies = [
- "async-stream",
- "blst",
- "bs58 0.4.0",
- "enr 0.6.2",
- "hex",
- "integer-sqrt",
- "multiaddr 0.14.0",
- "multihash 0.16.3",
- "rand 0.8.5",
- "serde",
- "serde_json",
- "serde_yaml",
- "sha2 0.9.9",
- "ssz_rs",
- "thiserror",
- "tokio",
- "tokio-stream",
-]
-
-[[package]]
-name = "ethereum-consensus"
-version = "0.1.1"
 source = "git+https://github.com/ralexstokes/ethereum-consensus?rev=12508c1f9b0c8f4bf4c5e9b6d441e840c1b37fd9#12508c1f9b0c8f4bf4c5e9b6d441e840c1b37fd9"
 dependencies = [
  "async-stream",
@@ -2700,7 +2676,7 @@ dependencies = [
  "bytes",
  "environment",
  "eth2",
- "ethereum-consensus 0.1.1 (git+https://github.com/ralexstokes/ethereum-consensus?rev=12508c1)",
+ "ethereum-consensus",
  "ethereum_serde_utils",
  "ethereum_ssz",
  "ethers-core",
@@ -4930,13 +4906,13 @@ dependencies = [
 [[package]]
 name = "mev-rs"
 version = "0.3.0"
-source = "git+https://github.com/jimmygchen/mev-rs?rev=9896666#98966663148046b1315cfa24e8bf453dd67b08b9"
+source = "git+https://github.com/jimmygchen/mev-rs?rev=dedc77a#dedc77a796986603fb3376c5f353863d09e0dbf2"
 dependencies = [
  "anvil-rpc",
  "async-trait",
  "axum",
  "beacon-api-client",
- "ethereum-consensus 0.1.1 (git+https://github.com/ralexstokes/ethereum-consensus?rev=12508c1)",
+ "ethereum-consensus",
  "hyper",
  "parking_lot 0.12.1",
  "reqwest",
