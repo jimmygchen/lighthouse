@@ -402,7 +402,6 @@ impl<E: EthSpec> mev_rs::BlindedBlockProvider for MockBuilder<E> {
         let prev_randao = head_state
             .get_randao_mix(head_state.current_epoch())
             .map_err(convert_err)?;
-        let parent_root = head_state.latest_block_header().canonical_root();
 
         let payload_attributes = match fork {
             ForkName::Merge => {
@@ -417,7 +416,7 @@ impl<E: EthSpec> mev_rs::BlindedBlockProvider for MockBuilder<E> {
                 *prev_randao,
                 fee_recipient,
                 Some(vec![]),
-                Some(parent_root),
+                Some(head_block_root),
             ),
             ForkName::Base | ForkName::Altair => {
                 return Err(MevError::InvalidFork);
