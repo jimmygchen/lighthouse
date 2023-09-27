@@ -41,12 +41,12 @@ use tokio::{
 use tokio_stream::wrappers::WatchStream;
 use tree_hash::TreeHash;
 use types::beacon_block_body::KzgCommitments;
+use types::blobs::BlobItems;
 use types::builder_bid::BuilderBid;
-use types::sidecar::{BlobItems, Sidecar};
 use types::KzgProofs;
 use types::{
     AbstractExecPayload, BeaconStateError, BlindedPayload, BlockType, ChainSpec, Epoch,
-    ExecPayload, ExecutionPayloadCapella, ExecutionPayloadDeneb, ExecutionPayloadMerge,
+    ExecPayload, ExecutionPayloadCapella, ExecutionPayloadDeneb, ExecutionPayloadMerge, Sidecar,
 };
 use types::{ProposerPreparationData, PublicKeyBytes, Signature, Slot, Transaction};
 

@@ -1,18 +1,29 @@
-use crate::test_utils::TestRandom;
-use crate::{Blob, EthSpec, Hash256, SignedRoot, Slot};
-use derivative::Derivative;
-use kzg::{Kzg, KzgCommitment, KzgPreset, KzgProof, BYTES_PER_FIELD_ELEMENT};
-use rand::Rng;
-use serde_derive::{Deserialize, Serialize};
-use ssz::Encode;
-use ssz_derive::{Decode, Encode};
-use ssz_types::{FixedVector, VariableList};
 use std::fmt::Debug;
 use std::hash::Hash;
+use std::marker::PhantomData;
 use std::sync::Arc;
-use test_random_derive::TestRandom;
+
+use bls::SecretKey;
+use derivative::Derivative;
+use rand::Rng;
+use serde::de::DeserializeOwned;
+use serde_derive::{Deserialize, Serialize};
+use ssz::{Decode, Encode};
+use ssz_derive::{Decode, Encode};
+use ssz_types::{FixedVector, VariableList};
 use tree_hash::TreeHash;
 use tree_hash_derive::TreeHash;
+
+use kzg::{Kzg, KzgCommitment, KzgPreset, KzgProof, BYTES_PER_FIELD_ELEMENT};
+use test_random_derive::TestRandom;
+
+use crate::beacon_block_body::KzgCommitments;
+use crate::blobs::{BlobItems, BlobRootsList, BlobsList};
+use crate::test_utils::TestRandom;
+use crate::{
+    AbstractExecPayload, BeaconBlock, Blob, ChainSpec, Domain, EthSpec, Fork, Hash256, SignedRoot,
+    SignedSidecar, Slot,
+};
 
 /// Container of the data that identifies an individual blob.
 #[derive(
@@ -32,6 +43,58 @@ impl PartialOrd for BlobIdentifier {
 impl Ord for BlobIdentifier {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.index.cmp(&other.index)
+    }
+}
+
+pub trait Sidecar<E: EthSpec>:
+    serde::Serialize
+    + Clone
+    + DeserializeOwned
+    + Encode
+    + Decode
+    + Hash
+    + TreeHash
+    + TestRandom
+    + Debug
+    + SignedRoot
+    + Sync
+    + Send
+    + for<'a> arbitrary::Arbitrary<'a>
+{
+    type BlobItems: BlobItems<E>;
+
+    fn slot(&self) -> Slot;
+
+    fn build_sidecar<Payload: AbstractExecPayload<E>>(
+        blob_items: Self::BlobItems,
+        block: &BeaconBlock<E, Payload>,
+        expected_kzg_commitments: &KzgCommitments<E>,
+        kzg_proofs: Vec<KzgProof>,
+    ) -> Result<SidecarList<E, Self>, String>;
+
+    // this is mostly not used except for in testing
+    fn sign(
+        self: Arc<Self>,
+        secret_key: &SecretKey,
+        fork: &Fork,
+        genesis_validators_root: Hash256,
+        spec: &ChainSpec,
+    ) -> SignedSidecar<E, Self> {
+        let signing_epoch = self.slot().epoch(E::slots_per_epoch());
+        let domain = spec.get_domain(
+            signing_epoch,
+            Domain::BlobSidecar,
+            fork,
+            genesis_validators_root,
+        );
+        let message = self.signing_root(domain);
+        let signature = secret_key.sign(message);
+
+        SignedSidecar {
+            message: self,
+            signature,
+            _phantom: PhantomData,
+        }
     }
 }
 
@@ -62,36 +125,6 @@ pub struct BlobSidecar<T: EthSpec> {
     pub blob: Blob<T>,
     pub kzg_commitment: KzgCommitment,
     pub kzg_proof: KzgProof,
-}
-
-impl<E: EthSpec> From<Arc<BlobSidecar<E>>> for BlindedBlobSidecar {
-    fn from(blob_sidecar: Arc<BlobSidecar<E>>) -> Self {
-        BlindedBlobSidecar {
-            block_root: blob_sidecar.block_root,
-            index: blob_sidecar.index,
-            slot: blob_sidecar.slot,
-            block_parent_root: blob_sidecar.block_parent_root,
-            proposer_index: blob_sidecar.proposer_index,
-            blob_root: blob_sidecar.blob.tree_hash_root(),
-            kzg_commitment: blob_sidecar.kzg_commitment,
-            kzg_proof: blob_sidecar.kzg_proof,
-        }
-    }
-}
-
-impl<E: EthSpec> From<BlobSidecar<E>> for BlindedBlobSidecar {
-    fn from(blob_sidecar: BlobSidecar<E>) -> Self {
-        BlindedBlobSidecar {
-            block_root: blob_sidecar.block_root,
-            index: blob_sidecar.index,
-            slot: blob_sidecar.slot,
-            block_parent_root: blob_sidecar.block_parent_root,
-            proposer_index: blob_sidecar.proposer_index,
-            blob_root: blob_sidecar.blob.tree_hash_root(),
-            kzg_commitment: blob_sidecar.kzg_commitment,
-            kzg_proof: blob_sidecar.kzg_proof,
-        }
-    }
 }
 
 impl<T: EthSpec> PartialOrd for BlobSidecar<T> {
@@ -171,6 +204,52 @@ impl<T: EthSpec> BlobSidecar<T> {
     }
 }
 
+impl<E: EthSpec> Sidecar<E> for BlobSidecar<E> {
+    type BlobItems = BlobsList<E>;
+
+    fn slot(&self) -> Slot {
+        self.slot
+    }
+
+    fn build_sidecar<Payload: AbstractExecPayload<E>>(
+        blobs: BlobsList<E>,
+        block: &BeaconBlock<E, Payload>,
+        expected_kzg_commitments: &KzgCommitments<E>,
+        kzg_proofs: Vec<KzgProof>,
+    ) -> Result<SidecarList<E, Self>, String> {
+        let beacon_block_root = block.canonical_root();
+        let slot = block.slot();
+        let blob_sidecars = BlobSidecarList::from(
+            blobs
+                .into_iter()
+                .enumerate()
+                .map(|(blob_index, blob)| {
+                    let kzg_commitment = expected_kzg_commitments
+                        .get(blob_index)
+                        .ok_or("KZG commitment should exist for blob")?;
+
+                    let kzg_proof = kzg_proofs
+                        .get(blob_index)
+                        .ok_or("KZG proof should exist for blob")?;
+
+                    Ok(Arc::new(BlobSidecar {
+                        block_root: beacon_block_root,
+                        index: blob_index as u64,
+                        slot,
+                        block_parent_root: block.parent_root(),
+                        proposer_index: block.proposer_index(),
+                        blob,
+                        kzg_commitment: *kzg_commitment,
+                        kzg_proof: *kzg_proof,
+                    }))
+                })
+                .collect::<Result<Vec<_>, String>>()?,
+        );
+
+        Ok(blob_sidecars)
+    }
+}
+
 #[derive(
     Debug,
     Clone,
@@ -214,12 +293,86 @@ impl BlindedBlobSidecar {
 
 impl SignedRoot for BlindedBlobSidecar {}
 
+impl<E: EthSpec> From<Arc<BlobSidecar<E>>> for BlindedBlobSidecar {
+    fn from(blob_sidecar: Arc<BlobSidecar<E>>) -> Self {
+        BlindedBlobSidecar {
+            block_root: blob_sidecar.block_root,
+            index: blob_sidecar.index,
+            slot: blob_sidecar.slot,
+            block_parent_root: blob_sidecar.block_parent_root,
+            proposer_index: blob_sidecar.proposer_index,
+            blob_root: blob_sidecar.blob.tree_hash_root(),
+            kzg_commitment: blob_sidecar.kzg_commitment,
+            kzg_proof: blob_sidecar.kzg_proof,
+        }
+    }
+}
+
+impl<E: EthSpec> From<BlobSidecar<E>> for BlindedBlobSidecar {
+    fn from(blob_sidecar: BlobSidecar<E>) -> Self {
+        BlindedBlobSidecar {
+            block_root: blob_sidecar.block_root,
+            index: blob_sidecar.index,
+            slot: blob_sidecar.slot,
+            block_parent_root: blob_sidecar.block_parent_root,
+            proposer_index: blob_sidecar.proposer_index,
+            blob_root: blob_sidecar.blob.tree_hash_root(),
+            kzg_commitment: blob_sidecar.kzg_commitment,
+            kzg_proof: blob_sidecar.kzg_proof,
+        }
+    }
+}
+
+impl<E: EthSpec> Sidecar<E> for BlindedBlobSidecar {
+    type BlobItems = BlobRootsList<E>;
+
+    fn slot(&self) -> Slot {
+        self.slot
+    }
+
+    fn build_sidecar<Payload: AbstractExecPayload<E>>(
+        blob_roots: BlobRootsList<E>,
+        block: &BeaconBlock<E, Payload>,
+        expected_kzg_commitments: &KzgCommitments<E>,
+        kzg_proofs: Vec<KzgProof>,
+    ) -> Result<SidecarList<E, BlindedBlobSidecar>, String> {
+        let beacon_block_root = block.canonical_root();
+        let slot = block.slot();
+
+        let blob_sidecars = BlindedBlobSidecarList::<E>::from(
+            blob_roots
+                .into_iter()
+                .enumerate()
+                .map(|(blob_index, blob_root)| {
+                    let kzg_commitment = expected_kzg_commitments
+                        .get(blob_index)
+                        .ok_or("KZG commitment should exist for blob")?;
+
+                    let kzg_proof = kzg_proofs.get(blob_index).ok_or(format!(
+                        "Missing KZG proof for slot {} blob index: {}",
+                        slot, blob_index
+                    ))?;
+
+                    Ok(Arc::new(BlindedBlobSidecar {
+                        block_root: beacon_block_root,
+                        index: blob_index as u64,
+                        slot,
+                        block_parent_root: block.parent_root(),
+                        proposer_index: block.proposer_index(),
+                        blob_root,
+                        kzg_commitment: *kzg_commitment,
+                        kzg_proof: *kzg_proof,
+                    }))
+                })
+                .collect::<Result<Vec<_>, String>>()?,
+        );
+
+        Ok(blob_sidecars)
+    }
+}
+
 pub type SidecarList<T, Sidecar> = VariableList<Arc<Sidecar>, <T as EthSpec>::MaxBlobsPerBlock>;
 pub type BlobSidecarList<T> = SidecarList<T, BlobSidecar<T>>;
 pub type BlindedBlobSidecarList<T> = SidecarList<T, BlindedBlobSidecar>;
-
 pub type FixedBlobSidecarList<T> =
     FixedVector<Option<Arc<BlobSidecar<T>>>, <T as EthSpec>::MaxBlobsPerBlock>;
-
-pub type BlobsList<T> = VariableList<Blob<T>, <T as EthSpec>::MaxBlobCommitmentsPerBlock>;
-pub type BlobRootsList<T> = VariableList<Hash256, <T as EthSpec>::MaxBlobCommitmentsPerBlock>;

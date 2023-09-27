@@ -1,4 +1,4 @@
-use crate::sidecar::Sidecar;
+use crate::blob_sidecar::Sidecar;
 use crate::{
     test_utils::TestRandom, BlindedBlobSidecar, Blob, BlobSidecar, ChainSpec, Domain, EthSpec,
     Fork, Hash256, Signature, SignedRoot, SigningData,
