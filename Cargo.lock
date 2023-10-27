@@ -4058,6 +4058,7 @@ dependencies = [
  "lighthouse_version",
  "logging",
  "lru",
+ "malloc_utils",
  "metrics",
  "network",
  "operation_pool",

@@ -4,7 +4,7 @@ use std::future::Future;
 use tokio::sync::{mpsc::error::TrySendError, oneshot};
 use types::EthSpec;
 use warp::reply::{Reply, Response};
-use warp_utils::reject::convert_rejection;
+pub use warp_utils::reject::convert_rejection;
 
 /// Maps a request to a queue in the `BeaconProcessor`.
 #[derive(Clone, Copy)]
