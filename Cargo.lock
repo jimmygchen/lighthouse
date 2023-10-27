@@ -5618,6 +5618,7 @@ dependencies = [
  "metrics",
  "parking_lot 0.12.3",
  "tikv-jemalloc-ctl",
+ "tikv-jemalloc-sys",
  "tikv-jemallocator",
 ]
 
