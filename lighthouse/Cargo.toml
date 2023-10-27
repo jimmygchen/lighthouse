@@ -33,7 +33,7 @@ beacon-node-redb = ["store/redb"]
 # Deprecated. This is now enabled by default on non windows targets.
 jemalloc = []
 # Enable profiling in jemalloc.
-jemalloc_profiling = ["malloc_utils/jemalloc"]
+jemalloc_profiling = ["malloc_utils/jemalloc_profiling"]
 
 [target.'cfg(not(target_os = "windows"))'.dependencies]
 malloc_utils = { workspace = true, features = ["jemalloc"] }
