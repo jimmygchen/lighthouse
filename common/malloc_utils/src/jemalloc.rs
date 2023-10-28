@@ -10,10 +10,10 @@
 //! use jemalloc_ctl::{arenas, epoch, stats, Error};
 use metrics::{set_gauge, try_create_int_gauge, IntGauge};
 use std::ffi::{c_char, c_int};
-use std::sync::LazyLock;
-use tikv_jemalloc_ctl::{arenas, epoch, raw, stats, Access, AsName, Error};
 use std::mem;
 use std::ptr;
+use std::sync::LazyLock;
+use tikv_jemalloc_ctl::{arenas, epoch, stats, Access, AsName, Error};
 
 #[global_allocator]
 static ALLOC: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
@@ -66,7 +66,7 @@ pub fn page_size() -> Result<usize, Error> {
 pub unsafe fn mallctl_write<T>(name: &[u8], mut value: T) -> Result<(), c_int> {
     // Use `jemalloc_sys::mallctl` directly since the `jemalloc_ctl::raw`
     // functions artifically limit the `name` values.
-    let status = jemalloc_sys::mallctl(
+    let status = tikv_jemalloc_sys::mallctl(
         name as *const _ as *const c_char,
         ptr::null_mut(),
         ptr::null_mut(),
