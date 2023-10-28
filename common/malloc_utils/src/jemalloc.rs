@@ -9,7 +9,7 @@
 //! B) `_RJEM_MALLOC_CONF` at runtime.
 //! use jemalloc_ctl::{arenas, epoch, stats, Error};
 use metrics::{set_gauge, try_create_int_gauge, IntGauge};
-use std::ffi::c_char;
+use std::ffi::{c_char, c_int};
 use std::sync::LazyLock;
 use tikv_jemalloc_ctl::{arenas, epoch, raw, stats, Access, AsName, Error};
 use std::mem;
@@ -103,6 +103,15 @@ pub fn prof_dump(filename: &str) -> Result<(), String> {
         )
     }
     .map_err(|e| format!("Failed to call prof.dump on mallctl: {e:?}"))
+}
+
+/// Uses `mallctl` to call `"prof.enable"`.
+///
+/// Controls wether profile sampling is active.
+#[allow(dead_code)]
+pub fn prof_active(enable: bool) -> Result<(), String> {
+    unsafe { mallctl_write("prof.active\0".as_ref(), enable) }
+        .map_err(|e| format!("Failed to call prof.active on mallctl with code {e:?}"))
 }
 
 #[cfg(test)]
