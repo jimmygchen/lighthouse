@@ -4447,6 +4447,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "light_client"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "clap",
+ "clap_utils",
+ "directory",
+ "environment",
+ "eth2",
+ "execution_layer",
+ "sensitive_url",
+ "serde",
+ "slog",
+ "slot_clock",
+ "tokio",
+ "types",
+]
+
+[[package]]
 name = "lighthouse"
 version = "4.5.0"
 dependencies = [
@@ -4468,6 +4487,7 @@ dependencies = [
  "ethereum_hashing",
  "futures",
  "lazy_static",
+ "light_client",
  "lighthouse_metrics",
  "lighthouse_network",
  "lighthouse_version",

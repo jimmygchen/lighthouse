@@ -65,7 +65,7 @@ members = [
     "crypto/eth2_wallet",
 
     "lcli",
-
+    "light_client",
     "lighthouse",
     "lighthouse/environment",
 
@@ -196,6 +196,7 @@ genesis = { path = "beacon_node/genesis" }
 http_api = { path = "beacon_node/http_api" }
 int_to_bytes = { path = "consensus/int_to_bytes" }
 kzg = { path = "crypto/kzg" }
+light_client = { path = "light_client" }
 lighthouse_metrics = { path = "common/lighthouse_metrics" }
 lighthouse_network = { path = "beacon_node/lighthouse_network" }
 lighthouse_version = { path = "common/lighthouse_version" }

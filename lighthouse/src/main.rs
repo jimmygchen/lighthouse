@@ -9,6 +9,7 @@ use environment::{EnvironmentBuilder, LoggerConfig};
 use eth2_network_config::{Eth2NetworkConfig, DEFAULT_HARDCODED_NETWORK, HARDCODED_NET_NAMES};
 use ethereum_hashing::have_sha_extensions;
 use futures::TryFutureExt;
+use light_client::ProductionLightClient;
 use lighthouse_version::VERSION;
 use malloc_utils::configure_memory_allocator;
 use slog::{crit, info, warn};
@@ -355,6 +356,7 @@ fn main() {
         .subcommand(account_manager::cli_app())
         .subcommand(database_manager::cli_app())
         .subcommand(validator_manager::cli_app())
+        .subcommand(light_client::cli_app())
         .get_matches();
 
     // Configure the allocator early in the process, before it has the chance to use the default values for
@@ -678,6 +680,29 @@ fn run<E: EthSpec>(
                     "Validator client immediate shutdown triggered.",
                 ));
             }
+        }
+        ("light_client", Some(matches)) => {
+            let context = environment.core_context();
+            let log = context.log().clone();
+            let executor = context.executor.clone();
+            let config = light_client::LightClientConfig::from_cli(matches)
+                .map_err(|e| format!("Unable to initialize light client config: {}", e))?;
+            executor.clone().spawn(
+                async move {
+                    if let Err(e) = ProductionLightClient::new(context, config)
+                        .and_then(|mut lc| async move { lc.start_service().await })
+                        .await
+                    {
+                        crit!(log, "Failed to start light client"; "reason" => e);
+                        // Ignore the error since it always occurs during normal operation when
+                        // shutting down.
+                        let _ = executor
+                            .shutdown_sender()
+                            .try_send(ShutdownReason::Failure("Failed to start light client"));
+                    }
+                },
+                "light_client",
+            );
         }
         _ => {
             crit!(log, "No subcommand supplied. See --help .");

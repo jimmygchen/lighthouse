@@ -57,6 +57,7 @@ unused_port = { workspace = true }
 database_manager = { path = "../database_manager" }
 slasher = { workspace = true }
 validator_manager = { path = "../validator_manager" }
+light_client = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
