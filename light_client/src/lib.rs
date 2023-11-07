@@ -2,8 +2,8 @@ mod cli;
 mod config;
 mod data_provider;
 mod light_client;
+mod light_client_sync_service;
 mod store;
-mod types;
 
 pub use cli::cli_app;
 pub use config::LightClientConfig;

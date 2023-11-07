@@ -2135,6 +2135,70 @@ impl BeaconNodeHttpClient {
         )
         .await
     }
+
+    pub async fn get_light_client_bootstrap<E: EthSpec>(
+        &self,
+        block_root: Hash256,
+    ) -> Result<ForkVersionedResponse<LightClientBootstrap<E>>, Error> {
+        let mut path = self.eth_path(V1)?;
+
+        path.path_segments_mut()
+            .map_err(|()| Error::InvalidUrl(self.server.clone()))?
+            .push("beacon")
+            .push("light_client")
+            .push("bootstrap")
+            .push(&format!("{:?}", block_root));
+
+        self.get(path).await
+    }
+
+    pub async fn get_light_client_updates<E: EthSpec>(
+        &self,
+        start_period: u64,
+        count: u64,
+    ) -> Result<Vec<ForkVersionedResponse<LightClientUpdate<E>>>, Error> {
+        let mut path = self.eth_path(V1)?;
+
+        path.path_segments_mut()
+            .map_err(|()| Error::InvalidUrl(self.server.clone()))?
+            .push("beacon")
+            .push("light_client")
+            .push("updates");
+
+        path.query_pairs_mut()
+            .append_pair("start_period", &start_period.to_string())
+            .append_pair("count", &count.to_string());
+
+        self.get(path).await
+    }
+
+    pub async fn get_light_client_finality_update<E: EthSpec>(
+        &self,
+    ) -> Result<ForkVersionedResponse<LightClientFinalityUpdate<E>>, Error> {
+        let mut path = self.eth_path(V1)?;
+
+        path.path_segments_mut()
+            .map_err(|()| Error::InvalidUrl(self.server.clone()))?
+            .push("beacon")
+            .push("light_client")
+            .push("finality_update");
+
+        self.get(path).await
+    }
+
+    pub async fn get_light_client_optimistic_update<E: EthSpec>(
+        &self,
+    ) -> Result<ForkVersionedResponse<LightClientOptimisticUpdate<E>>, Error> {
+        let mut path = self.eth_path(V1)?;
+
+        path.path_segments_mut()
+            .map_err(|()| Error::InvalidUrl(self.server.clone()))?
+            .push("beacon")
+            .push("light_client")
+            .push("optimistic_update");
+
+        self.get(path).await
+    }
 }
 
 /// Returns `Ok(response)` if the response is a `200 OK` response. Otherwise, creates an

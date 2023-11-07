@@ -4457,11 +4457,15 @@ dependencies = [
  "environment",
  "eth2",
  "execution_layer",
+ "merkle_proof",
+ "parking_lot 0.12.1",
+ "safe_arith",
  "sensitive_url",
  "serde",
  "slog",
  "slot_clock",
  "tokio",
+ "tree_hash",
  "types",
 ]
 

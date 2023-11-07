@@ -36,6 +36,15 @@ pub struct BeaconBlockHeader {
 impl SignedRoot for BeaconBlockHeader {}
 
 impl BeaconBlockHeader {
+    pub fn empty() -> Self {
+        Self {
+            slot: <_>::default(),
+            proposer_index: <_>::default(),
+            parent_root: <_>::default(),
+            state_root: <_>::default(),
+            body_root: <_>::default(),
+        }
+    }
     /// Returns the `tree_hash_root` of the header.
     ///
     /// Spec v0.12.1

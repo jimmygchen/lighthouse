@@ -690,7 +690,7 @@ fn run<E: EthSpec>(
             executor.clone().spawn(
                 async move {
                     if let Err(e) = ProductionLightClient::new(context, config)
-                        .and_then(|mut lc| async move { lc.start_service().await })
+                        .and_then(|mut lc| async move { lc.start_service() })
                         .await
                     {
                         crit!(log, "Failed to start light client"; "reason" => e);

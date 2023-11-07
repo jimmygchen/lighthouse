@@ -15,9 +15,13 @@ directory =  { workspace = true }
 environment = { workspace = true }
 eth2 = { workspace = true }
 execution_layer = { workspace = true }
+merkle_proof = { workspace = true }
+parking_lot = { workspace = true }
+safe_arith = { workspace = true }
 sensitive_url = { workspace = true }
 serde = { workspace = true }
 slog = { workspace = true }
 slot_clock = { workspace = true }
+tree_hash = { workspace = true }
 tokio = { workspace = true }
 types = { workspace = true }
