@@ -66,7 +66,11 @@ impl<T: LightClientTypes> LightClientSyncService<T> {
         info!(self.log, "Starting light client sync service");
         loop {
             if let Err(e) = self.sync().await {
-                error!(self.log, "Error syncing to current period"; "error" => ?e);
+                error!(self.log, "Error occurred during sync"; "error" => ?e);
+            }
+
+            if let Err(e) = self.update().await {
+                error!(self.log, "Error occurred during update"; "error" => ?e);
             }
 
             let slot_duration = Duration::from_secs(spec.seconds_per_slot);
@@ -74,12 +78,21 @@ impl<T: LightClientTypes> LightClientSyncService<T> {
         }
     }
 
+    async fn update(&self) -> Result<(), Error> {
+        let (optimistic_update_res, finality_update_res) = tokio::join!(
+            self.get_light_client_optimistic_update(),
+            self.get_light_client_finality_update()
+        );
+        optimistic_update_res?;
+        finality_update_res
+    }
+
     // FIXME: hack, don't read..
     async fn sync(&self) -> Result<(), Error> {
         let spec = &self.spec;
         let current_period = self.get_current_period()?;
-        let mut finalized_period = self.store.read().finalized_period(spec)?;
         let optimistic_period = self.store.read().optimistic_period(spec)?;
+        let mut finalized_period = self.store.read().finalized_period(spec)?;
         let is_next_sync_committee_known = self.store.read().is_next_sync_committee_known();
 
         if finalized_period == optimistic_period && is_next_sync_committee_known {
@@ -97,9 +110,6 @@ impl<T: LightClientTypes> LightClientSyncService<T> {
             self.get_light_client_update(start_period, count).await?;
             finalized_period = self.store.read().finalized_period(spec)?;
         }
-
-        self.get_light_client_optimistic_update().await?;
-        self.get_light_client_finality_update().await?;
 
         Ok(())
     }
