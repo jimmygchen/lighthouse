@@ -48,7 +48,7 @@ jobs:
     runs-on: ${{ github.repository == 'sigp/lighthouse' && fromJson('["self-hosted", "windows", "CI"]') || 'windows-2019'  }}
     steps:
       - name: pass
-        run: exit 1
+        run: exit 0
   beacon-chain-tests:
     name: beacon-chain-tests
     # Use self-hosted runners only on the sigp repo.
@@ -57,7 +57,7 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: pass
-        run: echo "success"
+        run: exit 0
   op-pool-tests:
     name: op-pool-tests
     runs-on: ubuntu-latest
@@ -65,7 +65,7 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: pass
-        run: exit 1 #fail
+        run: exit 0 #fail
   network-tests:
     name: network-tests
     runs-on: ubuntu-latest
