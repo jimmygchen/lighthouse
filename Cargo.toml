@@ -239,3 +239,7 @@ inherits = "release"
 lto = "fat"
 codegen-units = 1
 incremental = false
+
+[profile.release-with-debug]
+inherits = "release"
+debug = true
