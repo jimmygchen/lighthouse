@@ -2,7 +2,7 @@
 
 Bello
 Banana
-
+Bob
 An open-source Ethereum consensus client, written in Rust and maintained by Sigma Prime.
 
 [![Book Status]][Book Link] [![Chat Badge]][Chat Link]
