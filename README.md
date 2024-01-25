@@ -1,6 +1,7 @@
 # Lighthouse: Ethereum consensus client
 
-Bello 
+Bello
+Banana
 
 An open-source Ethereum consensus client, written in Rust and maintained by Sigma Prime.
 
