@@ -141,6 +141,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         let slot = block.slot();
         let parent_root = block.message().parent_root();
         let commitments_formatted = block.as_block().commitments_formatted();
+        let custody_columns = self.network_globals.compute_custody_columns_for_slot(slot);
 
         debug!(
             self.log,
@@ -153,7 +154,12 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
 
         let result = self
             .chain
-            .process_block_with_early_caching(block_root, block, NotifyExecutionLayer::Yes)
+            .process_block_with_early_caching(
+                block_root,
+                block,
+                NotifyExecutionLayer::Yes,
+                custody_columns,
+            )
             .await;
 
         metrics::inc_counter(&metrics::BEACON_PROCESSOR_RPC_BLOCK_IMPORTED_TOTAL);
