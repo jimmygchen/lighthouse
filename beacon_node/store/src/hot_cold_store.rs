@@ -552,6 +552,11 @@ impl<E: EthSpec, Hot: ItemStore<E>, Cold: ItemStore<E>> HotColdDB<E, Hot, Cold> 
         })
     }
 
+    pub fn has_block(&self, block_root: &Hash256) -> Result<bool, Error> {
+        self.hot_db
+            .key_exists(DBColumn::BeaconBlock.into(), block_root.as_bytes())
+    }
+
     /// Fetch a block from the store, ignoring which fork variant it *should* be for.
     pub fn get_block_any_variant<Payload: AbstractExecPayload<E>>(
         &self,
@@ -2407,7 +2412,7 @@ impl<E: EthSpec, Hot: ItemStore<E>, Cold: ItemStore<E>> HotColdDB<E, Hot, Cold> 
     }
 
     /// This function fills in missing block roots between last restore point slot and split
-    /// slot, if any.  
+    /// slot, if any.
     pub fn heal_freezer_block_roots_at_split(&self) -> Result<(), Error> {
         let split = self.get_split_info();
         let last_restore_point_slot = (split.slot - 1) / self.config.slots_per_restore_point

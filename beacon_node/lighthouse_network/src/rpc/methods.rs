@@ -6,6 +6,7 @@ use serde::Serialize;
 use ssz::Encode;
 use ssz_derive::{Decode, Encode};
 use ssz_types::{typenum::U256, VariableList};
+use std::collections::BTreeMap;
 use std::fmt::Display;
 use std::marker::PhantomData;
 use std::ops::Deref;
@@ -13,7 +14,7 @@ use std::sync::Arc;
 use strum::IntoStaticStr;
 use superstruct::superstruct;
 use types::blob_sidecar::BlobIdentifier;
-use types::data_column_sidecar::DataColumnIdentifier;
+use types::data_column_sidecar::{ColumnIndex, DataColumnIdentifier};
 use types::{
     blob_sidecar::BlobSidecar, ChainSpec, DataColumnSidecar, Epoch, EthSpec, Hash256,
     LightClientBootstrap, LightClientFinalityUpdate, LightClientOptimisticUpdate,
@@ -376,6 +377,19 @@ impl BlobsByRootRequest {
 pub struct DataColumnsByRootRequest {
     /// The list of beacon block roots and column indices being requested.
     pub data_column_ids: RuntimeVariableList<DataColumnIdentifier>,
+}
+
+impl DataColumnsByRootRequest {
+    pub fn group_by_ordered_block_root(&self) -> Vec<(Hash256, Vec<ColumnIndex>)> {
+        let mut column_indexes_by_block = BTreeMap::<Hash256, Vec<ColumnIndex>>::new();
+        for request_id in self.data_column_ids.as_slice() {
+            column_indexes_by_block
+                .entry(request_id.block_root)
+                .or_default()
+                .push(request_id.index);
+        }
+        column_indexes_by_block.into_iter().collect()
+    }
 }
 
 /* RPC Handling and Grouping */
