@@ -85,7 +85,7 @@ mod test {
 
     #[test]
     fn test_verify_blob_inclusion_proof_invalid() {
-        let (_block, mut blobs) =
+        let (_block, blobs) =
             generate_rand_block_and_blobs::<MainnetEthSpec>(ForkName::Deneb, 6, &mut thread_rng());
 
         for mut blob in blobs {
