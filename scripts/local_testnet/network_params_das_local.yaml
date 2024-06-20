@@ -19,4 +19,4 @@ global_log_level: debug
 snooper_enabled: false
 additional_services:
   - dora
-  - prometheus_grafana
+  - goomy_blob
