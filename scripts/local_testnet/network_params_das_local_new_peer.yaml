@@ -2,9 +2,7 @@ participants:
   - cl_type: lighthouse
     cl_image: lighthouse:local
     cl_max_mem: 2048
-    cl_extra_params:
-      - --target-peers=4
-      - --enr-address=172.17.0.1
+    cl_extra_params: []
     count: 1
 network_params:
   devnet_repo: jimmygchen
@@ -13,3 +11,6 @@ network_params:
   seconds_per_slot: 6
 global_log_level: debug
 snooper_enabled: false
+port_publisher:
+  nat_exit_ip: auto
+  public_port_start: 48000
