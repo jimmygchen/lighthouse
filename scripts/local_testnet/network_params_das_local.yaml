@@ -5,12 +5,14 @@ participants:
     cl_extra_params:
       - --subscribe-all-data-column-subnets
       - --target-peers=2
+      - --enr-address=172.17.0.1
     count: 2
   - cl_type: lighthouse
     cl_image: lighthouse:local
     cl_max_mem: 2048
     cl_extra_params:
       - --target-peers=2
+      - --enr-address=172.17.0.1
     count: 1
 network_params:
   eip7594_fork_epoch: 0
