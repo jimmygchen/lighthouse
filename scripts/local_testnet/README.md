@@ -47,7 +47,7 @@ kurtosis service logs local-testnet -f el-1-geth-lighthouse
 If you would like to save the logs, use the command:
 
 ```bash
-kurtosis dump $OUTPUT_DIRECTORY
+kurtosis enclave dump local-testnet $OUTPUT_DIRECTORY
 ```
 
 This will create a folder named `$OUTPUT_DIRECTORY` in the present working directory that contains all logs and other information. If you want the logs for a particular service and saved to a file named `logs.txt`:
