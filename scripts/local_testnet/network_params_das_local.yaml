@@ -4,7 +4,6 @@ participants:
     cl_max_mem: 4096
     cl_extra_params:
       - --subscribe-all-data-column-subnets
-      - --target-peers=2
     count: 2
   - cl_type: lighthouse
     cl_image: lighthouse:local
@@ -20,3 +19,6 @@ snooper_enabled: false
 additional_services:
   - dora
   - goomy_blob
+port_publisher:
+  nat_exit_ip: auto
+  public_port_start: 38000
