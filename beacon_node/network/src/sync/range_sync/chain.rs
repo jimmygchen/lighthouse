@@ -7,7 +7,7 @@ use crate::sync::{
 use beacon_chain::block_verification_types::RpcBlock;
 use beacon_chain::BeaconChainTypes;
 use fnv::FnvHashMap;
-use lighthouse_network::{PeerAction, PeerId};
+use lighthouse_network::{PeerAction, PeerId, Subnet};
 use rand::seq::SliceRandom;
 use slog::{crit, debug, o, warn};
 use std::collections::{btree_map::Entry, BTreeMap, HashSet};
@@ -396,6 +396,9 @@ impl<T: BeaconChainTypes> SyncingChain<T> {
                     self.request_batches(network)?;
                 }
             }
+        } else if !self.good_peers_on_custody_subnets(self.processing_target, network) {
+            // If there's no good custody peers for this epoch, batch won't be created
+            return Ok(KeepChain);
         } else {
             return Err(RemoveChain::WrongChainState(format!(
                 "Batch not found for current processing target {}",
@@ -884,6 +887,7 @@ impl<T: BeaconChainTypes> SyncingChain<T> {
     ) -> ProcessingResult {
         if let Some(batch) = self.batches.get_mut(&batch_id) {
             let (request, batch_type) = batch.to_blocks_by_range_request();
+
             match network.block_components_by_range_request(
                 peer,
                 batch_type,
@@ -994,6 +998,14 @@ impl<T: BeaconChainTypes> SyncingChain<T> {
         // check if we have the batch for our optimistic start. If not, request it first.
         // We wait for this batch before requesting any other batches.
         if let Some(epoch) = self.optimistic_start {
+            if !self.good_peers_on_custody_subnets(epoch, network) {
+                debug!(
+                    self.log,
+                    "Waiting for peers to be available on custody column subnets"
+                );
+                return Ok(KeepChain);
+            }
+
             if let Entry::Vacant(entry) = self.batches.entry(epoch) {
                 if let Some(peer) = idle_peers.pop() {
                     let batch_type = network.batch_type(epoch);
@@ -1016,6 +1028,30 @@ impl<T: BeaconChainTypes> SyncingChain<T> {
         }
 
         Ok(KeepChain)
+    }
+
+    /// Checks all custody column subnets for peers. Returns `true` if there is at least one peer in
+    /// every custody column subnet.
+    fn good_peers_on_custody_subnets(&self, epoch: Epoch, network: &SyncNetworkContext<T>) -> bool {
+        if network.chain.spec.is_peer_das_enabled_for_epoch(epoch) {
+            // Require peers on all custody column subnets before sending batches
+            let peers_on_all_custody_subnets = network
+                .network_globals()
+                .custody_subnets(&network.chain.spec)
+                .all(|subnet_id| {
+                    let peer_count = network
+                        .network_globals()
+                        .peers
+                        .read()
+                        .good_peers_on_subnet(Subnet::DataColumn(subnet_id))
+                        .count();
+                    debug!(self.log, "Peers found on custody subnet"; "subnet_id" => ?subnet_id, "peer_count" => peer_count);
+                    peer_count > 0
+                });
+            peers_on_all_custody_subnets
+        } else {
+            true
+        }
     }
 
     /// Creates the next required batch from the chain. If there are no more batches required,
@@ -1045,6 +1081,15 @@ impl<T: BeaconChainTypes> SyncingChain<T> {
             .count()
             > BATCH_BUFFER_SIZE as usize
         {
+            return None;
+        }
+
+        // don't send batch requests until we have peers on custody subnets
+        if !self.good_peers_on_custody_subnets(self.to_be_downloaded, network) {
+            debug!(
+                self.log,
+                "Waiting for peers to be available on custody column subnets"
+            );
             return None;
         }
 
