@@ -63,16 +63,15 @@ where
 
     let commitments = data_column_iter
         .clone()
-        .map(|d| d.kzg_commitments.clone())
-        .unique()
-        .exactly_one()
-        .map(|kzg_commitments| {
-            kzg_commitments
-                .into_iter()
-                .map(Bytes48::from)
-                .collect::<Vec<_>>()
+        .enumerate()
+        .flat_map(|(i, d)| {
+            let mut c = d.kzg_commitments.clone();
+            if i != 0 {
+                *c.get_mut(0).unwrap() = KzgCommitment::empty_for_testing()
+            }
+            c.into_iter().map(Bytes48::from).collect::<Vec<_>>()
         })
-        .map_err(|_| KzgError::InconsistentKzgCommitments)?;
+        .collect::<Vec<_>>();
 
     kzg.verify_cell_proof_batch(&cells, &proofs, &coordinates, &commitments)
 }
