@@ -13,6 +13,18 @@ FROM ubuntu:22.04
 RUN apt-get update && apt-get -y upgrade && apt-get install -y --no-install-recommends \
   libssl-dev \
   ca-certificates \
+  gdb \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
+
+# Create a directory for core dumps inside the container
+RUN mkdir -p /core_dumps && chmod 777 /core_dumps
+
 COPY --from=builder /usr/local/cargo/bin/lighthouse /usr/local/bin/lighthouse
+
+# Copy entrypoint script
+COPY scripts/local_testnet/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# Set the entrypoint
+ENTRYPOINT ["/entrypoint.sh"]
