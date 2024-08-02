@@ -74,11 +74,19 @@ pub const FORK_NAME_ENV_VAR: &str = "FORK_NAME";
 // a different value.
 pub const DEFAULT_TARGET_AGGREGATORS: u64 = u64::MAX;
 
-pub static KZG: LazyLock<Arc<Kzg>> = LazyLock::new(|| {
+pub static KZG_4844_ONLY: LazyLock<Arc<Kzg>> = LazyLock::new(|| {
     let trusted_setup: TrustedSetup = serde_json::from_reader(TRUSTED_SETUP_BYTES)
         .map_err(|e| format!("Unable to read trusted setup file: {}", e))
         .expect("should have trusted setup");
-    let kzg = Kzg::new_from_trusted_setup(trusted_setup).expect("should create kzg");
+    let kzg = Kzg::new_from_trusted_setup(trusted_setup, false).expect("should create kzg");
+    Arc::new(kzg)
+});
+
+pub static KZG_DAS: LazyLock<Arc<Kzg>> = LazyLock::new(|| {
+    let trusted_setup: TrustedSetup = serde_json::from_reader(TRUSTED_SETUP_BYTES)
+        .map_err(|e| format!("Unable to read trusted setup file: {}", e))
+        .expect("should have trusted setup");
+    let kzg = Kzg::new_from_trusted_setup(trusted_setup, true).expect("should create kzg");
     Arc::new(kzg)
 });
 
@@ -507,7 +515,7 @@ where
         let validator_keypairs = self
             .validator_keypairs
             .expect("cannot build without validator keypairs");
-        let kzg = spec.deneb_fork_epoch.map(|_| KZG.clone());
+        let kzg = spec.deneb_fork_epoch.map(|_| KZG_4844_ONLY.clone());
 
         let validator_monitor_config = self.validator_monitor_config.unwrap_or_default();
 
@@ -587,7 +595,7 @@ pub fn mock_execution_layer_from_parts<E: EthSpec>(
         HARNESS_GENESIS_TIME + spec.seconds_per_slot * E::slots_per_epoch() * epoch.as_u64()
     });
 
-    let kzg_opt = spec.deneb_fork_epoch.map(|_| KZG.clone());
+    let kzg_opt = spec.deneb_fork_epoch.map(|_| KZG_4844_ONLY.clone());
 
     MockExecutionLayer::new(
         task_executor,

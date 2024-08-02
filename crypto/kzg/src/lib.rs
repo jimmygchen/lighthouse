@@ -35,6 +35,8 @@ pub enum Error {
     KzgVerificationFailed,
     /// Misc indexing error
     InconsistentArrayLength(String),
+    /// Unexpected PeerDAS KZG usage, PeerDAS not scheduled.
+    DASContextUninitialized,
 }
 
 impl From<c_kzg::Error> for Error {
@@ -47,23 +49,28 @@ impl From<c_kzg::Error> for Error {
 #[derive(Debug)]
 pub struct Kzg {
     trusted_setup: KzgSettings,
-    context: DASContext,
+    context: Option<DASContext>,
 }
 
 impl Kzg {
     /// Load the kzg trusted setup parameters from a vec of G1 and G2 points.
-    pub fn new_from_trusted_setup(trusted_setup: TrustedSetup) -> Result<Self, Error> {
-        // Initialize the trusted setup using default parameters
-        //
-        // Note: One can also use `from_json` to initialize it from the consensus-specs
-        // json string.
-        let peerdas_trusted_setup = PeerDASTrustedSetup::from(&trusted_setup);
-        // Set the number of threads to be used
-        //
-        // we set it to 1 to match the c-kzg performance
-        const NUM_THREADS: usize = 1;
+    pub fn new_from_trusted_setup(
+        trusted_setup: TrustedSetup,
+        das_enabled: bool,
+    ) -> Result<Self, Error> {
+        let context = das_enabled.then(|| {
+            // Initialize the trusted setup using default parameters
+            //
+            // Note: One can also use `from_json` to initialize it from the consensus-specs
+            // json string.
+            let peerdas_trusted_setup = PeerDASTrustedSetup::from(&trusted_setup);
+            // Set the number of threads to be used
+            //
+            // we set it to 1 to match the c-kzg performance
+            const NUM_THREADS: usize = 1;
 
-        let context = DASContext::with_threads(&peerdas_trusted_setup, NUM_THREADS);
+            DASContext::with_threads(&peerdas_trusted_setup, NUM_THREADS)
+        });
 
         Ok(Self {
             trusted_setup: KzgSettings::load_trusted_setup(
@@ -72,6 +79,10 @@ impl Kzg {
             )?,
             context,
         })
+    }
+
+    fn context(&self) -> Result<&DASContext, Error> {
+        self.context.as_ref().ok_or(Error::DASContextUninitialized)
     }
 
     /// Compute the kzg proof given a blob and its kzg commitment.
@@ -179,7 +190,7 @@ impl Kzg {
         blob: KzgBlobRef<'a>,
     ) -> Result<CellsAndKzgProofs, Error> {
         let (cells, proofs) = self
-            .context
+            .context()?
             .compute_cells_and_kzg_proofs(blob)
             .map_err(Error::PeerDASKZG)?;
 
@@ -206,7 +217,7 @@ impl Kzg {
             .iter()
             .map(|commitment| commitment.as_ref())
             .collect();
-        let verification_result = self.context.verify_cell_kzg_proof_batch(
+        let verification_result = self.context()?.verify_cell_kzg_proof_batch(
             commitments.to_vec(),
             columns,
             cells.to_vec(),
@@ -228,20 +239,12 @@ impl Kzg {
         cells: &[CellRef<'a>],
     ) -> Result<CellsAndKzgProofs, Error> {
         let (cells, proofs) = self
-            .context
+            .context()?
             .recover_cells_and_proofs(cell_ids.to_vec(), cells.to_vec())
             .map_err(Error::PeerDASKZG)?;
 
         // Convert the proof type to a c-kzg proof type
         let c_kzg_proof = proofs.map(KzgProof);
         Ok((cells, c_kzg_proof))
-    }
-}
-
-impl TryFrom<TrustedSetup> for Kzg {
-    type Error = Error;
-
-    fn try_from(trusted_setup: TrustedSetup) -> Result<Self, Self::Error> {
-        Kzg::new_from_trusted_setup(trusted_setup)
     }
 }

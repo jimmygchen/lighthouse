@@ -327,7 +327,7 @@ pub fn reconstruct_data_columns<E: EthSpec>(
 #[cfg(test)]
 mod test {
     use crate::kzg_utils::{build_data_column_sidecars, reconstruct_data_columns};
-    use crate::test_utils::KZG;
+    use crate::test_utils::KZG_DAS;
     use bls::Signature;
     use kzg::KzgCommitment;
     use types::{
@@ -343,7 +343,7 @@ mod test {
         let (signed_block, blob_sidecars) = create_test_block_and_blobs::<E>(num_of_blobs, &spec);
 
         let column_sidecars =
-            build_data_column_sidecars(&blob_sidecars, &signed_block, &KZG, &spec).unwrap();
+            build_data_column_sidecars(&blob_sidecars, &signed_block, &KZG_DAS, &spec).unwrap();
 
         assert!(column_sidecars.is_empty());
     }
@@ -356,7 +356,7 @@ mod test {
         let (signed_block, blob_sidecars) = create_test_block_and_blobs::<E>(num_of_blobs, &spec);
 
         let column_sidecars =
-            build_data_column_sidecars(&blob_sidecars, &signed_block, &KZG, &spec).unwrap();
+            build_data_column_sidecars(&blob_sidecars, &signed_block, &KZG_DAS, &spec).unwrap();
 
         let block_kzg_commitments = signed_block
             .message()
@@ -395,11 +395,11 @@ mod test {
         let (signed_block, blob_sidecars) = create_test_block_and_blobs::<E>(num_of_blobs, &spec);
 
         let column_sidecars =
-            build_data_column_sidecars(&blob_sidecars, &signed_block, &KZG, &spec).unwrap();
+            build_data_column_sidecars(&blob_sidecars, &signed_block, &KZG_DAS, &spec).unwrap();
 
         // Now reconstruct
         let reconstructed_columns = reconstruct_data_columns(
-            &KZG,
+            &KZG_DAS,
             &column_sidecars.iter().as_slice()[0..column_sidecars.len() / 2],
             &spec,
         )

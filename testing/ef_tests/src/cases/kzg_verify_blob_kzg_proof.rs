@@ -10,7 +10,7 @@ use types::Blob;
 pub fn get_kzg() -> Result<Kzg, Error> {
     let trusted_setup: TrustedSetup = serde_json::from_reader(TRUSTED_SETUP_BYTES)
         .map_err(|e| Error::InternalError(format!("Failed to initialize kzg: {:?}", e)))?;
-    Kzg::new_from_trusted_setup(trusted_setup)
+    Kzg::new_from_trusted_setup(trusted_setup, false)
         .map_err(|e| Error::InternalError(format!("Failed to initialize kzg: {:?}", e)))
 }
 

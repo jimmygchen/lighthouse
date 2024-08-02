@@ -957,7 +957,7 @@ mod test {
     fn load_kzg() -> Result<Kzg, String> {
         let trusted_setup: TrustedSetup = serde_json::from_reader(TRUSTED_SETUP_BYTES)
             .map_err(|e| format!("Unable to read trusted setup file: {e:?}"))?;
-        Kzg::new_from_trusted_setup(trusted_setup)
+        Kzg::new_from_trusted_setup(trusted_setup, false)
             .map_err(|e| format!("Failed to load trusted setup: {e:?}"))
     }
 }
