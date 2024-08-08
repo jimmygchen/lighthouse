@@ -195,7 +195,7 @@ impl<T: BeaconChainTypes> DataAvailabilityChecker<T> {
             .ok_or(AvailabilityCheckError::SlotClockError)?;
 
         let verified_blobs =
-            KzgVerifiedBlobList::new(Vec::from(blobs).into_iter().flatten(), kzg, seen_timestamp)
+            KzgVerifiedBlobList::new(blobs.iter().flatten().cloned(), kzg, seen_timestamp)
                 .map_err(AvailabilityCheckError::Kzg)?;
 
         self.availability_cache
@@ -227,6 +227,28 @@ impl<T: BeaconChainTypes> DataAvailabilityChecker<T> {
             block_root,
             verified_custody_columns,
         )
+    }
+
+    /// Put a list of blobs received from the EL pool into the availability cache.
+    ///
+    /// This DOES NOT perform KZG verification because the KZG proofs should have been constructed
+    /// immediately prior to calling this function so they are assumed to be valid.
+    pub fn put_engine_blobs(
+        &self,
+        block_root: Hash256,
+        epoch: Epoch,
+        blobs: FixedBlobSidecarList<T::EthSpec>,
+    ) -> Result<Availability<T::EthSpec>, AvailabilityCheckError> {
+        let seen_timestamp = self
+            .slot_clock
+            .now_duration()
+            .ok_or(AvailabilityCheckError::SlotClockError)?;
+
+        let verified_blobs =
+            KzgVerifiedBlobList::from_verified(blobs.iter().flatten().cloned(), seen_timestamp);
+
+        self.availability_cache
+            .put_kzg_verified_blobs(block_root, epoch, verified_blobs)
     }
 
     /// Check if we've cached other blobs for this block. If it completes a set and we also
