@@ -1116,6 +1116,8 @@ impl<T: BeaconChainTypes> SyncManager<T> {
         peer_id: PeerId,
         block_or_blob: BlockOrBlob<T::EthSpec>,
     ) {
+        debug!(self.log, "range_block_and_blobs_response received");
+
         if let Some(resp) = self
             .network
             .range_block_and_blob_response(id, block_or_blob)

@@ -495,6 +495,9 @@ impl<T: BeaconChainTypes> SyncNetworkContext<T> {
             BlockOrBlob::Blob(maybe_sidecar) => info.add_sidecar_response(maybe_sidecar),
             BlockOrBlob::CustodyColumns(column) => info.add_data_column(column),
         }
+        debug!(self.log, "Received range_block_and_blobs_response";
+            "info" => ?info,
+            "is_finished" => ?info.is_finished());
         if info.is_finished() {
             // If the request is finished, dequeue everything
             let (sender_id, info) = entry.remove();
