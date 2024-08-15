@@ -123,6 +123,7 @@ use store::{
     DatabaseBlock, Error as DBError, HotColdDB, KeyValueStore, KeyValueStoreOp, StoreItem, StoreOp,
 };
 use task_executor::{ShutdownReason, TaskExecutor};
+use tokio::sync::mpsc::Receiver;
 use tokio_stream::Stream;
 use tree_hash::TreeHash;
 use types::blob_sidecar::FixedBlobSidecarList;
@@ -3122,6 +3123,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         slot: Slot,
         block_root: Hash256,
         blobs: FixedBlobSidecarList<T::EthSpec>,
+        data_column_recv: Option<Receiver<DataColumnSidecarVec<T::EthSpec>>>,
     ) -> Result<AvailabilityProcessingStatus, BlockError<T::EthSpec>> {
         // If this block has already been imported to forkchoice it must have been available, so
         // we don't need to process its blobs again.
@@ -3144,7 +3146,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         }
 
         let r = self
-            .check_engine_blob_availability_and_import(slot, block_root, blobs)
+            .check_engine_blob_availability_and_import(slot, block_root, blobs, data_column_recv)
             .await;
         self.remove_notified(&block_root, r)
     }
@@ -3312,7 +3314,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
 
             match executed_block {
                 ExecutedBlock::Available(block) => {
-                    self.import_available_block(Box::new(block)).await
+                    self.import_available_block(Box::new(block), None).await
                 }
                 ExecutedBlock::AvailabilityPending(block) => {
                     self.check_block_availability_and_import(block).await
@@ -3444,7 +3446,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         let availability = self
             .data_availability_checker
             .put_pending_executed_block(block)?;
-        self.process_availability(slot, availability).await
+        self.process_availability(slot, availability, None).await
     }
 
     /// Checks if the provided blob can make any cached blocks available, and imports immediately
@@ -3459,7 +3461,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         }
         let availability = self.data_availability_checker.put_gossip_blob(blob)?;
 
-        self.process_availability(slot, availability).await
+        self.process_availability(slot, availability, None).await
     }
 
     /// Checks if the provided data column can make any cached blocks available, and imports immediately
@@ -3490,7 +3492,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             .data_availability_checker
             .put_gossip_data_columns(data_columns)?;
 
-        self.process_availability(slot, availability)
+        self.process_availability(slot, availability, None)
             .await
             .map(|result| (result, data_columns_to_publish))
     }
@@ -3531,12 +3533,11 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         blobs: FixedBlobSidecarList<T::EthSpec>,
     ) -> Result<AvailabilityProcessingStatus, BlockError<T::EthSpec>> {
         self.check_blobs_for_slashability(block_root, &blobs)?;
-        let epoch = slot.epoch(T::EthSpec::slots_per_epoch());
         let availability = self
             .data_availability_checker
-            .put_rpc_blobs(block_root, epoch, blobs)?;
+            .put_rpc_blobs(block_root, blobs)?;
 
-        self.process_availability(slot, availability).await
+        self.process_availability(slot, availability, None).await
     }
 
     async fn check_engine_blob_availability_and_import(
@@ -3544,14 +3545,15 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         slot: Slot,
         block_root: Hash256,
         blobs: FixedBlobSidecarList<T::EthSpec>,
+        data_column_recv: Option<Receiver<DataColumnSidecarVec<T::EthSpec>>>,
     ) -> Result<AvailabilityProcessingStatus, BlockError<T::EthSpec>> {
         self.check_blobs_for_slashability(block_root, &blobs)?;
-        let epoch = slot.epoch(T::EthSpec::slots_per_epoch());
         let availability = self
             .data_availability_checker
-            .put_engine_blobs(block_root, epoch, blobs)?;
+            .put_engine_blobs(block_root, blobs)?;
 
-        self.process_availability(slot, availability).await
+        self.process_availability(slot, availability, data_column_recv)
+            .await
     }
 
     /// Checks if the provided columns can make any cached blocks available, and imports immediately
@@ -3595,7 +3597,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             .data_availability_checker
             .put_rpc_custody_columns(block_root, custody_columns)?;
 
-        self.process_availability(slot, availability)
+        self.process_availability(slot, availability, None)
             .await
             .map(|result| (result, data_columns_to_publish))
     }
@@ -3608,11 +3610,12 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         self: &Arc<Self>,
         slot: Slot,
         availability: Availability<T::EthSpec>,
+        recv: Option<Receiver<DataColumnSidecarVec<T::EthSpec>>>,
     ) -> Result<AvailabilityProcessingStatus, BlockError<T::EthSpec>> {
         match availability {
             Availability::Available(block) => {
                 // Block is fully available, import into fork choice
-                self.import_available_block(block).await
+                self.import_available_block(block, recv).await
             }
             Availability::MissingComponents(block_root) => Ok(
                 AvailabilityProcessingStatus::MissingComponents(slot, block_root),
@@ -3623,6 +3626,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
     pub async fn import_available_block(
         self: &Arc<Self>,
         block: Box<AvailableExecutedBlock<T::EthSpec>>,
+        data_column_recv: Option<Receiver<DataColumnSidecarVec<T::EthSpec>>>,
     ) -> Result<AvailabilityProcessingStatus, BlockError<T::EthSpec>> {
         let AvailableExecutedBlock {
             block,
@@ -3664,6 +3668,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
                         parent_block,
                         parent_eth1_finalization_data,
                         consensus_context,
+                        data_column_recv,
                     )
                 },
                 "payload_verification_handle",
@@ -3702,6 +3707,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         parent_block: SignedBlindedBeaconBlock<T::EthSpec>,
         parent_eth1_finalization_data: Eth1FinalizationData,
         mut consensus_context: ConsensusContext<T::EthSpec>,
+        data_column_recv: Option<Receiver<DataColumnSidecarVec<T::EthSpec>>>,
     ) -> Result<Hash256, BlockError<T::EthSpec>> {
         // ----------------------------- BLOCK NOT YET ATTESTABLE ----------------------------------
         // Everything in this initial section is on the hot path between processing the block and
@@ -3849,7 +3855,6 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         // state if we returned early without committing. In other words, an error here would
         // corrupt the node's database permanently.
         // -----------------------------------------------------------------------------------------
-
         self.import_block_update_shuffling_cache(block_root, &mut state);
         self.import_block_observe_attestations(
             block,
@@ -3874,6 +3879,10 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         // end up with blocks in fork choice that are missing from disk.
         // See https://github.com/sigp/lighthouse/issues/2028
         let (_, signed_block, blobs, data_columns) = signed_block.deconstruct();
+        let custody_columns_count = self.data_availability_checker.get_custody_columns_count();
+        let data_columns = data_columns
+            .filter(|a| a.len() >= custody_columns_count)
+            .or_else(|| data_column_recv?.blocking_recv());
         let block = signed_block.message();
         ops.extend(
             confirmed_state_roots

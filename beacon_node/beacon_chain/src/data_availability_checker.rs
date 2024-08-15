@@ -127,6 +127,12 @@ impl<T: BeaconChainTypes> DataAvailabilityChecker<T> {
         })
     }
 
+    pub fn get_custody_columns_count(&self) -> usize {
+        self.availability_cache
+            .custody_subnet_count()
+            .saturating_mul(self.spec.data_columns_per_subnet())
+    }
+
     /// Checks if the block root is currenlty in the availability cache awaiting import because
     /// of missing components.
     pub fn get_execution_valid_block(
@@ -182,7 +188,6 @@ impl<T: BeaconChainTypes> DataAvailabilityChecker<T> {
     pub fn put_rpc_blobs(
         &self,
         block_root: Hash256,
-        epoch: Epoch,
         blobs: FixedBlobSidecarList<T::EthSpec>,
     ) -> Result<Availability<T::EthSpec>, AvailabilityCheckError> {
         let Some(kzg) = self.kzg.as_ref() else {
@@ -199,7 +204,7 @@ impl<T: BeaconChainTypes> DataAvailabilityChecker<T> {
                 .map_err(AvailabilityCheckError::Kzg)?;
 
         self.availability_cache
-            .put_kzg_verified_blobs(block_root, epoch, verified_blobs)
+            .put_kzg_verified_blobs(block_root, verified_blobs)
     }
 
     /// Put a list of custody columns received via RPC into the availability cache. This performs KZG
@@ -236,7 +241,6 @@ impl<T: BeaconChainTypes> DataAvailabilityChecker<T> {
     pub fn put_engine_blobs(
         &self,
         block_root: Hash256,
-        epoch: Epoch,
         blobs: FixedBlobSidecarList<T::EthSpec>,
     ) -> Result<Availability<T::EthSpec>, AvailabilityCheckError> {
         let seen_timestamp = self
@@ -248,7 +252,7 @@ impl<T: BeaconChainTypes> DataAvailabilityChecker<T> {
             KzgVerifiedBlobList::from_verified(blobs.iter().flatten().cloned(), seen_timestamp);
 
         self.availability_cache
-            .put_kzg_verified_blobs(block_root, epoch, verified_blobs)
+            .put_kzg_verified_blobs(block_root, verified_blobs)
     }
 
     /// Check if we've cached other blobs for this block. If it completes a set and we also
@@ -260,11 +264,8 @@ impl<T: BeaconChainTypes> DataAvailabilityChecker<T> {
         &self,
         gossip_blob: GossipVerifiedBlob<T>,
     ) -> Result<Availability<T::EthSpec>, AvailabilityCheckError> {
-        self.availability_cache.put_kzg_verified_blobs(
-            gossip_blob.block_root(),
-            gossip_blob.epoch(),
-            vec![gossip_blob.into_inner()],
-        )
+        self.availability_cache
+            .put_kzg_verified_blobs(gossip_blob.block_root(), vec![gossip_blob.into_inner()])
     }
 
     /// Check if we've cached other data columns for this block. If it satisfies the custody requirement and we also

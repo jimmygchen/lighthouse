@@ -1100,7 +1100,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                 message_id,
                 peer_id,
                 peer_client,
-                block,
+                block.clone(),
                 reprocess_tx.clone(),
                 seen_duration,
             )
@@ -1515,6 +1515,9 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                     "slot" => slot,
                     "block_root" => %block_root,
                 );
+
+                self.fetch_blobs_and_publish(block.clone(), *block_root)
+                    .await;
             }
             Err(BlockError::ParentUnknown(_)) => {
                 // This should not occur. It should be checked by `should_forward_block`.
