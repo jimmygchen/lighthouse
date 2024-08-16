@@ -39,11 +39,6 @@ pub struct PendingComponents<E: EthSpec> {
     pub reconstruction_started: bool,
 }
 
-pub enum BlockImportRequirement {
-    AllBlobs,
-    CustodyColumns(usize),
-}
-
 impl<E: EthSpec> PendingComponents<E> {
     /// Returns an immutable reference to the cached block.
     pub fn get_cached_block(&self) -> &Option<DietAvailabilityPendingExecutedBlock<E>> {
@@ -293,8 +288,8 @@ impl<E: EthSpec> PendingComponents<E> {
             block_root,
             block,
             blobs,
-            blobs_available_timestamp,
             data_columns,
+            blobs_available_timestamp,
             spec: spec.clone(),
         };
         Ok(Availability::Available(Box::new(
@@ -409,20 +404,6 @@ impl<T: BeaconChainTypes> DataAvailabilityCheckerInner<T> {
         f(self.critical.read().peek(block_root))
     }
 
-    fn block_import_requirement(
-        &self,
-        epoch: Epoch,
-    ) -> Result<BlockImportRequirement, AvailabilityCheckError> {
-        let peer_das_enabled = self.spec.is_peer_das_enabled_for_epoch(epoch);
-        if peer_das_enabled {
-            Ok(BlockImportRequirement::CustodyColumns(
-                self.custody_column_count,
-            ))
-        } else {
-            Ok(BlockImportRequirement::AllBlobs)
-        }
-    }
-
     /// Fetch a data column from the cache without affecting the LRU ordering
     pub fn peek_data_column(
         &self,
@@ -442,22 +423,13 @@ impl<T: BeaconChainTypes> DataAvailabilityCheckerInner<T> {
     /// Potentially trigger reconstruction if:
     /// - Our custody requirement is all columns
     /// - We >= 50% of columns, but not all columns
-    fn should_reconstruct(
-        &self,
-        block_import_requirement: &BlockImportRequirement,
-        pending_components: &PendingComponents<T::EthSpec>,
-    ) -> bool {
-        let BlockImportRequirement::CustodyColumns(num_expected_columns) = block_import_requirement
-        else {
-            return false;
-        };
-
+    fn should_reconstruct(&self, pending_components: &PendingComponents<T::EthSpec>) -> bool {
         let num_of_columns = self.spec.number_of_columns;
         let has_missing_columns = pending_components.verified_data_columns.len() < num_of_columns;
 
         has_missing_columns
             && !pending_components.reconstruction_started
-            && *num_expected_columns == num_of_columns
+            && self.custody_column_count == num_of_columns
             && pending_components.verified_data_columns.len() >= num_of_columns / 2
     }
 
@@ -498,7 +470,7 @@ impl<T: BeaconChainTypes> DataAvailabilityCheckerInner<T> {
         }
     }
 
-    // TODO(das): gossip and rpc code paths to be implemented.
+    // TODO(das): rpc code paths to be implemented.
     #[allow(dead_code)]
     #[allow(clippy::type_complexity)]
     pub fn put_kzg_verified_data_columns<
@@ -507,6 +479,7 @@ impl<T: BeaconChainTypes> DataAvailabilityCheckerInner<T> {
         &self,
         kzg: &Kzg,
         block_root: Hash256,
+        epoch: Epoch,
         kzg_verified_data_columns: I,
     ) -> Result<(Availability<T::EthSpec>, DataColumnsToPublish<T::EthSpec>), AvailabilityCheckError>
     {
@@ -521,16 +494,12 @@ impl<T: BeaconChainTypes> DataAvailabilityCheckerInner<T> {
         // Merge in the data columns.
         pending_components.merge_data_columns(kzg_verified_data_columns)?;
 
-        let epoch = pending_components
-            .epoch()
-            .ok_or(AvailabilityCheckError::UnableToDetermineImportRequirement)?;
-        let block_import_requirement = self.block_import_requirement(epoch)?;
-
         // Potentially trigger reconstruction if:
         // - Our custody requirement is all columns
         // - We >= 50% of columns
+        let is_peer_das_enabled = self.spec.is_peer_das_enabled_for_epoch(epoch);
         let data_columns_to_publish =
-            if self.should_reconstruct(&block_import_requirement, &pending_components) {
+            if is_peer_das_enabled && self.should_reconstruct(&pending_components) {
                 pending_components.reconstruction_started();
 
                 let timer = metrics::start_timer(&metrics::DATA_AVAILABILITY_RECONSTRUCTION_TIME);
