@@ -191,7 +191,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                 self.chain.recompute_head_at_current_slot().await;
             }
             Ok(AvailabilityProcessingStatus::MissingComponents(..)) => {
-                self.fetch_blobs_and_publish(signed_beacon_block, block_root)
+                self.fetch_engine_blobs_and_publish(signed_beacon_block, block_root)
                     .await
             }
             _ => {}

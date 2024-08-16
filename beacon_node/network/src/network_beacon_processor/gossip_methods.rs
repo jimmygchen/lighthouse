@@ -1516,7 +1516,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                     "block_root" => %block_root,
                 );
 
-                self.fetch_blobs_and_publish(block.clone(), *block_root)
+                self.fetch_engine_blobs_and_publish(block.clone(), *block_root)
                     .await;
             }
             Err(BlockError::ParentUnknown(_)) => {

@@ -1,4 +1,6 @@
+use crate::observed_data_sidecars::ObservableDataSidecar;
 use crate::{BeaconChain, BeaconChainError, BeaconChainTypes, BlockError, ExecutionPayloadError};
+use itertools::Either;
 use slog::{debug, error, warn};
 use state_processing::per_block_processing::deneb::kzg_commitment_to_versioned_hash;
 use std::sync::Arc;
@@ -13,7 +15,7 @@ pub enum BlobsOrDataColumns<E: EthSpec> {
     DataColumns(DataColumnSidecarVec<E>),
 }
 
-pub async fn fetch_blobs_and_publish<T: BeaconChainTypes>(
+pub async fn fetch_and_process_engine_blobs<T: BeaconChainTypes>(
     chain: Arc<BeaconChain<T>>,
     block_root: Hash256,
     block: Arc<SignedBeaconBlock<T::EthSpec, FullPayload<T::EthSpec>>>,
@@ -55,7 +57,6 @@ pub async fn fetch_blobs_and_publish<T: BeaconChainTypes>(
         debug!(chain.log, "Blobs from EL - response with none");
         return Ok(());
     } else if num_fetched_blobs < num_blobs {
-        // TODO(das) partial blobs response isn't useful for PeerDAS, do we even try to process them?
         debug!(
             chain.log,
             "Blobs from EL - response with some";
@@ -120,32 +121,29 @@ pub async fn fetch_blobs_and_publish<T: BeaconChainTypes>(
     let (data_columns_sender, data_columns_receiver) = tokio::sync::mpsc::channel(1);
     let peer_das_enabled = chain.spec.is_peer_das_enabled_for_epoch(block.epoch());
 
+    // Partial blobs response isn't useful for PeerDAS, so we don't bother building and publishing data columns.
     if peer_das_enabled && all_blobs_fetched {
         let logger = chain.log.clone();
         let block_cloned = block.clone();
         let kzg = chain.kzg.clone().expect("KZG not initialized");
         let spec = chain.spec.clone();
-        // TODO(das) is it possible to avoid the blob clone?
-        let blobs = fixed_blob_sidecar_list
-            .iter()
-            .filter_map(|b| b.clone().map(|b| b.blob.clone()))
-            .collect::<Vec<_>>()
-            .into();
-        let is_supernode =
-            chain.data_availability_checker.get_custody_columns_count() == spec.number_of_columns;
-
+        let blobs_cloned = fixed_blob_sidecar_list.clone();
+        let chain_cloned = chain.clone();
         chain
             .task_executor
             .spawn_handle(
                 async move {
+                    let blob_refs = blobs_cloned.iter()
+                        .filter_map(|b| b.as_ref().map(|b| &b.blob))
+                        .collect::<Vec<_>>();
                     let data_columns_result = DataColumnSidecar::build_sidecars(
-                        &blobs,
+                        &blob_refs,
                         &block_cloned,
                         &kzg,
                         &spec,
                     );
 
-                    let data_columns = match data_columns_result {
+                    let all_data_columns = match data_columns_result {
                         Ok(d) => d,
                         Err(e) => {
                             error!(logger, "Failed to build data column sidecars from blobs"; "error" => ?e);
@@ -153,24 +151,44 @@ pub async fn fetch_blobs_and_publish<T: BeaconChainTypes>(
                         }
                     };
 
-                    if let Err(e) = data_columns_sender.try_send(data_columns.clone()) {
+                    // Check indices from cache before sending the columns, to make sure we don't
+                    // publish components already seen on gossip.
+                    let all_data_columns_iter = all_data_columns.clone().into_iter();
+                    let data_columns_to_publish = match chain_cloned.data_availability_checker.imported_custody_column_indexes(&block_root) {
+                        None => Either::Left(all_data_columns_iter),
+                        Some(imported_columns_indices) => Either::Right(all_data_columns_iter.filter(move |d| !imported_columns_indices.contains(&d.index()))),
+                    }.collect::<Vec<_>>();
+
+                    if let Err(e) = data_columns_sender.try_send(all_data_columns) {
                         error!(logger, "Failed to send computed data columns"; "error" => ?e);
                     };
 
-                    if is_supernode {
-                        publish_fn(BlobsOrDataColumns::DataColumns(data_columns));
+                    let is_supernode =
+                        chain_cloned.data_availability_checker.get_custody_columns_count() == spec.number_of_columns;
+                    if is_supernode && !data_columns_to_publish.is_empty() {
+                        publish_fn(BlobsOrDataColumns::DataColumns(data_columns_to_publish));
                     }
                 },
                 "compute_data_columns",
             )
             .ok_or(BeaconChainError::RuntimeShutdown)?;
     } else {
-        let blobs = fixed_blob_sidecar_list
-            .clone()
-            .into_iter()
-            .flat_map(|b| b.clone())
-            .collect::<Vec<_>>();
-        publish_fn(BlobsOrDataColumns::Blobs(blobs));
+        let all_blobs = fixed_blob_sidecar_list.clone();
+        let all_blobs_iter = all_blobs.into_iter().flat_map(|b| b.clone());
+
+        let blobs_to_publish = match chain
+            .data_availability_checker
+            .imported_blob_indexes(&block_root)
+        {
+            None => Either::Left(all_blobs_iter),
+            Some(imported_blob_indices) => Either::Right(
+                all_blobs_iter.filter(move |b| !imported_blob_indices.contains(&b.index())),
+            ),
+        };
+
+        publish_fn(BlobsOrDataColumns::Blobs(
+            blobs_to_publish.collect::<Vec<_>>(),
+        ));
     };
 
     debug!(

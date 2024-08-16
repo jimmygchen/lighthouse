@@ -426,11 +426,13 @@ impl<T: BeaconChainTypes> DataAvailabilityCheckerInner<T> {
     fn should_reconstruct(&self, pending_components: &PendingComponents<T::EthSpec>) -> bool {
         let num_of_columns = self.spec.number_of_columns;
         let has_missing_columns = pending_components.verified_data_columns.len() < num_of_columns;
-
-        has_missing_columns
+        let is_super_node = self.custody_column_count == num_of_columns;
+        let is_reconstruction_possible =
+            pending_components.verified_data_columns.len() >= num_of_columns / 2;
+        is_super_node
+            && has_missing_columns
+            && is_reconstruction_possible
             && !pending_components.reconstruction_started
-            && self.custody_column_count == num_of_columns
-            && pending_components.verified_data_columns.len() >= num_of_columns / 2
     }
 
     pub fn put_kzg_verified_blobs<I: IntoIterator<Item = KzgVerifiedBlob<T::EthSpec>>>(

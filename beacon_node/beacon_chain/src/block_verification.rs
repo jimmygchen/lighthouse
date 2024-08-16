@@ -691,10 +691,6 @@ pub struct SignatureVerifiedBlock<T: BeaconChainTypes> {
 type PayloadVerificationHandle<E> =
     JoinHandle<Option<Result<PayloadVerificationOutcome, BlockError<E>>>>;
 
-// FIXME(sproul): delete
-// Used to await the result of downloading blobs from an EE.
-// type BlobFetcherHandle<E> = JoinHandle<Option<Result<(), BlockError<E>>>>;
-
 /// A wrapper around a `SignedBeaconBlock` that indicates that this block is fully verified and
 /// ready to import into the `BeaconChain`. The validation includes:
 ///
@@ -710,7 +706,6 @@ pub struct ExecutionPendingBlock<T: BeaconChainTypes> {
     pub block: MaybeAvailableBlock<T::EthSpec>,
     pub import_data: BlockImportData<T::EthSpec>,
     pub payload_verification_handle: PayloadVerificationHandle<T::EthSpec>,
-    // pub blob_fetcher_handle: BlobFetcherHandle<T::EthSpec>,
 }
 
 pub trait IntoGossipVerifiedBlockContents<T: BeaconChainTypes>: Sized {
@@ -807,7 +802,8 @@ fn build_gossip_verified_data_columns<T: BeaconChainTypes>(
                 ))?;
 
             let timer = metrics::start_timer(&metrics::DATA_COLUMN_SIDECAR_COMPUTATION);
-            let sidecars = DataColumnSidecar::build_sidecars(&blobs, block, kzg, &chain.spec)?;
+            let blob_refs = blobs.iter().collect::<Vec<_>>();
+            let sidecars = DataColumnSidecar::build_sidecars(&blob_refs, block, kzg, &chain.spec)?;
             drop(timer);
             let mut gossip_verified_data_columns = vec![];
             for sidecar in sidecars {

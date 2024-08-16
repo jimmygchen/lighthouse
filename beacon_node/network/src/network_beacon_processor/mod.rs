@@ -3,7 +3,7 @@ use crate::sync::SamplingId;
 use crate::{service::NetworkMessage, sync::manager::SyncMessage};
 use beacon_chain::block_verification_types::RpcBlock;
 use beacon_chain::data_column_verification::CustodyDataColumn;
-use beacon_chain::fetch_blobs::{fetch_blobs_and_publish, BlobsOrDataColumns};
+use beacon_chain::fetch_blobs::{fetch_and_process_engine_blobs, BlobsOrDataColumns};
 use beacon_chain::{builder::Witness, eth1_chain::CachingEth1Backend, BeaconChain};
 use beacon_chain::{BeaconChainTypes, NotifyExecutionLayer};
 use beacon_processor::{
@@ -797,7 +797,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         self.send_network_message(NetworkMessage::Publish { messages })
     }
 
-    pub async fn fetch_blobs_and_publish(
+    pub async fn fetch_engine_blobs_and_publish(
         self: &Arc<Self>,
         block: Arc<SignedBeaconBlock<T::EthSpec, FullPayload<T::EthSpec>>>,
         block_root: Hash256,
@@ -806,8 +806,13 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         let publish_fn = move |blobs_or_data_column| {
             self_cloned.publish_blobs_or_data_column(blobs_or_data_column)
         };
-        if let Err(e) =
-            fetch_blobs_and_publish(self.chain.clone(), block_root, block.clone(), publish_fn).await
+        if let Err(e) = fetch_and_process_engine_blobs(
+            self.chain.clone(),
+            block_root,
+            block.clone(),
+            publish_fn,
+        )
+        .await
         {
             error!(self.log, "Error fetching or processing blobs from EL"; "error" => ?e);
         }
