@@ -803,7 +803,16 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         block_root: Hash256,
     ) {
         let self_cloned = self.clone();
+        let log_cloned = self.log.clone();
         let publish_fn = move |blobs_or_data_column| {
+            match &blobs_or_data_column {
+                BlobsOrDataColumns::Blobs(b) => {
+                    debug!(log_cloned, "Publishing blobs from EL"; "count" => b.len());
+                }
+                BlobsOrDataColumns::DataColumns(d) => {
+                    debug!(log_cloned, "Publishing data columns built from EL blobs"; "count" => d.len());
+                }
+            }
             self_cloned.publish_blobs_or_data_column(blobs_or_data_column)
         };
         if let Err(e) = fetch_and_process_engine_blobs(
