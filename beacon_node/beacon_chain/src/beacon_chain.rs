@@ -3881,8 +3881,6 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         );
         self.import_block_update_slasher(block, &state, &mut consensus_context);
 
-        let db_write_timer = metrics::start_timer(&metrics::BLOCK_PROCESSING_DB_WRITE);
-
         // Store the block and its state, and execute the confirmation batch for the intermediate
         // states, which will delete their temporary flags.
         // If the write fails, revert fork choice to the version from disk, else we can
@@ -3896,8 +3894,13 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         // wait for the data columns to be computed (blocking).
         let data_columns = data_columns
             .filter(|a| a.len() >= custody_columns_count)
-            .or_else(|| data_column_recv?.blocking_recv());
+            .or_else(|| {
+                let _column_recv_timer =
+                    metrics::start_timer(&metrics::BLOCK_PROCESSING_DATA_COLUMNS_WAIT);
+                data_column_recv?.blocking_recv()
+            });
         let block = signed_block.message();
+        let db_write_timer = metrics::start_timer(&metrics::BLOCK_PROCESSING_DB_WRITE);
         ops.extend(
             confirmed_state_roots
                 .into_iter()
