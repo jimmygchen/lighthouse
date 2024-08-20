@@ -1,0 +1,37 @@
+participants:
+  - cl_type: lighthouse
+    cl_image: jimmygchen/lighthouse:pr-6268-16
+    cl_max_cpu: 4000
+    el_type: reth
+    el_image: jimmygchen/reth:pr-9723-16
+    cl_extra_params:
+      - --malicious-withhold-count=128
+    count: 1
+  - cl_type: lighthouse
+    cl_image: jimmygchen/lighthouse:pr-6268-16
+    cl_max_cpu: 6000
+    el_type: reth
+    el_image: jimmygchen/reth:pr-9723-16
+    cl_extra_params:
+      - --subscribe-all-data-column-subnets
+    count: 2
+network_params:
+  eip7594_fork_epoch: 0
+  data_column_sidecar_subnet_count: 128
+  custody_requirement: 8
+  max_blobs_per_block: 16
+snooper_enabled: false
+global_log_level: info
+additional_services:
+  - dora
+  - goomy_blob
+  - prometheus_grafana
+# Configuration place for goomy the blob spammer - https://github.com/ethpandaops/goomy-blob
+goomy_blob_params:
+  # A list of optional params that will be passed to the blob-spammer comamnd for modifying its behaviour
+  # throughput: 5x
+  goomy_blob_args: ["combined", "-b 1", "-t 8", "--max-pending 16"]
+
+prometheus_params:
+  storage_tsdb_retention_time: 7d
+  storage_tsdb_retention_size: 10GB

@@ -1,0 +1,109 @@
+participants:
+  # Notes on validator ratios: full nodes must be able to publish block
+  # every epoch so we can easily observe outbound metrics during block proposal.
+  #
+  # 10 higher spec supernodes
+  - cl_type: lighthouse
+    cl_image: jimmygchen/lighthouse:pr-6268-16
+    cl_min_cpu: 14000
+    cl_max_cpu: 16000
+    el_type: reth
+    el_image: jimmygchen/reth:pr-9723-16
+    cl_extra_params:
+      - --subscribe-all-data-column-subnets
+    count: 10
+
+  # 10 average spec supernodes
+  - cl_type: lighthouse
+    cl_image: jimmygchen/lighthouse:pr-6268-16
+    cl_min_cpu: 6000
+    cl_max_cpu: 8000
+    el_type: reth
+    el_image: jimmygchen/reth:pr-9723-16
+    cl_extra_params:
+      - --subscribe-all-data-column-subnets
+    count: 10
+
+  # 20 regular full nodes - publishing all data columns
+  - cl_type: lighthouse
+    cl_image: jimmygchen/lighthouse:pr-6268-16
+    cl_min_cpu: 6000
+    cl_max_cpu: 8000
+    el_type: reth
+    el_image: jimmygchen/reth:pr-9723-16
+    count: 20
+
+  # 20 low spec full nodes - publishing all data columns
+  - cl_type: lighthouse
+    cl_image: jimmygchen/lighthouse:pr-6268-16
+    cl_min_cpu: 3000 # min 3000 so it doesn't get scheduled too tightly
+    cl_max_cpu: 4000
+    el_type: reth
+    el_image: jimmygchen/reth:pr-9723-16
+    count: 20
+
+  # 10 regular full nodes - publishing only 50% data columns
+  - cl_type: lighthouse
+    cl_image: jimmygchen/lighthouse:pr-6268-16
+    cl_min_cpu: 6000
+    cl_max_cpu: 8000
+    el_type: reth
+    el_image: jimmygchen/reth:pr-9723-16
+    cl_extra_params:
+      - --malicious-withhold-count=64
+    count: 10
+
+  # 10 low spec full nodes - publishing only 50% data columns
+  - cl_type: lighthouse
+    cl_image: jimmygchen/lighthouse:pr-6268-16
+    cl_min_cpu: 3000 # min 3000 so it doesn't get scheduled too tightly
+    cl_max_cpu: 4000
+    el_type: reth
+    el_image: jimmygchen/reth:pr-9723-16
+    cl_extra_params:
+      - --malicious-withhold-count=64
+    count: 10
+
+  # 10 regular full nodes - only publish blocks
+  - cl_type: lighthouse
+    cl_image: jimmygchen/lighthouse:pr-6268-16
+    cl_min_cpu: 6000
+    cl_max_cpu: 8000
+    el_type: reth
+    el_image: jimmygchen/reth:pr-9723-16
+    cl_extra_params:
+      - --malicious-withhold-count=128
+    count: 10
+
+  # 10 low spec full nodes - only publish blocks
+  - cl_type: lighthouse
+    cl_image: jimmygchen/lighthouse:pr-6268-16
+    cl_min_cpu: 3000 # min 3000 so it doesn't get scheduled too tightly
+    cl_max_cpu: 4000
+    el_type: reth
+    el_image: jimmygchen/reth:pr-9723-16
+    cl_extra_params:
+      - --malicious-withhold-count=128
+    count: 10
+
+network_params:
+  eip7594_fork_epoch: 0
+  data_column_sidecar_subnet_count: 128
+  custody_requirement: 8
+  max_blobs_per_block: 16
+
+snooper_enabled: false
+global_log_level: info
+additional_services:
+  - dora
+  - goomy_blob
+  - prometheus_grafana
+
+# Configuration place for goomy the blob spammer - https://github.com/ethpandaops/goomy-blob
+goomy_blob_params:
+  # A list of optional params that will be passed to the blob-spammer command for modifying its behaviour
+  goomy_blob_args: ["combined", "-b 1", "-t 8", "--max-pending 16"]
+
+prometheus_params:
+  storage_tsdb_retention_time: 7d
+  storage_tsdb_retention_size: 50GB
