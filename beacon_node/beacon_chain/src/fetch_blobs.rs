@@ -1,3 +1,12 @@
+//! This module implements an optimisation to fetch blobs via JSON-RPC from the EL.
+//! If a blob has already been seen in the public mempool, then it is often unnecessary to wait for
+//! it to arrive on P2P gossip. This PR uses a new JSON-RPC method (`engine_getBlobsV1`) which
+//! allows the CL to load the blobs quickly from the EL's blob pool.
+//!
+//! Once the node fetches the blobs from EL, it then publishes the remaining blobs that hasn't seen
+//! on P2P gossip to the network. From PeerDAS onwards, together with the increase in blob count,
+//! broadcasting blobs requires a much higher bandwidth, and is only done by high capacity
+//! supernodes.
 use crate::observed_data_sidecars::ObservableDataSidecar;
 use crate::{BeaconChain, BeaconChainError, BeaconChainTypes, BlockError, ExecutionPayloadError};
 use itertools::Either;
@@ -15,6 +24,8 @@ pub enum BlobsOrDataColumns<E: EthSpec> {
     DataColumns(DataColumnSidecarVec<E>),
 }
 
+/// Fetches blobs from the EL mempool and processes them. It also broadcasts unseen blobs or
+/// data columns (PeerDAS onwards) to the network, using the supplied `publish_fn`.
 pub async fn fetch_and_process_engine_blobs<T: BeaconChainTypes>(
     chain: Arc<BeaconChain<T>>,
     block_root: Hash256,
@@ -81,7 +92,7 @@ pub async fn fetch_and_process_engine_blobs<T: BeaconChainTypes>(
         .enumerate()
         .filter_map(|(i, opt_blob)| Some((i, opt_blob?)))
     {
-        match BlobSidecar::new_efficiently(
+        match BlobSidecar::new_with_existing_proof(
             i,
             blob_and_proof.blob,
             &block,
@@ -202,7 +213,7 @@ pub async fn fetch_and_process_engine_blobs<T: BeaconChainTypes>(
             block.slot(),
             block_root,
             fixed_blob_sidecar_list.clone(),
-            Some(data_columns_receiver),
+            peer_das_enabled.then_some(data_columns_receiver),
         )
         .await
         .map(|_| debug!(chain.log, "Blobs from EL - processed"))

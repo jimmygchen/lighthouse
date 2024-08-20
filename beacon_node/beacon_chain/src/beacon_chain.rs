@@ -3047,13 +3047,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             return Err(BlockError::BlobNotRequired(blob.slot()));
         }
 
-        if let Some(event_handler) = self.event_handler.as_ref() {
-            if event_handler.has_blob_sidecar_subscribers() {
-                event_handler.register(EventKind::BlobSidecar(SseBlobSidecar::from_blob_sidecar(
-                    blob.as_blob(),
-                )));
-            }
-        }
+        self.emit_sse_blob_sidecar_events(&block_root, std::iter::once(blob.as_blob()));
 
         let r = self.check_gossip_blob_availability_and_import(blob).await;
         self.remove_notified(&block_root, r)
@@ -3116,15 +3110,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             return Err(BlockError::BlockIsAlreadyKnown(block_root));
         }
 
-        if let Some(event_handler) = self.event_handler.as_ref() {
-            if event_handler.has_blob_sidecar_subscribers() {
-                for blob in blobs.iter().filter_map(|maybe_blob| maybe_blob.as_ref()) {
-                    event_handler.register(EventKind::BlobSidecar(
-                        SseBlobSidecar::from_blob_sidecar(blob),
-                    ));
-                }
-            }
-        }
+        self.emit_sse_blob_sidecar_events(&block_root, blobs.iter().flatten().map(Arc::as_ref));
 
         let r = self
             .check_rpc_blob_availability_and_import(slot, block_root, blobs)
@@ -3149,20 +3135,33 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             return Err(BlockError::BlockIsAlreadyKnown(block_root));
         }
 
+        self.emit_sse_blob_sidecar_events(&block_root, blobs.iter().flatten().map(Arc::as_ref));
+
+        let r = self
+            .check_engine_blob_availability_and_import(slot, block_root, blobs, data_column_recv)
+            .await;
+        self.remove_notified(&block_root, r)
+    }
+
+    fn emit_sse_blob_sidecar_events<'a, I>(self: &Arc<Self>, block_root: &Hash256, blobs_iter: I)
+    where
+        I: Iterator<Item = &'a BlobSidecar<T::EthSpec>>,
+    {
         if let Some(event_handler) = self.event_handler.as_ref() {
             if event_handler.has_blob_sidecar_subscribers() {
-                for blob in blobs.iter().filter_map(|maybe_blob| maybe_blob.as_ref()) {
+                let imported_blobs = self
+                    .data_availability_checker
+                    .imported_blob_indexes(block_root)
+                    .unwrap_or_default();
+                let new_blobs = blobs_iter.filter(|b| !imported_blobs.contains(&b.index));
+
+                for blob in new_blobs {
                     event_handler.register(EventKind::BlobSidecar(
                         SseBlobSidecar::from_blob_sidecar(blob),
                     ));
                 }
             }
         }
-
-        let r = self
-            .check_engine_blob_availability_and_import(slot, block_root, blobs, data_column_recv)
-            .await;
-        self.remove_notified(&block_root, r)
     }
 
     /// Cache the columns in the processing cache, process it, then evict it from the cache if it was
@@ -3891,6 +3890,10 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         // See https://github.com/sigp/lighthouse/issues/2028
         let (_, signed_block, blobs, data_columns) = signed_block.deconstruct();
         let custody_columns_count = self.data_availability_checker.get_custody_columns_count();
+        // if the block was made available via custody columns received from gossip / rpc, use them
+        // since we already have them.
+        // Otherwise, it means blobs were likely available via fetching from EL, in this case we
+        // wait for the data columns to be computed (blocking).
         let data_columns = data_columns
             .filter(|a| a.len() >= custody_columns_count)
             .or_else(|| data_column_recv?.blocking_recv());

@@ -149,7 +149,7 @@ impl<E: EthSpec> BlobSidecar<E> {
         })
     }
 
-    pub fn new_efficiently(
+    pub fn new_with_existing_proof(
         index: usize,
         blob: Blob<E>,
         signed_block: &SignedBeaconBlock<E>,
