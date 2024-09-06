@@ -4,87 +4,87 @@ participants:
   #
   # 10 higher spec supernodes
   - cl_type: lighthouse
-    cl_image: jimmygchen/lighthouse:pr-6268-16
+    cl_image: jimmygchen/lighthouse:fetch-blobs-16
     cl_min_cpu: 14000
     cl_max_cpu: 16000
     el_type: reth
-    el_image: jimmygchen/reth:pr-9723-16
+    el_image: jimmygchen/reth:fetch-blobs-16
     cl_extra_params:
       - --subscribe-all-data-column-subnets
-    count: 10
+#    count: 10
 
   # 10 average spec supernodes
   - cl_type: lighthouse
-    cl_image: jimmygchen/lighthouse:pr-6268-16
+    cl_image: jimmygchen/lighthouse:fetch-blobs-16
     cl_min_cpu: 6000
     cl_max_cpu: 8000
     el_type: reth
-    el_image: jimmygchen/reth:pr-9723-16
+    el_image: jimmygchen/reth:fetch-blobs-16
     cl_extra_params:
       - --subscribe-all-data-column-subnets
-    count: 10
+#    count: 10
 
   # 20 regular full nodes - publishing all data columns
   - cl_type: lighthouse
-    cl_image: jimmygchen/lighthouse:pr-6268-16
+    cl_image: jimmygchen/lighthouse:fetch-blobs-16
     cl_min_cpu: 6000
     cl_max_cpu: 8000
     el_type: reth
-    el_image: jimmygchen/reth:pr-9723-16
-    count: 20
+    el_image: jimmygchen/reth:fetch-blobs-16
+#    count: 20
 
   # 20 low spec full nodes - publishing all data columns
   - cl_type: lighthouse
-    cl_image: jimmygchen/lighthouse:pr-6268-16
+    cl_image: jimmygchen/lighthouse:fetch-blobs-16
     cl_min_cpu: 3000 # min 3000 so it doesn't get scheduled too tightly
     cl_max_cpu: 4000
     el_type: reth
-    el_image: jimmygchen/reth:pr-9723-16
-    count: 20
+    el_image: jimmygchen/reth:fetch-blobs-16
+#    count: 20
 
   # 10 regular full nodes - publishing only 50% data columns
   - cl_type: lighthouse
-    cl_image: jimmygchen/lighthouse:pr-6268-16
+    cl_image: jimmygchen/lighthouse:fetch-blobs-16
     cl_min_cpu: 6000
     cl_max_cpu: 8000
     el_type: reth
-    el_image: jimmygchen/reth:pr-9723-16
+    el_image: jimmygchen/reth:fetch-blobs-16
     cl_extra_params:
       - --malicious-withhold-count=64
-    count: 10
+#    count: 10
 
   # 10 low spec full nodes - publishing only 50% data columns
   - cl_type: lighthouse
-    cl_image: jimmygchen/lighthouse:pr-6268-16
+    cl_image: jimmygchen/lighthouse:fetch-blobs-16
     cl_min_cpu: 3000 # min 3000 so it doesn't get scheduled too tightly
     cl_max_cpu: 4000
     el_type: reth
-    el_image: jimmygchen/reth:pr-9723-16
+    el_image: jimmygchen/reth:fetch-blobs-16
     cl_extra_params:
       - --malicious-withhold-count=64
-    count: 10
+#    count: 10
 
   # 10 regular full nodes - only publish blocks
   - cl_type: lighthouse
-    cl_image: jimmygchen/lighthouse:pr-6268-16
+    cl_image: jimmygchen/lighthouse:fetch-blobs-16
     cl_min_cpu: 6000
     cl_max_cpu: 8000
     el_type: reth
-    el_image: jimmygchen/reth:pr-9723-16
+    el_image: jimmygchen/reth:fetch-blobs-16
     cl_extra_params:
       - --malicious-withhold-count=128
-    count: 10
+#    count: 10
 
   # 10 low spec full nodes - only publish blocks
   - cl_type: lighthouse
-    cl_image: jimmygchen/lighthouse:pr-6268-16
+    cl_image: jimmygchen/lighthouse:fetch-blobs-16
     cl_min_cpu: 3000 # min 3000 so it doesn't get scheduled too tightly
     cl_max_cpu: 4000
     el_type: reth
-    el_image: jimmygchen/reth:pr-9723-16
+    el_image: jimmygchen/reth:fetch-blobs-16
     cl_extra_params:
       - --malicious-withhold-count=128
-    count: 10
+#    count: 10
 
 network_params:
   eip7594_fork_epoch: 0
