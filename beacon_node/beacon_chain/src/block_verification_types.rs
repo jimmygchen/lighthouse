@@ -12,6 +12,7 @@ use ssz_types::VariableList;
 use state_processing::ConsensusContext;
 use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
+use tokio::task::JoinHandle;
 use types::blob_sidecar::{self, BlobIdentifier, FixedBlobSidecarList};
 use types::data_column_sidecar::{self};
 use types::{
@@ -390,11 +391,21 @@ impl<E: EthSpec> BlockImportData<E> {
     }
 }
 
-pub type GossipVerifiedBlockContents<E> = (
-    GossipVerifiedBlock<E>,
-    Option<GossipVerifiedBlobList<E>>,
-    Option<GossipVerifiedDataColumnList<E>>,
-);
+pub type BuildDataSidecarHandle<E> = JoinHandle<
+    Option<
+        Result<
+            (
+                Option<GossipVerifiedBlobList<E>>,
+                Option<GossipVerifiedDataColumnList<E>>,
+            ),
+            BlockContentsError,
+        >,
+    >,
+>;
+
+pub type GossipVerifiedBlockContents<E> = (GossipVerifiedBlock<E>, BuildDataSidecarHandle<E>);
+
+pub type GossipVerifiedBlobsOrColumns = ();
 
 #[derive(Debug)]
 pub enum BlockContentsError {
@@ -403,6 +414,7 @@ pub enum BlockContentsError {
     BlobSidecarError(blob_sidecar::BlobSidecarError),
     DataColumnError(GossipDataColumnError),
     DataColumnSidecarError(data_column_sidecar::DataColumnSidecarError),
+    RuntimeShutdown,
 }
 
 impl From<BlockError> for BlockContentsError {
@@ -446,6 +458,9 @@ impl std::fmt::Display for BlockContentsError {
             }
             BlockContentsError::DataColumnSidecarError(err) => {
                 write!(f, "DataColumnSidecarError({:?})", err)
+            }
+            BlockContentsError::RuntimeShutdown => {
+                write!(f, "RuntimeShutdown")
             }
         }
     }

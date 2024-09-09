@@ -707,7 +707,7 @@ pub struct ExecutionPendingBlock<T: BeaconChainTypes> {
 pub trait IntoGossipVerifiedBlockContents<T: BeaconChainTypes>: Sized {
     fn into_gossip_verified_block(
         self,
-        chain: &BeaconChain<T>,
+        chain: Arc<BeaconChain<T>>,
     ) -> Result<GossipVerifiedBlockContents<T>, BlockContentsError>;
     fn inner_block(&self) -> &SignedBeaconBlock<T::EthSpec>;
 }
@@ -715,7 +715,7 @@ pub trait IntoGossipVerifiedBlockContents<T: BeaconChainTypes>: Sized {
 impl<T: BeaconChainTypes> IntoGossipVerifiedBlockContents<T> for GossipVerifiedBlockContents<T> {
     fn into_gossip_verified_block(
         self,
-        _chain: &BeaconChain<T>,
+        _chain: Arc<BeaconChain<T>>,
     ) -> Result<GossipVerifiedBlockContents<T>, BlockContentsError> {
         Ok(self)
     }
@@ -727,27 +727,43 @@ impl<T: BeaconChainTypes> IntoGossipVerifiedBlockContents<T> for GossipVerifiedB
 impl<T: BeaconChainTypes> IntoGossipVerifiedBlockContents<T> for PublishBlockRequest<T::EthSpec> {
     fn into_gossip_verified_block(
         self,
-        chain: &BeaconChain<T>,
+        chain: Arc<BeaconChain<T>>,
     ) -> Result<GossipVerifiedBlockContents<T>, BlockContentsError> {
         let (block, blobs) = self.deconstruct();
-        let peer_das_enabled = chain.spec.is_peer_das_enabled_for_epoch(block.epoch());
+        let chain_cloned = chain.clone();
+        let block_cloned = block.clone();
+        let build_sidecars_handle = chain
+            .clone()
+            .task_executor
+            .spawn_handle(
+                async move {
+                    let peer_das_enabled = chain_cloned
+                        .spec
+                        .is_peer_das_enabled_for_epoch(block_cloned.epoch());
 
-        let (gossip_verified_blobs, gossip_verified_data_columns) = if peer_das_enabled {
-            let gossip_verified_data_columns =
-                build_gossip_verified_data_columns(chain, &block, blobs.map(|(_, blobs)| blobs))?;
-            (None, gossip_verified_data_columns)
-        } else {
-            let gossip_verified_blobs = build_gossip_verified_blobs(chain, &block, blobs)?;
-            (gossip_verified_blobs, None)
-        };
+                    let (gossip_verified_blobs, gossip_verified_data_columns) = if peer_das_enabled
+                    {
+                        let gossip_verified_data_columns = build_gossip_verified_data_columns(
+                            &chain_cloned,
+                            &block_cloned,
+                            blobs.map(|(_, blobs)| blobs),
+                        )?;
+                        (None, gossip_verified_data_columns)
+                    } else {
+                        let gossip_verified_blobs =
+                            build_gossip_verified_blobs(&chain_cloned, &block_cloned, blobs)?;
+                        (gossip_verified_blobs, None)
+                    };
 
-        let gossip_verified_block = GossipVerifiedBlock::new(block, chain)?;
+                    Ok((gossip_verified_blobs, gossip_verified_data_columns))
+                },
+                "builds_data_sidecars",
+            )
+            .ok_or(BlockContentsError::RuntimeShutdown)?;
 
-        Ok((
-            gossip_verified_block,
-            gossip_verified_blobs,
-            gossip_verified_data_columns,
-        ))
+        let gossip_verified_block = GossipVerifiedBlock::new(block, &chain)?;
+
+        Ok((gossip_verified_block, build_sidecars_handle))
     }
 
     fn inner_block(&self) -> &SignedBeaconBlock<T::EthSpec> {
