@@ -12,7 +12,7 @@ use std::sync::Arc;
 use execution_layer::json_structures::BlobAndProofV1;
 use execution_layer::Error as ExecutionLayerError;
 use itertools::Either;
-use slog::{debug, error, warn};
+use slog::{debug, error, info, warn};
 use ssz_types::FixedVector;
 
 use lighthouse_metrics::{inc_counter, TryExt};
@@ -103,10 +103,11 @@ pub async fn fetch_and_process_engine_blobs<T: BeaconChainTypes>(
     //
     // The reason for doing this is to make the block available and attestable as soon as possible,
     // while maintaining the invariant that block and data columns are persisted atomically.
-    let peer_das_enabled = chain.spec.is_peer_das_enabled_for_epoch(block.epoch());
+    // let peer_das_enabled = chain.spec.is_peer_das_enabled_for_epoch(block.epoch());
+    let compute_data_columns = true;
 
     // Partial blobs response isn't useful for PeerDAS, so we don't bother building and publishing data columns.
-    let data_columns_receiver_opt = if peer_das_enabled {
+    if compute_data_columns {
         if !all_blobs_fetched {
             debug!(
                 chain.log,
@@ -126,7 +127,6 @@ pub async fn fetch_and_process_engine_blobs<T: BeaconChainTypes>(
         let spec = chain.spec.clone();
         let blobs_cloned = fixed_blob_sidecar_list.clone();
         let chain_cloned = chain.clone();
-        let (data_columns_sender, data_columns_receiver) = tokio::sync::mpsc::channel(1);
         chain
             .task_executor
             .spawn_handle(
@@ -142,7 +142,7 @@ pub async fn fetch_and_process_engine_blobs<T: BeaconChainTypes>(
                     let data_columns_result =
                         blobs_to_data_column_sidecars(&blob_refs, &block_cloned, &kzg, &spec)
                             .discard_timer_on_break(&mut timer);
-                    drop(timer);
+                    let compute_time = timer.map(|t| t.stop_and_record());
 
                     let all_data_columns = match data_columns_result {
                         Ok(d) => d,
@@ -156,69 +156,42 @@ pub async fn fetch_and_process_engine_blobs<T: BeaconChainTypes>(
                         }
                     };
 
-                    // Check indices from cache before sending the columns, to make sure we don't
-                    // publish components already seen on gossip.
-                    let all_data_columns_iter = all_data_columns.clone().into_iter();
-                    let data_columns_to_publish = match chain_cloned
-                        .data_availability_checker
-                        .imported_custody_column_indexes(&block_root)
-                    {
-                        None => Either::Left(all_data_columns_iter),
-                        Some(imported_columns_indices) => Either::Right(
-                            all_data_columns_iter
-                                .filter(move |d| !imported_columns_indices.contains(&d.index())),
-                        ),
-                    }
-                    .collect::<Vec<_>>();
-
-                    if let Err(e) = data_columns_sender.try_send(all_data_columns) {
-                        error!(logger, "Failed to send computed data columns"; "error" => ?e);
-                    };
-
-                    let is_supernode = chain_cloned
-                        .data_availability_checker
-                        .get_custody_columns_count()
-                        == spec.number_of_columns;
-                    if is_supernode && !data_columns_to_publish.is_empty() {
-                        publish_fn(BlobsOrDataColumns::DataColumns(data_columns_to_publish));
-                    }
+                    info!(logger, "Successfully computed data columns from EL blob";
+                        "compute_time" => ?compute_time);
                 },
                 "compute_data_columns",
             )
             .ok_or(FetchEngineBlobError::RuntimeShutdown)?;
 
-        Some(data_columns_receiver)
     } else {
-        if num_fetched_blobs == 0 {
-            debug!(
-                chain.log,
-                "No blobs fetched from the EL";
-                "num_expected_blobs" => num_expected_blobs,
-            );
-            inc_counter(&metrics::BLOBS_FROM_EL_MISS_TOTAL);
-            return Ok(());
-        }
-
-        inc_counter(&metrics::BLOBS_FROM_EL_HIT_TOTAL);
-
-        let all_blobs = fixed_blob_sidecar_list.clone();
-        let all_blobs_iter = all_blobs.into_iter().flat_map(|b| b.clone());
-
-        let blobs_to_publish = match chain
-            .data_availability_checker
-            .imported_blob_indexes(&block_root)
-        {
-            None => Either::Left(all_blobs_iter),
-            Some(imported_blob_indices) => Either::Right(
-                all_blobs_iter.filter(move |b| !imported_blob_indices.contains(&b.index())),
-            ),
-        };
-
-        publish_fn(BlobsOrDataColumns::Blobs(
-            blobs_to_publish.collect::<Vec<_>>(),
-        ));
-
-        None
+        // if num_fetched_blobs == 0 {
+        //     debug!(
+        //         chain.log,
+        //         "No blobs fetched from the EL";
+        //         "num_expected_blobs" => num_expected_blobs,
+        //     );
+        //     inc_counter(&metrics::BLOBS_FROM_EL_MISS_TOTAL);
+        //     return Ok(());
+        // }
+        //
+        // inc_counter(&metrics::BLOBS_FROM_EL_HIT_TOTAL);
+        //
+        // let all_blobs = fixed_blob_sidecar_list.clone();
+        // let all_blobs_iter = all_blobs.into_iter().flat_map(|b| b.clone());
+        //
+        // let blobs_to_publish = match chain
+        //     .data_availability_checker
+        //     .imported_blob_indexes(&block_root)
+        // {
+        //     None => Either::Left(all_blobs_iter),
+        //     Some(imported_blob_indices) => Either::Right(
+        //         all_blobs_iter.filter(move |b| !imported_blob_indices.contains(&b.index())),
+        //     ),
+        // };
+        //
+        // publish_fn(BlobsOrDataColumns::Blobs(
+        //     blobs_to_publish.collect::<Vec<_>>(),
+        // ));
     };
 
     debug!(
@@ -232,7 +205,7 @@ pub async fn fetch_and_process_engine_blobs<T: BeaconChainTypes>(
             block.slot(),
             block_root,
             fixed_blob_sidecar_list.clone(),
-            data_columns_receiver_opt,
+            None,
         )
         .await
         .map(|_| debug!(chain.log, "Blobs from EL - processed"))

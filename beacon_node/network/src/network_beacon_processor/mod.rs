@@ -799,14 +799,14 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         block_root: Hash256,
     ) {
         let self_cloned = self.clone();
-        let publish_fn = move |blobs_or_data_column| {
-            self_cloned.publish_blobs_or_data_column(blobs_or_data_column)
-        };
+        // let publish_fn = move |blobs_or_data_column| {
+        //     self_cloned.publish_blobs_or_data_column(blobs_or_data_column)
+        // };
         if let Err(e) = fetch_and_process_engine_blobs(
             self.chain.clone(),
             block_root,
             block.clone(),
-            publish_fn,
+            || {},
         )
         .await
         {
