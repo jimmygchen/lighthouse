@@ -277,15 +277,6 @@ impl Default for Config {
             .join(DEFAULT_BEACON_NODE_DIR)
             .join(DEFAULT_NETWORK_DIR);
 
-        // Discv5 Unsolicited Packet Rate Limiter
-        let filter_rate_limiter = Some(
-            discv5::RateLimiterBuilder::new()
-                .total_n_every(10, Duration::from_secs(1)) // Allow bursts, average 10 per second
-                .ip_n_every(9, Duration::from_secs(1)) // Allow bursts, average 9 per second
-                .node_n_every(8, Duration::from_secs(1)) // Allow bursts, average 8 per second
-                .build()
-                .expect("The total rate limit has been specified"),
-        );
         let listen_addresses = ListenAddress::V4(ListenAddr {
             addr: DEFAULT_IPV4_ADDRESS,
             disc_port: DEFAULT_DISC_PORT,
@@ -304,17 +295,12 @@ impl Default for Config {
             .query_peer_timeout(Duration::from_secs(2))
             .query_timeout(Duration::from_secs(30))
             .request_retries(1)
-            .enr_peer_update_min(10)
+            .enr_peer_update_min(2)
             .query_parallelism(5)
             .disable_report_discovered_peers()
-            .ip_limit() // limits /24 IP's in buckets.
-            .incoming_bucket_limit(8) // half the bucket size
-            .filter_rate_limiter(filter_rate_limiter)
-            .filter_max_bans_per_ip(Some(5))
-            .filter_max_nodes_per_ip(Some(10))
-            .table_filter(|enr| enr.ip4().map_or(false, |ip| is_global_ipv4(&ip))) // Filter non-global IPs
             .ban_duration(Some(Duration::from_secs(3600)))
             .ping_interval(Duration::from_secs(300))
+            .permit_invalid_enr()
             .build();
 
         // NOTE: Some of these get overridden by the corresponding CLI default values.
