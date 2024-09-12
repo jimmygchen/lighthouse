@@ -4,7 +4,7 @@ participants:
   #
   # 10 higher spec supernodes
   - cl_type: lighthouse
-    cl_image: jimmygchen/lighthouse:fetch-blobs-16
+    cl_image: jimmygchen/lighthouse:das-16-blobs-wonky-discv5
     cl_min_cpu: 14000
     cl_max_cpu: 16000
     cl_max_mem: 15696
@@ -19,7 +19,7 @@ participants:
 
   # 10 average spec supernodes
   - cl_type: lighthouse
-    cl_image: jimmygchen/lighthouse:fetch-blobs-16
+    cl_image: jimmygchen/lighthouse:das-16-blobs-wonky-discv5
     cl_min_cpu: 6000
     cl_max_cpu: 8000
     cl_max_mem: 15696
@@ -34,7 +34,7 @@ participants:
 
   # 20 regular full nodes - publishing all data columns
   - cl_type: lighthouse
-    cl_image: jimmygchen/lighthouse:fetch-blobs-16
+    cl_image: jimmygchen/lighthouse:das-16-blobs-wonky-discv5
     cl_min_cpu: 6000
     cl_max_cpu: 8000
     cl_max_mem: 15696
@@ -46,7 +46,7 @@ participants:
 
   # 20 low spec full nodes - publishing all data columns
   - cl_type: lighthouse
-    cl_image: jimmygchen/lighthouse:fetch-blobs-16
+    cl_image: jimmygchen/lighthouse:das-16-blobs-wonky-discv5
     cl_min_cpu: 3000 # min 3000 so it doesn't get scheduled too tightly
     cl_max_cpu: 4000
     cl_max_mem: 15696
@@ -58,7 +58,7 @@ participants:
 
   # 10 regular full nodes - publishing only 50% data columns
   - cl_type: lighthouse
-    cl_image: jimmygchen/lighthouse:fetch-blobs-16
+    cl_image: jimmygchen/lighthouse:das-16-blobs-wonky-discv5
     cl_min_cpu: 6000
     cl_max_cpu: 8000
     cl_max_mem: 15696
@@ -72,7 +72,7 @@ participants:
 
   # 10 low spec full nodes - publishing only 50% data columns
   - cl_type: lighthouse
-    cl_image: jimmygchen/lighthouse:fetch-blobs-16
+    cl_image: jimmygchen/lighthouse:das-16-blobs-wonky-discv5
     cl_min_cpu: 3000 # min 3000 so it doesn't get scheduled too tightly
     cl_max_cpu: 4000
     cl_max_mem: 15696
@@ -86,7 +86,7 @@ participants:
 
   # 10 regular full nodes - only publish blocks
   - cl_type: lighthouse
-    cl_image: jimmygchen/lighthouse:fetch-blobs-16
+    cl_image: jimmygchen/lighthouse:das-16-blobs-wonky-discv5
     cl_min_cpu: 6000
     cl_max_cpu: 8000
     cl_max_mem: 15696
@@ -100,7 +100,7 @@ participants:
 
   # 10 low spec full nodes - only publish blocks
   - cl_type: lighthouse
-    cl_image: jimmygchen/lighthouse:fetch-blobs-16
+    cl_image: jimmygchen/lighthouse:das-16-blobs-wonky-discv5
     cl_min_cpu: 3000 # min 3000 so it doesn't get scheduled too tightly
     cl_max_cpu: 4000
     cl_max_mem: 15696
