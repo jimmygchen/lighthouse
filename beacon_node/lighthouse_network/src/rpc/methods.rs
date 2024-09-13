@@ -1,6 +1,7 @@
 //! Available RPC methods types and ids.
 
 use crate::types::{EnrAttestationBitfield, EnrSyncCommitteeBitfield};
+use derivative::Derivative;
 use regex::bytes::Regex;
 use serde::Serialize;
 use ssz::Encode;
@@ -90,10 +91,11 @@ pub struct Ping {
 /// The METADATA request structure.
 #[superstruct(
     variants(V1, V2, V3),
-    variant_attributes(derive(Clone, Debug, PartialEq, Serialize),)
+    variant_attributes(derive(Clone, PartialEq, Serialize, Derivative), derivative(Debug))
 )]
 #[derive(Clone, Debug, PartialEq)]
 pub struct MetadataRequest<E: EthSpec> {
+    #[derivative(Debug = "ignore")]
     _phantom_data: PhantomData<E>,
 }
 

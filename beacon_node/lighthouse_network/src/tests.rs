@@ -1,6 +1,3 @@
-use bytes::BytesMut;
-use gossipsub::ValidationMode;
-
 #[cfg(test)]
 mod test {
     use crate::rpc::codec::{SSZSnappyInboundCodec, SSZSnappyOutboundCodec};

@@ -10,6 +10,7 @@ pub mod listen_addr;
 pub mod metrics;
 pub mod peer_manager;
 pub mod rpc;
+#[cfg(test)]
 mod tests;
 pub mod types;
 
