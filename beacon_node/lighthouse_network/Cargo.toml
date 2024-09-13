@@ -62,6 +62,8 @@ quickcheck = { workspace = true }
 quickcheck_macros = { workspace = true }
 async-channel = { workspace = true }
 logging = { workspace = true }
+eth2_network_config = { workspace = true }
+asynchronous-codec= "0.7.0"
 
 [features]
 libp2p-websocket = []

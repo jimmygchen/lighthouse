@@ -33,7 +33,7 @@ pub use methods::{
     RPCResponseErrorCode, ResponseTermination, StatusMessage,
 };
 pub(crate) use outbound::OutboundRequest;
-pub use protocol::{max_rpc_size, Protocol, RPCError};
+pub use protocol::{max_rpc_size, Protocol, ProtocolId, RPCError, SupportedProtocol};
 
 use self::config::{InboundRateLimiterConfig, OutboundRateLimiterConfig};
 use self::protocol::RPCProtocol;

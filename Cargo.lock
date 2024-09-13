@@ -5064,6 +5064,7 @@ version = "0.2.0"
 dependencies = [
  "alloy-primitives",
  "async-channel",
+ "asynchronous-codec",
  "bytes",
  "delay_map",
  "directory",
@@ -5071,6 +5072,7 @@ dependencies = [
  "discv5",
  "either",
  "error-chain",
+ "eth2_network_config",
  "ethereum_ssz",
  "ethereum_ssz_derive",
  "fnv",

@@ -10,6 +10,7 @@ pub mod listen_addr;
 pub mod metrics;
 pub mod peer_manager;
 pub mod rpc;
+mod tests;
 pub mod types;
 
 pub use config::gossip_max_size;

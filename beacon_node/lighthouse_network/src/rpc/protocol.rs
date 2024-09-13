@@ -385,7 +385,7 @@ impl SupportedProtocol {
         }
     }
 
-    fn currently_supported(fork_context: &ForkContext) -> Vec<ProtocolId> {
+    pub fn currently_supported(fork_context: &ForkContext) -> Vec<ProtocolId> {
         let mut supported = vec![
             ProtocolId::new(Self::StatusV1, Encoding::SSZSnappy),
             ProtocolId::new(Self::GoodbyeV1, Encoding::SSZSnappy),
