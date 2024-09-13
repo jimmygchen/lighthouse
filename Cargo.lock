@@ -5067,6 +5067,7 @@ dependencies = [
  "asynchronous-codec",
  "bytes",
  "delay_map",
+ "derivative",
  "directory",
  "dirs",
  "discv5",

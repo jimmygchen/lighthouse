@@ -16,6 +16,7 @@ pub mod types;
 pub use config::gossip_max_size;
 use libp2p::swarm::DialError;
 pub use listen_addr::*;
+pub use rpc::codec::*;
 
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use std::str::FromStr;

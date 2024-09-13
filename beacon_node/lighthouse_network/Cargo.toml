@@ -4,7 +4,15 @@ version = "0.2.0"
 authors = ["Sigma Prime <contact@sigmaprime.io>"]
 edition = { workspace = true }
 
+[lib]
+name = "lighthouse_network"
+
+[[bin]]
+name = "libp2p-packet-parser"
+path = "src/main.rs"
+
 [dependencies]
+derivative = { workspace = true }
 alloy-primitives = { workspace = true}
 discv5 = { workspace = true }
 gossipsub = { workspace = true }
@@ -44,6 +52,7 @@ delay_map = { workspace = true }
 bytes = { workspace = true }
 either = { workspace = true }
 itertools = { workspace = true }
+asynchronous-codec= "0.7.0"
 
 # Local dependencies
 void = "1.0.2"
@@ -63,7 +72,6 @@ quickcheck_macros = { workspace = true }
 async-channel = { workspace = true }
 logging = { workspace = true }
 eth2_network_config = { workspace = true }
-asynchronous-codec= "0.7.0"
 
 [features]
 libp2p-websocket = []
