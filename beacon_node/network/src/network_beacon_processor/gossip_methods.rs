@@ -190,12 +190,6 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         let self_clone = self.clone();
         self.executor.spawn(
             async move {
-                let is_supernode = self_clone
-                    .chain
-                    .data_availability_checker
-                    .get_custody_columns_count()
-                    == self_clone.chain.spec.number_of_columns;
-
                 let publish_fn = |columns: DataColumnSidecarList<T::EthSpec>| {
                     self_clone.send_network_message(NetworkMessage::Publish {
                         messages: columns
@@ -210,11 +204,6 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                             .collect(),
                     });
                 };
-
-                if !is_supernode {
-                    publish_fn(data_columns_to_publish);
-                    return;
-                }
 
                 // If this node is a super node, permute the columns and split them into batches.
                 // The hope is that we won't need to publish some columns because we will receive them
