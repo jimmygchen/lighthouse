@@ -184,6 +184,7 @@ pub async fn fetch_and_process_engine_blobs<T: BeaconChainTypes>(
                     // other supernodes in the meantime, obviating the need for us to publish
                     // them. If no other publisher exists for a column, it will eventually get
                     // published here.
+                    // FIXME(das): deduplicate this wrt to gossip/sync methods
                     all_data_columns.shuffle(&mut rand::thread_rng());
 
                     let batch_size =
@@ -206,6 +207,7 @@ pub async fn fetch_and_process_engine_blobs<T: BeaconChainTypes>(
                             );
                             publish_fn(BlobsOrDataColumns::DataColumns(publishable));
                         }
+                        tokio::time::sleep(SUPERNODE_DATA_COLUMN_PUBLICATION_BATCH_INTERVAL).await;
                     }
                 },
                 "compute_data_columns",
