@@ -54,8 +54,8 @@ fn main() -> io::Result<()> {
     let num_packets = network_packets.len();
 
     let mut payload_count: usize = 0;
-    for packet in network_packets {
-        if let Some((source_ip, target_ip, payload)) = parse_packet(&packet) {
+    for (source_ip, target_ip, packet) in network_packets {
+        if let Some(payload) = parse_packet(&packet) {
             payload_count += 1;
             let result = decode_gossip_payload(payload)
                 .map(|p| ("Gossip", p))
@@ -93,9 +93,12 @@ fn main() -> io::Result<()> {
     Ok(())
 }
 
-fn parse_tcpdump_file(file_path: &str) -> io::Result<Vec<Vec<u8>>> {
-    let mut packets: Vec<Vec<u8>> = Vec::new();
+/// Returns a Vec of (Source IP, Destination IP, Packet Data) for each packet.
+fn parse_tcpdump_file(file_path: &str) -> io::Result<Vec<(String, String, Vec<u8>)>> {
+    let mut packets: Vec<(String, String, Vec<u8>)> = Vec::new();
     let mut current_packet: Vec<u8> = Vec::new();
+    let mut source_ip = String::new();
+    let mut dest_ip = String::new();
 
     // Open the file
     let file = File::open(Path::new(file_path))?;
@@ -105,11 +108,20 @@ fn parse_tcpdump_file(file_path: &str) -> io::Result<Vec<Vec<u8>>> {
         let line = line?;
 
         // Detect the start of a new packet based on the timestamp pattern (e.g., "12:33:16.043916")
-        // FIXME: This misses that last packet
-        if line.contains(':') && line.contains('.') {
+        if line.contains(':') && line.contains('.') && line.contains("IP ") {
             if !current_packet.is_empty() {
-                packets.push(current_packet.clone());
+                packets.push((source_ip.clone(), dest_ip.clone(), current_packet.clone()));
                 current_packet.clear();
+            }
+
+            // Extract the source and destination IP from the tcpdump log line
+            if let Some(ip_info) = line.split("IP ").nth(1) {
+                let ip_parts: Vec<&str> = ip_info.split_whitespace().collect();
+                if ip_parts.len() > 3 {
+                    // Format is typically: <source_ip> > <dest_ip>:
+                    source_ip = ip_parts[0].to_string();
+                    dest_ip = ip_parts[2].trim_end_matches(':').to_string();
+                }
             }
         }
 
@@ -128,30 +140,18 @@ fn parse_tcpdump_file(file_path: &str) -> io::Result<Vec<Vec<u8>>> {
 
     // Push the last packet if it's not empty
     if !current_packet.is_empty() {
-        packets.push(current_packet);
+        packets.push((source_ip.clone(), dest_ip.clone(), current_packet));
     }
 
     Ok(packets)
 }
 
 /// returns (Source IP, Destination IP, Payload).
-fn parse_packet(packet: &[u8]) -> Option<(String, String, &[u8])> {
+fn parse_packet(packet: &[u8]) -> Option<&[u8]> {
     // Ensure the packet is large enough to contain the IP addresses (minimum IP header size is 20 bytes)
     if packet.len() < 20 {
         return None;
     }
-
-    // Source IP address: bytes 12-15
-    let source_ip = format!(
-        "{}.{}.{}.{}",
-        packet[12], packet[13], packet[14], packet[15]
-    );
-
-    // Destination IP address: bytes 16-19
-    let dest_ip = format!(
-        "{}.{}.{}.{}",
-        packet[16], packet[17], packet[18], packet[19]
-    );
 
     // The IP header length is in the first byte of the IP header (lower nibble).
     let ip_header_len = (packet[0] & 0x0F) * 4; // IP header length in bytes
@@ -182,7 +182,7 @@ fn parse_packet(packet: &[u8]) -> Option<(String, String, &[u8])> {
 
     // Ensure the payload starts within the bounds of the packet
     if payload_start < packet.len() {
-        Some((source_ip, dest_ip, &packet[payload_start..]))
+        Some(&packet[payload_start..])
     } else {
         None // No payload found
     }
@@ -195,7 +195,7 @@ fn decode_rpc_request(
 ) -> Result<(String, String), String> {
     let protocol_ids = SupportedProtocol::currently_supported(&fork_context);
     for p in protocol_ids {
-        let mut codec = SSZSnappyOutboundCodec::<E>::new(p.clone(), 20000, fork_context.clone());
+        let mut codec = SSZSnappyInboundCodec::<E>::new(p.clone(), 20000, fork_context.clone());
         let mut bytes = BytesMut::from(payload);
         if let Ok(r) = codec.decode(&mut bytes) {
             // println!("Found RPC request {:?} {:?}", p.versioned_protocol, r);
@@ -216,7 +216,7 @@ fn decode_rpc_response(
 ) -> Result<(String, String), String> {
     let protocol_ids = SupportedProtocol::currently_supported(&fork_context);
     for p in protocol_ids {
-        let mut codec = SSZSnappyInboundCodec::<E>::new(p.clone(), 20000, fork_context.clone());
+        let mut codec = SSZSnappyOutboundCodec::<E>::new(p.clone(), 20000, fork_context.clone());
         let mut bytes = BytesMut::from(payload);
         if let Ok(r) = codec.decode(&mut bytes) {
             // println!("Found RPC response {:?} {:?}", p.versioned_protocol, r);
