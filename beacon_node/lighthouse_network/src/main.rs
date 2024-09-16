@@ -21,7 +21,7 @@ fn main() -> io::Result<()> {
     let args: Vec<String> = env::args().collect();
 
     if args.len() != 3 && args.len() != 5 {
-        eprintln!("Usage: cl-network-packet-parser [source_file] [output_file_path] <config_file> <genesis_validator_root>");
+        eprintln!("Usage: libp2p-packet-parser [source_file] [output_file_path] <config_file> <genesis_validator_root>");
         std::process::exit(1);
     }
 
@@ -119,7 +119,7 @@ fn handle_packet(
             Ok((payload_type, parsed_packets)) => {
                 parsed_packets.iter().for_each(|(protocol, data)| {
                     let output_line = format!(
-                        "{} Source IP: {:>15}, Dest IP: {:>15}, Type {:>10}, Protocol: {}, Data: {}",
+                        "{} Source: {:>15}, Dest: {:>15}, Type {:>10}, Protocol: {}, Data: {}",
                         timestamp, source_ip, dest_ip, payload_type, protocol, data
                     );
                     writeln!(output, "{}", output_line).unwrap();
