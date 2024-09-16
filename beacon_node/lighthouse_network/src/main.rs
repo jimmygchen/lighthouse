@@ -6,10 +6,9 @@ use bytes::BytesMut;
 use gossipsub::{GossipHandlerEvent, GossipsubCodec, ValidationMode};
 use lighthouse_network::rpc::SupportedProtocol;
 use lighthouse_network::GossipTopic;
-use snap::raw::decompress_len;
 use std::env;
 use std::fs::File;
-use std::io::{self, BufRead, Error, ErrorKind, Write};
+use std::io::{self, BufRead, Error, Write};
 use std::path::Path;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -19,25 +18,16 @@ use types::{ChainSpec, Config, EthSpec, ForkContext, Hash256, MainnetEthSpec};
 type E = MainnetEthSpec;
 
 fn main() -> io::Result<()> {
-    // Collect command-line arguments
     let args: Vec<String> = env::args().collect();
-    println!("{:?}", args);
-    // Check if enough arguments are provided
-    if args.len() != 5 {
-        eprintln!("Usage: cl-network-packet-parser <source_file> <output_file_path> <config_file> <genesis_validator_root>");
+
+    if args.len() != 3 && args.len() != 5 {
+        eprintln!("Usage: cl-network-packet-parser [source_file] [output_file_path] <config_file> <genesis_validator_root>");
         std::process::exit(1);
     }
 
-    // Get the source file and output file paths
-    let source_file = &args[1];
-    let output_file_path = &args[2];
-    let config_file = &args[3];
-    let genesis_validators_root = &args[4];
+    let config_file = &args[args.len() - 2];
+    let genesis_validators_root = &args[args.len() - 1];
 
-    // Open the source file for reading
-    let network_packets = parse_tcpdump_file(source_file)?;
-
-    // Load chain config
     let config = Config::from_file(Path::new(config_file)).unwrap();
     let spec = ChainSpec::from_config::<E>(&config).unwrap();
     let genesis_validators_root = Hash256::from_str(&genesis_validators_root).unwrap();
@@ -49,76 +39,137 @@ fn main() -> io::Result<()> {
         &spec,
     ));
 
-    // Open the output file for writing
+    // File mode: 4 arguments
+    if args.len() == 5 {
+        let source_file = &args[1];
+        let output_file_path = &args[2];
+        process_file(source_file, output_file_path, fork_context)?;
+    } else {
+        // Streaming mode: 2 arguments
+        let stdin = io::stdin();
+        let handle = stdin.lock();
+        let mut buffered = io::BufReader::new(handle);
+        process_lines(&mut buffered, |packet| {
+            handle_packet(packet, fork_context.clone(), &mut io::stdout()).unwrap();
+        });
+    }
+
+    Ok(())
+}
+
+/// Process packets from file mode
+fn process_file(
+    source_file: &String,
+    output_file_path: &String,
+    fork_context: Arc<ForkContext>,
+) -> io::Result<()> {
+    // Read packets from file and process them
+    let file = File::open(Path::new(source_file))?;
+    let mut reader = io::BufReader::new(file);
+    let mut packets: Vec<NetworkPacket> = Vec::new();
+    process_lines(&mut reader, |packet| packets.push(packet));
+
     let mut output_file = File::create(Path::new(output_file_path))?;
-    let num_packets = network_packets.len();
+    let mut payload_count = 0;
+    let packet_count = packets.len();
 
-    let mut payload_count: usize = 0;
-    for (source_ip, target_ip, packet) in network_packets {
-        if let Some(payload) = parse_packet(&packet) {
-            payload_count += 1;
-            let result = decode_gossip_payload(payload)
-                .map(|p| ("Gossip", p))
-                .or_else(|_| {
-                    decode_rpc_request(payload, fork_context.clone())
-                        .map(|r| ("RPC Request", vec![r]))
-                })
-                .or_else(|_| {
-                    decode_rpc_response(payload, fork_context.clone())
-                        .map(|r| ("RPC Response", vec![r]))
-                });
-
-            match result {
-                Ok((payload_type, parsed_packets)) => {
-                    parsed_packets.iter().for_each(|(protocol, data)| {
-                        let output_line = format!(
-                            "Source IP: {:>15}, Target IP: {:>15}, Type {:>10}, Protocol: {}, Data: {}",
-                            source_ip, target_ip, payload_type, protocol, data
-                        );
-                        // println!("Writing line {}", output_line);
-                        writeln!(output_file, "{}", output_line).unwrap();
-                    })
-                }
-                Err(_) => {}
+    for packet in packets {
+        handle_packet(packet, fork_context.clone(), &mut output_file).inspect(|payload_found| {
+            if *payload_found {
+                payload_count += 1;
             }
-        } else {
-            // println!("No payload found in the packet.");
-        }
+        })?;
     }
 
     println!(
         "Successfully parsed file:\n   Number of Payloads: {}\n    Number of Packets: {}\n   Output file: {}",
-        payload_count, num_packets, output_file_path
+        payload_count, packet_count, output_file_path
     );
+
     Ok(())
 }
 
-/// Returns a Vec of (Source IP, Destination IP, Packet Data) for each packet.
-fn parse_tcpdump_file(file_path: &str) -> io::Result<Vec<(String, String, Vec<u8>)>> {
-    let mut packets: Vec<(String, String, Vec<u8>)> = Vec::new();
+/// Shared logic for handling packet data
+fn handle_packet(
+    packet: NetworkPacket,
+    fork_context: Arc<ForkContext>,
+    output: &mut dyn Write,
+) -> io::Result<bool> {
+    let NetworkPacket {
+        timestamp,
+        source_ip,
+        dest_ip,
+        data,
+    } = packet;
+
+    let mut payload_found = false;
+    if let Some(payload) = parse_packet_data(&data) {
+        payload_found = true;
+        let result = decode_gossip_payload(fork_context.spec.gossip_max_size, payload)
+            .map(|p| ("Gossip", p))
+            .or_else(|_| {
+                decode_rpc_response(payload, fork_context.clone())
+                    .map(|r| ("RPC Response", vec![r]))
+            })
+            .or_else(|_| {
+                decode_rpc_request(payload, fork_context.clone()).map(|r| ("RPC Request", vec![r]))
+            });
+
+        match result {
+            Ok((payload_type, parsed_packets)) => {
+                parsed_packets.iter().for_each(|(protocol, data)| {
+                    let output_line = format!(
+                        "{} Source IP: {:>15}, Dest IP: {:>15}, Type {:>10}, Protocol: {}, Data: {}",
+                        timestamp, source_ip, dest_ip, payload_type, protocol, data
+                    );
+                    writeln!(output, "{}", output_line).unwrap();
+                });
+            }
+            Err(_) => {}
+        }
+    }
+
+    Ok(payload_found)
+}
+
+/// Represents a network packet with timestamp, source IP, destination IP, and packet data.
+struct NetworkPacket {
+    timestamp: String,
+    source_ip: String,
+    dest_ip: String,
+    data: Vec<u8>,
+}
+
+fn process_lines<R, F>(reader: &mut R, mut handle_packet: F)
+where
+    R: BufRead,
+    F: FnMut(NetworkPacket),
+{
     let mut current_packet: Vec<u8> = Vec::new();
+    let mut timestamp = String::new();
     let mut source_ip = String::new();
     let mut dest_ip = String::new();
 
-    // Open the file
-    let file = File::open(Path::new(file_path))?;
-    let reader = io::BufReader::new(file);
-
     for line in reader.lines() {
-        let line = line?;
+        let line = line.unwrap();
 
         // Detect the start of a new packet based on the timestamp pattern (e.g., "12:33:16.043916")
         if line.contains(':') && line.contains('.') && line.contains("IP ") {
             if !current_packet.is_empty() {
-                packets.push((source_ip.clone(), dest_ip.clone(), current_packet.clone()));
+                handle_packet(NetworkPacket {
+                    timestamp: timestamp.clone(),
+                    source_ip: source_ip.clone(),
+                    dest_ip: dest_ip.clone(),
+                    data: current_packet.clone(),
+                });
                 current_packet.clear();
             }
 
-            // Extract the source and destination IP from the tcpdump log line
-            if let Some(ip_info) = line.split("IP ").nth(1) {
+            // Extract the timestamp, source and destination IP from the tcpdump log line
+            if let Some((ts, ip_info)) = line.split_once("IP") {
+                timestamp = ts.trim().to_string();
                 let ip_parts: Vec<&str> = ip_info.split_whitespace().collect();
                 if ip_parts.len() > 3 {
-                    // Format is typically: <source_ip> > <dest_ip>:
                     source_ip = ip_parts[0].to_string();
                     dest_ip = ip_parts[2].trim_end_matches(':').to_string();
                 }
@@ -140,14 +191,17 @@ fn parse_tcpdump_file(file_path: &str) -> io::Result<Vec<(String, String, Vec<u8
 
     // Push the last packet if it's not empty
     if !current_packet.is_empty() {
-        packets.push((source_ip.clone(), dest_ip.clone(), current_packet));
+        handle_packet(NetworkPacket {
+            timestamp: timestamp.clone(),
+            source_ip: source_ip.clone(),
+            dest_ip: dest_ip.clone(),
+            data: current_packet,
+        });
     }
-
-    Ok(packets)
 }
 
 /// returns (Source IP, Destination IP, Payload).
-fn parse_packet(packet: &[u8]) -> Option<&[u8]> {
+fn parse_packet_data(packet: &[u8]) -> Option<&[u8]> {
     // Ensure the packet is large enough to contain the IP addresses (minimum IP header size is 20 bytes)
     if packet.len() < 20 {
         return None;
@@ -198,10 +252,10 @@ fn decode_rpc_request(
         let mut codec = SSZSnappyInboundCodec::<E>::new(p.clone(), 20000, fork_context.clone());
         let mut bytes = BytesMut::from(payload);
         if let Ok(r) = codec.decode(&mut bytes) {
-            // println!("Found RPC request {:?} {:?}", p.versioned_protocol, r);
             return Ok((
                 p.versioned_protocol.protocol().to_string(),
-                format!("{:?}", r),
+                r.map(|req| format!("{:?}", req))
+                    .unwrap_or_else(|| "None".to_string()),
             ));
         }
     }
@@ -219,10 +273,10 @@ fn decode_rpc_response(
         let mut codec = SSZSnappyOutboundCodec::<E>::new(p.clone(), 20000, fork_context.clone());
         let mut bytes = BytesMut::from(payload);
         if let Ok(r) = codec.decode(&mut bytes) {
-            // println!("Found RPC response {:?} {:?}", p.versioned_protocol, r);
             return Ok((
                 p.versioned_protocol.protocol().to_string(),
-                format!("{:?}", r),
+                r.map(|req| format!("{:?}", req))
+                    .unwrap_or_else(|| "None".to_string()),
             ));
         }
     }
@@ -231,51 +285,41 @@ fn decode_rpc_response(
 }
 
 /// returns [(protocol, data)]
-fn decode_gossip_payload(payload: &[u8]) -> Result<Vec<(String, String)>, String> {
-    let mut codec = GossipsubCodec::new(20000, ValidationMode::Strict);
+fn decode_gossip_payload(max_len: u64, payload: &[u8]) -> Result<Vec<(String, String)>, String> {
+    let mut codec = GossipsubCodec::new(max_len as usize, ValidationMode::Anonymous);
     let mut bytes = BytesMut::from(payload);
     let mut msgs = vec![];
 
-    if let Some(GossipHandlerEvent::Message { rpc, .. }) =
-        codec.decode(&mut bytes).map_err(|e| e.to_string())?
+    if let Some(GossipHandlerEvent::Message {
+        rpc,
+        invalid_messages: _,
+    }) = codec.decode(&mut bytes).map_err(|e| e.to_string())?
     {
-        println!(
-            "{} messages, {} control_msgs, {} subscriptions",
-            rpc.messages.len(),
-            rpc.control_msgs.len(),
-            rpc.subscriptions.len()
-        );
+        // println!(
+        //     "{} messages, {} control_msgs, {} subscriptions, {} invalid_messages",
+        //     rpc.messages.len(),
+        //     rpc.control_msgs.len(),
+        //     rpc.subscriptions.len(),
+        //     invalid_messages.len(),
+        // );
         for msg in rpc.messages {
             if let Ok(msg) = gossip_inbound_transform(msg) {
                 let topic = GossipTopic::decode(msg.topic.as_str()).unwrap();
                 msgs.push((topic.to_string(), "".to_string()));
             }
         }
-    }
 
-    if msgs.is_empty() {
-        Err("Gossip msg not found".to_string())
+        return Ok(msgs);
     } else {
-        Ok(msgs)
+        Err("Gossip msg not found".to_string())
     }
 }
 
 fn gossip_inbound_transform(
     raw_message: gossipsub::RawMessage,
 ) -> Result<gossipsub::Message, Error> {
-    // check the length of the raw bytes
-    let len = decompress_len(&raw_message.data)?;
-    if len > 10000000 {
-        return Err(Error::new(
-            ErrorKind::InvalidData,
-            "ssz_snappy decoded data > GOSSIP_MAX_SIZE",
-        ));
-    }
-
     let mut decoder = snap::raw::Decoder::new();
     let decompressed_data = decoder.decompress_vec(&raw_message.data)?;
-
-    // Build the GossipsubMessage struct
     Ok(gossipsub::Message {
         source: raw_message.source,
         data: decompressed_data,
