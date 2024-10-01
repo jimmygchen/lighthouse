@@ -701,13 +701,22 @@ impl ApiTopic {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::beacon_node_health::BeaconNodeHealthTier;
-    use crate::SensitiveUrl;
-    use eth2::Timeouts;
     use std::str::FromStr;
+
     use strum::VariantNames;
-    use types::{MainnetEthSpec, Slot};
+
+    use eth2::Timeouts;
+    use slot_clock::TestingSlotClock;
+    use types::EmptyBlock;
+    use types::{BeaconBlockDeneb, BlindedBeaconBlock, MainnetEthSpec, Slot};
+
+    use crate::beacon_node_health::BeaconNodeHealthTier;
+    use crate::block_service::{BlockService, BlockServiceBuilder, UnsignedBlock};
+    use crate::testing::mock_beacon_node::MockBeaconNode;
+    use crate::testing::validator_test_rig::ValidatorTestRig;
+    use crate::SensitiveUrl;
+
+    use super::*;
 
     type E = MainnetEthSpec;
 
@@ -830,5 +839,46 @@ mod tests {
         sort_nodes_by_health(&mut candidates).await;
 
         assert_eq!(candidates, expected_candidates);
+    }
+
+    #[tokio::test]
+    async fn check_fallback_with_bn_delay() {
+        let test_rig = ValidatorTestRig::new().await;
+        let mock_beacon_node = MockBeaconNode::<E>::new().await;
+        let beacon_node_fallback = BeaconNodeFallback::new(
+            vec![CandidateBeaconNode::new(
+                mock_beacon_node.beacon_api_client.clone(),
+                0,
+            )],
+            Config::default(),
+            vec![ApiTopic::Blocks],
+            test_rig.spec.clone(),
+            test_rig.logger.clone(),
+        );
+
+        let block_service: BlockService<TestingSlotClock, MainnetEthSpec> =
+            BlockServiceBuilder::new()
+                .slot_clock(test_rig.slot_clock)
+                .validator_store(test_rig.validator_store.clone())
+                .beacon_nodes(Arc::new(beacon_node_fallback))
+                .runtime_context(test_rig.runtime_context)
+                .build()
+                .unwrap();
+
+        let validators = test_rig.validator_store.initialized_validators();
+        let validators = validators.read();
+        let first_validator = validators.validator_definitions().first().unwrap();
+        let unsigned_block = UnsignedBlock::Blinded(BlindedBeaconBlock::Deneb(
+            BeaconBlockDeneb::empty(&test_rig.spec),
+        ));
+        let voting_pubkey = first_validator.voting_public_key.clone();
+        let _result = block_service
+            .publish_block_for_testing(Slot::new(1), &voting_pubkey.into(), unsigned_block)
+            .await
+            .unwrap();
+        // start with 2 beacon nodes, first BN responds slow (5s delay)
+        // need VC to be set up to connect to the beacon nodes
+        // VC tries to publish attestations to all BNs (broadcast)
+        // Check that the attestation is sent out to all BNs on time
     }
 }
