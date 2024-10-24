@@ -49,7 +49,7 @@ impl<E: EthSpec> MockBeaconNode<E> {
     }
 
     /// Mocks the `get_validator_blocks_v3` response with an optional delay.
-    pub async fn mock_get_validator_blocks_v3(
+    pub fn mock_get_validator_blocks_v3(
         &mut self,
         fork: ForkName,
         block: BeaconBlock<E>,
@@ -82,8 +82,8 @@ impl<E: EthSpec> MockBeaconNode<E> {
                 let metadata = ProduceBlockV3Metadata {
                     consensus_version: fork,
                     execution_payload_blinded: false,
-                    execution_payload_value: Uint256::one(),
-                    consensus_block_value: Uint256::one(),
+                    execution_payload_value: Uint256::from(1),
+                    consensus_block_value: Uint256::from(1),
                 };
                 let data = FullBlockContents::<E>::new(
                     block.clone(),
@@ -96,8 +96,35 @@ impl<E: EthSpec> MockBeaconNode<E> {
                 };
                 serde_json::to_string(&response).unwrap().into_bytes()
             })
-            .create_async()
-            .await;
+            .create();
+
+        self
+    }
+
+    pub fn mock_post_beacon_blocks_v1(&mut self, delay: Duration) -> &mut Self {
+        let path_pattern = Regex::new(r"^/eth/v1/beacon/blocks$").unwrap();
+        let log = self.log.clone();
+        let url = self.server.url();
+
+        self.server
+            .mock("POST", Matcher::Regex(path_pattern.to_string()))
+            .match_header("Eth-Consensus-Version", "Deneb")
+            .with_status(200)
+            .with_body_from_request(move |_request| {
+                info!(
+                    log,
+                    "{}",
+                    format!(
+                        "Received published block request on server {} with delay {} s",
+                        url,
+                        delay.as_secs(),
+                    )
+                );
+
+                std::thread::sleep(delay);
+                vec![]
+            })
+            .create();
 
         self
     }

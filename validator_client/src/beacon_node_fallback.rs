@@ -842,19 +842,26 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn check_fallback_with_bn_delay() {
+    async fn check_fallback_broadcast_with_bn_delay() {
         let test_rig = ValidatorTestRig::new().await;
-        let mock_beacon_node = MockBeaconNode::<E>::new().await;
+        let mut mock_beacon_node_one = MockBeaconNode::<E>::new().await;
+        let mut mock_beacon_node_two = MockBeaconNode::<E>::new().await;
+
+        let beacon_node_one =
+            CandidateBeaconNode::new(mock_beacon_node_one.beacon_api_client.clone(), 0);
+        let beacon_node_two =
+            CandidateBeaconNode::new(mock_beacon_node_two.beacon_api_client.clone(), 1);
+
         let beacon_node_fallback = BeaconNodeFallback::new(
-            vec![CandidateBeaconNode::new(
-                mock_beacon_node.beacon_api_client.clone(),
-                0,
-            )],
+            vec![beacon_node_one, beacon_node_two],
             Config::default(),
-            vec![ApiTopic::Blocks],
+            vec![ApiTopic::Blocks], // to broadcast blocks to both bns
             test_rig.spec.clone(),
             test_rig.logger.clone(),
         );
+
+        mock_beacon_node_one.mock_post_beacon_blocks_v1(Duration::from_secs(5));
+        mock_beacon_node_two.mock_post_beacon_blocks_v1(Duration::from_secs(0));
 
         let block_service: BlockService<TestingSlotClock, MainnetEthSpec> =
             BlockServiceBuilder::new()
