@@ -67,4 +67,4 @@ strum = { workspace = true }
 itertools = { workspace = true }
 fdlimit = "0.3.0"
 regex = "1.10.6"
-env_logger = "0.8.4"
+
