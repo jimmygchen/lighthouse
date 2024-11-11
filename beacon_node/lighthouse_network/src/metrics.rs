@@ -201,7 +201,7 @@ pub static REPORT_PEER_MSGS: LazyLock<Result<IntCounterVec>> = LazyLock::new(|| 
     try_create_int_counter_vec(
         "libp2p_report_peer_msgs_total",
         "Number of peer reports per msg",
-        &["msg"],
+        &["msg", "client"],
     )
 });
 

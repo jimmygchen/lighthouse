@@ -526,7 +526,12 @@ impl<E: EthSpec> PeerDB<E> {
         source: ReportSource,
         msg: &'static str,
     ) -> ScoreUpdateResult {
-        metrics::inc_counter_vec(&metrics::REPORT_PEER_MSGS, &[msg]);
+        let peer_kind = self
+            .peers
+            .get(peer_id)
+            .map(|info| info.client().kind.as_ref())
+            .unwrap_or("Unknown");
+        metrics::inc_counter_vec(&metrics::REPORT_PEER_MSGS, &[msg, peer_kind]);
 
         match self.peers.get_mut(peer_id) {
             Some(info) => {
