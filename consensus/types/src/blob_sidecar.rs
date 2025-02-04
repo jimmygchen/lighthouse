@@ -57,15 +57,17 @@ impl Ord for BlobIdentifier {
 #[serde(bound = "E: EthSpec")]
 #[arbitrary(bound = "E: EthSpec")]
 #[derivative(PartialEq, Eq, Hash(bound = "E: EthSpec"))]
-pub struct BlobSidecar<E: EthSpec> {
+pub struct DataColumnSidecar<E: EthSpec> {
     #[serde(with = "serde_utils::quoted_u64")]
-    pub index: u64,
-    #[serde(with = "ssz_types::serde_utils::hex_fixed_vec")]
-    pub blob: Blob<E>,
-    pub kzg_commitment: KzgCommitment,
-    pub kzg_proof: KzgProof,
+    pub index: ColumnIndex,
+    #[serde(with = "ssz_types::serde_utils::list_of_hex_fixed_vec")]
+    pub column: DataColumn<E>,
+    /// All the KZG commitments and proofs associated with the block, used for verifying sample cells.
+    pub kzg_commitments: KzgCommitments<E>,
+    pub kzg_proofs: KzgProofs<E>,
     pub signed_block_header: SignedBeaconBlockHeader,
-    pub kzg_commitment_inclusion_proof: FixedVector<Hash256, E::KzgCommitmentInclusionProofDepth>,
+    /// An inclusion proof, proving the inclusion of `blob_kzg_commitments` in `BeaconBlockBody`.
+    pub kzg_commitments_inclusion_proof: FixedVector<Hash256, E::KzgCommitmentsInclusionProofDepth>,
 }
 
 impl<E: EthSpec> PartialOrd for BlobSidecar<E> {
