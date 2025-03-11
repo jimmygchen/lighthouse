@@ -3274,10 +3274,34 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
 
         let data_availability_checker = self.data_availability_checker.clone();
 
+        let chain_cloned = self.clone();
+        let log_cloned = self.log.clone();
         let result = self
             .task_executor
             .spawn_blocking_handle(
-                move || data_availability_checker.reconstruct_data_columns(&block_root),
+                move || {
+                    data_availability_checker
+                        .reconstruct_data_columns(&block_root)
+                        .inspect(|result| {
+                            if let DataColumnReconstructionResult::Success((_, data_columns)) =
+                                result
+                            {
+                                // Observe data column sidecars as if they were received over gossip.
+                                let mut write_lock = chain_cloned.observed_column_sidecars.write();
+                                for data_column_sidecar in data_columns {
+                                    // Ignore unlikely failures as these columns are computed by the node.
+                                    if let Err(e) = write_lock.observe_sidecar(data_column_sidecar)
+                                    {
+                                        debug!(
+                                            log_cloned,
+                                            "Error observing reconstructed data column sidecars";
+                                            "error" => ?e,
+                                        );
+                                    };
+                                }
+                            }
+                        })
+                },
                 "reconstruct_data_columns",
             )
             .ok_or(BeaconChainError::RuntimeShutdown)?
@@ -3290,7 +3314,6 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
                     // This should be unreachable because empty result would return `RecoveredColumnsNotImported` instead of success.
                     return Ok(None);
                 };
-
                 let r = self
                     .process_availability(slot, availability, || Ok(()))
                     .await;

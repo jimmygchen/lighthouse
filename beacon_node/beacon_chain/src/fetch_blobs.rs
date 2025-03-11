@@ -262,6 +262,20 @@ fn spawn_compute_and_publish_data_columns_task<T: BeaconChainTypes>(
                 }
             };
 
+            // Observe data column sidecars as if they were received over gossip.
+            let mut write_lock = chain_cloned.observed_column_sidecars.write();
+            for data_column_sidecar in &all_data_columns {
+                // Ignore unlikely failures as these columns are computed by the node.
+                if let Err(e) = write_lock.observe_sidecar(data_column_sidecar) {
+                    debug!(
+                        log,
+                        "Error observing computed data column sidecars";
+                        "error" => ?e,
+                    );
+                };
+            }
+            drop(write_lock);
+
             if data_columns_sender.send(all_data_columns.clone()).is_err() {
                 // Data column receiver have been dropped - block may have already been imported.
                 // This race condition exists because gossip columns may arrive and trigger block
