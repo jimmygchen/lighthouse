@@ -8,7 +8,9 @@ use super::manager::BlockProcessType;
 use super::range_sync::ByRangeRequestType;
 use super::SyncMessage;
 use crate::metrics;
-use crate::network_beacon_processor::{NetworkBeaconProcessor, TestBeaconChainType};
+use crate::network_beacon_processor::NetworkBeaconProcessor;
+#[cfg(test)]
+use crate::network_beacon_processor::TestBeaconChainType;
 use crate::service::NetworkMessage;
 use crate::status::ToStatusMessage;
 use crate::sync::block_lookups::SingleLookupId;
@@ -32,12 +34,14 @@ use requests::{
     ActiveRequests, BlobsByRangeRequestItems, BlobsByRootRequestItems, BlocksByRangeRequestItems,
     BlocksByRootRequestItems, DataColumnsByRangeRequestItems, DataColumnsByRootRequestItems,
 };
+#[cfg(test)]
 use slot_clock::SlotClock;
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::sync::Arc;
 use std::time::Duration;
+#[cfg(test)]
 use task_executor::TaskExecutor;
 use tokio::sync::mpsc;
 use tracing::{debug, error, span, warn, Level};
