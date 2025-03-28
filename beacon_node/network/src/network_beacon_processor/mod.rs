@@ -1218,7 +1218,7 @@ use {
 };
 
 #[cfg(test)]
-type TestBeaconChainType<E> =
+pub(crate) type TestBeaconChainType<E> =
     Witness<ManualSlotClock, CachingEth1Backend<E>, E, MemoryStore<E>, MemoryStore<E>>;
 
 #[cfg(test)]
