@@ -1,5 +1,6 @@
 use crate::utils::is_ascii_control;
 
+use chrono::format::StrftimeItems;
 use chrono::prelude::*;
 use serde_json::{Map, Value};
 use std::collections::HashMap;
@@ -71,8 +72,9 @@ where
     fn on_event(&self, event: &tracing::Event<'_>, ctx: Context<S>) {
         let meta = event.metadata();
         let log_level = meta.level();
+        let fmt = StrftimeItems::new("%b %d %H:%M:%S%.3f");
         let timestamp = if !self.disable_log_timestamp {
-            Local::now().format("%b %d %H:%M:%S%.3f").to_string()
+            Utc::now().format_with_items(fmt).to_string()
         } else {
             String::new()
         };

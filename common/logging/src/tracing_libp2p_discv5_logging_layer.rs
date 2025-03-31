@@ -1,4 +1,5 @@
-use chrono::Local;
+use chrono::format::StrftimeItems;
+use chrono::Utc;
 use logroller::{LogRollerBuilder, Rotation, RotationSize};
 use std::io::Write;
 use std::path::PathBuf;
@@ -20,7 +21,8 @@ where
     fn on_event(&self, event: &tracing::Event<'_>, _ctx: Context<S>) {
         let meta = event.metadata();
         let log_level = meta.level();
-        let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        let fmt = StrftimeItems::new("%b %d %H:%M:%S%.3f");
+        let timestamp = Utc::now().format_with_items(fmt).to_string();
 
         let target = match meta.target().split_once("::") {
             Some((crate_name, _)) => crate_name,

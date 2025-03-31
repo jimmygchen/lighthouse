@@ -2,6 +2,8 @@
 //! This module provides an implementation of `slog::Drain` that optionally writes to a channel if
 //! there are subscribers to a HTTP SSE stream.
 
+use chrono::format::StrftimeItems;
+use chrono::Utc;
 use serde_json::json;
 use serde_json::Value;
 use std::sync::Arc;
@@ -72,11 +74,10 @@ impl TracingEventVisitor {
 
     fn finish(self, metadata: &tracing::Metadata<'_>) -> Value {
         let mut log_entry = serde_json::Map::new();
+        let fmt = StrftimeItems::new("%b %d %H:%M:%S%.3f");
         log_entry.insert(
             "time".to_string(),
-            json!(chrono::Local::now()
-                .format("%b %d %H:%M:%S%.3f")
-                .to_string()),
+            json!(Utc::now().format_with_items(fmt).to_string()),
         );
         log_entry.insert("level".to_string(), json!(metadata.level().to_string()));
         log_entry.insert("target".to_string(), json!(metadata.target()));
