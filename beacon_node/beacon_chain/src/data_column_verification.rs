@@ -815,3 +815,163 @@ mod test {
         ));
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::kzg_utils::blobs_to_data_column_sidecars;
+    use crate::test_utils::BeaconChainHarness;
+    use std::time::Instant;
+    use types::{ForkName, MainnetEthSpec};
+
+    fn measure_time<F>(name: &str, f: F) -> Result<(), GossipDataColumnError>
+    where
+        F: FnOnce() -> Result<(), GossipDataColumnError>,
+    {
+        let start = Instant::now();
+        let result = f();
+        let duration = start.elapsed();
+        println!("{}: {:?}", name, duration);
+        result
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+    async fn test_data_column_validation_timing() {
+        // Setup the harness
+        let spec = ForkName::Fulu.make_genesis_spec(MainnetEthSpec::default_spec());
+        let harness = BeaconChainHarness::builder(MainnetEthSpec)
+            .spec(spec.into())
+            .deterministic_keypairs(64)
+            .fresh_ephemeral_store()
+            .mock_execution_layer()
+            .build();
+
+        harness.advance_slot();
+
+        // Create a block with data columns
+        let slot = harness.get_current_slot();
+        let state = harness.get_current_state();
+        let ((block, blobs), _state) = harness.make_block(state, slot).await;
+
+        // Create a data column sidecar
+        let (proofs, blobs) = blobs.unwrap();
+        println!("blobs: {:?}", blobs.len());
+        let blob_refs = blobs.iter().collect::<Vec<_>>();
+        let column_sidecars = blobs_to_data_column_sidecars(
+            &blob_refs,
+            proofs.to_vec(),
+            &block,
+            &harness.chain.kzg,
+            &harness.chain.spec,
+        )
+        .unwrap();
+
+        // Measure each verification step
+        let mut futures = vec![];
+        for i in 0..8 {
+            let column_sidecar = column_sidecars[0].clone();
+            let chain = harness.chain.clone();
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+            futures.push(tokio::spawn(async move {
+                measure_time(&format!("verify_total_time_{}", i), || {
+                    Ok(measure(column_sidecar, &chain))
+                })
+                .expect("TODO: panic message");
+            }));
+        }
+        futures::future::join_all(futures).await;
+    }
+
+    fn measure<T: BeaconChainTypes>(
+        column_sidecar: Arc<DataColumnSidecar<T::EthSpec>>,
+        chain: &BeaconChain<T>,
+    ) {
+        let result = {
+            let column_slot = column_sidecar.slot();
+
+            measure_time("verify_data_column_sidecar", || {
+                verify_data_column_sidecar(&column_sidecar, &chain.spec)
+            })
+            .unwrap();
+
+            measure_time("verify_index_matches_subnet", || {
+                verify_index_matches_subnet(&column_sidecar, column_sidecar.index, &chain.spec)
+            })
+            .unwrap();
+
+            measure_time("verify_sidecar_not_from_future_slot", || {
+                verify_sidecar_not_from_future_slot(chain, column_slot)
+            })
+            .unwrap();
+
+            measure_time("verify_slot_greater_than_latest_finalized_slot", || {
+                verify_slot_greater_than_latest_finalized_slot(chain, column_slot)
+            })
+            .unwrap();
+
+            measure_time("verify_is_first_sidecar", || {
+                verify_is_first_sidecar(chain, &column_sidecar)
+            })
+            .unwrap();
+
+            measure_time("verify_column_inclusion_proof", || {
+                verify_column_inclusion_proof(&column_sidecar)
+            })
+            .unwrap();
+
+            let mut parent_block = None;
+            measure_time("verify_parent_block_and_finalized_descendant", || {
+                parent_block = Some(
+                    verify_parent_block_and_finalized_descendant(column_sidecar.clone(), chain)
+                        .unwrap(),
+                );
+                Ok(())
+            })
+            .unwrap();
+
+            measure_time("verify_slot_higher_than_parent", || {
+                verify_slot_higher_than_parent(parent_block.as_ref().unwrap(), column_slot)
+            })
+            .unwrap();
+
+            measure_time("verify_proposer_and_signature", || {
+                verify_proposer_and_signature(
+                    &column_sidecar,
+                    parent_block.as_ref().unwrap(),
+                    chain,
+                )
+            })
+            .unwrap();
+
+            let kzg = &chain.kzg;
+            measure_time("verify_kzg_for_data_column", || {
+                verify_kzg_for_data_column(column_sidecar.clone(), kzg).unwrap();
+                Ok(())
+            })
+            .unwrap();
+
+            measure_time("observe_slashable", || {
+                chain
+                    .observed_slashable
+                    .write()
+                    .observe_slashable(
+                        column_slot,
+                        column_sidecar.block_proposer_index(),
+                        column_sidecar.block_root(),
+                    )
+                    .unwrap();
+
+                Ok(())
+            })
+            .unwrap();
+
+            Ok::<(), GossipDataColumnError>(())
+        };
+
+        // Print overall result
+        match result {
+            Ok(()) => println!("All verifications passed successfully"),
+            Err(e) => println!("Verification failed: {:?}", e),
+        }
+    }
+}
