@@ -1,14 +1,15 @@
-use std::sync::Arc;
-
 use beacon_chain::kzg_utils::{blobs_to_data_column_sidecars, reconstruct_data_columns};
 use beacon_chain::test_utils::get_kzg;
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
-
 use bls::Signature;
+use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use eth2::types::BlobsBundle;
 use kzg::{KzgCommitment, KzgProof};
+use ssz::{Decode, Encode};
+use std::sync::Arc;
+use std::time::Instant;
 use types::{
     beacon_block_body::KzgCommitments, BeaconBlock, BeaconBlockDeneb, Blob, BlobsList, ChainSpec,
-    EmptyBlock, EthSpec, KzgProofs, MainnetEthSpec, SignedBeaconBlock,
+    EmptyBlock, EthSpec, ForkName, KzgProofs, MainnetEthSpec, SignedBeaconBlock,
 };
 
 fn create_test_block_and_blobs<E: EthSpec>(
@@ -34,32 +35,39 @@ fn create_test_block_and_blobs<E: EthSpec>(
 
 fn all_benches(c: &mut Criterion) {
     type E = MainnetEthSpec;
-    let spec = Arc::new(E::default_spec());
+    const NUM_COLS: usize = 128;
+    let spec = ForkName::Fulu.make_genesis_spec(E::default_spec());
 
-    let kzg = get_kzg(&spec);
-    for blob_count in [1, 2, 3, 6] {
-        let (signed_block, blobs, proofs) = create_test_block_and_blobs::<E>(blob_count, &spec);
+    let mut test_with_blobs = |num_blobs: usize, spec: &ChainSpec| {
+        let blobs_bundle = BlobsBundle::<E> {
+            commitments: vec![KzgCommitment::empty_for_testing(); num_blobs].into(),
+            proofs: vec![KzgProof::empty(); num_blobs * NUM_COLS].into(),
+            blobs: vec![Blob::<E>::new(vec![0; 131072]).unwrap(); num_blobs].into(),
+        };
 
-        let column_sidecars = blobs_to_data_column_sidecars(
-            &blobs.iter().collect::<Vec<_>>(),
-            proofs.to_vec(),
-            &signed_block,
-            &kzg,
-            &spec,
-        )
-        .unwrap();
-
-        let spec = spec.clone();
-
-        c.bench_function(&format!("reconstruct_{}", blob_count), |b| {
-            b.iter(|| {
-                black_box(reconstruct_data_columns(
-                    &kzg,
-                    &column_sidecars.iter().as_slice()[0..column_sidecars.len() / 2],
-                    spec.as_ref(),
-                ))
-            })
+        c.bench_function(&format!("json_encode_{}", num_blobs), |b| {
+            b.iter(|| black_box(serde_json::to_string(&blobs_bundle).unwrap()))
         });
+
+        let str = serde_json::to_string(&blobs_bundle).unwrap();
+
+        c.bench_function(&format!("json_decode_{}", num_blobs), |b| {
+            b.iter(|| black_box(serde_json::from_str::<BlobsBundle<E>>(&str).unwrap()))
+        });
+
+        c.bench_function(&format!("ssz_encode_{}", num_blobs), |b| {
+            b.iter(|| black_box(blobs_bundle.as_ssz_bytes()))
+        });
+
+        let ssz = blobs_bundle.as_ssz_bytes();
+
+        c.bench_function(&format!("ssz_decode_{}", num_blobs), |b| {
+            b.iter(|| black_box(BlobsBundle::<E>::from_ssz_bytes(&ssz).unwrap()))
+        });
+    };
+
+    for blob_count in vec![64, 128] {
+        test_with_blobs(blob_count, &spec);
     }
 }
 

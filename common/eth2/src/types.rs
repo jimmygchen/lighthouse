@@ -11,12 +11,12 @@ use multiaddr::Multiaddr;
 use reqwest::header::HeaderMap;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_utils::quoted_u64::Quoted;
-use ssz::{Decode, DecodeError};
+use ssz::{Decode, DecodeError, Encode};
 use ssz_derive::{Decode, Encode};
 use std::fmt::{self, Display};
 use std::str::FromStr;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use test_random_derive::TestRandom;
 use types::beacon_block_body::KzgCommitments;
 use types::test_utils::TestRandom;
@@ -1980,6 +1980,111 @@ pub struct SignedBlockContents<E: EthSpec> {
     pub kzg_proofs: KzgProofs<E>,
     #[serde(with = "ssz_types::serde_utils::list_of_hex_fixed_vec")]
     pub blobs: BlobsList<E>,
+}
+
+impl<E: EthSpec> SignedBlockContents<E> {
+    pub fn from_ssz_bytes(bytes: &[u8], fork_name: ForkName) -> Result<Self, DecodeError> {
+        let mut builder = ssz::SszDecoderBuilder::new(bytes);
+        builder.register_anonymous_variable_length_item()?;
+        builder.register_type::<KzgProofs<E>>()?;
+        builder.register_type::<BlobsList<E>>()?;
+
+        let mut decoder = builder.build()?;
+        let block = decoder.decode_next_with(|bytes| {
+            SignedBeaconBlock::from_ssz_bytes_by_fork(bytes, fork_name)
+        })?;
+        let kzg_proofs = decoder.decode_next()?;
+        let blobs = decoder.decode_next()?;
+        Ok(Self {
+            signed_block: Arc::new(block),
+            kzg_proofs,
+            blobs,
+        })
+    }
+}
+
+#[test]
+fn test_serde_json_ssz_blobs_bundle() {
+    type E = MainnetEthSpec;
+    const NUM_COLS: usize = 128;
+    let spec = ForkName::Fulu.make_genesis_spec(E::default_spec());
+
+    let test_with_blobs = |num_blobs: usize, spec: &ChainSpec| {
+        let blobs_bundle = BlobsBundle::<E> {
+            commitments: vec![KzgCommitment::empty_for_testing(); num_blobs].into(),
+            proofs: vec![KzgProof::empty(); num_blobs * NUM_COLS].into(),
+            blobs: vec![Blob::<E>::new(vec![0; 131072]).unwrap(); num_blobs].into(),
+        };
+
+        let now = Instant::now();
+        let str = serde_json::to_string(&blobs_bundle).unwrap();
+        let to_json = now.elapsed();
+        let now = Instant::now();
+        serde_json::from_str::<BlobsBundle<E>>(&str).unwrap();
+        let from_json = now.elapsed();
+        println!("json: ser {:?} de {:?}", to_json, from_json);
+        let total = to_json + from_json;
+        println!("json total: {total:?}");
+
+        let now = Instant::now();
+        let ssz = blobs_bundle.as_ssz_bytes();
+        let to_ssz = now.elapsed();
+        let now = Instant::now();
+        BlobsBundle::<E>::from_ssz_bytes(&ssz).unwrap();
+        let from_ssz = now.elapsed();
+        println!("ssz: ser {:?} de {:?}", to_ssz, from_ssz);
+        let total = to_ssz + from_ssz;
+        println!("ssz total: {total:?}");
+    };
+
+    for blob_count in vec![9, 18, 24, 48] {
+        println!("blob count: {}", blob_count);
+        test_with_blobs(blob_count, &spec);
+    }
+}
+
+#[test]
+fn test_serde_json_ssz_block_contents() {
+    type E = MainnetEthSpec;
+    const NUM_COLS: usize = 128;
+    let spec = ForkName::Fulu.make_genesis_spec(E::default_spec());
+
+    let test_with_blobs = |num_blobs: usize, spec: &ChainSpec| {
+        let signed_block_contents = SignedBlockContents::<E> {
+            signed_block: Arc::new(SignedBeaconBlock::Fulu(SignedBeaconBlockFulu {
+                message: BeaconBlockFulu::empty(&spec),
+                signature: Signature::empty(),
+            })),
+            kzg_proofs: vec![KzgProof::empty(); num_blobs * NUM_COLS].into(),
+            blobs: vec![Blob::<E>::new(vec![0; 131072]).unwrap(); num_blobs].into(),
+        };
+
+        let now = Instant::now();
+        let str = serde_json::to_string(&signed_block_contents).unwrap();
+        let to_json = now.elapsed();
+        let now = Instant::now();
+        let value = serde_json::from_str::<serde_json::Value>(&str).unwrap();
+        let obj = SignedBlockContents::<E>::context_deserialize(&value, ForkName::Fulu).unwrap();
+        let from_json = now.elapsed();
+        println!("json: ser {:?} de {:?}", to_json, from_json);
+        let total = to_json + from_json;
+        println!("json total: {total:?}");
+
+        let now = Instant::now();
+        let ssz = signed_block_contents.as_ssz_bytes();
+        let to_ssz = now.elapsed();
+        let now = Instant::now();
+        SignedBlockContents::<E>::from_ssz_bytes(&ssz, ForkName::Fulu).unwrap();
+        let from_ssz = now.elapsed();
+        println!("ssz: ser {:?} de {:?}", to_ssz, from_ssz);
+        let total = to_ssz + from_ssz;
+        println!("ssz total: {total:?}\n\n");
+    };
+
+    for blob_count in vec![9, 18, 24, 48, 72] {
+        println!("blob count: {}", blob_count);
+        test_with_blobs(blob_count, &spec);
+    }
 }
 
 impl<'de, E: EthSpec> ContextDeserialize<'de, ForkName> for SignedBlockContents<E> {
