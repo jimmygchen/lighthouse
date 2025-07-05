@@ -15,7 +15,7 @@ use ssz_derive::{Decode, Encode};
 use std::iter;
 use std::marker::PhantomData;
 use std::sync::Arc;
-use tracing::debug;
+use tracing::{debug, info_span};
 use types::data_column_sidecar::ColumnIndex;
 use types::{
     BeaconStateError, ChainSpec, DataColumnSidecar, DataColumnSubnetId, EthSpec, Hash256,
@@ -469,55 +469,77 @@ pub fn validate_data_column_sidecar_for_gossip<T: BeaconChainTypes, O: Observati
     subnet: u64,
     chain: &BeaconChain<T>,
 ) -> Result<GossipVerifiedDataColumn<T, O>, GossipDataColumnError> {
-    let column_slot = data_column.slot();
-    verify_data_column_sidecar(&data_column, &chain.spec)?;
-    verify_index_matches_subnet(&data_column, subnet, &chain.spec)?;
-    verify_sidecar_not_from_future_slot(chain, column_slot)?;
-    verify_slot_greater_than_latest_finalized_slot(chain, column_slot)?;
-    verify_is_first_sidecar(chain, &data_column)?;
+    info_span!("validate_data_column_sidecar_for_gossip").in_scope(|| {
+        let column_slot = data_column.slot();
 
-    // Check if the data column is already in the DA checker cache. This happens when data columns
-    // are made available through the `engine_getBlobs` method.  If it exists in the cache, we know
-    // it has already passed the gossip checks, even though this particular instance hasn't been
-    // seen / published on the gossip network yet (passed the `verify_is_first_sidecar` check above).
-    // In this case, we should accept it for gossip propagation.
-    if chain
-        .data_availability_checker
-        .is_data_column_cached(&data_column.block_root(), &data_column)
-    {
-        // Observe this data column so we don't process it again.
-        if O::observe() {
-            observe_gossip_data_column(&data_column, chain)?;
+        info_span!("verify_data_column_sidecar")
+            .in_scope(|| verify_data_column_sidecar(&data_column, &chain.spec))?;
+
+        info_span!("verify_index_matches_subnet")
+            .in_scope(|| verify_index_matches_subnet(&data_column, subnet, &chain.spec))?;
+
+        info_span!("verify_sidecar_not_from_future_slot")
+            .in_scope(|| verify_sidecar_not_from_future_slot(chain, column_slot))?;
+
+        info_span!("verify_slot_greater_than_latest_finalized_slot")
+            .in_scope(|| verify_slot_greater_than_latest_finalized_slot(chain, column_slot))?;
+
+        info_span!("verify_is_first_sidecar")
+            .in_scope(|| verify_is_first_sidecar(chain, &data_column))?;
+
+        if chain
+            .data_availability_checker
+            .is_data_column_cached(&data_column.block_root(), &data_column)
+        {
+            if O::observe() {
+                info_span!("observe_gossip_data_column")
+                    .in_scope(|| observe_gossip_data_column(&data_column, chain))?;
+            }
+            return Err(GossipDataColumnError::PriorKnownUnpublished);
         }
-        return Err(GossipDataColumnError::PriorKnownUnpublished);
-    }
 
-    verify_column_inclusion_proof(&data_column)?;
-    let parent_block = verify_parent_block_and_finalized_descendant(data_column.clone(), chain)?;
-    verify_slot_higher_than_parent(&parent_block, column_slot)?;
-    verify_proposer_and_signature(&data_column, &parent_block, chain)?;
-    let kzg = &chain.kzg;
-    let kzg_verified_data_column = verify_kzg_for_data_column(data_column.clone(), kzg)
-        .map_err(GossipDataColumnError::InvalidKzgProof)?;
+        info_span!("verify_column_inclusion_proof")
+            .in_scope(|| verify_column_inclusion_proof(&data_column))?;
 
-    chain
-        .observed_slashable
-        .write()
-        .observe_slashable(
-            column_slot,
-            data_column.block_proposer_index(),
-            data_column.block_root(),
-        )
-        .map_err(|e| GossipDataColumnError::BeaconChainError(Box::new(e.into())))?;
+        let parent_block =
+            info_span!("verify_parent_block_and_finalized_descendant").in_scope(|| {
+                verify_parent_block_and_finalized_descendant(data_column.clone(), chain)
+            })?;
 
-    if O::observe() {
-        observe_gossip_data_column(&data_column, chain)?;
-    }
+        info_span!("verify_slot_higher_than_parent")
+            .in_scope(|| verify_slot_higher_than_parent(&parent_block, column_slot))?;
 
-    Ok(GossipVerifiedDataColumn {
-        block_root: data_column.block_root(),
-        data_column: kzg_verified_data_column,
-        _phantom: PhantomData,
+        info_span!("verify_proposer_and_signature")
+            .in_scope(|| verify_proposer_and_signature(&data_column, &parent_block, chain))?;
+
+        let kzg = &chain.kzg;
+        let kzg_verified_data_column = info_span!("verify_kzg_for_data_column").in_scope(|| {
+            verify_kzg_for_data_column(data_column.clone(), kzg)
+                .map_err(GossipDataColumnError::InvalidKzgProof)
+        })?;
+
+        info_span!("observe_slashable").in_scope(|| {
+            chain
+                .observed_slashable
+                .write()
+                .observe_slashable(
+                    column_slot,
+                    data_column.block_proposer_index(),
+                    data_column.block_root(),
+                )
+                .map_err(|e| GossipDataColumnError::BeaconChainError(Box::new(e.into())))
+        })?;
+
+        if O::observe() {
+            info_span!("observe_gossip_data_column")
+                .in_scope(|| observe_gossip_data_column(&data_column, chain))?;
+        }
+
+        Ok(GossipVerifiedDataColumn {
+            block_root: data_column.block_root(),
+            data_column: kzg_verified_data_column,
+            _phantom: PhantomData,
+        })
     })
 }
 

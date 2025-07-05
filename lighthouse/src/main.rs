@@ -20,13 +20,17 @@ use lighthouse_version::VERSION;
 use logging::{build_workspace_filter, crit, MetricsLayer};
 use malloc_utils::configure_memory_allocator;
 use std::backtrace::Backtrace;
+use std::fs::File;
 use std::io::IsTerminal;
 use std::path::PathBuf;
 use std::process::exit;
-use std::sync::LazyLock;
+use std::sync::{LazyLock, Mutex};
 use task_executor::ShutdownReason;
+use tracing::level_filters::LevelFilter;
 use tracing::{info, warn, Level};
-use tracing_subscriber::{filter::EnvFilter, layer::SubscriberExt, util::SubscriberInitExt, Layer};
+use tracing_subscriber::{
+    filter::EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt, Layer,
+};
 use types::{EthSpec, EthSpecId};
 use validator_client::ProductionValidatorClient;
 
@@ -662,6 +666,18 @@ fn run<E: EthSpec>(
     }
 
     logging_layers.push(MetricsLayer.boxed());
+
+    {
+        let file = File::create("spans.log").expect("failed to create log file");
+        let file_writer = Mutex::new(file);
+        logging_layers.push(
+            fmt::Layer::default()
+                .with_writer(file_writer)
+                .with_span_events(fmt::format::FmtSpan::CLOSE)
+                .with_filter(LevelFilter::OFF)
+                .boxed(),
+        );
+    }
 
     #[cfg(feature = "console-subscriber")]
     {
