@@ -675,7 +675,6 @@ fn run<E: EthSpec>(
             fmt::Layer::default()
                 .with_writer(file_writer)
                 .with_span_events(fmt::format::FmtSpan::CLOSE)
-                .with_filter(LevelFilter::OFF)
                 .boxed(),
         );
     }
