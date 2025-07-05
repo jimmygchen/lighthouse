@@ -668,7 +668,8 @@ fn run<E: EthSpec>(
     logging_layers.push(MetricsLayer.boxed());
 
     {
-        let file = File::create("spans.log").expect("failed to create log file");
+        let path = log_path.clone().unwrap().join("spans.log");
+        let file = File::create(path).expect("failed to create log file");
         let file_writer = Mutex::new(file);
         logging_layers.push(
             fmt::Layer::default()
