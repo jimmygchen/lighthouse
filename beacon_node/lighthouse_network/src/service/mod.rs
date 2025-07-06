@@ -39,7 +39,7 @@ use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
-use tracing::{debug, info, instrument, trace, warn};
+use tracing::{debug, info, trace, warn};
 use types::{
     consts::altair::SYNC_COMMITTEE_SUBNET_COUNT, EnrForkId, EthSpec, ForkContext, Slot, SubnetId,
 };

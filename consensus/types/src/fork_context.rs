@@ -1,7 +1,7 @@
 use parking_lot::RwLock;
 
 use crate::{ChainSpec, Epoch, EthSpec, ForkName, Hash256, Slot};
-use std::collections::{ HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 
 /// Provides fork specific info like the current fork name and the fork digests corresponding to every valid fork.
 #[derive(Debug)]

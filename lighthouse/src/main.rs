@@ -644,7 +644,7 @@ fn run<E: EthSpec>(
         logging_layers.push(
             file_logging_layer
                 .with_filter(logger_config.logfile_debug_level)
-                .with_filter(workspace_filter)
+                .with_filter(workspace_filter.clone())
                 .boxed(),
         );
     }
@@ -675,6 +675,7 @@ fn run<E: EthSpec>(
             fmt::Layer::default()
                 .with_writer(file_writer)
                 .with_span_events(fmt::format::FmtSpan::CLOSE)
+                .with_filter(workspace_filter)
                 .boxed(),
         );
     }

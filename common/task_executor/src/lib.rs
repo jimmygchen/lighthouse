@@ -5,7 +5,7 @@ use futures::channel::mpsc::Sender;
 use futures::prelude::*;
 use std::sync::Weak;
 use tokio::runtime::{Handle, Runtime};
-use tracing::{debug, instrument};
+use tracing::debug;
 
 pub use tokio::task::JoinHandle;
 

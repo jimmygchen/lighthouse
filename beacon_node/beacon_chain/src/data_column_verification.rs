@@ -469,9 +469,14 @@ pub fn validate_data_column_sidecar_for_gossip<T: BeaconChainTypes, O: Observati
     subnet: u64,
     chain: &BeaconChain<T>,
 ) -> Result<GossipVerifiedDataColumn<T, O>, GossipDataColumnError> {
-    info_span!("validate_data_column_sidecar_for_gossip").in_scope(|| {
-        let column_slot = data_column.slot();
-
+    let column_slot = data_column.slot();
+    info_span!(
+        "validate_data_column_sidecar_for_gossip",
+        slot = ?column_slot,
+        block_root = ?data_column.block_root(),
+        index = data_column.index,
+    )
+    .in_scope(|| {
         info_span!("verify_data_column_sidecar")
             .in_scope(|| verify_data_column_sidecar(&data_column, &chain.spec))?;
 

@@ -87,8 +87,7 @@ impl Eth2Enr for Enr {
     }
 
     fn next_fork_digest(&self) -> Result<[u8; 4], &'static str> {
-        self
-            .get_decodable::<[u8; 4]>(NEXT_FORK_DIGEST_ENR_KEY)
+        self.get_decodable::<[u8; 4]>(NEXT_FORK_DIGEST_ENR_KEY)
             .ok_or("ENR next fork digest non-existent")?
             .map_err(|_| "Could not decode the ENR next fork digest")
     }

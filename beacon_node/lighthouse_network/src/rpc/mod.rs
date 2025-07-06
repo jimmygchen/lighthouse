@@ -17,7 +17,7 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::time::Duration;
-use tracing::{debug, error, instrument, trace};
+use tracing::{debug, error, trace};
 use types::{EthSpec, ForkContext};
 
 pub(crate) use handler::{HandlerErr, HandlerEvent};
