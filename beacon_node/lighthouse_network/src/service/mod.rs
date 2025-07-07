@@ -169,7 +169,6 @@ pub struct Network<E: EthSpec> {
 /// Implements the combined behaviour for the libp2p service.
 impl<E: EthSpec> Network<E> {
     #[instrument(parent = None,
-        level = "trace",
         fields(service = "libp2p"),
         name = "libp2p",
         skip_all
@@ -530,7 +529,6 @@ impl<E: EthSpec> Network<E> {
     /// - Dials boot-nodes and libp2p peers.
     /// - Subscribes to starting gossipsub topics.
     #[instrument(parent = None,
-        level = "trace",
         fields(service = "libp2p"),
         name = "libp2p",
         skip_all
@@ -659,7 +657,6 @@ impl<E: EthSpec> Network<E> {
 
     /// The routing pub-sub mechanism for eth2.
     #[instrument(parent = None,
-        level = "trace",
         fields(service = "libp2p"),
         name = "libp2p",
         skip_all
@@ -669,7 +666,6 @@ impl<E: EthSpec> Network<E> {
     }
     /// The Eth2 RPC specified in the wire-0 protocol.
     #[instrument(parent = None,
-        level = "trace",
         fields(service = "libp2p"),
         name = "libp2p",
         skip_all
@@ -679,7 +675,6 @@ impl<E: EthSpec> Network<E> {
     }
     /// Discv5 Discovery protocol.
     #[instrument(parent = None,
-        level = "trace",
         fields(service = "libp2p"),
         name = "libp2p",
         skip_all
@@ -689,7 +684,6 @@ impl<E: EthSpec> Network<E> {
     }
     /// Provides IP addresses and peer information.
     #[instrument(parent = None,
-        level = "trace",
         fields(service = "libp2p"),
         name = "libp2p",
         skip_all
@@ -699,7 +693,6 @@ impl<E: EthSpec> Network<E> {
     }
     /// The peer manager that keeps track of peer's reputation and status.
     #[instrument(parent = None,
-        level = "trace",
         fields(service = "libp2p"),
         name = "libp2p",
         skip_all
@@ -710,7 +703,6 @@ impl<E: EthSpec> Network<E> {
 
     /// The routing pub-sub mechanism for eth2.
     #[instrument(parent = None,
-        level = "trace",
         fields(service = "libp2p"),
         name = "libp2p",
         skip_all
@@ -720,7 +712,6 @@ impl<E: EthSpec> Network<E> {
     }
     /// The Eth2 RPC specified in the wire-0 protocol.
     #[instrument(parent = None,
-        level = "trace",
         fields(service = "libp2p"),
         name = "libp2p",
         skip_all
@@ -730,7 +721,6 @@ impl<E: EthSpec> Network<E> {
     }
     /// Discv5 Discovery protocol.
     #[instrument(parent = None,
-        level = "trace",
         fields(service = "libp2p"),
         name = "libp2p",
         skip_all
@@ -740,7 +730,6 @@ impl<E: EthSpec> Network<E> {
     }
     /// Provides IP addresses and peer information.
     #[instrument(parent = None,
-        level = "trace",
         fields(service = "libp2p"),
         name = "libp2p",
         skip_all
@@ -750,7 +739,6 @@ impl<E: EthSpec> Network<E> {
     }
     /// The peer manager that keeps track of peer's reputation and status.
     #[instrument(parent = None,
-        level = "trace",
         fields(service = "libp2p"),
         name = "libp2p",
         skip_all
@@ -761,7 +749,6 @@ impl<E: EthSpec> Network<E> {
 
     /// Returns the local ENR of the node.
     #[instrument(parent = None,
-        level = "trace",
         fields(service = "libp2p"),
         name = "libp2p",
         skip_all
@@ -775,7 +762,6 @@ impl<E: EthSpec> Network<E> {
     /// Subscribes to a gossipsub topic kind, letting the network service determine the
     /// encoding and fork version.
     #[instrument(parent = None,
-        level = "trace",
         fields(service = "libp2p"),
         name = "libp2p",
         skip_all
@@ -793,7 +779,6 @@ impl<E: EthSpec> Network<E> {
     /// Unsubscribes from a gossipsub topic kind, letting the network service determine the
     /// encoding and fork version.
     #[instrument(parent = None,
-        level = "trace",
         fields(service = "libp2p"),
         name = "libp2p",
         skip_all
@@ -809,7 +794,6 @@ impl<E: EthSpec> Network<E> {
 
     /// Subscribe to all required topics for the `new_fork` with the given `new_fork_digest`.
     #[instrument(parent = None,
-        level = "trace",
         fields(service = "libp2p"),
         name = "libp2p",
         skip_all
@@ -839,7 +823,6 @@ impl<E: EthSpec> Network<E> {
 
     /// Unsubscribe from all topics that doesn't have the given fork_digest
     #[instrument(parent = None,
-        level = "trace",
         fields(service = "libp2p"),
         name = "libp2p",
         skip_all
@@ -857,7 +840,6 @@ impl<E: EthSpec> Network<E> {
 
     /// Remove topic weight from all topics that don't have the given fork digest.
     #[instrument(parent = None,
-        level = "trace",
         fields(service = "libp2p"),
         name = "libp2p",
         skip_all
@@ -887,7 +869,6 @@ impl<E: EthSpec> Network<E> {
 
     /// Subscribe to all data columns determined by the cgc.
     #[instrument(parent = None,
-        level = "trace",
         fields(service = "libp2p"),
         name = "libp2p",
         skip_all
@@ -904,7 +885,6 @@ impl<E: EthSpec> Network<E> {
 
     /// Returns the scoring parameters for a topic if set.
     #[instrument(parent = None,
-        level = "trace",
         fields(service = "libp2p"),
         name = "libp2p",
         skip_all
@@ -920,7 +900,6 @@ impl<E: EthSpec> Network<E> {
     ///
     /// Returns `true` if the subscription was successful and `false` otherwise.
     #[instrument(parent = None,
-        level = "trace",
         fields(service = "libp2p"),
         name = "libp2p",
         skip_all
@@ -948,7 +927,6 @@ impl<E: EthSpec> Network<E> {
 
     /// Unsubscribe from a gossipsub topic.
     #[instrument(parent = None,
-        level = "trace",
         fields(service = "libp2p"),
         name = "libp2p",
         skip_all
@@ -969,7 +947,6 @@ impl<E: EthSpec> Network<E> {
 
     /// Publishes a list of messages on the pubsub (gossipsub) behaviour, choosing the encoding.
     #[instrument(parent = None,
-        level = "trace",
         fields(service = "libp2p"),
         name = "libp2p",
         skip_all
@@ -1029,7 +1006,6 @@ impl<E: EthSpec> Network<E> {
     /// Informs the gossipsub about the result of a message validation.
     /// If the message is valid it will get propagated by gossipsub.
     #[instrument(parent = None,
-        level = "trace",
         fields(service = "libp2p"),
         name = "libp2p",
         skip_all
@@ -1069,7 +1045,6 @@ impl<E: EthSpec> Network<E> {
     /// Updates the current gossipsub scoring parameters based on the validator count and current
     /// slot.
     #[instrument(parent = None,
-        level = "trace",
         fields(service = "libp2p"),
         name = "libp2p",
         skip_all
@@ -1118,7 +1093,6 @@ impl<E: EthSpec> Network<E> {
 
     /// Send a request to a peer over RPC.
     #[instrument(parent = None,
-        level = "trace",
         fields(service = "libp2p"),
         name = "libp2p",
         skip_all
@@ -1141,7 +1115,6 @@ impl<E: EthSpec> Network<E> {
 
     /// Send a successful response to a peer over RPC.
     #[instrument(parent = None,
-        level = "trace",
         fields(service = "libp2p"),
         name = "libp2p",
         skip_all
@@ -1158,7 +1131,6 @@ impl<E: EthSpec> Network<E> {
 
     /// Inform the peer that their request produced an error.
     #[instrument(parent = None,
-        level = "trace",
         fields(service = "libp2p"),
         name = "libp2p",
         skip_all
@@ -1179,7 +1151,6 @@ impl<E: EthSpec> Network<E> {
 
     /* Peer management functions */
     #[instrument(parent = None,
-        level = "trace",
         fields(service = "libp2p"),
         name = "libp2p",
         skip_all
@@ -1189,7 +1160,6 @@ impl<E: EthSpec> Network<E> {
     }
 
     #[instrument(parent = None,
-        level = "trace",
         fields(service = "libp2p"),
         name = "libp2p",
         skip_all
@@ -1210,7 +1180,6 @@ impl<E: EthSpec> Network<E> {
     /// This will send a goodbye, disconnect and then ban the peer.
     /// This is fatal for a peer, and should be used in unrecoverable circumstances.
     #[instrument(parent = None,
-        level = "trace",
         fields(service = "libp2p"),
         name = "libp2p",
         skip_all
@@ -1223,7 +1192,6 @@ impl<E: EthSpec> Network<E> {
     /// Hard (ungraceful) disconnect for testing purposes only
     /// Use goodbye_peer for disconnections, do not use this function.
     #[instrument(parent = None,
-        level = "trace",
         fields(service = "libp2p"),
         name = "libp2p",
         skip_all
@@ -1234,7 +1202,6 @@ impl<E: EthSpec> Network<E> {
 
     /// Returns an iterator over all enr entries in the DHT.
     #[instrument(parent = None,
-        level = "trace",
         fields(service = "libp2p"),
         name = "libp2p",
         skip_all
@@ -1245,7 +1212,6 @@ impl<E: EthSpec> Network<E> {
 
     /// Add an ENR to the routing table of the discovery mechanism.
     #[instrument(parent = None,
-        level = "trace",
         fields(service = "libp2p"),
         name = "libp2p",
         skip_all
@@ -1258,7 +1224,6 @@ impl<E: EthSpec> Network<E> {
     ///
     /// The `value` is `true` if a subnet is being added and false otherwise.
     #[instrument(parent = None,
-        level = "trace",
         fields(service = "libp2p"),
         name = "libp2p",
         skip_all
@@ -1273,7 +1238,6 @@ impl<E: EthSpec> Network<E> {
 
     /// Updates the cgc value in the ENR.
     #[instrument(parent = None,
-        level = "trace",
         fields(service = "libp2p"),
         name = "libp2p",
         skip_all
@@ -1289,7 +1253,6 @@ impl<E: EthSpec> Network<E> {
     /// Attempts to discover new peers for a given subnet. The `min_ttl` gives the time at which we
     /// would like to retain the peers for.
     #[instrument(parent = None,
-        level = "trace",
         fields(service = "libp2p"),
         name = "libp2p",
         skip_all
@@ -1349,7 +1312,6 @@ impl<E: EthSpec> Network<E> {
 
     /// Updates the local ENR's "eth2" field with the latest EnrForkId.
     #[instrument(parent = None,
-        level = "trace",
         fields(service = "libp2p"),
         name = "libp2p",
         skip_all
@@ -1365,7 +1327,6 @@ impl<E: EthSpec> Network<E> {
 
     /// Updates the current meta data of the node to match the local ENR.
     #[instrument(parent = None,
-        level = "trace",
         fields(service = "libp2p"),
         name = "libp2p",
         skip_all
@@ -1401,7 +1362,6 @@ impl<E: EthSpec> Network<E> {
     }
 
     #[instrument(parent = None,
-        level = "trace",
         fields(service = "libp2p"),
         name = "libp2p",
         skip_all
@@ -1424,7 +1384,6 @@ impl<E: EthSpec> Network<E> {
 
     /// Sends a Ping request to the peer.
     #[instrument(parent = None,
-        level = "trace",
         fields(service = "libp2p"),
         name = "libp2p",
         skip_all
@@ -1435,7 +1394,6 @@ impl<E: EthSpec> Network<E> {
 
     /// Sends a METADATA request to a peer.
     #[instrument(parent = None,
-        level = "trace",
         fields(service = "libp2p"),
         name = "libp2p",
         skip_all
@@ -1455,7 +1413,6 @@ impl<E: EthSpec> Network<E> {
 
     /// Sends a METADATA response to a peer.
     #[instrument(parent = None,
-        level = "trace",
         fields(service = "libp2p"),
         name = "libp2p",
         skip_all
@@ -1477,7 +1434,6 @@ impl<E: EthSpec> Network<E> {
     /// Queues the response to be sent upwards as long at it was requested outside the Behaviour.
     #[must_use = "return the response"]
     #[instrument(parent = None,
-        level = "trace",
         fields(service = "libp2p"),
         name = "libp2p",
         skip_all
@@ -1501,7 +1457,6 @@ impl<E: EthSpec> Network<E> {
     /// Dial cached Enrs in discovery service that are in the given `subnet_id` and aren't
     /// in Connected, Dialing or Banned state.
     #[instrument(parent = None,
-        level = "trace",
         fields(service = "libp2p"),
         name = "libp2p",
         skip_all
@@ -1549,7 +1504,6 @@ impl<E: EthSpec> Network<E> {
 
     /// Handle a gossipsub event.
     #[instrument(parent = None,
-        level = "trace",
         fields(service = "libp2p"),
         name = "libp2p",
         skip_all
@@ -1693,7 +1647,6 @@ impl<E: EthSpec> Network<E> {
 
     /// Handle an RPC event.
     #[instrument(parent = None,
-        level = "trace",
         fields(service = "libp2p"),
         name = "libp2p",
         skip_all
@@ -1985,7 +1938,6 @@ impl<E: EthSpec> Network<E> {
 
     /// Handle an identify event.
     #[instrument(parent = None,
-        level = "trace",
         fields(service = "libp2p"),
         name = "libp2p",
         skip_all
@@ -2013,7 +1965,6 @@ impl<E: EthSpec> Network<E> {
 
     /// Handle a peer manager event.
     #[instrument(parent = None,
-        level = "trace",
         fields(service = "libp2p"),
         name = "libp2p",
         skip_all
@@ -2072,7 +2023,6 @@ impl<E: EthSpec> Network<E> {
     }
 
     #[instrument(parent = None,
-        level = "trace",
         fields(service = "libp2p"),
         name = "libp2p",
         skip_all
@@ -2121,7 +2071,6 @@ impl<E: EthSpec> Network<E> {
 
     /* Networking polling */
     #[instrument(parent = None,
-        level = "trace",
         fields(service = "libp2p"),
         name = "libp2p",
         skip_all
@@ -2160,7 +2109,6 @@ impl<E: EthSpec> Network<E> {
     }
 
     #[instrument(parent = None,
-        level = "trace",
         fields(service = "libp2p"),
         name = "libp2p",
         skip_all
