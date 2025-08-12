@@ -20,7 +20,7 @@ use tracing::{debug, error, instrument};
 use types::blob_sidecar::{BlobIdentifier, BlobSidecar, FixedBlobSidecarList};
 use types::{
     BlobSidecarList, ChainSpec, DataColumnSidecar, DataColumnSidecarList, Epoch, EthSpec, Hash256,
-    RuntimeVariableList, SignedBeaconBlock, Slot,
+    SignedBeaconBlock, Slot,
 };
 
 mod error;
@@ -445,15 +445,27 @@ impl<T: BeaconChainTypes> DataAvailabilityChecker<T> {
             .flatten()
             .map(CustodyDataColumn::into_inner)
             .collect::<Vec<_>>();
-        let all_data_columns =
-            RuntimeVariableList::from_vec(all_data_columns, self.spec.number_of_columns as usize);
+        let verified_data_columns = // verify kzg for all data columns at once
+            if !all_data_columns.is_empty() {
+                // UNSCOPED RAYON USAGE
+                KzgVerifiedDataColumn::from_batch_with_scoring(all_data_columns.into_iter().clone().collect(), &self.kzg).map_err(AvailabilityCheckError::InvalidColumn)?
+                    .into_iter()
+                    .map(|d| KzgVerifiedCustodyDataColumn::from_asserted_custody(d)).collect()
+            } else {
+                vec![]
+            };
 
-        // verify kzg for all data columns at once
-        if !all_data_columns.is_empty() {
-            // Attributes fault to the specific peer that sent an invalid column
-            verify_kzg_for_data_column_list_with_scoring(all_data_columns.iter(), &self.kzg)
-                .map_err(AvailabilityCheckError::InvalidColumn)?;
-        }
+        let sampling_columns = self.custody_context.sampling_columns_for_epoch(
+            blocks
+                .first()
+                .ok_or(AvailabilityCheckError::Unexpected(
+                    "expect at least one RpcBlock".to_string(),
+                ))?
+                .as_block()
+                .epoch(),
+            &self.spec,
+        );
+        let num_of_samples_required = sampling_columns.len();
 
         for block in blocks {
             let (block_root, block, blobs, data_columns) = block.deconstruct();
@@ -472,12 +484,37 @@ impl<T: BeaconChainTypes> DataAvailabilityChecker<T> {
                 }
             } else if self.data_columns_required_for_block(&block) {
                 if let Some(data_columns) = data_columns {
+                    let reconstruct_min_col_count = (self.spec.number_of_columns / 2) as usize;
+                    let blob_data = if data_columns.len() < num_of_samples_required
+                        && data_columns.len() >= reconstruct_min_col_count
+                    {
+                        // UNSCOPED RAYON USAGE
+                        KzgVerifiedCustodyDataColumn::reconstruct_columns(
+                            &self.kzg,
+                            &verified_data_columns,
+                            &self.spec,
+                        )
+                        .map_err(|e| {
+                            error!(
+                                ?block_root,
+                                error = ?e,
+                                "Error reconstructing data columns"
+                            );
+                            metrics::inc_counter(&KZG_DATA_COLUMN_RECONSTRUCTION_FAILURES);
+                            AvailabilityCheckError::ReconstructColumnsError(e)
+                        })?
+                        .into_iter()
+                        .filter(|d| sampling_columns.contains(&d.index()))
+                        .map(|d| d.into_inner())
+                        .collect()
+                    } else {
+                        data_columns.into_iter().map(|d| d.into_inner()).collect()
+                    };
+
                     MaybeAvailableBlock::Available(AvailableBlock {
                         block_root,
                         block,
-                        blob_data: AvailableBlockData::DataColumns(
-                            data_columns.into_iter().map(|d| d.into_inner()).collect(),
-                        ),
+                        blob_data: AvailableBlockData::DataColumns(blob_data),
                         blobs_available_timestamp: None,
                         spec: self.spec.clone(),
                     })

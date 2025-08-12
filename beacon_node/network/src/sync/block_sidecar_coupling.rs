@@ -333,6 +333,9 @@ impl<E: EthSpec> RangeBlockComponentsRequest<E> {
                     });
                 };
 
+                let num_required_columns = spec.number_of_columns as usize / 2;
+                let columns_recoverable = data_columns_by_index.len() >= num_required_columns;
+
                 let mut custody_columns = vec![];
                 let mut naughty_peers = vec![];
                 for index in expects_custody_columns {
@@ -342,6 +345,11 @@ impl<E: EthSpec> RangeBlockComponentsRequest<E> {
                         // block root, so for the expected epoch of this batch.
                         custody_columns.push(CustodyDataColumn::from_asserted_custody(data_column));
                     } else {
+                        if columns_recoverable {
+                            // There are enough columns to recover the entire data matrix. Missing
+                            // columns here are fine as reconstruction will be performed in DA checker.
+                            continue;
+                        }
                         // Penalize the peer for claiming to have the columns but not returning
                         // them
                         let Some(responsible_peer) = column_to_peer.get(index) else {
