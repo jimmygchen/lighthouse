@@ -323,6 +323,33 @@ impl<E: EthSpec> CustodyContext<E> {
             .expect("all_custody_columns_ordered should be initialized");
         &all_columns_ordered[..num_of_columns_to_sample]
     }
+
+    /// Returns the ordered list of column indices that the node is assigned to custody
+    /// (and advertised to peers) at the given epoch. If epoch is `None`, this function
+    /// computes the custody columns at head.
+    ///
+    /// # Parameters
+    /// * `epoch_opt` - Optional epoch to determine custody columns for.
+    ///
+    /// # Returns
+    /// A slice of ordered custody column indices for this epoch based on the node's custody configuration
+    pub fn custody_columns_for_epoch(
+        &self,
+        epoch_opt: Option<Epoch>,
+        spec: &ChainSpec,
+    ) -> &[ColumnIndex] {
+        let custody_group_count = if let Some(epoch) = epoch_opt {
+            self.custody_group_count_at_epoch(epoch, spec) as usize
+        } else {
+            self.custody_group_count_at_head(spec) as usize
+        };
+
+        let all_columns_ordered = self
+            .all_custody_columns_ordered
+            .get()
+            .expect("all_custody_columns_ordered should be initialized");
+        &all_columns_ordered[..custody_group_count]
+    }
 }
 
 /// The custody count changed because of a change in the
