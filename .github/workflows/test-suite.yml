@@ -29,6 +29,13 @@ env:
   # Enable portable to prevent issues with caching `blst` for the wrong CPU type
   TEST_FEATURES: portable
 jobs:
+  target-branch-check:
+    name: target-branch-check
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
+    steps:
+        - name: Check that the pull request is not targeting the stable branch
+          run: test ${{ github.base_ref }} != "stable"
   test-suite-success:
     name: test-suite-success
     # if: needs.check-labels.outputs.skip_ci != 'true'
