@@ -424,11 +424,6 @@ impl<T: BeaconChainTypes> SyncingChain<T> {
                     self.request_batches(network)?;
                 }
             }
-        } else if !self.good_peers_on_sampling_subnets(self.processing_target, network) {
-            // This is to handle the case where no batch was sent for the current processing
-            // target when there is no sampling peers available. This is a valid state and should not
-            // return an error.
-            return Ok(KeepChain);
         } else {
             // NOTE: It is possible that the batch doesn't exist for the processing id. This can happen
             // when we complete a batch and attempt to download a new batch but there are:
@@ -969,18 +964,11 @@ impl<T: BeaconChainTypes> SyncingChain<T> {
             .collect();
         debug!(
             ?awaiting_downloads,
-            src, "Attempting to send batches awaiting downlaod"
+            src, "Attempting to send batches awaiting download"
         );
 
         for batch_id in awaiting_downloads {
-            if self.good_peers_on_sampling_subnets(batch_id, network) {
-                self.send_batch(network, batch_id)?;
-            } else {
-                debug!(
-                    src = "attempt_send_awaiting_download_batches",
-                    "Waiting for peers to be available on sampling column subnets"
-                );
-            }
+            self.send_batch(network, batch_id)?;
         }
         Ok(KeepChain)
     }
@@ -1031,16 +1019,12 @@ impl<T: BeaconChainTypes> SyncingChain<T> {
                     return Ok(KeepChain);
                 }
                 Err(e) => match e {
-                    // TODO(das): Handle the NoPeer case explicitly and don't drop the batch. For
-                    // sync to work properly it must be okay to have "stalled" batches in
-                    // AwaitingDownload state. Currently it will error with invalid state if
-                    // that happens. Sync manager must periodicatlly prune stalled batches like
-                    // we do for lookup sync. Then we can deprecate the redundant
-                    // `good_peers_on_sampling_subnets` checks.
-                    e
-                    @ (RpcRequestSendError::NoPeer(_) | RpcRequestSendError::InternalError(_)) => {
+                    RpcRequestSendError::NoPeer(err) => {
+                        debug!(error = ?err, "Did not send batch request due to insufficient peers");
+                    }
+                    RpcRequestSendError::InternalError(err) => {
                         // NOTE: under normal conditions this shouldn't happen but we handle it anyway
-                        warn!(%batch_id, error = ?e, "batch_id" = %batch_id, %batch, "Could not send batch request");
+                        warn!(%batch_id, error = ?err, "batch_id" = %batch_id, %batch, "Could not send batch request");
                         // register the failed download and check if the batch can be retried
                         batch.start_downloading(1)?; // fake request_id = 1 is not relevant
                         match batch.download_failed(None)? {
@@ -1123,6 +1107,9 @@ impl<T: BeaconChainTypes> SyncingChain<T> {
     ) -> Result<KeepChain, RemoveChain> {
         let _guard = self.span.clone().entered();
         debug!("Resuming chain");
+        // attempt to download any batches stuck in the `AwaitingDownload` state because of
+        // a lack of peers earlier
+        self.attempt_send_awaiting_download_batches(network, "start_syncing")?;
         // Request more batches if needed.
         self.request_batches(network)?;
         // If there is any batch ready for processing, send it.
@@ -1140,14 +1127,6 @@ impl<T: BeaconChainTypes> SyncingChain<T> {
         // check if we have the batch for our optimistic start. If not, request it first.
         // We wait for this batch before requesting any other batches.
         if let Some(epoch) = self.optimistic_start {
-            if !self.good_peers_on_sampling_subnets(epoch, network) {
-                debug!(
-                    src = "request_batches_optimistic",
-                    "Waiting for peers to be available on sampling column subnets"
-                );
-                return Ok(KeepChain);
-            }
-
             if let Entry::Vacant(entry) = self.batches.entry(epoch) {
                 let batch_type = network.batch_type(epoch);
                 let optimistic_batch = BatchInfo::new(&epoch, EPOCHS_PER_BATCH, batch_type);
@@ -1171,26 +1150,6 @@ impl<T: BeaconChainTypes> SyncingChain<T> {
 
         // No more batches, simply stop
         Ok(KeepChain)
-    }
-
-    /// Checks all sampling column subnets for peers. Returns `true` if there is at least one peer in
-    /// every sampling column subnet.
-    fn good_peers_on_sampling_subnets(
-        &self,
-        epoch: Epoch,
-        network: &SyncNetworkContext<T>,
-    ) -> bool {
-        if network.chain.spec.is_peer_das_enabled_for_epoch(epoch) {
-            // Require peers on all sampling column subnets before sending batches
-            let sampling_subnets = network.network_globals().sampling_subnets();
-            network
-                .network_globals()
-                .peers
-                .read()
-                .has_good_custody_range_sync_peer(&sampling_subnets, epoch)
-        } else {
-            true
-        }
     }
 
     /// Creates the next required batch from the chain. If there are no more batches required,
@@ -1221,18 +1180,6 @@ impl<T: BeaconChainTypes> SyncingChain<T> {
             .count()
             > BATCH_BUFFER_SIZE as usize
         {
-            return None;
-        }
-
-        // don't send batch requests until we have peers on sampling subnets
-        // TODO(das): this is a workaround to avoid sending out excessive block requests because
-        // block and data column requests are currently coupled. This can be removed once we find a
-        // way to decouple the requests and do retries individually, see issue #6258.
-        if !self.good_peers_on_sampling_subnets(self.to_be_downloaded, network) {
-            debug!(
-                src = "include_next_batch",
-                "Waiting for peers to be available on custody column subnets"
-            );
             return None;
         }
 

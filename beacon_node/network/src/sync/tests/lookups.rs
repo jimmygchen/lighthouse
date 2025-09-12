@@ -369,7 +369,7 @@ impl TestRig {
         self.network_globals
             .peers
             .write()
-            .__set_custody_subnets(&peer_id, subnets)
+            .__set_custody_subnets(peer_id, subnets)
             .unwrap()
     }
 
