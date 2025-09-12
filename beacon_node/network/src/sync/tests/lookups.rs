@@ -7,6 +7,7 @@ use crate::sync::{
     SyncMessage,
     manager::{BlockProcessType, BlockProcessingResult, SyncManager},
 };
+use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -41,8 +42,8 @@ use slot_clock::{SlotClock, TestingSlotClock};
 use tokio::sync::mpsc;
 use tracing::info;
 use types::{
-    BeaconState, BeaconStateBase, BlobSidecar, DataColumnSidecar, EthSpec, ForkContext, ForkName,
-    Hash256, MinimalEthSpec as E, SignedBeaconBlock, Slot,
+    BeaconState, BeaconStateBase, BlobSidecar, DataColumnSidecar, DataColumnSubnetId, EthSpec,
+    ForkContext, ForkName, Hash256, MinimalEthSpec as E, SignedBeaconBlock, Slot,
     data_column_sidecar::ColumnIndex,
     test_utils::{SeedableRng, TestRandom, XorShiftRng},
 };
@@ -336,7 +337,7 @@ impl TestRig {
             .network_globals
             .peers
             .write()
-            .__add_connected_peer_testing_only(false, &self.harness.spec, key);
+            .__add_connected_peer_with_custody_subnets(false, &self.harness.spec, key);
         self.log(&format!("Added new peer for testing {peer_id:?}"));
         peer_id
     }
@@ -346,7 +347,30 @@ impl TestRig {
         self.network_globals
             .peers
             .write()
-            .__add_connected_peer_testing_only(true, &self.harness.spec, key)
+            .__add_connected_peer_with_custody_subnets(true, &self.harness.spec, key)
+    }
+
+    /// Add a connected supernode peer, but without setting the peers' custody subnet.
+    /// This is to simulate the real behaviour where metadata is only received some time after
+    ///  a connection is established.
+    pub fn new_connected_supernode_peer_no_metadata_custody_subnet(&mut self) -> PeerId {
+        let key = self.determinstic_key();
+        self.network_globals
+            .peers
+            .write()
+            .__add_connected_peer(true, key, &self.harness.spec)
+    }
+
+    pub fn set_peer_custody_subnets(
+        &mut self,
+        peer_id: &PeerId,
+        subnets: HashSet<DataColumnSubnetId>,
+    ) {
+        self.network_globals
+            .peers
+            .write()
+            .__set_custody_subnets(&peer_id, subnets)
+            .unwrap()
     }
 
     fn determinstic_key(&mut self) -> CombinedKey {

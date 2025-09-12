@@ -6,7 +6,7 @@ use crate::sync::manager::SLOT_IMPORT_TOLERANCE;
 use crate::sync::network_context::RangeRequestId;
 use crate::sync::range_sync::RangeSyncType;
 use beacon_chain::data_column_verification::CustodyDataColumn;
-use beacon_chain::test_utils::{AttestationStrategy, BlockStrategy};
+use beacon_chain::test_utils::{AttestationStrategy, BlockStrategy, test_spec};
 use beacon_chain::{EngineState, NotifyExecutionLayer, block_verification_types::RpcBlock};
 use beacon_processor::WorkType;
 use lighthouse_network::rpc::RequestType;
@@ -19,6 +19,7 @@ use lighthouse_network::service::api_types::{
     SyncRequestId,
 };
 use lighthouse_network::{PeerId, SyncInfo};
+use std::collections::HashSet;
 use std::time::Duration;
 use types::{
     BlobSidecarList, BlockImportSource, Epoch, EthSpec, Hash256, MinimalEthSpec as E,
@@ -98,7 +99,7 @@ impl TestRig {
             finalized_root,
             head_slot: finalized_epoch.start_slot(E::slots_per_epoch()),
             head_root: Hash256::random(),
-            earliest_available_slot: None,
+            earliest_available_slot: Some(Slot::new(0)),
         })
     }
 
@@ -110,7 +111,7 @@ impl TestRig {
             finalized_root: Hash256::random(),
             head_slot: finalized_epoch.start_slot(E::slots_per_epoch()),
             head_root: Hash256::random(),
-            earliest_available_slot: None,
+            earliest_available_slot: Some(Slot::new(0)),
         }
     }
 
@@ -597,6 +598,75 @@ fn finalized_sync_not_enough_custody_peers_on_start() {
     let peer_count = 100;
     r.add_fullnode_peers(remote_info.clone(), peer_count);
     r.add_supernode_peer(remote_info);
+
+    let last_epoch = advanced_epochs + EXTRA_SYNCED_EPOCHS;
+    r.complete_and_process_range_sync_until(last_epoch, filter());
+}
+
+/// This is a regression test for the following race condition scenario:
+/// 1. A node is connected to 3 supernode peers: peer 1 is synced, & peer 2 and 3 are advanced.
+/// 2. No metadata has been received yet (i.e. no custody info), so the node cannot start data
+///    column range sync yet.
+/// 3. Now peer 1 sends the CGC via metadata response, we now have one peer on all custody subnets,
+///    BUT not on the finalized syncing chain.
+/// 4. The node tries to `send_batch` but fails repeatedly with `NoPeers`, as there's no peer
+///    that is able to serve columns for the advanced epochs. The chain is removed after 5 failed attempts.
+/// 5. Now peer 2 & 3 send CGC updates, BUT because there's no syncing chain, nothing happens -
+///    sync is stuck until finding new peers.
+///
+/// The expected behaivour in this scenario should be:
+/// 4. not finding suitable peers, chain is kept and batch remains in AwaitingDownload
+/// 5. finalized sync should resume as soon as CGC updates are received from peer 2 or 3.
+#[test]
+fn finalized_sync_not_enough_custody_peers_resume_after_peer_cgc_update() {
+    // Only run post-PeerDAS
+    if !test_spec::<E>().is_fulu_scheduled() {
+        return;
+    }
+    let mut r = TestRig::test_setup();
+
+    // GIVEN: the node is connected to 3 supernode peers:
+
+    // Peer 1 is synced (same finalized epoch)
+    let peer_1 = r.new_connected_supernode_peer_no_metadata_custody_subnet();
+    let remote_info = r.local_info().clone();
+    r.send_sync_message(SyncMessage::AddPeer(peer_1, remote_info));
+
+    // Peer 2 is advanced (local finalized epoch + 2)
+    let advanced_epochs: u64 = 2;
+    let peer_2 = r.new_connected_supernode_peer_no_metadata_custody_subnet();
+    let remote_info = r.finalized_remote_info_advanced_by(advanced_epochs.into());
+    r.send_sync_message(SyncMessage::AddPeer(peer_2, remote_info.clone()));
+    // We expect a finalized chain to be created with peer 2, but no requests sent out yet due to missing custody info.
+    r.assert_state(RangeSyncType::Finalized);
+
+    // Peer 3 is connected and advanced
+    let peer_3 = r.new_connected_supernode_peer_no_metadata_custody_subnet();
+    r.send_sync_message(SyncMessage::AddPeer(peer_3, remote_info));
+    // We are still in finalized sync state (now with peer 3 added)
+    r.assert_state(RangeSyncType::Finalized);
+
+    for (i, p) in [peer_1, peer_2, peer_3].iter().enumerate() {
+        let peer_idx = i + 1;
+        println!("Peer {peer_idx}: {p:?}");
+    }
+
+    // WHEN: peer 1 sends its CGC via metadata response
+    let all_custody_subnets = (0..r.spec.data_column_sidecar_subnet_count)
+        .map(|i| i.into())
+        .collect::<HashSet<_>>();
+    r.set_peer_custody_subnets(&peer_1, all_custody_subnets.clone());
+    r.send_sync_message(SyncMessage::UpdatedPeerCgc(peer_1));
+
+    // We still don't have any peers on the syncing chain with custody columns (peer 1 & 2)
+    // The node won't send the batch and will remain in the finalized sync state (this was failing before!)
+    r.assert_state(RangeSyncType::Finalized);
+
+    // Now we receive peer 2 & 3's CGC updates, the node will resume syncing from these two peers
+    r.set_peer_custody_subnets(&peer_2, all_custody_subnets.clone());
+    r.send_sync_message(SyncMessage::UpdatedPeerCgc(peer_2));
+    r.set_peer_custody_subnets(&peer_3, all_custody_subnets);
+    r.send_sync_message(SyncMessage::UpdatedPeerCgc(peer_3));
 
     let last_epoch = advanced_epochs + EXTRA_SYNCED_EPOCHS;
     r.complete_and_process_range_sync_until(last_epoch, filter());
