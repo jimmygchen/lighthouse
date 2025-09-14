@@ -639,6 +639,7 @@ fn finalized_sync_not_enough_custody_peers_resume_after_peer_cgc_update() {
     r.send_sync_message(SyncMessage::AddPeer(peer_2, remote_info.clone()));
     // We expect a finalized chain to be created with peer 2, but no requests sent out yet due to missing custody info.
     r.assert_state(RangeSyncType::Finalized);
+    r.expect_empty_network();
 
     // Peer 3 is connected and advanced
     let peer_3 = r.new_connected_supernode_peer_no_metadata_custody_subnet();
@@ -648,7 +649,7 @@ fn finalized_sync_not_enough_custody_peers_resume_after_peer_cgc_update() {
 
     for (i, p) in [peer_1, peer_2, peer_3].iter().enumerate() {
         let peer_idx = i + 1;
-        println!("Peer {peer_idx}: {p:?}");
+        r.log(&format!("Peer {peer_idx}: {p:?}"));
     }
 
     // WHEN: peer 1 sends its CGC via metadata response
