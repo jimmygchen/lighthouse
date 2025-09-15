@@ -656,18 +656,15 @@ fn finalized_sync_not_enough_custody_peers_resume_after_peer_cgc_update() {
     let all_custody_subnets = (0..r.spec.data_column_sidecar_subnet_count)
         .map(|i| i.into())
         .collect::<HashSet<_>>();
-    r.set_peer_custody_subnets(&peer_1, all_custody_subnets.clone());
-    r.send_sync_message(SyncMessage::UpdatedPeerCgc(peer_1));
+    r.send_peer_cgc_update_to_sync(&peer_1, all_custody_subnets.clone());
 
     // We still don't have any peers on the syncing chain with custody columns (peer 1 & 2)
     // The node won't send the batch and will remain in the finalized sync state (this was failing before!)
     r.assert_state(RangeSyncType::Finalized);
 
     // Now we receive peer 2 & 3's CGC updates, the node will resume syncing from these two peers
-    r.set_peer_custody_subnets(&peer_2, all_custody_subnets.clone());
-    r.send_sync_message(SyncMessage::UpdatedPeerCgc(peer_2));
-    r.set_peer_custody_subnets(&peer_3, all_custody_subnets);
-    r.send_sync_message(SyncMessage::UpdatedPeerCgc(peer_3));
+    r.send_peer_cgc_update_to_sync(&peer_2, all_custody_subnets.clone());
+    r.send_peer_cgc_update_to_sync(&peer_3, all_custody_subnets);
 
     let last_epoch = advanced_epochs + EXTRA_SYNCED_EPOCHS;
     r.complete_and_process_range_sync_until(last_epoch, filter());

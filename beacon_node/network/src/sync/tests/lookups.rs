@@ -361,7 +361,8 @@ impl TestRig {
             .__add_connected_peer(true, key, &self.harness.spec)
     }
 
-    pub fn set_peer_custody_subnets(
+    /// Update the peer's custody subnet in PeerDB and send a `UpdatedPeerCgc` message to sync.
+    pub fn send_peer_cgc_update_to_sync(
         &mut self,
         peer_id: &PeerId,
         subnets: HashSet<DataColumnSubnetId>,
@@ -370,7 +371,8 @@ impl TestRig {
             .peers
             .write()
             .__set_custody_subnets(peer_id, subnets)
-            .unwrap()
+            .unwrap();
+        self.send_sync_message(SyncMessage::UpdatedPeerCgc(*peer_id))
     }
 
     fn determinstic_key(&mut self) -> CombinedKey {
