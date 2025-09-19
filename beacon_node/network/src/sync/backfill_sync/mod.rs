@@ -1056,7 +1056,9 @@ impl<T: BeaconChainTypes> BackFillSync<T> {
         let in_buffer = |batch: &BatchInfo<T::EthSpec, BackFillBatchConfig>| {
             matches!(
                 batch.state(),
-                BatchState::Downloading(..) | BatchState::AwaitingProcessing(..)
+                BatchState::AwaitingDownload
+                    | BatchState::Downloading(..)
+                    | BatchState::AwaitingProcessing(..)
             )
         };
         if self

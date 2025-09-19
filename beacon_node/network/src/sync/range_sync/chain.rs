@@ -1170,7 +1170,9 @@ impl<T: BeaconChainTypes> SyncingChain<T> {
         let in_buffer = |batch: &BatchInfo<T::EthSpec>| {
             matches!(
                 batch.state(),
-                BatchState::Downloading(..) | BatchState::AwaitingProcessing(..)
+                BatchState::AwaitingDownload
+                    | BatchState::Downloading(..)
+                    | BatchState::AwaitingProcessing(..)
             )
         };
         if self
