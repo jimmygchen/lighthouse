@@ -1,14 +1,18 @@
 use crate::exec::{CommandLineTestExec, CompletedTest};
 use beacon_node::beacon_chain::chain_config::{
-    DisallowedReOrgOffsets, DEFAULT_RE_ORG_CUTOFF_DENOMINATOR, DEFAULT_RE_ORG_HEAD_THRESHOLD,
+    DEFAULT_RE_ORG_CUTOFF_DENOMINATOR, DEFAULT_RE_ORG_HEAD_THRESHOLD,
     DEFAULT_RE_ORG_MAX_EPOCHS_SINCE_FINALIZATION, DEFAULT_SYNC_TOLERANCE_EPOCHS,
+    DisallowedReOrgOffsets,
 };
 use beacon_node::{
-    beacon_chain::graffiti_calculator::GraffitiOrigin,
-    beacon_chain::store::config::DatabaseBackend as BeaconNodeBackend, ClientConfig as Config,
+    ClientConfig as Config, beacon_chain::graffiti_calculator::GraffitiOrigin,
+    beacon_chain::store::config::DatabaseBackend as BeaconNodeBackend,
 };
 use beacon_processor::BeaconProcessorConfig;
 use lighthouse_network::PeerId;
+use network_utils::unused_port::{
+    unused_tcp4_port, unused_tcp6_port, unused_udp4_port, unused_udp6_port,
+};
 use std::fs::File;
 use std::io::{Read, Write};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
@@ -21,7 +25,6 @@ use std::time::Duration;
 use tempfile::TempDir;
 use types::non_zero_usize::new_non_zero_usize;
 use types::{Address, Checkpoint, Epoch, Hash256, MainnetEthSpec};
-use unused_port::{unused_tcp4_port, unused_tcp6_port, unused_udp4_port, unused_udp6_port};
 
 const DEFAULT_EXECUTION_ENDPOINT: &str = "http://localhost:8551/";
 const DEFAULT_EXECUTION_JWT_SECRET_KEY: &str =
@@ -387,6 +390,37 @@ fn genesis_backfill_with_historic_flag() {
         .flag("reconstruct-historic-states", None)
         .run_with_zero_port()
         .with_config(|config| assert!(config.chain.genesis_backfill));
+}
+
+#[test]
+fn complete_blob_backfill_default() {
+    CommandLineTest::new()
+        .run_with_zero_port()
+        .with_config(|config| assert!(!config.chain.complete_blob_backfill));
+}
+
+#[test]
+fn complete_blob_backfill_flag() {
+    CommandLineTest::new()
+        .flag("complete-blob-backfill", None)
+        .run_with_zero_port()
+        .with_config(|config| {
+            assert!(config.chain.complete_blob_backfill);
+            assert!(!config.store.prune_blobs);
+        });
+}
+
+// Even if `--prune-blobs true` is provided, `--complete-blob-backfill` should override it to false.
+#[test]
+fn complete_blob_backfill_and_prune_blobs_true() {
+    CommandLineTest::new()
+        .flag("complete-blob-backfill", None)
+        .flag("prune-blobs", Some("true"))
+        .run_with_zero_port()
+        .with_config(|config| {
+            assert!(config.chain.complete_blob_backfill);
+            assert!(!config.store.prune_blobs);
+        });
 }
 
 // Tests for Eth1 flags.
@@ -799,13 +833,6 @@ fn network_subscribe_all_data_column_subnets_flag() {
         .with_config(|config| assert!(config.network.subscribe_all_data_column_subnets));
 }
 #[test]
-fn network_enable_sampling_flag() {
-    CommandLineTest::new()
-        .flag("enable-sampling", None)
-        .run_with_zero_port()
-        .with_config(|config| assert!(config.chain.enable_sampling));
-}
-#[test]
 fn blob_publication_batches() {
     CommandLineTest::new()
         .flag("blob-publication-batches", Some("3"))
@@ -826,12 +853,6 @@ fn blob_publication_batch_interval() {
         });
 }
 
-#[test]
-fn network_enable_sampling_flag_default() {
-    CommandLineTest::new()
-        .run_with_zero_port()
-        .with_config(|config| assert!(!config.chain.enable_sampling));
-}
 #[test]
 fn network_subscribe_all_subnets_flag() {
     CommandLineTest::new()
@@ -1819,11 +1840,24 @@ fn slots_per_restore_point_flag() {
 }
 
 #[test]
+fn block_cache_size_default() {
+    CommandLineTest::new()
+        .run_with_zero_port()
+        .with_config(|config| assert_eq!(config.store.block_cache_size, 0));
+}
+#[test]
 fn block_cache_size_flag() {
     CommandLineTest::new()
         .flag("block-cache-size", Some("4"))
         .run_with_zero_port()
-        .with_config(|config| assert_eq!(config.store.block_cache_size, new_non_zero_usize(4)));
+        .with_config(|config| assert_eq!(config.store.block_cache_size, 4));
+}
+#[test]
+fn block_cache_size_zero() {
+    CommandLineTest::new()
+        .flag("block-cache-size", Some("0"))
+        .run_with_zero_port()
+        .with_config(|config| assert_eq!(config.store.block_cache_size, 0));
 }
 #[test]
 fn state_cache_size_default() {
@@ -2546,6 +2580,25 @@ fn light_client_server_disabled() {
 }
 
 #[test]
+fn get_blobs_disabled() {
+    CommandLineTest::new()
+        .flag("disable-get-blobs", None)
+        .run_with_zero_port()
+        .with_config(|config| {
+            assert!(config.chain.disable_get_blobs);
+        });
+}
+
+#[test]
+fn get_blobs_enabled() {
+    CommandLineTest::new()
+        .run_with_zero_port()
+        .with_config(|config| {
+            assert!(!config.chain.disable_get_blobs);
+        });
+}
+
+#[test]
 fn light_client_http_server_disabled() {
     CommandLineTest::new()
         .flag("http", None)
@@ -2812,10 +2865,12 @@ fn invalid_block_roots_default_holesky() {
         .run_with_zero_port()
         .with_config(|config| {
             assert_eq!(config.chain.invalid_block_roots.len(), 1);
-            assert!(config
-                .chain
-                .invalid_block_roots
-                .contains(&*INVALID_HOLESKY_BLOCK_ROOT));
+            assert!(
+                config
+                    .chain
+                    .invalid_block_roots
+                    .contains(&*INVALID_HOLESKY_BLOCK_ROOT)
+            );
         })
 }
 
