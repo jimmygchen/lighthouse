@@ -22,7 +22,10 @@ enum MetricType {
 }
 
 impl MetricType {
-    fn grafana_unit(&self) -> &'static str {
+    fn grafana_unit(&self, metric_name: &str) -> &'static str {
+        if metric_name.ends_with("_bytes") {
+            return "bytes";
+        }
         match self {
             MetricType::Counter | MetricType::CounterVec => "short",
             MetricType::Gauge | MetricType::GaugeVec => "short",
@@ -251,12 +254,18 @@ fn generate_grafana_dashboard(metrics_by_crate: HashMap<String, Vec<MetricInfo>>
 }
 
 fn create_panel(metric: &MetricInfo, id: i32, x: i32, y: i32) -> Value {
-    let query = format!("{}{{instance=~\"$Instance\"}}", metric.name);
+    let query = match metric.metric_type {
+        MetricType::Histogram => {
+            // Use histogram_quantile for histogram metrics with _bucket suffix
+            format!("histogram_quantile(0.95, rate({}_bucket{{instance=~\"$Instance\"}}[5m]))", metric.name)
+        }
+        _ => format!("{}{{instance=~\"$Instance\"}}", metric.name)
+    };
 
     json!({
         "datasource": {
             "type": "prometheus",
-            "uid": null
+            "uid": "PBFA97CFB590B2093"
         },
         "fieldConfig": {
             "defaults": {
@@ -305,7 +314,7 @@ fn create_panel(metric: &MetricInfo, id: i32, x: i32, y: i32) -> Value {
                         }
                     ]
                 },
-                "unit": metric.metric_type.grafana_unit()
+                "unit": metric.metric_type.grafana_unit(&metric.name)
             },
             "overrides": []
         },
@@ -331,7 +340,7 @@ fn create_panel(metric: &MetricInfo, id: i32, x: i32, y: i32) -> Value {
             {
                 "datasource": {
                     "type": "prometheus",
-                    "uid": "prometheus"
+                    "uid": "PBFA97CFB590B2093"
                 },
                 "expr": query,
                 "interval": "",
