@@ -12,7 +12,7 @@ use crate::engines::ForkchoiceState;
 use crate::json_structures::{BlobAndProofV1, BlobAndProofV2};
 use crate::ClientVersionV1;
 use std::time::Duration;
-use tracing::info;
+use tracing::{error, info};
 use types::{EthSpec, ExecutionBlockHash, ForkName, Hash256};
 
 // Reth imports
@@ -30,10 +30,10 @@ pub struct RethEngineApi {
 }
 
 impl RethEngineApi {
-    /// Create a new RethEngineApi by launching Reth and getting its ConsensusEngineHandle
-    pub fn new() -> Result<Self, EngineApiError> {
-        // Launch Reth and get the ConsensusEngineHandle
-        let reth_handle = launch_reth_and_get_handle()
+    /// Create a new RethEngineApi by launching Reth with configuration
+    pub fn new(config: RethConfig) -> Result<Self, EngineApiError> {
+        // Launch Reth with the provided configuration
+        let reth_handle = launch_reth_and_get_handle_with_config(config)
             .map_err(|e| {
                 eprintln!("Failed to launch Reth: {}", e);
                 EngineApiError::IsSyncing
@@ -42,6 +42,12 @@ impl RethEngineApi {
         info!("Successfully launched Reth and obtained ConsensusEngineHandle");
 
         Ok(Self { reth_handle })
+    }
+
+    /// Create a new RethEngineApi with default configuration
+    #[allow(dead_code)]
+    pub fn new_default() -> Result<Self, EngineApiError> {
+        Self::new(RethConfig::default())
     }
 
     /// Create RethEngineApi with stub for testing/POC
@@ -389,66 +395,109 @@ fn spawn_stub_reth_engine_handler(
 // Reth Launch Function
 // ============================================================================
 
+/// Configuration for launching Reth
+#[derive(Debug, Clone)]
+pub struct RethConfig {
+    /// Data directory for Reth database
+    pub datadir: std::path::PathBuf,
+    /// Chain specification (mainnet, sepolia, holesky, etc.)
+    pub chain_spec: std::sync::Arc<reth_chainspec::ChainSpec>,
+}
+
+impl Default for RethConfig {
+    fn default() -> Self {
+        use reth_ethereum::chainspec::MAINNET;
+        Self {
+            datadir: std::path::PathBuf::from("/tmp/reth-dev"),
+            chain_spec: MAINNET.clone(),
+        }
+    }
+}
+
 /// Launch Reth and return the ConsensusEngineHandle
 ///
-/// This initializes Reth's full node and returns the handle we can use to send
-/// Engine API messages to it.
+/// This initializes Reth's full node with a persistent database and returns
+/// the handle we can use to send Engine API messages to it.
 ///
-/// TODO: Configuration should come from Lighthouse config:
-/// - Data directory path
-/// - Chain spec (mainnet, sepolia, etc.)
-/// - Database backend choice
-fn launch_reth_and_get_handle() -> Result<ConsensusEngineHandle<EthEngineTypes>, String> {
+/// The function accepts a RethConfig to specify:
+/// - Data directory path for persistent storage
+/// - Chain spec (mainnet, sepolia, holesky, gnosis, etc.)
+fn launch_reth_and_get_handle_with_config(
+    config: RethConfig,
+) -> Result<ConsensusEngineHandle<EthEngineTypes>, String> {
     use reth_ethereum::{
         node::{builder::NodeBuilder, node::EthereumNode, core::node_config::NodeConfig},
-        chainspec::MAINNET,
         tasks::TaskManager,
     };
+    use reth_db::{mdbx::DatabaseArguments, ClientVersion, DatabaseEnv};
+    use std::sync::Arc;
 
-    info!("Launching Reth execution engine in-process...");
+    info!(
+        datadir = %config.datadir.display(),
+        chain = %config.chain_spec.chain.to_string(),
+        "Launching Reth execution engine in-process with persistent database"
+    );
+
+    // Create data directory if it doesn't exist
+    std::fs::create_dir_all(&config.datadir)
+        .map_err(|e| format!("Failed to create data directory: {}", e))?;
 
     // Create task manager for Reth
     let tasks = TaskManager::current();
 
-    // Create node config for mainnet development
-    // TODO: Production setup needs:
-    // 1. Proper data directory from Lighthouse config (not hardcoded)
-    // 2. Persistent database instead of testing_node
-    // 3. Database initialization and migration handling
-    // 4. Proper chain spec configuration from Lighthouse
-    let config = NodeConfig::new(MAINNET.clone())
-        .dev();
+    // Open persistent database
+    let db_path = config.datadir.join("db");
+    let db = Arc::new(
+        DatabaseEnv::open(
+            &db_path,
+            reth_db::DatabaseEnvKind::RW,
+            DatabaseArguments::new(ClientVersion::default()),
+        )
+        .map_err(|e| format!("Failed to open database: {}", e))?
+    );
 
-    // Channel to extract the ConsensusEngineHandle
+    info!(db_path = %db_path.display(), "Opened persistent Reth database");
+
+    // Create node config with persistent database
+    let node_config = NodeConfig::new(config.chain_spec);
+
+    // Channel to extract the ConsensusEngineHandle or error
     let (handle_tx, handle_rx) = std::sync::mpsc::channel();
+    let error_tx = handle_tx.clone();
 
-    // Launch Reth in background task
+    // Launch Reth in background task with persistent database
     tokio::spawn(async move {
-        match NodeBuilder::new(config)
-            .testing_node(tasks.executor())
+        info!("Starting Reth node launch...");
+        match NodeBuilder::new(node_config)
+            .with_database(db)
+            .with_launch_context(tasks.executor())
             .node(EthereumNode::default())
             .on_node_started(move |full_node| {
+                info!("Reth node started, extracting consensus engine handle");
                 // Extract the consensus engine handle from the node
                 let handle = full_node.add_ons_handle.consensus_engine_handle().clone();
-                let _ = handle_tx.send(handle);
+                let _ = handle_tx.send(Ok(handle));
                 Ok(())
             })
-            .launch_with_debug_capabilities()
+            .launch()
             .await
         {
             Ok(handle) => {
-                info!("Reth execution engine launched successfully");
+                info!("Reth execution engine launched successfully with persistent database");
                 // Keep node running
                 let _ = handle.wait_for_node_exit().await;
             }
             Err(e) => {
-                eprintln!("Failed to launch Reth: {}", e);
+                error!("Failed to launch Reth: {}", e);
+                // Send error through channel so we don't timeout
+                let _ = error_tx.send(Err(format!("Reth launch failed: {}", e)));
             }
         }
     });
 
-    // Wait for handle with timeout
-    handle_rx.recv_timeout(Duration::from_secs(30))
-        .map_err(|_| "Timeout waiting for Reth to launch".to_string())
-        .map(|h| h.clone())
+    // Wait for handle with longer timeout (Reth initialization can take time)
+    info!("Waiting for Reth to initialize...");
+    handle_rx.recv_timeout(Duration::from_secs(120))
+        .map_err(|e| format!("Timeout waiting for Reth to launch: {}", e))?
+        .map_err(|e| format!("Reth launch error: {}", e))
 }

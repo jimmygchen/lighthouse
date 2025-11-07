@@ -485,11 +485,21 @@ pub struct ExecutionLayer<E: EthSpec> {
     inner: Arc<Inner<E>>,
 }
 
+/// Get the Reth chain spec based on Lighthouse's network configuration
+/// TODO: This should be determined from Lighthouse's actual network configuration
+/// For now, defaults to mainnet
+fn get_reth_chain_spec() -> std::sync::Arc<reth_chainspec::ChainSpec> {
+    use reth_ethereum::chainspec::MAINNET;
+    // TODO: Map from Lighthouse's network (mainnet, sepolia, holesky, gnosis) to Reth chain spec
+    // This would need access to the network configuration from Lighthouse
+    MAINNET.clone()
+}
+
 impl<E: EthSpec> ExecutionLayer<E> {
     /// Instantiate `Self` with an Execution engine specified in `Config`, using JSON-RPC via HTTP.
     pub fn from_config(config: Config, executor: TaskExecutor) -> Result<Self, Error> {
         let Config {
-            execution_endpoint: url,
+            execution_endpoint: _url,
             builder_url,
             builder_user_agent,
             builder_header_timeout,
@@ -502,7 +512,8 @@ impl<E: EthSpec> ExecutionLayer<E> {
             execution_timeout_multiplier: _,
         } = config;
 
-        let _execution_url = url.ok_or(Error::NoEngine)?;
+        // Note: We don't need an execution URL for in-process Reth integration
+        // The url parameter is ignored when using RethEngineApi
 
         // Use the default jwt secret path if not provided via cli.
         let secret_file = secret_file.unwrap_or_else(|| default_datadir.join(DEFAULT_JWT_FILE));
@@ -539,8 +550,21 @@ impl<E: EthSpec> ExecutionLayer<E> {
         let engine: Engine = {
             // TODO: Remove JWT auth setup since we're using in-process Reth
             let _auth = Auth::new(jwt_key, jwt_id, jwt_version);
-            info!("Using in-process Reth engine (POC) instead of HTTP JSON-RPC");
-            let api = RethEngineApi::new()
+            info!("Using in-process Reth engine instead of HTTP JSON-RPC");
+
+            // Configure Reth with Lighthouse's data directory
+            let reth_datadir = default_datadir.join("reth");
+            let reth_config = crate::reth_engine_api::RethConfig {
+                datadir: reth_datadir.clone(),
+                chain_spec: get_reth_chain_spec(),
+            };
+
+            info!(
+                reth_datadir = %reth_config.datadir.display(),
+                "Initializing Reth execution engine"
+            );
+
+            let api = RethEngineApi::new(reth_config)
                 .map_err(Error::ApiError)?;
             Engine::new(api, executor.clone())
         };
