@@ -51,3 +51,17 @@ triehash = "0.8.4"
 types = { workspace = true }
 warp = { workspace = true }
 zeroize = { workspace = true }
+
+# Reth integration - using git dependencies to avoid workspace conflicts
+reth-engine-primitives = { git = "https://github.com/paradigmxyz/reth", branch = "main" }
+reth-payload-primitives = { git = "https://github.com/paradigmxyz/reth", branch = "main" }
+reth-primitives = { git = "https://github.com/paradigmxyz/reth", branch = "main" }
+reth-primitives-traits = { git = "https://github.com/paradigmxyz/reth", branch = "main" }
+reth-node-builder = { git = "https://github.com/paradigmxyz/reth", branch = "main" }
+reth-node-ethereum = { git = "https://github.com/paradigmxyz/reth", branch = "main" }
+reth-ethereum = { git = "https://github.com/paradigmxyz/reth", branch = "main", features = ["node", "test-utils"] }
+reth-ethereum-engine-primitives = { git = "https://github.com/paradigmxyz/reth", branch = "main" }
+reth-chainspec = { git = "https://github.com/paradigmxyz/reth", branch = "main" }
+reth-db = { git = "https://github.com/paradigmxyz/reth", branch = "main" }
+reth-tasks = { git = "https://github.com/paradigmxyz/reth", branch = "main" }
+alloy-rpc-types-engine = "1.0"

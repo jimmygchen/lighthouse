@@ -14,6 +14,7 @@ pub use engine_api::EngineCapabilities;
 use engine_api::Error as ApiError;
 pub use engine_api::*;
 pub use engine_api::{http, http::HttpJsonRpc, http::deposit_methods};
+pub use reth_engine_api::RethEngineApi;
 use engines::{Engine, EngineError};
 pub use engines::{EngineState, ForkchoiceState};
 use eth2::types::{BlobsBundle, FullPayloadContents};
@@ -66,6 +67,7 @@ mod keccak;
 mod metrics;
 pub mod payload_cache;
 mod payload_status;
+mod reth_engine_api;
 pub mod test_utils;
 pub mod versioned_hashes;
 
@@ -535,9 +537,10 @@ impl<E: EthSpec> ExecutionLayer<E> {
         }?;
 
         let engine: Engine = {
-            let auth = Auth::new(jwt_key, jwt_id, jwt_version);
-            debug!(endpoint = %execution_url, jwt_path = ?secret_file.as_path(),"Loaded execution endpoint");
-            let api = HttpJsonRpc::new_with_auth(execution_url, auth, execution_timeout_multiplier)
+            // TODO: Remove JWT auth setup since we're using in-process Reth
+            let _auth = Auth::new(jwt_key, jwt_id, jwt_version);
+            info!("Using in-process Reth engine (POC) instead of HTTP JSON-RPC");
+            let api = RethEngineApi::new()
                 .map_err(Error::ApiError)?;
             Engine::new(api, executor.clone())
         };
