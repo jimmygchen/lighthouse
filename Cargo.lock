@@ -4702,6 +4702,7 @@ name = "execution_layer"
 version = "0.1.0"
 dependencies = [
  "alloy-consensus 0.14.0",
+ "alloy-eips 1.1.0",
  "alloy-primitives",
  "alloy-rlp",
  "alloy-rpc-types-engine",

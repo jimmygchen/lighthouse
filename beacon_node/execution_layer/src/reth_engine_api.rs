@@ -251,11 +251,52 @@ fn convert_lighthouse_to_reth_forkchoice(
 
 /// Convert Lighthouse PayloadAttributes → Reth PayloadAttributes
 fn convert_lighthouse_to_reth_payload_attrs(
-    _lh: PayloadAttributes,
+    lh: PayloadAttributes,
 ) -> alloy_rpc_types_engine::PayloadAttributes {
-    // TODO: Implement full conversion
-    // For now, return a minimal stub
-    todo!("Payload attributes conversion not yet implemented")
+    use alloy_primitives::{Address as AlloyAddress, B256};
+    use alloy_rpc_types_engine::PayloadAttributes as RethPayloadAttributes;
+
+    match lh {
+        PayloadAttributes::V1(attrs) => {
+            RethPayloadAttributes {
+                timestamp: attrs.timestamp,
+                prev_randao: B256::from_slice(attrs.prev_randao.as_ref()),
+                suggested_fee_recipient: AlloyAddress::from(attrs.suggested_fee_recipient.0),
+                withdrawals: None,
+                parent_beacon_block_root: None,
+            }
+        }
+        PayloadAttributes::V2(attrs) => {
+            RethPayloadAttributes {
+                timestamp: attrs.timestamp,
+                prev_randao: B256::from_slice(attrs.prev_randao.as_ref()),
+                suggested_fee_recipient: AlloyAddress::from(attrs.suggested_fee_recipient.0),
+                withdrawals: Some(attrs.withdrawals.into_iter().map(convert_withdrawal).collect()),
+                parent_beacon_block_root: None,
+            }
+        }
+        PayloadAttributes::V3(attrs) => {
+            RethPayloadAttributes {
+                timestamp: attrs.timestamp,
+                prev_randao: B256::from_slice(attrs.prev_randao.as_ref()),
+                suggested_fee_recipient: AlloyAddress::from(attrs.suggested_fee_recipient.0),
+                withdrawals: Some(attrs.withdrawals.into_iter().map(convert_withdrawal).collect()),
+                parent_beacon_block_root: Some(B256::from_slice(attrs.parent_beacon_block_root.as_ref())),
+            }
+        }
+    }
+}
+
+/// Convert Lighthouse Withdrawal → Reth/Alloy Withdrawal
+fn convert_withdrawal(lh: types::Withdrawal) -> alloy_eips::eip4895::Withdrawal {
+    use alloy_primitives::Address as AlloyAddress;
+
+    alloy_eips::eip4895::Withdrawal {
+        index: lh.index,
+        validator_index: lh.validator_index,
+        address: AlloyAddress::from(lh.address.0),
+        amount: lh.amount,
+    }
 }
 
 /// Convert Reth ForkchoiceUpdated response → Lighthouse response
@@ -320,7 +361,7 @@ fn spawn_stub_reth_engine_handler(
 
                 BeaconEngineMessage::ForkchoiceUpdated {
                     state,
-                    payload_attrs,
+                    payload_attrs: _,
                     tx,
                     version: _,
                 } => {
@@ -359,7 +400,7 @@ fn spawn_stub_reth_engine_handler(
 /// - Database backend choice
 fn launch_reth_and_get_handle() -> Result<ConsensusEngineHandle<EthEngineTypes>, String> {
     use reth_ethereum::{
-        node::{builder::{NodeBuilder, NodeHandle}, node::EthereumNode, core::node_config::NodeConfig},
+        node::{builder::NodeBuilder, node::EthereumNode, core::node_config::NodeConfig},
         chainspec::MAINNET,
         tasks::TaskManager,
     };

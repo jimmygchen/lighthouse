@@ -499,10 +499,10 @@ impl<E: EthSpec> ExecutionLayer<E> {
             jwt_id,
             jwt_version,
             default_datadir,
-            execution_timeout_multiplier,
+            execution_timeout_multiplier: _,
         } = config;
 
-        let execution_url = url.ok_or(Error::NoEngine)?;
+        let _execution_url = url.ok_or(Error::NoEngine)?;
 
         // Use the default jwt secret path if not provided via cli.
         let secret_file = secret_file.unwrap_or_else(|| default_datadir.join(DEFAULT_JWT_FILE));

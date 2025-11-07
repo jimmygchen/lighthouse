@@ -190,7 +190,8 @@ pub fn blobs_to_data_column_sidecars<E: EthSpec>(
     let blob_cells_and_proofs_vec = zipped
         .into_par_iter()
         .map(|(blob, proofs)| {
-            let blob = blob.as_ref().try_into().map_err(|e| {
+            let blob_ref: &[u8] = blob.as_ref();
+            let blob = blob_ref.try_into().map_err(|e| {
                 KzgError::InconsistentArrayLength(format!(
                     "blob should have a guaranteed size due to FixedVector: {e:?}"
                 ))
@@ -221,7 +222,8 @@ pub fn compute_cells<E: EthSpec>(blobs: &[&Blob<E>], kzg: &Kzg) -> Result<Vec<Kz
     let cells_vec = blobs
         .into_par_iter()
         .map(|blob| {
-            let blob: KzgBlobRef<'_> = blob.as_ref().try_into().map_err(|e| {
+            let blob_ref: &[u8] = blob.as_ref();
+            let blob: KzgBlobRef<'_> = blob_ref.try_into().map_err(|e| {
                 KzgError::InconsistentArrayLength(format!(
                     "blob should have a guaranteed size due to FixedVector: {e:?}",
                 ))

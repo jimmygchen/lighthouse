@@ -65,3 +65,4 @@ reth-chainspec = { git = "https://github.com/paradigmxyz/reth", branch = "main" 
 reth-db = { git = "https://github.com/paradigmxyz/reth", branch = "main" }
 reth-tasks = { git = "https://github.com/paradigmxyz/reth", branch = "main" }
 alloy-rpc-types-engine = "1.0"
+alloy-eips = "1.0"
