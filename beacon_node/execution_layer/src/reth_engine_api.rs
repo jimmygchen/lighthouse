@@ -12,7 +12,7 @@ use crate::engines::ForkchoiceState;
 use crate::json_structures::{BlobAndProofV1, BlobAndProofV2};
 use crate::ClientVersionV1;
 use std::time::Duration;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 use types::{EthSpec, ExecutionBlockHash, ForkName, Hash256};
 
 // Reth imports
@@ -35,7 +35,7 @@ impl RethEngineApi {
         // Launch Reth with the provided configuration
         let reth_handle = launch_reth_and_get_handle_with_config(config)
             .map_err(|e| {
-                eprintln!("Failed to launch Reth: {}", e);
+                error!("Failed to launch Reth: {}", e);
                 EngineApiError::IsSyncing
             })?;
 
@@ -68,7 +68,7 @@ impl RethEngineApi {
     /// Check if the engine is online and synced
     pub async fn upcheck(&self) -> Result<(), EngineApiError> {
         // TODO: Query Reth's engine status directly
-        println!("RethEngineApi::upcheck() called - TODO: implement");
+        debug!("upcheck() called - returning Ok (TODO: implement proper health check)");
         Ok(())
     }
 
@@ -133,20 +133,20 @@ impl RethEngineApi {
         _age_limit: Option<Duration>,
     ) -> Result<Vec<ClientVersionV1>, EngineApiError> {
         // TODO: Query Reth's version info
-        println!("RethEngineApi::get_engine_version() called - TODO: implement");
+        debug!("get_engine_version() called - returning empty vec (TODO: implement)");
         Ok(vec![])
     }
 
     /// Clear capabilities cache
     pub async fn clear_exchange_capabilties_cache(&self) {
         // TODO: Clear cache if we implement caching
-        println!("RethEngineApi::clear_exchange_capabilties_cache() called - TODO: implement");
+        debug!("clear_exchange_capabilties_cache() called (no-op)");
     }
 
     /// Clear version cache
     pub async fn clear_engine_version_cache(&self) {
         // TODO: Clear cache if we implement caching
-        println!("RethEngineApi::clear_engine_version_cache() called - TODO: implement");
+        debug!("clear_engine_version_cache() called (no-op)");
     }
 
     /// Submit a new payload for execution
@@ -230,61 +230,61 @@ impl RethEngineApi {
     /// Get execution block by hash
     pub async fn get_block_by_hash(
         &self,
-        _block_hash: ExecutionBlockHash,
+        block_hash: ExecutionBlockHash,
     ) -> Result<Option<ExecutionBlock>, EngineApiError> {
         // TODO: Query Reth for block by hash
-        println!("RethEngineApi::get_block_by_hash() called - TODO: implement");
+        debug!(block_hash = ?block_hash, "get_block_by_hash() called - returning None (TODO: implement)");
         Ok(None)
     }
 
     /// Get execution block by number
     pub async fn get_block_by_number(
         &self,
-        _query: BlockByNumberQuery<'_>,
+        query: BlockByNumberQuery<'_>,
     ) -> Result<Option<ExecutionBlock>, EngineApiError> {
         // TODO: Query Reth for block by number
-        println!("RethEngineApi::get_block_by_number() called - TODO: implement");
+        debug!(query = ?query, "get_block_by_number() called - returning None (TODO: implement)");
         Ok(None)
     }
 
     /// Get payload bodies by block hashes
     pub async fn get_payload_bodies_by_hash_v1<E: EthSpec>(
         &self,
-        _block_hashes: Vec<ExecutionBlockHash>,
+        block_hashes: Vec<ExecutionBlockHash>,
     ) -> Result<Vec<Option<ExecutionPayloadBodyV1<E>>>, EngineApiError> {
         // TODO: Query Reth for payload bodies
-        println!("RethEngineApi::get_payload_bodies_by_hash_v1() called - TODO: implement");
+        debug!(count = block_hashes.len(), "get_payload_bodies_by_hash_v1() called - returning empty vec (TODO: implement)");
         Ok(vec![])
     }
 
     /// Get payload bodies by block range
     pub async fn get_payload_bodies_by_range_v1<E: EthSpec>(
         &self,
-        _start: u64,
-        _count: u64,
+        start: u64,
+        count: u64,
     ) -> Result<Vec<Option<ExecutionPayloadBodyV1<E>>>, EngineApiError> {
         // TODO: Query Reth for payload bodies by range
-        println!("RethEngineApi::get_payload_bodies_by_range_v1() called - TODO: implement");
+        debug!(start = start, count = count, "get_payload_bodies_by_range_v1() called - returning empty vec (TODO: implement)");
         Ok(vec![])
     }
 
     /// Get blobs by versioned hashes (v1)
     pub async fn get_blobs_v1<E: EthSpec>(
         &self,
-        _versioned_hashes: Vec<Hash256>,
+        versioned_hashes: Vec<Hash256>,
     ) -> Result<Vec<Option<BlobAndProofV1<E>>>, EngineApiError> {
         // TODO: Query Reth for blobs
-        println!("RethEngineApi::get_blobs_v1() called - TODO: implement");
+        debug!(count = versioned_hashes.len(), "get_blobs_v1() called - returning empty vec (TODO: implement)");
         Ok(vec![])
     }
 
     /// Get blobs by versioned hashes (v2)
     pub async fn get_blobs_v2<E: EthSpec>(
         &self,
-        _versioned_hashes: Vec<Hash256>,
+        versioned_hashes: Vec<Hash256>,
     ) -> Result<Option<Vec<BlobAndProofV2<E>>>, EngineApiError> {
         // TODO: Query Reth for blobs
-        println!("RethEngineApi::get_blobs_v2() called - TODO: implement");
+        debug!(count = versioned_hashes.len(), "get_blobs_v2() called - returning None (TODO: implement)");
         Ok(None)
     }
 }
@@ -546,13 +546,14 @@ fn spawn_stub_reth_engine_handler(
 ) {
     tokio::spawn(async move {
         use reth_engine_primitives::BeaconEngineMessage;
+        use tracing::debug;
 
-        println!("Stub Reth engine handler started - processing BeaconEngineMessages...");
+        debug!("Stub Reth engine handler started - processing BeaconEngineMessages");
 
         while let Some(message) = from_consensus.recv().await {
             match message {
                 BeaconEngineMessage::NewPayload { payload, tx } => {
-                    println!("[Reth Engine] Received NewPayload via ConsensusEngineHandle");
+                    debug!("Stub received NewPayload via ConsensusEngineHandle");
 
                     // In real implementation, this would call Reth's execution engine
                     // For now, return a stub response
@@ -567,9 +568,9 @@ fn spawn_stub_reth_engine_handler(
                     tx,
                     version: _,
                 } => {
-                    println!(
-                        "[Reth Engine] Received ForkchoiceUpdated via ConsensusEngineHandle - head: {:?}",
-                        state.head_block_hash
+                    debug!(
+                        head = ?state.head_block_hash,
+                        "Stub received ForkchoiceUpdated via ConsensusEngineHandle"
                     );
 
                     // In real implementation, this would call Reth's execution engine
@@ -583,7 +584,7 @@ fn spawn_stub_reth_engine_handler(
             }
         }
 
-        println!("Stub Reth engine handler shut down");
+        debug!("Stub Reth engine handler shut down");
     });
 }
 
@@ -625,7 +626,10 @@ fn launch_reth_and_get_handle_with_config(
         node::{builder::NodeBuilder, node::EthereumNode, core::node_config::NodeConfig},
         tasks::TaskManager,
     };
-    use reth_db::{mdbx::DatabaseArguments, ClientVersion, DatabaseEnv};
+    use reth_db::{mdbx::DatabaseArguments, ClientVersion, DatabaseEnv, init_db};
+    use reth_db_common::init::init_genesis;
+    use reth_provider::{ProviderFactory, providers::StaticFileProvider};
+    use reth_node_types::NodeTypesWithDBAdapter;
     use std::sync::Arc;
 
     // Enable Reth logging - set environment variable if not already set
@@ -641,13 +645,6 @@ fn launch_reth_and_get_handle_with_config(
 
     warn!("Reth logging enabled via RUST_LOG environment variable");
 
-    // Print to stdout directly so we can see progress even if tracing isn't configured
-    println!("\n========================================");
-    println!("RETH LAUNCH: Starting initialization");
-    println!("Data dir: {}", config.datadir.display());
-    println!("Chain: {}", config.chain_spec.chain.to_string());
-    println!("========================================\n");
-
     info!(
         datadir = %config.datadir.display(),
         chain = %config.chain_spec.chain.to_string(),
@@ -658,43 +655,75 @@ fn launch_reth_and_get_handle_with_config(
     std::fs::create_dir_all(&config.datadir)
         .map_err(|e| format!("Failed to create data directory: {}", e))?;
 
-    println!("RETH: ✓ Created data directory");
-    info!("Created data directory, initializing task manager");
+    debug!("Created data directory");
 
     // Create task manager for Reth
     let tasks = TaskManager::current();
 
-    println!("RETH: ✓ Task manager initialized");
-    info!("Task manager created, opening database");
+    debug!("Task manager initialized");
+    info!("Initializing Reth database with genesis block");
 
-    // Open persistent database
+    // Initialize database with genesis block if needed
     let db_path = config.datadir.join("db");
-    println!("RETH: Opening database at: {}", db_path.display());
-    info!(db_path = %db_path.display(), "Attempting to open Reth database");
+    let sf_path = config.datadir.join("static_files");
 
-    let db = Arc::new(
-        DatabaseEnv::open(
-            &db_path,
-            reth_db::DatabaseEnvKind::RW,
-            DatabaseArguments::new(ClientVersion::default()),
-        )
-        .map_err(|e| format!("Failed to open database: {}", e))?
+    debug!(
+        db_path = %db_path.display(),
+        sf_path = %sf_path.display(),
+        "Creating database and static files directories"
     );
 
-    println!("RETH: ✓ Database opened successfully");
-    info!(db_path = %db_path.display(), "Opened persistent Reth database");
+    std::fs::create_dir_all(&db_path)
+        .map_err(|e| format!("Failed to create db directory: {}", e))?;
+    std::fs::create_dir_all(&sf_path)
+        .map_err(|e| format!("Failed to create static files directory: {}", e))?;
+
+    debug!(db_path = %db_path.display(), "Initializing MDBX database");
+
+    // Use init_db which creates/opens the database properly
+    let db = Arc::new(
+        init_db(&db_path, DatabaseArguments::new(ClientVersion::default()))
+            .map_err(|e| format!("Failed to initialize database: {}", e))?
+    );
+
+    debug!("Database initialized, creating static file provider");
+
+    // Create static file provider
+    let sfp = StaticFileProvider::read_write(&sf_path)
+        .map_err(|e| format!("Failed to create static file provider: {}", e))?;
+
+    // Create provider factory for genesis initialization
+    debug!("Creating provider factory for genesis initialization");
+    type EthereumNodeTypes = reth_ethereum::node::node::EthereumNode;
+    let provider_factory = ProviderFactory::<NodeTypesWithDBAdapter<EthereumNodeTypes, Arc<DatabaseEnv>>>::new(
+        db.clone(),
+        config.chain_spec.clone(),
+        sfp,
+    )
+    .map_err(|e| format!("Failed to create provider factory: {}", e))?;
+
+    // Initialize genesis block if it doesn't exist
+    debug!("Checking for genesis block");
+    match init_genesis(&provider_factory) {
+        Ok(genesis_hash) => {
+            info!(genesis_hash = ?genesis_hash, "Genesis block initialized successfully");
+        }
+        Err(e) => {
+            error!("Genesis initialization failed: {}", e);
+            return Err(format!("Failed to initialize genesis: {}", e));
+        }
+    }
+
+    info!(db_path = %db_path.display(), "Database ready with genesis block");
 
     // Create node config with persistent database
-    println!("RETH: Creating node config");
-    info!("Creating node config");
+    debug!("Creating node config");
     let node_config = NodeConfig::new(config.chain_spec);
 
     // Channel to extract the ConsensusEngineHandle or error
     let (handle_tx, handle_rx) = std::sync::mpsc::channel();
     let error_tx = handle_tx.clone();
 
-    println!("RETH: ✓ Node config created");
-    println!("RETH: Spawning dedicated thread for Reth node...");
     info!("Spawning Reth node on dedicated thread with independent runtime");
 
     // Spawn Reth on a dedicated thread with its own tokio runtime
@@ -703,7 +732,7 @@ fn launch_reth_and_get_handle_with_config(
     // 2. The spawned task needs an active runtime to execute
     // 3. A dedicated thread ensures Reth has full CPU/async scheduling independence
     std::thread::spawn(move || {
-        println!("RETH [thread]: ✓✓✓ Started dedicated thread!");
+        debug!("Started dedicated Reth thread");
 
         // Create a new tokio runtime for Reth
         let rt = tokio::runtime::Builder::new_multi_thread()
@@ -713,56 +742,47 @@ fn launch_reth_and_get_handle_with_config(
             .build()
             .expect("Failed to create Reth tokio runtime");
 
-        println!("RETH [thread]: ✓ Created tokio runtime");
+        debug!("Created tokio runtime for Reth");
 
         // Run Reth on this dedicated runtime
         rt.block_on(async move {
-            println!("RETH [async]: ✓ Entered async context");
-            info!("Starting Reth node launch...");
+            debug!("Entered async context");
+            info!("Building and launching Reth node");
 
-            println!("RETH [async]: Building NodeBuilder chain...");
-            info!("Building Reth node with NodeBuilder");
-
-            println!("RETH [async]: Calling NodeBuilder::new()");
+            debug!("Creating NodeBuilder");
             let builder = NodeBuilder::new(node_config);
 
-            println!("RETH [async]: Calling with_database()");
+            debug!("Configuring NodeBuilder with database");
             let builder = builder.with_database(db);
 
-            println!("RETH [async]: Calling with_launch_context()");
+            debug!("Configuring NodeBuilder with launch context");
             let builder = builder.with_launch_context(tasks.executor());
 
-            println!("RETH [async]: Calling node(EthereumNode::default())");
+            debug!("Configuring NodeBuilder with Ethereum node type");
             let builder = builder.node(EthereumNode::default());
 
-            println!("RETH [async]: Calling on_node_started()");
+            debug!("Configuring on_node_started callback");
             let builder = builder.on_node_started(move |full_node| {
-                println!("RETH [on_node_started]: ✓✓✓ Node started callback invoked!");
                 info!("Reth node started, extracting consensus engine handle");
                 // Extract the consensus engine handle from the node
                 let handle = full_node.add_ons_handle.consensus_engine_handle().clone();
-                println!("RETH [on_node_started]: ✓ Extracted consensus engine handle");
-                info!("Successfully extracted consensus engine handle");
+                debug!("Extracted consensus engine handle");
                 let _ = handle_tx.send(Ok(handle));
                 Ok(())
             });
 
-            println!("RETH [async]: Calling launch()...");
-            println!("RETH [async]: Waiting for Reth node to start...");
+            debug!("Launching Reth node");
 
             match builder.launch().await {
                 Ok(handle) => {
-                    println!("RETH [async]: ✓✓✓ Launch completed successfully!");
-                    info!("Reth execution engine launched successfully with persistent database");
+                    info!("Reth execution engine launched successfully");
                     // Keep node running infinitely (beacon chain will shut us down)
-                    println!("RETH [async]: Node running, waiting for exit signal...");
-                    info!("Reth node running, waiting for exit...");
+                    debug!("Reth node running, waiting for exit signal");
                     let _ = handle.wait_for_node_exit().await;
-                    println!("RETH [async]: Node exited");
+                    info!("Reth node exited");
                 }
                 Err(e) => {
-                    println!("RETH [async]: ✗✗✗ Launch FAILED: {}", e);
-                    error!("Failed to launch Reth: {}", e);
+                    error!("Reth launch failed: {}", e);
                     // Send error through channel so we don't timeout
                     let _ = error_tx.send(Err(format!("Reth launch failed: {}", e)));
                 }
@@ -771,9 +791,7 @@ fn launch_reth_and_get_handle_with_config(
     });
 
     // Wait for handle with longer timeout (Reth initialization can take time)
-    println!("\nRETH: Waiting for initialization (30s timeout)...");
-    println!("RETH: The async task now runs on a dedicated thread with its own runtime");
-    info!("Waiting for Reth to initialize...");
+    info!("Waiting for Reth to initialize (30s timeout)");
 
     handle_rx.recv_timeout(Duration::from_secs(30))
         .map_err(|e| format!("Timeout waiting for Reth to launch: {}", e))?
