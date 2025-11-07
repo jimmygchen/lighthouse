@@ -603,6 +603,13 @@ fn launch_reth_and_get_handle_with_config(
     use reth_db::{mdbx::DatabaseArguments, ClientVersion, DatabaseEnv};
     use std::sync::Arc;
 
+    // Print to stdout directly so we can see progress even if tracing isn't configured
+    println!("\n========================================");
+    println!("RETH LAUNCH: Starting initialization");
+    println!("Data dir: {}", config.datadir.display());
+    println!("Chain: {}", config.chain_spec.chain.to_string());
+    println!("========================================\n");
+
     info!(
         datadir = %config.datadir.display(),
         chain = %config.chain_spec.chain.to_string(),
@@ -613,15 +620,18 @@ fn launch_reth_and_get_handle_with_config(
     std::fs::create_dir_all(&config.datadir)
         .map_err(|e| format!("Failed to create data directory: {}", e))?;
 
+    println!("RETH: ✓ Created data directory");
     info!("Created data directory, initializing task manager");
 
     // Create task manager for Reth
     let tasks = TaskManager::current();
 
+    println!("RETH: ✓ Task manager initialized");
     info!("Task manager created, opening database");
 
     // Open persistent database
     let db_path = config.datadir.join("db");
+    println!("RETH: Opening database at: {}", db_path.display());
     info!(db_path = %db_path.display(), "Attempting to open Reth database");
 
     let db = Arc::new(
@@ -633,9 +643,11 @@ fn launch_reth_and_get_handle_with_config(
         .map_err(|e| format!("Failed to open database: {}", e))?
     );
 
+    println!("RETH: ✓ Database opened successfully");
     info!(db_path = %db_path.display(), "Opened persistent Reth database");
 
     // Create node config with persistent database
+    println!("RETH: Creating node config");
     info!("Creating node config");
     let node_config = NodeConfig::new(config.chain_spec);
 
@@ -643,35 +655,56 @@ fn launch_reth_and_get_handle_with_config(
     let (handle_tx, handle_rx) = std::sync::mpsc::channel();
     let error_tx = handle_tx.clone();
 
+    println!("RETH: ✓ Node config created");
+    println!("RETH: Spawning background task for NodeBuilder...");
     info!("Spawning Reth node launch task");
 
     // Launch Reth in background task with persistent database
     tokio::spawn(async move {
+        println!("RETH [async task]: Started background task");
         info!("Starting Reth node launch...");
+
+        println!("RETH [async task]: Building NodeBuilder chain...");
         info!("Building Reth node with NodeBuilder");
 
-        match NodeBuilder::new(node_config)
-            .with_database(db)
-            .with_launch_context(tasks.executor())
-            .node(EthereumNode::default())
-            .on_node_started(move |full_node| {
-                info!("Reth node started, extracting consensus engine handle");
-                // Extract the consensus engine handle from the node
-                let handle = full_node.add_ons_handle.consensus_engine_handle().clone();
-                info!("Successfully extracted consensus engine handle");
-                let _ = handle_tx.send(Ok(handle));
-                Ok(())
-            })
-            .launch()
-            .await
-        {
+        println!("RETH [async task]: Calling NodeBuilder::new()");
+        let builder = NodeBuilder::new(node_config);
+
+        println!("RETH [async task]: Calling with_database()");
+        let builder = builder.with_database(db);
+
+        println!("RETH [async task]: Calling with_launch_context()");
+        let builder = builder.with_launch_context(tasks.executor());
+
+        println!("RETH [async task]: Calling node(EthereumNode::default())");
+        let builder = builder.node(EthereumNode::default());
+
+        println!("RETH [async task]: Calling on_node_started()");
+        let builder = builder.on_node_started(move |full_node| {
+            println!("RETH [on_node_started]: ✓✓✓ Node started callback invoked!");
+            info!("Reth node started, extracting consensus engine handle");
+            // Extract the consensus engine handle from the node
+            let handle = full_node.add_ons_handle.consensus_engine_handle().clone();
+            println!("RETH [on_node_started]: ✓ Extracted consensus engine handle");
+            info!("Successfully extracted consensus engine handle");
+            let _ = handle_tx.send(Ok(handle));
+            Ok(())
+        });
+
+        println!("RETH [async task]: Calling launch() - THIS MAY HANG IF DATABASE NOT INITIALIZED");
+        println!("RETH [async task]: Waiting for Reth node to start...");
+
+        match builder.launch().await {
             Ok(handle) => {
+                println!("RETH [async task]: ✓✓✓ Launch completed successfully!");
                 info!("Reth execution engine launched successfully with persistent database");
                 // Keep node running
+                println!("RETH [async task]: Waiting for node exit...");
                 info!("Waiting for node exit...");
                 let _ = handle.wait_for_node_exit().await;
             }
             Err(e) => {
+                println!("RETH [async task]: ✗✗✗ Launch FAILED: {}", e);
                 error!("Failed to launch Reth: {}", e);
                 // Send error through channel so we don't timeout
                 let _ = error_tx.send(Err(format!("Reth launch failed: {}", e)));
@@ -680,7 +713,10 @@ fn launch_reth_and_get_handle_with_config(
     });
 
     // Wait for handle with longer timeout (Reth initialization can take time)
+    println!("\nRETH: Waiting for initialization (120s timeout)...");
+    println!("RETH: If this times out, the database likely needs genesis initialization");
     info!("Waiting for Reth to initialize...");
+
     handle_rx.recv_timeout(Duration::from_secs(120))
         .map_err(|e| format!("Timeout waiting for Reth to launch: {}", e))?
         .map_err(|e| format!("Reth launch error: {}", e))

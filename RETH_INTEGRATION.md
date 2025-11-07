@@ -97,24 +97,74 @@ All conversions are zero-copy where possible, converting references rather than 
 - **ForkchoiceUpdated**: Complete with proper type conversions
 - **CLI Integration**: `--execution-endpoint` is optional (not needed for in-process Reth)
 - **Build System**: Clean compilation with no errors
+- **ExecutionPayload Conversions**: Implemented for Bellatrix, Capella, Deneb
+  - V1/V2/V3 payload type conversions
+  - Transaction, withdrawal, blob field conversions
+  - Base fee per gas U256 conversion
+- **new_payload() Structure**: Method implemented with full type conversions (Bellatrix/Capella/Deneb)
 
-### 🚧 TODO for Production
-1. **Chain Spec Detection**:
+### 🚧 Critical Issues (BLOCKING)
+
+**1. Reth Node Launch Timeout** ⚠️ HIGH PRIORITY
+- **Issue**: Reth times out after 120s during `NodeBuilder::launch()`
+- **Symptom**: Database opens successfully, but async spawn task never executes
+- **Location**: `reth_engine_api.rs:663-713`
+- **Logs show**:
+  ```
+  ✓ Database opened
+  ✓ Node config created
+  Spawning Reth node launch task
+  [async task never prints - likely not executing]
+  Timeout after 120s
+  ```
+- **Root Cause**: Unknown - possibilities:
+  - Tokio runtime not executing spawned task
+  - Database requires genesis initialization (see NEXT_SESSION.md)
+  - Reth's `launch()` hangs waiting for something
+- **Debug Added**: Extensive println! statements to trace execution
+- **Next Steps**:
+  - Check if tokio runtime is properly set up for spawning
+  - Initialize genesis block in database before Reth launch
+  - Add async task monitoring to see if task even starts
+
+**2. Reth Internal Logs Not Visible** ⚠️
+- **Issue**: Reth's internal logs don't appear in output
+- **Impact**: Cannot debug what Reth is doing during initialization
+- **Need**: Either:
+  - Configure Reth's tracing to go to stdout
+  - Set `RUST_LOG=reth=debug` environment variable
+  - Bridge Reth's logging to Lighthouse's logging system
+
+**3. new_payload() Type Mapping Incomplete**
+- **Issue**: `ExecutionData` type for `new_payload()` not fully mapped
+- **Status**: Payload conversions complete, just need final ExecutionData wrapper
+- **Location**: `reth_engine_api.rs:170-177`
+- **User Note**: "It's the same type, just field mapping"
+- **TODO**: Map `ExecutionPayload` → `ExecutionData` (Reth's EthEngineTypes)
+
+### 🔜 TODO for Production
+1. **Fix Critical Blockers** (see above)
+
+2. **Chain Spec Detection**:
    - Currently hardcoded to mainnet
    - Needs to detect and use Lighthouse's actual network (mainnet, sepolia, holesky, gnosis)
    - Function `get_reth_chain_spec()` in lib.rs needs network parameter
 
-2. **Missing Engine API Methods**:
-   - `new_payload()` - currently stubbed, needs implementation
-   - `get_payload()` - currently stubbed, needs implementation
+3. **Complete Engine API Methods**:
+   - `new_payload()` - 95% done, needs ExecutionData type completion
+   - `get_payload()` - not needed for validation-only mode
    - Block/blob retrieval methods - stubbed
 
-3. **Error Handling**:
+4. **Checkpoint Sync Compatibility**:
+   - Verify Reth works with Lighthouse checkpoint sync
+   - May need special handling for syncing from checkpoint
+
+5. **Error Handling**:
    - Better error propagation from Reth
    - Graceful shutdown coordination
    - Database migration handling
 
-4. **Network Configuration**:
+6. **Network Configuration**:
    - P2P networking for Reth (discovery, sync)
    - Port configuration
    - Peer management
@@ -172,16 +222,67 @@ The Reth database is automatically created in Lighthouse's data directory under 
 - **Lighthouse data**: `~/.lighthouse/<network>/beacon/`
 - **Reth data**: `~/.lighthouse/<network>/reth/db/`
 
-## Next Steps
+## Next Session - Priority Tasks
 
-The core architecture is complete with persistent storage and CLI integration. Remaining work:
+### 🔥 CRITICAL (Must fix to proceed)
 
-1. **Chain Spec Auto-detection**: Detect network from Lighthouse config and use appropriate Reth chain spec
-2. **Engine API Methods**: Implement `new_payload()` and `get_payload()`
-3. **Network Configuration**: Set up Reth's P2P networking
-4. **Testing**: Comprehensive integration testing with testnet sync
-5. **Metrics**: Add monitoring for Reth execution layer
-6. **Documentation**: User-facing documentation for running combined binary
+**1. Fix Reth Launch Timeout** - `reth_engine_api.rs:663-713`
+- **Debug**: With extensive println! added, run Lighthouse and capture ALL output
+- **Observe**: Which is the last line printed before timeout?
+  - If "Spawning background task" but no "Started background task" → tokio runtime issue
+  - If "Calling launch()" but hangs → database/genesis initialization issue
+- **Solutions to try**:
+  - Initialize genesis block in database before launch (see Reth `init` command)
+  - Check tokio runtime configuration in Lighthouse
+  - Try using `tokio::task::spawn_blocking` instead of `tokio::spawn`
+
+**2. Enable Reth Logging**
+- **Goal**: See Reth's internal logs during initialization
+- **Approaches**:
+  - Set `RUST_LOG=reth=debug,reth_db=debug,reth_node=info` environment variable
+  - Configure Reth's tracing subscriber to share Lighthouse's
+  - Add Reth's `tracing` output to stdout
+- **Why**: Cannot debug without seeing what Reth is doing
+
+**3. Complete new_payload() ExecutionData Mapping**
+- **Location**: `reth_engine_api.rs:170-177`
+- **Status**: 95% done, just need final type wrapper
+- **Task**: Map `ExecutionPayload` to Reth's `ExecutionData` type
+- **Note**: User says "it's the same type, just field mapping"
+- **Reference**: Check `EthEngineTypes::ExecutionData` in reth-ethereum-engine-primitives
+
+### ✅ NICE TO HAVE
+
+**4. Checkpoint Sync Testing**
+- Verify Reth works with `--checkpoint-sync-url`
+- May need special handling for execution layer
+
+**5. Chain Spec Auto-Detection**
+- Detect network from Lighthouse and pass to Reth
+- Currently hardcoded to mainnet
+
+## Session Summary (Current)
+
+**Commits:**
+1. `90e92d8ba` - Persistent database and CLI integration
+2. `621d89d99` - Build fixes
+3. `9126bb205` - Engine API methods (new_payload structure + conversions)
+
+**Code Complete:**
+- ✅ Database persistence with MDBX
+- ✅ CLI integration (--execution-endpoint optional)
+- ✅ forkchoice_updated() fully working
+- ✅ PayloadAttributes conversions (V1/V2/V3)
+- ✅ ExecutionPayload conversions (Bellatrix/Capella/Deneb)
+- ✅ Build compiles cleanly
+
+**Blocked On:**
+- ❌ Reth launch timeout (async task not executing)
+- ❌ No Reth logs visible
+- ⚠️ new_payload() needs final ExecutionData wrapper (5 mins work)
+
+**Files Modified This Session:**
+- `beacon_node/execution_layer/src/reth_engine_api.rs` (extensive debugging + new_payload implementation)
 
 ## References
 
