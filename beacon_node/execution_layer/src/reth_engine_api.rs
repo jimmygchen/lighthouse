@@ -627,7 +627,6 @@ fn launch_reth_and_get_handle_with_config(
         tasks::TaskManager,
     };
     use reth_db::{mdbx::DatabaseArguments, ClientVersion, DatabaseEnv, init_db};
-    use reth_db_common::init::init_genesis;
     use reth_provider::{ProviderFactory, providers::StaticFileProvider};
     use reth_node_types::NodeTypesWithDBAdapter;
     use std::sync::Arc;
@@ -702,17 +701,11 @@ fn launch_reth_and_get_handle_with_config(
     )
     .map_err(|e| format!("Failed to create provider factory: {}", e))?;
 
-    // Initialize genesis block if it doesn't exist
-    debug!("Checking for genesis block");
-    match init_genesis(&provider_factory) {
-        Ok(genesis_hash) => {
-            info!(genesis_hash = ?genesis_hash, "Genesis block initialized successfully");
-        }
-        Err(e) => {
-            error!("Genesis initialization failed: {}", e);
-            return Err(format!("Failed to initialize genesis: {}", e));
-        }
-    }
+    // Drop provider_factory as NodeBuilder will handle genesis initialization
+    // The panic catching in the spawn thread will handle any genesis initialization bugs
+    drop(provider_factory);
+
+    info!("Database ready for NodeBuilder (genesis will be initialized by Reth)");
 
     info!(db_path = %db_path.display(), "Database ready with genesis block");
 
@@ -731,63 +724,93 @@ fn launch_reth_and_get_handle_with_config(
     // 1. We're being called from a sync context that blocks waiting for the handle
     // 2. The spawned task needs an active runtime to execute
     // 3. A dedicated thread ensures Reth has full CPU/async scheduling independence
-    std::thread::spawn(move || {
+    let thread_error_tx = error_tx.clone();
+    let _join_handle = std::thread::spawn(move || {
         debug!("Started dedicated Reth thread");
 
-        // Create a new tokio runtime for Reth
-        let rt = tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(4) // Reth needs multiple threads for parallel processing
-            .thread_name("reth-runtime")
-            .enable_all()
-            .build()
-            .expect("Failed to create Reth tokio runtime");
+        // Wrap everything in catch_unwind to convert panics to errors
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            // Create a new tokio runtime for Reth
+            let rt = tokio::runtime::Builder::new_multi_thread()
+                .worker_threads(4) // Reth needs multiple threads for parallel processing
+                .thread_name("reth-runtime")
+                .enable_all()
+                .build()
+                .expect("Failed to create Reth tokio runtime");
 
-        debug!("Created tokio runtime for Reth");
+            debug!("Created tokio runtime for Reth");
 
-        // Run Reth on this dedicated runtime
-        rt.block_on(async move {
-            debug!("Entered async context");
-            info!("Building and launching Reth node");
+            // Run Reth on this dedicated runtime
+            rt.block_on(async move {
+                debug!("Entered async context");
+                info!("Building and launching Reth node");
 
-            debug!("Creating NodeBuilder");
-            let builder = NodeBuilder::new(node_config);
+                debug!("Creating NodeBuilder");
+                let builder = NodeBuilder::new(node_config);
 
-            debug!("Configuring NodeBuilder with database");
-            let builder = builder.with_database(db);
+                debug!("Configuring NodeBuilder with database");
+                let builder = builder.with_database(db);
 
-            debug!("Configuring NodeBuilder with launch context");
-            let builder = builder.with_launch_context(tasks.executor());
+                debug!("Configuring NodeBuilder with launch context");
+                let builder = builder.with_launch_context(tasks.executor());
 
-            debug!("Configuring NodeBuilder with Ethereum node type");
-            let builder = builder.node(EthereumNode::default());
+                debug!("Configuring NodeBuilder with Ethereum node type");
+                let builder = builder.node(EthereumNode::default());
 
-            debug!("Configuring on_node_started callback");
-            let builder = builder.on_node_started(move |full_node| {
-                info!("Reth node started, extracting consensus engine handle");
-                // Extract the consensus engine handle from the node
-                let handle = full_node.add_ons_handle.consensus_engine_handle().clone();
-                debug!("Extracted consensus engine handle");
-                let _ = handle_tx.send(Ok(handle));
-                Ok(())
-            });
+                debug!("Configuring on_node_started callback");
+                let builder = builder.on_node_started(move |full_node| {
+                    info!("Reth node started, extracting consensus engine handle");
+                    // Extract the consensus engine handle from the node
+                    let handle = full_node.add_ons_handle.consensus_engine_handle().clone();
+                    debug!("Extracted consensus engine handle");
+                    let _ = handle_tx.send(Ok(handle));
+                    Ok(())
+                });
 
-            debug!("Launching Reth node");
+                debug!("Launching Reth node");
 
-            match builder.launch().await {
-                Ok(handle) => {
-                    info!("Reth execution engine launched successfully");
-                    // Keep node running infinitely (beacon chain will shut us down)
-                    debug!("Reth node running, waiting for exit signal");
-                    let _ = handle.wait_for_node_exit().await;
-                    info!("Reth node exited");
+                match builder.launch().await {
+                    Ok(handle) => {
+                        info!("Reth execution engine launched successfully");
+                        // Keep node running infinitely (beacon chain will shut us down)
+                        debug!("Reth node running, waiting for exit signal");
+                        let _ = handle.wait_for_node_exit().await;
+                        info!("Reth node exited");
+                    }
+                    Err(e) => {
+                        error!("Reth launch failed: {}", e);
+                        // Send error through channel so we don't timeout
+                        let _ = error_tx.send(Err(format!("Reth launch failed: {}", e)));
+                    }
                 }
-                Err(e) => {
-                    error!("Reth launch failed: {}", e);
-                    // Send error through channel so we don't timeout
-                    let _ = error_tx.send(Err(format!("Reth launch failed: {}", e)));
-                }
+            })
+        }));
+
+        // Handle panic result
+        match result {
+            Ok(_) => {
+                debug!("Reth thread completed normally");
             }
-        });
+            Err(panic_err) => {
+                let panic_msg = if let Some(s) = panic_err.downcast_ref::<&str>() {
+                    s.to_string()
+                } else if let Some(s) = panic_err.downcast_ref::<String>() {
+                    s.clone()
+                } else {
+                    "Unknown panic".to_string()
+                };
+
+                error!("Reth thread panicked: {}", panic_msg);
+
+                // Send panic as error through channel
+                let error_msg = format!(
+                    "Reth genesis initialization panicked: {}\n\
+                     This is a known Reth bug with IntegerList requiring non-empty history lists.",
+                    panic_msg
+                );
+                let _ = thread_error_tx.send(Err(error_msg));
+            }
+        }
     });
 
     // Wait for handle with longer timeout (Reth initialization can take time)

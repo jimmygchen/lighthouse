@@ -175,8 +175,10 @@ where
             None
         };
 
-        let execution_layer = if let Some(config) = config.execution_layer.clone() {
+        let execution_layer = if let Some(mut config) = config.execution_layer.clone() {
             let context = runtime_context.service_context("exec".into());
+            // Pass network name from ChainSpec to execution layer for Reth chain spec selection
+            config.network = spec.config_name.clone();
             let execution_layer = ExecutionLayer::from_config(config, context.executor.clone())
                 .map_err(|e| format!("unable to start execution layer endpoints: {:?}", e))?;
             Some(execution_layer)

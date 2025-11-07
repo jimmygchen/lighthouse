@@ -476,6 +476,8 @@ pub struct Config {
     /// Default directory for the jwt secret if not provided through cli.
     pub default_datadir: PathBuf,
     pub execution_timeout_multiplier: Option<u32>,
+    /// Network name for Reth chain spec (mainnet, sepolia, holesky, etc.)
+    pub network: Option<String>,
 }
 
 /// Provides access to one execution engine and provides a neat interface for consumption by the
@@ -486,13 +488,34 @@ pub struct ExecutionLayer<E: EthSpec> {
 }
 
 /// Get the Reth chain spec based on Lighthouse's network configuration
-/// TODO: This should be determined from Lighthouse's actual network configuration
-/// For now, defaults to mainnet
-fn get_reth_chain_spec() -> std::sync::Arc<reth_chainspec::ChainSpec> {
-    use reth_ethereum::chainspec::MAINNET;
-    // TODO: Map from Lighthouse's network (mainnet, sepolia, holesky, gnosis) to Reth chain spec
-    // This would need access to the network configuration from Lighthouse
-    MAINNET.clone()
+fn get_reth_chain_spec(network: Option<&str>) -> std::sync::Arc<reth_chainspec::ChainSpec> {
+    use reth_ethereum::chainspec::{MAINNET, SEPOLIA, HOLESKY};
+
+    let network_name = network.unwrap_or("mainnet");
+
+    debug!(network = network_name, "Selecting Reth chain spec for network");
+
+    match network_name {
+        "mainnet" => {
+            info!("Using Reth MAINNET chain spec");
+            MAINNET.clone()
+        }
+        "sepolia" => {
+            info!("Using Reth SEPOLIA chain spec");
+            SEPOLIA.clone()
+        }
+        "holesky" => {
+            info!("Using Reth HOLESKY chain spec");
+            HOLESKY.clone()
+        }
+        unknown => {
+            warn!(
+                network = unknown,
+                "Unknown network, defaulting to MAINNET. Supported networks: mainnet, sepolia, holesky"
+            );
+            MAINNET.clone()
+        }
+    }
 }
 
 impl<E: EthSpec> ExecutionLayer<E> {
@@ -510,6 +533,7 @@ impl<E: EthSpec> ExecutionLayer<E> {
             jwt_version,
             default_datadir,
             execution_timeout_multiplier: _,
+            network,
         } = config;
 
         // Note: We don't need an execution URL for in-process Reth integration
@@ -556,7 +580,7 @@ impl<E: EthSpec> ExecutionLayer<E> {
             let reth_datadir = default_datadir.join("reth");
             let reth_config = crate::reth_engine_api::RethConfig {
                 datadir: reth_datadir.clone(),
-                chain_spec: get_reth_chain_spec(),
+                chain_spec: get_reth_chain_spec(network.as_deref()),
             };
 
             info!(
