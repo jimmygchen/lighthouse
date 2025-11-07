@@ -152,22 +152,53 @@ impl RethEngineApi {
     /// Submit a new payload for execution
     pub async fn new_payload<E: EthSpec>(
         &self,
-        _new_payload_request: NewPayloadRequest<'_, E>,
+        new_payload_request: NewPayloadRequest<'_, E>,
     ) -> Result<crate::engine_api::PayloadStatusV1, EngineApiError> {
-        // TODO: Implement new_payload by calling Reth's engine
-        // Would use self.reth_handle to send the payload
-        println!("RethEngineApi::new_payload() called - TODO: implement");
-        Err(EngineApiError::IsSyncing)
+        info!(
+            block_number = new_payload_request.block_number(),
+            block_hash = ?new_payload_request.block_hash(),
+            "RethEngineApi::new_payload() called"
+        );
+
+        // Convert Lighthouse ExecutionPayload to Alloy ExecutionPayload
+        let alloy_payload = convert_lighthouse_to_alloy_payload(new_payload_request)
+            .map_err(|e| {
+                error!("Failed to convert payload: {}", e);
+                EngineApiError::PayloadIdUnavailable
+            })?;
+
+        // Call Reth's new_payload via ConsensusEngineHandle
+        // TODO: Complete type conversion - ExecutionData is just field mapping from ExecutionPayload
+        // The alloy_payload needs to be converted to Reth's ExecutionData type
+        // which for EthEngineTypes should match the ExecutionPayload structure
+        info!("new_payload called - TODO: complete ExecutionData type conversion");
+
+        // Temporary error until type conversion is completed
+        Err(EngineApiError::PayloadIdUnavailable)
     }
 
     /// Get a payload by ID for block production
     pub async fn get_payload<E: EthSpec>(
         &self,
-        _fork_name: ForkName,
-        _payload_id: PayloadId,
+        fork_name: ForkName,
+        payload_id: PayloadId,
     ) -> Result<GetPayloadResponse<E>, EngineApiError> {
-        // TODO: Get payload from Reth engine
-        println!("RethEngineApi::get_payload() called - TODO: implement");
+        use tracing::warn;
+
+        warn!(
+            fork = ?fork_name,
+            payload_id = ?payload_id,
+            "RethEngineApi::get_payload() called - implementation needed"
+        );
+
+        // TODO: Full implementation
+        // get_payload requires access to Reth's payload builder, not just the consensus engine.
+        // This typically involves:
+        // 1. Converting the payload_id to Reth's format
+        // 2. Calling Reth's payload builder API (separate from ConsensusEngineHandle)
+        // 3. Converting the returned ExecutionPayload back to Lighthouse format
+        //
+        // For now, return an error to indicate this is not yet implemented
         Err(EngineApiError::PayloadIdUnavailable)
     }
 
@@ -303,6 +334,146 @@ fn convert_withdrawal(lh: types::Withdrawal) -> alloy_eips::eip4895::Withdrawal 
         address: AlloyAddress::from(lh.address.0),
         amount: lh.amount,
     }
+}
+
+/// Convert Lighthouse ExecutionPayload → Alloy ExecutionPayload for new_payload
+fn convert_lighthouse_to_alloy_payload<E: EthSpec>(
+    request: NewPayloadRequest<'_, E>,
+) -> Result<alloy_rpc_types_engine::ExecutionPayload, String> {
+    use alloy_primitives::{Address as AlloyAddress, Bloom, Bytes, B256, U256};
+    use alloy_rpc_types_engine::{
+        ExecutionPayloadV1, ExecutionPayloadV2, ExecutionPayloadV3,
+    };
+
+    match request {
+        NewPayloadRequest::Bellatrix(payload_request) => {
+            let payload = payload_request.execution_payload;
+
+            let alloy_payload = ExecutionPayloadV1 {
+                parent_hash: B256::from_slice(payload.parent_hash.0.as_ref()),
+                fee_recipient: AlloyAddress::from(payload.fee_recipient.0),
+                state_root: B256::from_slice(payload.state_root.as_ref()),
+                receipts_root: B256::from_slice(payload.receipts_root.as_ref()),
+                logs_bloom: Bloom::from_slice(payload.logs_bloom.as_ref()),
+                prev_randao: B256::from_slice(payload.prev_randao.as_ref()),
+                block_number: payload.block_number,
+                gas_limit: payload.gas_limit,
+                gas_used: payload.gas_used,
+                timestamp: payload.timestamp,
+                extra_data: Bytes::copy_from_slice(payload.extra_data.as_ref()),
+                base_fee_per_gas: U256::from_be_bytes::<32>(payload.base_fee_per_gas.to_be_bytes::<32>()),
+                block_hash: B256::from_slice(payload.block_hash.0.as_ref()),
+                transactions: payload
+                    .transactions
+                    .iter()
+                    .map(|tx| Bytes::copy_from_slice(tx.as_ref()))
+                    .collect(),
+            };
+
+            Ok(alloy_rpc_types_engine::ExecutionPayload::V1(alloy_payload))
+        }
+        NewPayloadRequest::Capella(payload_request) => {
+            let payload = payload_request.execution_payload;
+
+            let alloy_payload = ExecutionPayloadV2 {
+                payload_inner: ExecutionPayloadV1 {
+                    parent_hash: B256::from_slice(payload.parent_hash.0.as_ref()),
+                    fee_recipient: AlloyAddress::from(payload.fee_recipient.0),
+                    state_root: B256::from_slice(payload.state_root.as_ref()),
+                    receipts_root: B256::from_slice(payload.receipts_root.as_ref()),
+                    logs_bloom: Bloom::from_slice(payload.logs_bloom.as_ref()),
+                    prev_randao: B256::from_slice(payload.prev_randao.as_ref()),
+                    block_number: payload.block_number,
+                    gas_limit: payload.gas_limit,
+                    gas_used: payload.gas_used,
+                    timestamp: payload.timestamp,
+                    extra_data: Bytes::copy_from_slice(payload.extra_data.as_ref()),
+                    base_fee_per_gas: U256::from_be_bytes::<32>(payload.base_fee_per_gas.to_be_bytes::<32>()),
+                    block_hash: B256::from_slice(payload.block_hash.0.as_ref()),
+                    transactions: payload
+                        .transactions
+                        .iter()
+                        .map(|tx| Bytes::copy_from_slice(tx.as_ref()))
+                        .collect(),
+                },
+                withdrawals: payload
+                    .withdrawals
+                    .iter()
+                    .map(|w| convert_withdrawal(w.clone()))
+                    .collect(),
+            };
+
+            Ok(alloy_rpc_types_engine::ExecutionPayload::V2(alloy_payload))
+        }
+        NewPayloadRequest::Deneb(payload_request) => {
+            let payload = payload_request.execution_payload;
+
+            let alloy_payload = ExecutionPayloadV3 {
+                payload_inner: ExecutionPayloadV2 {
+                    payload_inner: ExecutionPayloadV1 {
+                        parent_hash: B256::from_slice(payload.parent_hash.0.as_ref()),
+                        fee_recipient: AlloyAddress::from(payload.fee_recipient.0),
+                        state_root: B256::from_slice(payload.state_root.as_ref()),
+                        receipts_root: B256::from_slice(payload.receipts_root.as_ref()),
+                        logs_bloom: Bloom::from_slice(payload.logs_bloom.as_ref()),
+                        prev_randao: B256::from_slice(payload.prev_randao.as_ref()),
+                        block_number: payload.block_number,
+                        gas_limit: payload.gas_limit,
+                        gas_used: payload.gas_used,
+                        timestamp: payload.timestamp,
+                        extra_data: Bytes::copy_from_slice(payload.extra_data.as_ref()),
+                        base_fee_per_gas: U256::from_be_bytes::<32>(payload.base_fee_per_gas.to_be_bytes::<32>()),
+                        block_hash: B256::from_slice(payload.block_hash.0.as_ref()),
+                        transactions: payload
+                            .transactions
+                            .iter()
+                            .map(|tx| Bytes::copy_from_slice(tx.as_ref()))
+                            .collect(),
+                    },
+                    withdrawals: payload
+                        .withdrawals
+                        .iter()
+                        .map(|w| convert_withdrawal(w.clone()))
+                        .collect(),
+                },
+                blob_gas_used: payload.blob_gas_used,
+                excess_blob_gas: payload.excess_blob_gas,
+            };
+
+            Ok(alloy_rpc_types_engine::ExecutionPayload::V3(alloy_payload))
+        }
+        // Electra, Fulu, and Gloas - not yet implemented due to missing Alloy types
+        // TODO: Implement once ExecutionPayloadV4 and EIP-7685 types are available in alloy
+        NewPayloadRequest::Electra(_)
+        | NewPayloadRequest::Fulu(_)
+        | NewPayloadRequest::Gloas(_) => {
+            Err("Electra/Fulu/Gloas fork conversions not yet implemented - missing Alloy types".to_string())
+        }
+    }
+}
+
+/// Convert Alloy PayloadStatus → Lighthouse PayloadStatusV1
+fn convert_alloy_to_lighthouse_payload_status(
+    alloy_status: alloy_rpc_types_engine::PayloadStatus,
+) -> Result<crate::engine_api::PayloadStatusV1, EngineApiError> {
+    use crate::engine_api::{PayloadStatusV1, PayloadStatusV1Status};
+    use alloy_rpc_types_engine::PayloadStatusEnum;
+
+    Ok(PayloadStatusV1 {
+        status: match alloy_status.status {
+            PayloadStatusEnum::Valid => PayloadStatusV1Status::Valid,
+            PayloadStatusEnum::Invalid { validation_error: _ } => PayloadStatusV1Status::Invalid,
+            PayloadStatusEnum::Syncing => PayloadStatusV1Status::Syncing,
+            PayloadStatusEnum::Accepted => PayloadStatusV1Status::Accepted,
+        },
+        latest_valid_hash: alloy_status
+            .latest_valid_hash
+            .map(|h| ExecutionBlockHash::from(Hash256::from_slice(h.as_slice()))),
+        validation_error: match alloy_status.status {
+            PayloadStatusEnum::Invalid { validation_error } => Some(validation_error),
+            _ => None,
+        },
+    })
 }
 
 /// Convert Reth ForkchoiceUpdated response → Lighthouse response
@@ -442,11 +613,17 @@ fn launch_reth_and_get_handle_with_config(
     std::fs::create_dir_all(&config.datadir)
         .map_err(|e| format!("Failed to create data directory: {}", e))?;
 
+    info!("Created data directory, initializing task manager");
+
     // Create task manager for Reth
     let tasks = TaskManager::current();
 
+    info!("Task manager created, opening database");
+
     // Open persistent database
     let db_path = config.datadir.join("db");
+    info!(db_path = %db_path.display(), "Attempting to open Reth database");
+
     let db = Arc::new(
         DatabaseEnv::open(
             &db_path,
@@ -459,15 +636,20 @@ fn launch_reth_and_get_handle_with_config(
     info!(db_path = %db_path.display(), "Opened persistent Reth database");
 
     // Create node config with persistent database
+    info!("Creating node config");
     let node_config = NodeConfig::new(config.chain_spec);
 
     // Channel to extract the ConsensusEngineHandle or error
     let (handle_tx, handle_rx) = std::sync::mpsc::channel();
     let error_tx = handle_tx.clone();
 
+    info!("Spawning Reth node launch task");
+
     // Launch Reth in background task with persistent database
     tokio::spawn(async move {
         info!("Starting Reth node launch...");
+        info!("Building Reth node with NodeBuilder");
+
         match NodeBuilder::new(node_config)
             .with_database(db)
             .with_launch_context(tasks.executor())
@@ -476,6 +658,7 @@ fn launch_reth_and_get_handle_with_config(
                 info!("Reth node started, extracting consensus engine handle");
                 // Extract the consensus engine handle from the node
                 let handle = full_node.add_ons_handle.consensus_engine_handle().clone();
+                info!("Successfully extracted consensus engine handle");
                 let _ = handle_tx.send(Ok(handle));
                 Ok(())
             })
@@ -485,6 +668,7 @@ fn launch_reth_and_get_handle_with_config(
             Ok(handle) => {
                 info!("Reth execution engine launched successfully with persistent database");
                 // Keep node running
+                info!("Waiting for node exit...");
                 let _ = handle.wait_for_node_exit().await;
             }
             Err(e) => {
