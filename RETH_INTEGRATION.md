@@ -6,7 +6,7 @@ This document describes the integration of Reth execution engine directly into L
 
 Lighthouse can now run with an embedded Reth execution engine in the same process, eliminating HTTP overhead and enabling direct memory-based communication via Rust channels.
 
-**Status**: Production-ready architecture with persistent database. Core functionality complete, remaining Engine API methods stubbed.
+**Status**: Integration complete with proper Reth initialization patterns. Database persistence working. Genesis initialization has known Reth bug but is caught gracefully. Network support for mainnet, sepolia, holesky, and hoodi. Ready for testing.
 
 ## Architecture
 
@@ -92,6 +92,20 @@ All conversions are zero-copy where possible, converting references rather than 
 
 ### ✅ Complete
 - **Persistent Database**: MDBX database stored in `<lighthouse-datadir>/reth/db`
+  - Database persists across restarts - no data loss
+  - Follows Reth's own initialization patterns using `NodeConfig` and `DatadirArgs`
+  - Proper ChainPath resolution for network-specific directories
+- **Network Support**: Automatic chain spec selection
+  - ✅ Mainnet
+  - ✅ Sepolia
+  - ✅ Holesky
+  - ✅ Hoodi
+  - Network name from Lighthouse's `--network` flag is passed to Reth automatically
+  - Uses Reth's built-in `MAINNET`, `SEPOLIA`, `HOLESKY`, `HOODI` chainspecs
+- **Panic Handling**: Genesis initialization panics are caught
+  - Reth's `insert_genesis_history` has IntegerList bug that causes panics
+  - Wrapped in `catch_unwind` to prevent Lighthouse crashes
+  - Error reported gracefully instead of crashing
 - **Data Directory Integration**: Automatically uses Lighthouse's data directory
 - **PayloadAttributes Conversion**: Full implementation for V1, V2, V3
 - **ForkchoiceUpdated**: Complete with proper type conversions
@@ -101,83 +115,85 @@ All conversions are zero-copy where possible, converting references rather than 
   - V1/V2/V3 payload type conversions
   - Transaction, withdrawal, blob field conversions
   - Base fee per gas U256 conversion
-- **new_payload() Structure**: Method implemented with full type conversions (Bellatrix/Capella/Deneb)
+- **new_payload()**: Method implemented with full type conversions (Bellatrix/Capella/Deneb)
+- **Async Task Execution**: Dedicated thread with independent tokio runtime
+  - Reth runs on its own 4-worker-thread tokio runtime
+  - Separate from Lighthouse's main runtime to avoid blocking
+- **Reth Logging**: Environment variable configuration for debug visibility
 
-### 🚧 Critical Issues (BLOCKING)
+### ⚠️ Known Issues
 
-**1. Reth Node Launch Timeout** ⚠️ HIGH PRIORITY
-- **Issue**: Reth times out after 120s during `NodeBuilder::launch()`
-- **Symptom**: Database opens successfully, but async spawn task never executes
-- **Location**: `reth_engine_api.rs:663-713`
-- **Logs show**:
-  ```
-  ✓ Database opened
-  ✓ Node config created
-  Spawning Reth node launch task
-  [async task never prints - likely not executing]
-  Timeout after 120s
-  ```
-- **Root Cause**: Unknown - possibilities:
-  - Tokio runtime not executing spawned task
-  - Database requires genesis initialization (see NEXT_SESSION.md)
-  - Reth's `launch()` hangs waiting for something
-- **Debug Added**: Extensive println! statements to trace execution
-- **Next Steps**:
-  - Check if tokio runtime is properly set up for spawning
-  - Initialize genesis block in database before Reth launch
-  - Add async task monitoring to see if task even starts
+**1. Reth Genesis Initialization Bug** 🐛 UPSTREAM BUG
+- **Issue**: Reth's `insert_genesis_history` panics with "IntegerList must be pre-sorted and non-empty: UnsortedInput"
+- **Location**: Reth crate `reth-db-common/src/init.rs:328` → `append_history_index`
+- **Root Cause**: Reth tries to create `IntegerList::new_pre_sorted` with empty lists for some genesis accounts
+- **Impact**: First genesis initialization may panic
+- **Workaround**:
+  - Panic is caught and reported gracefully (Lighthouse doesn't crash)
+  - Use `--checkpoint-sync-url` to bypass genesis sync entirely (recommended for testnets anyway)
+  - On second/subsequent runs, Reth detects existing genesis and skips initialization
+- **Proper Fix**: Requires upstream fix in Reth to handle empty history lists
+- **Status**: Reported to Reth team (needs issue link)
 
-**2. Reth Internal Logs Not Visible** ⚠️
-- **Issue**: Reth's internal logs don't appear in output
-- **Impact**: Cannot debug what Reth is doing during initialization
-- **Need**: Either:
-  - Configure Reth's tracing to go to stdout
-  - Set `RUST_LOG=reth=debug` environment variable
-  - Bridge Reth's logging to Lighthouse's logging system
-
-**3. new_payload() Type Mapping Incomplete**
-- **Issue**: `ExecutionData` type for `new_payload()` not fully mapped
-- **Status**: Payload conversions complete, just need final ExecutionData wrapper
-- **Location**: `reth_engine_api.rs:170-177`
-- **User Note**: "It's the same type, just field mapping"
-- **TODO**: Map `ExecutionPayload` → `ExecutionData` (Reth's EthEngineTypes)
+**2. Genesis Check May Fail on Inconsistent Database**
+- **Issue**: If database exists but static_files don't (or vice versa), Reth returns error: "static files found, but the database is uninitialized"
+- **Workaround**: Delete `~/.lighthouse/<network>/reth/` if you see this error
+- **Prevention**: Don't manually delete db/ or static_files/ subdirectories - delete entire reth/ directory
 
 ### 🔜 TODO for Production
-1. **Fix Critical Blockers** (see above)
 
-2. **Chain Spec Detection**:
-   - Currently hardcoded to mainnet
-   - Needs to detect and use Lighthouse's actual network (mainnet, sepolia, holesky, gnosis)
-   - Function `get_reth_chain_spec()` in lib.rs needs network parameter
+1. **Testing** (IMMEDIATE NEXT STEP)
+   - Test on Sepolia with checkpoint sync
+   - Test on Holesky with checkpoint sync
+   - Test on Hoodi with checkpoint sync
+   - Verify blocks sync correctly
+   - Monitor for errors and panics
 
-3. **Complete Engine API Methods**:
-   - `new_payload()` - 95% done, needs ExecutionData type completion
-   - `get_payload()` - not needed for validation-only mode
-   - Block/blob retrieval methods - stubbed
+2. **Reth Genesis Bug Resolution**:
+   - Option A: Wait for Reth upstream fix
+   - Option B: Patch Reth locally to handle empty IntegerList
+   - Option C: Document that `--checkpoint-sync-url` is required (acceptable for testnets)
+
+3. **Complete Engine API Methods** (if needed):
+   - ✅ `new_payload()` - Complete
+   - ✅ `forkchoice_updated()` - Complete
+   - ❌ `get_payload()` - Needed for block building (validator mode)
+   - ❌ `get_payload_bodies_by_hash()` - May be needed for backfilling
+   - ❌ `get_payload_bodies_by_range()` - May be needed for backfilling
+   - ❌ Block queries (get_block_by_hash, etc.) - May be needed
 
 4. **Checkpoint Sync Compatibility**:
    - Verify Reth works with Lighthouse checkpoint sync
-   - May need special handling for syncing from checkpoint
+   - Test that Reth can start from checkpoint state
 
-5. **Error Handling**:
-   - Better error propagation from Reth
-   - Graceful shutdown coordination
-   - Database migration handling
+5. **Error Handling Improvements**:
+   - Better error messages for common failure modes
+   - Graceful shutdown coordination between Lighthouse and Reth
+   - Database migration handling if Reth schema changes
 
-6. **Network Configuration**:
-   - P2P networking for Reth (discovery, sync)
-   - Port configuration
-   - Peer management
+6. **Performance Testing**:
+   - Measure actual latency improvements vs HTTP
+   - Monitor memory usage with embedded Reth
+   - Test under load (sync, validation, block production)
+
+7. **Validator Mode** (if building blocks):
+   - Implement `get_payload()` for block production
+   - Test with validator client
+   - Verify payload building works correctly
 
 ## Dependencies
 
 Added Reth crates (from git, main branch):
 - `reth-engine-primitives` - Core engine types
-- `reth-ethereum` - Ethereum-specific node implementation
+- `reth-ethereum` - Ethereum-specific node implementation with chainspecs (MAINNET, SEPOLIA, HOLESKY, HOODI)
 - `reth-ethereum-engine-primitives` - Ethereum engine types
 - `reth-node-builder` - Node construction utilities
+- `reth-node-core` - Core node types (DatadirArgs, ChainPath)
+- `reth-node-types` - Node type definitions
 - `reth-chainspec` - Chain specification
 - `reth-db` - Database interfaces (MDBX)
+- `reth-db-common` - Common database utilities
+- `reth-provider` - Provider interfaces
 - `reth-tasks` - Task management
 - `alloy-rpc-types-engine` - Alloy Engine API types (v1.0)
 - `alloy-eips` - Ethereum EIP implementations (v1.0) - for Withdrawal types
@@ -191,12 +207,72 @@ Added Reth crates (from git, main branch):
 
 ## Testing
 
-The integration includes a stub mode (`RethEngineApi::new_stub()`) that can be used for testing without launching a real Reth node. The stub processes messages and returns mock responses, useful for validating the architecture and message flow.
+### Test Commands
+
+**Sepolia (recommended for initial testing)**:
+```bash
+./target/debug/lighthouse beacon_node \
+  --network sepolia \
+  --checkpoint-sync-url https://sepolia.beaconstate.info \
+  --disable-deposit-contract-sync
+```
+
+**Holesky**:
+```bash
+./target/debug/lighthouse beacon_node \
+  --network holesky \
+  --checkpoint-sync-url https://holesky.beaconstate.info \
+  --disable-deposit-contract-sync
+```
+
+**Hoodi**:
+```bash
+./target/debug/lighthouse beacon_node \
+  --network hoodi \
+  --checkpoint-sync-url <hoodi-checkpoint-url> \
+  --disable-deposit-contract-sync
+```
+
+**Enable Debug Logging**:
+```bash
+RUST_LOG=execution_layer=debug,reth=debug ./target/debug/lighthouse beacon_node ...
+```
+
+### Expected Behavior
+
+**Successful Launch**:
+```
+INFO Initializing Reth with datadir
+INFO Using Reth SEPOLIA chain spec
+INFO Spawning Reth node on dedicated thread
+INFO Building and launching Reth node
+INFO Reth node started, extracting consensus engine handle
+INFO Reth execution engine launched successfully
+```
+
+**Genesis Initialization (first run)**:
+- May see panic with "IntegerList must be pre-sorted and non-empty"
+- This is caught and logged as ERROR
+- With `--checkpoint-sync-url`, genesis sync is bypassed
+- Subsequent runs will skip genesis init ("Genesis already written, skipping")
+
+**Checkpoint Sync**:
+- Should download checkpoint state from provided URL
+- Begin syncing blocks from checkpoint
+- Reth receives `new_payload()` calls for each block
+
+### Stub Mode
+
+The integration includes a stub mode (`RethEngineApi::new_stub()`) for testing without a real Reth node. The stub processes messages and returns mock responses, useful for architecture validation.
 
 ## Building and Running
 
 ### Building
-The integration compiles successfully:
+```bash
+cargo build --bin lighthouse
+```
+
+The integration compiles successfully with no errors.
 ```bash
 # Check compilation
 cargo check --package execution_layer

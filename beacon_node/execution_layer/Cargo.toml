@@ -60,6 +60,7 @@ reth-primitives-traits = { git = "https://github.com/paradigmxyz/reth", branch =
 reth-node-builder = { git = "https://github.com/paradigmxyz/reth", branch = "main" }
 reth-node-ethereum = { git = "https://github.com/paradigmxyz/reth", branch = "main" }
 reth-node-types = { git = "https://github.com/paradigmxyz/reth", branch = "main" }
+reth-node-core = { git = "https://github.com/paradigmxyz/reth", branch = "main" }
 reth-ethereum = { git = "https://github.com/paradigmxyz/reth", branch = "main", features = ["node", "test-utils"] }
 reth-ethereum-engine-primitives = { git = "https://github.com/paradigmxyz/reth", branch = "main" }
 reth-chainspec = { git = "https://github.com/paradigmxyz/reth", branch = "main" }

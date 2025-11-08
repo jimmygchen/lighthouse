@@ -476,7 +476,7 @@ pub struct Config {
     /// Default directory for the jwt secret if not provided through cli.
     pub default_datadir: PathBuf,
     pub execution_timeout_multiplier: Option<u32>,
-    /// Network name for Reth chain spec (mainnet, sepolia, holesky, etc.)
+    /// Network name for Reth chain spec (mainnet, sepolia, holesky, hoodi, etc.)
     pub network: Option<String>,
 }
 
@@ -489,7 +489,7 @@ pub struct ExecutionLayer<E: EthSpec> {
 
 /// Get the Reth chain spec based on Lighthouse's network configuration
 fn get_reth_chain_spec(network: Option<&str>) -> std::sync::Arc<reth_chainspec::ChainSpec> {
-    use reth_ethereum::chainspec::{MAINNET, SEPOLIA, HOLESKY};
+    use reth_ethereum::chainspec::{MAINNET, SEPOLIA, HOLESKY, HOODI};
 
     let network_name = network.unwrap_or("mainnet");
 
@@ -508,10 +508,14 @@ fn get_reth_chain_spec(network: Option<&str>) -> std::sync::Arc<reth_chainspec::
             info!("Using Reth HOLESKY chain spec");
             HOLESKY.clone()
         }
+        "hoodi" => {
+            info!("Using Reth HOODI chain spec");
+            HOODI.clone()
+        }
         unknown => {
             warn!(
                 network = unknown,
-                "Unknown network, defaulting to MAINNET. Supported networks: mainnet, sepolia, holesky"
+                "Unknown network, defaulting to MAINNET. Supported networks: mainnet, sepolia, holesky, hoodi"
             );
             MAINNET.clone()
         }
