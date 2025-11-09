@@ -11,7 +11,7 @@ pub fn build_workspace_filter()
 
     Ok(tracing_subscriber::filter::FilterFn::new(move |metadata| {
         let target_crate = metadata.target().split("::").next().unwrap_or("");
-        workspace_crates.contains(target_crate)
+        workspace_crates.contains(target_crate) || target_crate.contains("reth")
     }))
 }
 
@@ -28,4 +28,9 @@ pub fn is_ascii_control(character: &u8) -> bool {
         b'\x7f' |
         b'\x81'..=b'\x9f'
     )
+}
+
+#[test]
+fn test() {
+    build_workspace_filter().unwrap();
 }

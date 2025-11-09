@@ -107,16 +107,23 @@ where
             None => "<unknown_line>".to_string(),
         };
 
+        let target_crate = meta.target().split("::").next().unwrap_or("");
+        let layer_prefix = if target_crate.contains("reth") {
+            "execution"
+        } else {
+            "consensus"
+        };
+
         let gray = "\x1b[90m";
         let reset = "\x1b[0m";
         let location = if self.extra_info {
             if self.log_color {
-                format!("{}{}::{}:{}{}", gray, module, file, line, reset)
+                format!("[{}] {}{}::{}:{}{}", layer_prefix, gray, module, file, line, reset)
             } else {
-                format!("{}::{}:{}", module, file, line)
+                format!("[{}] {}::{}:{}", layer_prefix, module, file, line)
             }
         } else {
-            String::new()
+            format!("[{}]", layer_prefix)
         };
 
         let plain_level_str = if visitor.is_crit {

@@ -44,32 +44,11 @@ impl RethEngineApi {
         Ok(Self { reth_handle })
     }
 
-    /// Create a new RethEngineApi with default configuration
-    #[allow(dead_code)]
-    pub fn new_default() -> Result<Self, EngineApiError> {
-        Self::new(RethConfig::default())
-    }
-
-    /// Create RethEngineApi with stub for testing/POC
-    #[allow(dead_code)]
-    pub fn new_stub() -> Result<Self, EngineApiError> {
-        // Create channel - this is what Reth uses internally!
-        let (to_engine, from_consensus) = unbounded_channel();
-
-        // Wrap in ConsensusEngineHandle - this is Reth's handle type
-        let reth_handle = ConsensusEngineHandle::new(to_engine);
-
-        // Spawn task that acts like Reth's engine (processes messages from the channel)
-        spawn_stub_reth_engine_handler(from_consensus);
-
-        Ok(Self { reth_handle })
-    }
-
     /// Check if the engine is online and synced
     pub async fn upcheck(&self) -> Result<(), EngineApiError> {
         // TODO: Query Reth's engine status directly
         debug!("upcheck() called - returning Ok (TODO: implement proper health check)");
-        Ok(())
+        Err(EngineApiError::IsSyncing) // return IsSyncing until we have engine API interactions implemented
     }
 
     /// Update fork choice and optionally request payload building
@@ -467,12 +446,83 @@ fn convert_lighthouse_to_alloy_payload<E: EthSpec>(
 
             Ok(alloy_rpc_types_engine::ExecutionPayload::V3(alloy_payload))
         }
-        // Electra, Fulu, and Gloas - not yet implemented due to missing Alloy types
-        // TODO: Implement once ExecutionPayloadV4 and EIP-7685 types are available in alloy
-        NewPayloadRequest::Electra(_)
-        | NewPayloadRequest::Fulu(_)
-        | NewPayloadRequest::Gloas(_) => {
-            Err("Electra/Fulu/Gloas fork conversions not yet implemented - missing Alloy types".to_string())
+        NewPayloadRequest::Electra(payload_request) => {
+            let payload = payload_request.execution_payload;
+
+            let alloy_payload = ExecutionPayloadV3 {
+                payload_inner: ExecutionPayloadV2 {
+                    payload_inner: ExecutionPayloadV1 {
+                        parent_hash: B256::from_slice(payload.parent_hash.0.as_ref()),
+                        fee_recipient: AlloyAddress::from(payload.fee_recipient.0),
+                        state_root: B256::from_slice(payload.state_root.as_ref()),
+                        receipts_root: B256::from_slice(payload.receipts_root.as_ref()),
+                        logs_bloom: Bloom::from_slice(payload.logs_bloom.as_ref()),
+                        prev_randao: B256::from_slice(payload.prev_randao.as_ref()),
+                        block_number: payload.block_number,
+                        gas_limit: payload.gas_limit,
+                        gas_used: payload.gas_used,
+                        timestamp: payload.timestamp,
+                        extra_data: Bytes::copy_from_slice(payload.extra_data.as_ref()),
+                        base_fee_per_gas: U256::from_be_bytes::<32>(payload.base_fee_per_gas.to_be_bytes::<32>()),
+                        block_hash: B256::from_slice(payload.block_hash.0.as_ref()),
+                        transactions: payload
+                            .transactions
+                            .iter()
+                            .map(|tx| Bytes::copy_from_slice(tx.as_ref()))
+                            .collect(),
+                    },
+                    withdrawals: payload
+                        .withdrawals
+                        .iter()
+                        .map(|w| convert_withdrawal(w.clone()))
+                        .collect(),
+                },
+                blob_gas_used: payload.blob_gas_used,
+                excess_blob_gas: payload.excess_blob_gas,
+            };
+
+            Ok(alloy_rpc_types_engine::ExecutionPayload::V3(alloy_payload))
+        }
+        NewPayloadRequest::Fulu(payload_request) => {
+            let payload = payload_request.execution_payload;
+
+            let alloy_payload = ExecutionPayloadV3 {
+                payload_inner: ExecutionPayloadV2 {
+                    payload_inner: ExecutionPayloadV1 {
+                        parent_hash: B256::from_slice(payload.parent_hash.0.as_ref()),
+                        fee_recipient: AlloyAddress::from(payload.fee_recipient.0),
+                        state_root: B256::from_slice(payload.state_root.as_ref()),
+                        receipts_root: B256::from_slice(payload.receipts_root.as_ref()),
+                        logs_bloom: Bloom::from_slice(payload.logs_bloom.as_ref()),
+                        prev_randao: B256::from_slice(payload.prev_randao.as_ref()),
+                        block_number: payload.block_number,
+                        gas_limit: payload.gas_limit,
+                        gas_used: payload.gas_used,
+                        timestamp: payload.timestamp,
+                        extra_data: Bytes::copy_from_slice(payload.extra_data.as_ref()),
+                        base_fee_per_gas: U256::from_be_bytes::<32>(payload.base_fee_per_gas.to_be_bytes::<32>()),
+                        block_hash: B256::from_slice(payload.block_hash.0.as_ref()),
+                        transactions: payload
+                            .transactions
+                            .iter()
+                            .map(|tx| Bytes::copy_from_slice(tx.as_ref()))
+                            .collect(),
+                    },
+                    withdrawals: payload
+                        .withdrawals
+                        .iter()
+                        .map(|w| convert_withdrawal(w.clone()))
+                        .collect(),
+                },
+                blob_gas_used: payload.blob_gas_used,
+                excess_blob_gas: payload.excess_blob_gas,
+            };
+
+            Ok(alloy_rpc_types_engine::ExecutionPayload::V3(alloy_payload))
+        }
+        // TODO: Gloas - not yet implemented due to missing Alloy types
+        NewPayloadRequest::Gloas(_) => {
+            Err("Gloas fork conversions not yet implemented - missing Alloy types".to_string())
         }
     }
 }
@@ -732,7 +782,6 @@ fn launch_reth_and_get_handle_with_config(
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             // Create a new tokio runtime for Reth
             let rt = tokio::runtime::Builder::new_multi_thread()
-                .worker_threads(4) // Reth needs multiple threads for parallel processing
                 .thread_name("reth-runtime")
                 .enable_all()
                 .build()
