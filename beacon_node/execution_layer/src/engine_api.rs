@@ -71,6 +71,7 @@ pub enum Error {
     UnsupportedForkVariant(String),
     InvalidClientVersion(String),
     TooManyConsolidationRequests(usize),
+    EngineApiError(String)
 }
 
 impl From<reqwest::Error> for Error {
