@@ -11,7 +11,8 @@ use crate::engine_api::{
 };
 use crate::engines::ForkchoiceState;
 use crate::json_structures::{BlobAndProofV1, BlobAndProofV2};
-use alloy_rpc_types_engine::ExecutionPayloadSidecar;
+use alloy_eips::eip7685::Requests;
+use alloy_rpc_types_engine::{CancunPayloadFields, ExecutionPayloadSidecar, PraguePayloadFields};
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
@@ -77,16 +78,6 @@ impl EthereumRethEngineApi {
 
         Ok(Self { reth_handle })
     }
-    // }
-    //
-    // impl<Provider, PayloadT, Pool, Validator, ChainSpec> RethEngineApi<Provider, PayloadT, Pool, Validator, ChainSpec>
-    // where
-    //     Provider: reth_provider::HeaderProvider + reth_provider::BlockReader + reth_provider::StateProviderFactory + 'static,
-    //     PayloadT: EngineTypes,
-    //     Pool: TransactionPool + 'static,
-    //     Validator: EngineApiValidator<PayloadT>,
-    //     ChainSpec: reth_chainspec::EthereumHardforks + Send + Sync + 'static,
-    // {
 
     /// Check if the engine is online and synced
     pub async fn upcheck(&self) -> Result<(), EngineApiError> {
@@ -100,10 +91,7 @@ impl EthereumRethEngineApi {
         &self,
         forkchoice_state: ForkchoiceState,
         maybe_payload_attributes: Option<PayloadAttributes>,
-    ) -> Result<ForkchoiceUpdatedResponse, EngineApiError>
-// where
-    //     PayloadT: PayloadTypes<PayloadAttributes = alloy_rpc_types_engine::PayloadAttributes>,
-    {
+    ) -> Result<ForkchoiceUpdatedResponse, EngineApiError> {
         let engine_capabilities = self.get_engine_capabilities(None).await?;
 
         // Convert Lighthouse ForkchoiceState → Reth ForkchoiceState
@@ -256,46 +244,6 @@ impl EthereumRethEngineApi {
 
         // Match on request variant and convert to Alloy types per-variant
         let reth_response = match new_payload_request {
-            NewPayloadRequest::Bellatrix(_) | NewPayloadRequest::Capella(_) => {
-                // Convert Lighthouse ExecutionPayload to Alloy ExecutionPayload
-                let execution_payload = convert_lighthouse_to_alloy_payload(new_payload_request)
-                    .map_err(|e| {
-                        error!("Failed to convert payload: {}", e);
-                        EngineApiError::PayloadIdUnavailable
-                    })?;
-
-                // Call appropriate version based on capabilities
-                if engine_capabilities.new_payload_v2 {
-                    self.reth_handle.new_payload_v2(execution_payload).await
-                } else if engine_capabilities.new_payload_v1 {
-                    self.reth_handle.new_payload_v1(execution_payload).await
-                } else {
-                    return Err(EngineApiError::RequiredMethodUnsupported(
-                        "engine_newPayload",
-                    ));
-                }
-                .map_err(|e| EngineApiError::EngineApiError(format!("{e:?}")))?
-            }
-            NewPayloadRequest::Deneb(payload_request) => {
-                if !engine_capabilities.new_payload_v3 {
-                    return Err(EngineApiError::RequiredMethodUnsupported(
-                        "engine_newPayloadV3",
-                    ));
-                }
-
-                // Convert payload to Alloy format
-                let execution_payload =
-                    convert_lighthouse_to_alloy_payload(NewPayloadRequest::Deneb(payload_request))
-                        .map_err(|e| {
-                            error!("Failed to convert Deneb payload: {}", e);
-                            EngineApiError::PayloadIdUnavailable
-                        })?;
-
-                self.reth_handle
-                    .new_payload_v3(execution_payload)
-                    .await
-                    .map_err(|e| EngineApiError::EngineApiError(format!("{e:?}")))?
-            }
             NewPayloadRequest::Electra(payload_request) => {
                 if !engine_capabilities.new_payload_v4 {
                     return Err(EngineApiError::RequiredMethodUnsupported(
@@ -337,9 +285,12 @@ impl EthereumRethEngineApi {
                     .await
                     .map_err(|e| EngineApiError::EngineApiError(format!("{e:?}")))?
             }
-            NewPayloadRequest::Gloas(_) => {
+            NewPayloadRequest::Bellatrix(_)
+            | NewPayloadRequest::Capella(_)
+            | NewPayloadRequest::Deneb(_)
+            | NewPayloadRequest::Gloas(_) => {
                 return Err(EngineApiError::UnsupportedForkVariant(
-                    "Gloas not yet supported in Reth integration".to_string(),
+                    "Unsupported fork for Reth Engine API integration".to_string(),
                 ));
             }
         };
@@ -539,108 +490,6 @@ fn convert_lighthouse_to_alloy_payload<E: EthSpec>(
     use alloy_rpc_types_engine::{ExecutionPayloadV1, ExecutionPayloadV2, ExecutionPayloadV3};
 
     let res = match request {
-        NewPayloadRequest::Bellatrix(payload_request) => {
-            let payload = payload_request.execution_payload;
-
-            let alloy_payload = ExecutionPayloadV1 {
-                parent_hash: B256::from_slice(payload.parent_hash.0.as_ref()),
-                fee_recipient: AlloyAddress::from(payload.fee_recipient.0),
-                state_root: B256::from_slice(payload.state_root.as_ref()),
-                receipts_root: B256::from_slice(payload.receipts_root.as_ref()),
-                logs_bloom: Bloom::from_slice(payload.logs_bloom.as_ref()),
-                prev_randao: B256::from_slice(payload.prev_randao.as_ref()),
-                block_number: payload.block_number,
-                gas_limit: payload.gas_limit,
-                gas_used: payload.gas_used,
-                timestamp: payload.timestamp,
-                extra_data: Bytes::copy_from_slice(payload.extra_data.as_ref()),
-                base_fee_per_gas: U256::from_be_bytes::<32>(
-                    payload.base_fee_per_gas.to_be_bytes::<32>(),
-                ),
-                block_hash: B256::from_slice(payload.block_hash.0.as_ref()),
-                transactions: payload
-                    .transactions
-                    .iter()
-                    .map(|tx| Bytes::copy_from_slice(tx.as_ref()))
-                    .collect(),
-            };
-
-            Ok(alloy_rpc_types_engine::ExecutionPayload::V1(alloy_payload))
-        }
-        NewPayloadRequest::Capella(payload_request) => {
-            let payload = payload_request.execution_payload;
-
-            let alloy_payload = ExecutionPayloadV2 {
-                payload_inner: ExecutionPayloadV1 {
-                    parent_hash: B256::from_slice(payload.parent_hash.0.as_ref()),
-                    fee_recipient: AlloyAddress::from(payload.fee_recipient.0),
-                    state_root: B256::from_slice(payload.state_root.as_ref()),
-                    receipts_root: B256::from_slice(payload.receipts_root.as_ref()),
-                    logs_bloom: Bloom::from_slice(payload.logs_bloom.as_ref()),
-                    prev_randao: B256::from_slice(payload.prev_randao.as_ref()),
-                    block_number: payload.block_number,
-                    gas_limit: payload.gas_limit,
-                    gas_used: payload.gas_used,
-                    timestamp: payload.timestamp,
-                    extra_data: Bytes::copy_from_slice(payload.extra_data.as_ref()),
-                    base_fee_per_gas: U256::from_be_bytes::<32>(
-                        payload.base_fee_per_gas.to_be_bytes::<32>(),
-                    ),
-                    block_hash: B256::from_slice(payload.block_hash.0.as_ref()),
-                    transactions: payload
-                        .transactions
-                        .iter()
-                        .map(|tx| Bytes::copy_from_slice(tx.as_ref()))
-                        .collect(),
-                },
-                withdrawals: payload
-                    .withdrawals
-                    .iter()
-                    .map(|w| convert_withdrawal(w.clone()))
-                    .collect(),
-            };
-
-            Ok(alloy_rpc_types_engine::ExecutionPayload::V2(alloy_payload))
-        }
-        NewPayloadRequest::Deneb(payload_request) => {
-            let payload = payload_request.execution_payload;
-
-            let alloy_payload = ExecutionPayloadV3 {
-                payload_inner: ExecutionPayloadV2 {
-                    payload_inner: ExecutionPayloadV1 {
-                        parent_hash: B256::from_slice(payload.parent_hash.0.as_ref()),
-                        fee_recipient: AlloyAddress::from(payload.fee_recipient.0),
-                        state_root: B256::from_slice(payload.state_root.as_ref()),
-                        receipts_root: B256::from_slice(payload.receipts_root.as_ref()),
-                        logs_bloom: Bloom::from_slice(payload.logs_bloom.as_ref()),
-                        prev_randao: B256::from_slice(payload.prev_randao.as_ref()),
-                        block_number: payload.block_number,
-                        gas_limit: payload.gas_limit,
-                        gas_used: payload.gas_used,
-                        timestamp: payload.timestamp,
-                        extra_data: Bytes::copy_from_slice(payload.extra_data.as_ref()),
-                        base_fee_per_gas: U256::from_be_bytes::<32>(
-                            payload.base_fee_per_gas.to_be_bytes::<32>(),
-                        ),
-                        block_hash: B256::from_slice(payload.block_hash.0.as_ref()),
-                        transactions: payload
-                            .transactions
-                            .iter()
-                            .map(|tx| Bytes::copy_from_slice(tx.as_ref()))
-                            .collect(),
-                    },
-                    withdrawals: payload
-                        .withdrawals
-                        .iter()
-                        .map(|w| convert_withdrawal(w.clone()))
-                        .collect(),
-                },
-                blob_gas_used: payload.blob_gas_used,
-                excess_blob_gas: payload.excess_blob_gas,
-            };
-
-            Ok(alloy_rpc_types_engine::ExecutionPayload::V3(alloy_payload))
-        }
         NewPayloadRequest::Electra(payload_request) => {
             let payload = payload_request.execution_payload;
 
@@ -678,7 +527,25 @@ fn convert_lighthouse_to_alloy_payload<E: EthSpec>(
                 excess_blob_gas: payload.excess_blob_gas,
             };
 
-            Ok(alloy_rpc_types_engine::ExecutionPayload::V3(alloy_payload))
+            let parent_beacon_block_root =
+                B256::from_slice(payload_request.parent_beacon_block_root.as_ref());
+            let versioned_hashes = payload_request
+                .versioned_hashes
+                .iter()
+                .map(|hash| B256::from_slice(hash.as_ref()))
+                .collect();
+            let requests = payload_request
+                .execution_requests
+                .get_execution_requests_list();
+            let execution_payload_sidecar = ExecutionPayloadSidecar::v4(
+                CancunPayloadFields::new(parent_beacon_block_root, versioned_hashes),
+                PraguePayloadFields::new(Requests::new(requests)),
+            );
+
+            Ok((
+                alloy_rpc_types_engine::ExecutionPayload::V3(alloy_payload),
+                execution_payload_sidecar,
+            ))
         }
         NewPayloadRequest::Fulu(payload_request) => {
             let payload = payload_request.execution_payload;
@@ -717,15 +584,33 @@ fn convert_lighthouse_to_alloy_payload<E: EthSpec>(
                 excess_blob_gas: payload.excess_blob_gas,
             };
 
-            Ok(alloy_rpc_types_engine::ExecutionPayload::V3(alloy_payload))
+            let parent_beacon_block_root =
+                B256::from_slice(payload_request.parent_beacon_block_root.as_ref());
+            let versioned_hashes = payload_request
+                .versioned_hashes
+                .iter()
+                .map(|hash| B256::from_slice(hash.as_ref()))
+                .collect();
+            let requests = payload_request
+                .execution_requests
+                .get_execution_requests_list();
+            let execution_payload_sidecar = ExecutionPayloadSidecar::v4(
+                CancunPayloadFields::new(parent_beacon_block_root, versioned_hashes),
+                PraguePayloadFields::new(Requests::new(requests)),
+            );
+
+            Ok((
+                alloy_rpc_types_engine::ExecutionPayload::V3(alloy_payload),
+                execution_payload_sidecar,
+            ))
         }
-        // TODO: Gloas - not yet implemented due to missing Alloy types
-        NewPayloadRequest::Gloas(_) => {
-            Err("Gloas fork conversions not yet implemented - missing Alloy types".to_string())
-        }
+        NewPayloadRequest::Bellatrix(_)
+        | NewPayloadRequest::Capella(_)
+        | NewPayloadRequest::Deneb(_)
+        | NewPayloadRequest::Gloas(_) => Err("Fork not yet implemented".to_string()),
     };
 
-    res.map(|payload| ExecutionData::new(payload, ExecutionPayloadSidecar::none()))
+    res.map(|(payload, sidecar)| ExecutionData::new(payload, sidecar))
 }
 
 /// Convert Alloy PayloadStatus → Lighthouse PayloadStatusV1
