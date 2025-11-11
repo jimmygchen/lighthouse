@@ -118,7 +118,10 @@ where
         let reset = "\x1b[0m";
         let location = if self.extra_info {
             if self.log_color {
-                format!("[{}] {}{}::{}:{}{}", layer_prefix, gray, module, file, line, reset)
+                format!(
+                    "[{}] {}{}::{}:{}{}",
+                    layer_prefix, gray, module, file, line, reset
+                )
             } else {
                 format!("[{}] {}::{}:{}", layer_prefix, module, file, line)
             }

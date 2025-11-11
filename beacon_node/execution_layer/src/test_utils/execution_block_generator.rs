@@ -1068,7 +1068,8 @@ mod test {
         let kzg = load_kzg()?;
         let (kzg_commitments, kzg_proofs, cells) =
             load_test_blobs_bundle_v2::<E>().map(|(commitment, proofs, blob)| {
-                let kzg_blob: KzgBlobRef = blob.as_ref().try_into().unwrap();
+                let kzg_blob_ref: &[u8] = blob.as_ref();
+                let kzg_blob: KzgBlobRef = kzg_blob_ref.try_into().unwrap();
                 (
                     vec![Bytes48::from(commitment); proofs.len()],
                     proofs.into_iter().map(|p| p.into()).collect::<Vec<_>>(),

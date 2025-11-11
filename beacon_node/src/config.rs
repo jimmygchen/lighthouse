@@ -288,7 +288,8 @@ pub fn get_config<E: EthSpec>(
             secret_file = parse_only_one_value(secret_files, PathBuf::from_str, "--execution-jwt")?;
         // Check if the JWT secret key is passed directly via cli flag and persist it to the default
         // file location.
-        } else if let Some(jwt_secret_key) = cli_args.get_one::<String>("execution-jwt-secret-key") {
+        } else if let Some(jwt_secret_key) = cli_args.get_one::<String>("execution-jwt-secret-key")
+        {
             use std::fs::File;
             use std::io::Write;
             secret_file = client_config.data_dir().join(DEFAULT_JWT_FILE);

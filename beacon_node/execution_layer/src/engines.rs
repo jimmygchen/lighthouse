@@ -1,10 +1,10 @@
 //! Provides generic behaviour for multiple execution engines, specifically fallback behaviour.
 
+use crate::ClientVersionV1;
 use crate::engine_api::{
     EngineCapabilities, Error as EngineApiError, ForkchoiceUpdatedResponse, PayloadAttributes,
     PayloadId,
 };
-use crate::{ClientVersionV1};
 use lru::LruCache;
 use std::future::Future;
 use std::num::NonZeroUsize;

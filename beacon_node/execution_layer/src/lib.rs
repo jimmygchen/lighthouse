@@ -14,7 +14,6 @@ pub use engine_api::EngineCapabilities;
 use engine_api::Error as ApiError;
 pub use engine_api::*;
 pub use engine_api::{http, http::HttpJsonRpc, http::deposit_methods};
-pub use reth_engine_api::RethEngineApi;
 use engines::{Engine, EngineError};
 pub use engines::{EngineState, ForkchoiceState};
 use eth2::types::{BlobsBundle, FullPayloadContents};
@@ -26,6 +25,7 @@ use logging::crit;
 use lru::LruCache;
 pub use payload_status::PayloadStatus;
 use payload_status::process_payload_status;
+pub use reth_engine_api::RethEngineApi;
 use sensitive_url::SensitiveUrl;
 use serde::{Deserialize, Serialize};
 use slot_clock::SlotClock;
@@ -489,11 +489,14 @@ pub struct ExecutionLayer<E: EthSpec> {
 
 /// Get the Reth chain spec based on Lighthouse's network configuration
 fn get_reth_chain_spec(network: Option<&str>) -> std::sync::Arc<reth_chainspec::ChainSpec> {
-    use reth_ethereum::chainspec::{MAINNET, SEPOLIA, HOLESKY, HOODI};
+    use reth_ethereum::chainspec::{HOLESKY, HOODI, MAINNET, SEPOLIA};
 
     let network_name = network.unwrap_or("mainnet");
 
-    debug!(network = network_name, "Selecting Reth chain spec for network");
+    debug!(
+        network = network_name,
+        "Selecting Reth chain spec for network"
+    );
 
     match network_name {
         "mainnet" => {
@@ -592,8 +595,7 @@ impl<E: EthSpec> ExecutionLayer<E> {
                 "Initializing Reth execution engine"
             );
 
-            let api = RethEngineApi::new(reth_config)
-                .map_err(Error::ApiError)?;
+            let api = RethEngineApi::new(reth_config).map_err(Error::ApiError)?;
             Engine::new(api, executor.clone())
         };
 

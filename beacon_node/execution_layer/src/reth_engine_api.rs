@@ -3,31 +3,44 @@
 //! This module provides channel-based communication with a Reth execution engine running
 //! in the same process, eliminating HTTP overhead.
 
-use std::collections::HashSet;
-use std::sync::Arc;
-use crate::engine_api::{BlockByNumberQuery, EngineCapabilities, Error as EngineApiError, ExecutionBlock, ExecutionPayloadBodyV1, ForkchoiceUpdatedResponse, GetPayloadResponse, NewPayloadRequest, PayloadAttributes, PayloadId};
+use crate::ClientVersionV1;
+use crate::engine_api::{
+    BlockByNumberQuery, EngineCapabilities, Error as EngineApiError, ExecutionBlock,
+    ExecutionPayloadBodyV1, ForkchoiceUpdatedResponse, GetPayloadResponse, NewPayloadRequest,
+    PayloadAttributes, PayloadId,
+};
 use crate::engines::ForkchoiceState;
 use crate::json_structures::{BlobAndProofV1, BlobAndProofV2};
-use crate::ClientVersionV1;
-use std::time::Duration;
 use alloy_rpc_types_engine::ExecutionPayloadSidecar;
+use std::collections::HashSet;
+use std::sync::Arc;
+use std::time::Duration;
 use tracing::{debug, error, info, warn};
 use types::{EthSpec, ExecutionBlockHash, ForkName, Hash256};
 
 // Reth imports
+use reth_ethereum::pool::EthTransactionPool;
 use reth_ethereum::pool::blobstore::DiskFileBlobStore;
-use reth_ethereum::pool::{EthTransactionPool};
 use reth_ethereum::rpc::EngineApi;
 
 // Use Reth's built-in Ethereum engine types - already properly implemented!
-use reth_ethereum_engine_primitives::EthEngineTypes;
+use crate::http::{
+    ENGINE_FORKCHOICE_UPDATED_V1, ENGINE_FORKCHOICE_UPDATED_V2, ENGINE_FORKCHOICE_UPDATED_V3,
+    ENGINE_GET_BLOBS_V1, ENGINE_GET_BLOBS_V2, ENGINE_GET_CLIENT_VERSION_V1,
+    ENGINE_GET_PAYLOAD_BODIES_BY_HASH_V1, ENGINE_GET_PAYLOAD_BODIES_BY_RANGE_V1,
+    ENGINE_GET_PAYLOAD_V1, ENGINE_GET_PAYLOAD_V2, ENGINE_GET_PAYLOAD_V3, ENGINE_GET_PAYLOAD_V4,
+    ENGINE_GET_PAYLOAD_V5, ENGINE_NEW_PAYLOAD_V1, ENGINE_NEW_PAYLOAD_V2, ENGINE_NEW_PAYLOAD_V3,
+    ENGINE_NEW_PAYLOAD_V4, LIGHTHOUSE_CAPABILITIES,
+};
 use alloy_rpc_types_engine::payload::ExecutionData;
 use reth_ethereum::rpc::api::EngineApiServer;
+use reth_ethereum_engine_primitives::EthEngineTypes;
 use reth_node_builder::EngineApiExt;
 use reth_node_builder::rpc::BasicEngineApiBuilder;
-use reth_node_ethereum::{EthereumAddOns, EthereumEngineValidator, EthereumEngineValidatorBuilder, EthereumNode};
+use reth_node_ethereum::{
+    EthereumAddOns, EthereumEngineValidator, EthereumEngineValidatorBuilder, EthereumNode,
+};
 use reth_payload_primitives::PayloadTypes;
-use crate::http::{ENGINE_FORKCHOICE_UPDATED_V1, ENGINE_FORKCHOICE_UPDATED_V2, ENGINE_FORKCHOICE_UPDATED_V3, ENGINE_GET_BLOBS_V1, ENGINE_GET_BLOBS_V2, ENGINE_GET_CLIENT_VERSION_V1, ENGINE_GET_PAYLOAD_BODIES_BY_HASH_V1, ENGINE_GET_PAYLOAD_BODIES_BY_RANGE_V1, ENGINE_GET_PAYLOAD_V1, ENGINE_GET_PAYLOAD_V2, ENGINE_GET_PAYLOAD_V3, ENGINE_GET_PAYLOAD_V4, ENGINE_GET_PAYLOAD_V5, ENGINE_NEW_PAYLOAD_V1, ENGINE_NEW_PAYLOAD_V2, ENGINE_NEW_PAYLOAD_V3, ENGINE_NEW_PAYLOAD_V4, LIGHTHOUSE_CAPABILITIES};
 
 /// Direct Reth Engine API handler - communicates with Reth in-process
 /// Stores Reth's EngineApi and converts between Lighthouse and Reth types
@@ -38,10 +51,7 @@ pub struct RethEngineApi<Provider, PayloadT: PayloadTypes, Pool, Validator, Chai
 
 // Type aliases to avoid repetition in the complex generic parameters
 type EthereumProvider = reth_provider::providers::BlockchainProvider<
-    reth_node_types::NodeTypesWithDBAdapter<
-        EthereumNode,
-        Arc<reth_db::DatabaseEnv>,
-    >,
+    reth_node_types::NodeTypesWithDBAdapter<EthereumNode, Arc<reth_db::DatabaseEnv>>,
 >;
 
 /// Type alias for RethEngineApi with concrete Ethereum types
@@ -58,26 +68,25 @@ impl EthereumRethEngineApi {
     /// Create a new RethEngineApi by launching Reth with configuration
     pub fn new(config: RethConfig) -> Result<Self, EngineApiError> {
         // Launch Reth with the provided configuration
-        let reth_handle = launch_reth_and_get_handle_with_config(config)
-            .map_err(|e| {
-                error!("Failed to launch Reth: {}", e);
-                EngineApiError::IsSyncing
-            })?;
+        let reth_handle = launch_reth_and_get_handle_with_config(config).map_err(|e| {
+            error!("Failed to launch Reth: {}", e);
+            EngineApiError::IsSyncing
+        })?;
 
         info!("Successfully launched Reth and obtained EngineApi handle");
 
         Ok(Self { reth_handle })
     }
-// }
-//
-// impl<Provider, PayloadT, Pool, Validator, ChainSpec> RethEngineApi<Provider, PayloadT, Pool, Validator, ChainSpec>
-// where
-//     Provider: reth_provider::HeaderProvider + reth_provider::BlockReader + reth_provider::StateProviderFactory + 'static,
-//     PayloadT: EngineTypes,
-//     Pool: TransactionPool + 'static,
-//     Validator: EngineApiValidator<PayloadT>,
-//     ChainSpec: reth_chainspec::EthereumHardforks + Send + Sync + 'static,
-// {
+    // }
+    //
+    // impl<Provider, PayloadT, Pool, Validator, ChainSpec> RethEngineApi<Provider, PayloadT, Pool, Validator, ChainSpec>
+    // where
+    //     Provider: reth_provider::HeaderProvider + reth_provider::BlockReader + reth_provider::StateProviderFactory + 'static,
+    //     PayloadT: EngineTypes,
+    //     Pool: TransactionPool + 'static,
+    //     Validator: EngineApiValidator<PayloadT>,
+    //     ChainSpec: reth_chainspec::EthereumHardforks + Send + Sync + 'static,
+    // {
 
     /// Check if the engine is online and synced
     pub async fn upcheck(&self) -> Result<(), EngineApiError> {
@@ -92,7 +101,7 @@ impl EthereumRethEngineApi {
         forkchoice_state: ForkchoiceState,
         maybe_payload_attributes: Option<PayloadAttributes>,
     ) -> Result<ForkchoiceUpdatedResponse, EngineApiError>
-    // where
+// where
     //     PayloadT: PayloadTypes<PayloadAttributes = alloy_rpc_types_engine::PayloadAttributes>,
     {
         let engine_capabilities = self.get_engine_capabilities(None).await?;
@@ -103,25 +112,32 @@ impl EthereumRethEngineApi {
         // Match on the original Lighthouse PayloadAttributes to determine which version to use
         let result = if let Some(payload_attributes) = maybe_payload_attributes.as_ref() {
             // Convert to Alloy types
-            let reth_payload_attrs = Some(convert_lighthouse_to_reth_payload_attrs(payload_attributes.clone()));
+            let reth_payload_attrs = Some(convert_lighthouse_to_reth_payload_attrs(
+                payload_attributes.clone(),
+            ));
 
             match payload_attributes {
                 PayloadAttributes::V1(_) | PayloadAttributes::V2(_) => {
                     if engine_capabilities.forkchoice_updated_v2 {
-                        self.reth_handle.fork_choice_updated_v2(reth_forkchoice_state, reth_payload_attrs)
+                        self.reth_handle
+                            .fork_choice_updated_v2(reth_forkchoice_state, reth_payload_attrs)
                             .await
                             .map_err(|e| EngineApiError::EngineApiError(format!("{e:?}")))
                     } else if engine_capabilities.forkchoice_updated_v1 {
-                        self.reth_handle.fork_choice_updated_v1(reth_forkchoice_state, reth_payload_attrs)
+                        self.reth_handle
+                            .fork_choice_updated_v1(reth_forkchoice_state, reth_payload_attrs)
                             .await
                             .map_err(|e| EngineApiError::EngineApiError(format!("{e:?}")))
                     } else {
-                        Err(EngineApiError::RequiredMethodUnsupported("engine_forkchoiceUpdated"))
+                        Err(EngineApiError::RequiredMethodUnsupported(
+                            "engine_forkchoiceUpdated",
+                        ))
                     }
                 }
                 PayloadAttributes::V3(_) => {
                     if engine_capabilities.forkchoice_updated_v3 {
-                        self.reth_handle.fork_choice_updated_v3(reth_forkchoice_state, reth_payload_attrs)
+                        self.reth_handle
+                            .fork_choice_updated_v3(reth_forkchoice_state, reth_payload_attrs)
                             .await
                             .map_err(|e| EngineApiError::EngineApiError(format!("{e:?}")))
                     } else {
@@ -132,25 +148,28 @@ impl EthereumRethEngineApi {
                 }
             }
         } else if engine_capabilities.forkchoice_updated_v3 {
-            self.reth_handle.fork_choice_updated_v3(reth_forkchoice_state, None)
+            self.reth_handle
+                .fork_choice_updated_v3(reth_forkchoice_state, None)
                 .await
                 .map_err(|e| EngineApiError::EngineApiError(format!("{e:?}")))
         } else if engine_capabilities.forkchoice_updated_v2 {
-            self.reth_handle.fork_choice_updated_v2(reth_forkchoice_state, None)
+            self.reth_handle
+                .fork_choice_updated_v2(reth_forkchoice_state, None)
                 .await
                 .map_err(|e| EngineApiError::EngineApiError(format!("{e:?}")))
         } else if engine_capabilities.forkchoice_updated_v1 {
-            self.reth_handle.fork_choice_updated_v1(reth_forkchoice_state, None)
+            self.reth_handle
+                .fork_choice_updated_v1(reth_forkchoice_state, None)
                 .await
                 .map_err(|e| EngineApiError::EngineApiError(format!("{e:?}")))
         } else {
-            Err(EngineApiError::RequiredMethodUnsupported("engine_forkchoiceUpdated"))
+            Err(EngineApiError::RequiredMethodUnsupported(
+                "engine_forkchoiceUpdated",
+            ))
         };
 
         // Convert Reth response → Lighthouse response
-        result.and_then(|reth_response| {
-            convert_reth_to_lighthouse_forkchoice_response(reth_response)
-        })
+        result.and_then(convert_reth_to_lighthouse_forkchoice_response)
     }
 
     /// Get engine capabilities
@@ -161,14 +180,25 @@ impl EthereumRethEngineApi {
         // Spawn the capability exchange in a separate task to avoid polluting
         // this future with non-Sync jsonrpsee types
         let reth_handle = self.reth_handle.clone();
-        let lighthouse_capabilities: Vec<String> = LIGHTHOUSE_CAPABILITIES.iter().map(|s| s.to_string()).collect();
+        let lighthouse_capabilities: Vec<String> = LIGHTHOUSE_CAPABILITIES
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
 
         let capabilities = tokio::task::spawn(async move {
-            reth_handle.exchange_capabilities(lighthouse_capabilities).await
+            reth_handle
+                .exchange_capabilities(lighthouse_capabilities)
+                .await
         })
         .await
-        .map_err(|e| EngineApiError::EngineApiError(format!("failed to spawn capability exchange task: {e:?}")))?
-        .map_err(|e| EngineApiError::EngineApiError(format!("failed to exchange capabilities: {e:?}")))?
+        .map_err(|e| {
+            EngineApiError::EngineApiError(format!(
+                "failed to spawn capability exchange task: {e:?}"
+            ))
+        })?
+        .map_err(|e| {
+            EngineApiError::EngineApiError(format!("failed to exchange capabilities: {e:?}"))
+        })?
         .into_iter()
         .collect::<HashSet<String>>();
 
@@ -240,64 +270,77 @@ impl EthereumRethEngineApi {
                 } else if engine_capabilities.new_payload_v1 {
                     self.reth_handle.new_payload_v1(execution_payload).await
                 } else {
-                    return Err(EngineApiError::RequiredMethodUnsupported("engine_newPayload"));
-                }.map_err(|e| {
-                    EngineApiError::EngineApiError(format!("{e:?}"))
-                })?
+                    return Err(EngineApiError::RequiredMethodUnsupported(
+                        "engine_newPayload",
+                    ));
+                }
+                .map_err(|e| EngineApiError::EngineApiError(format!("{e:?}")))?
             }
             NewPayloadRequest::Deneb(payload_request) => {
                 if !engine_capabilities.new_payload_v3 {
-                    return Err(EngineApiError::RequiredMethodUnsupported("engine_newPayloadV3"));
+                    return Err(EngineApiError::RequiredMethodUnsupported(
+                        "engine_newPayloadV3",
+                    ));
                 }
 
                 // Convert payload to Alloy format
-                let execution_payload = convert_lighthouse_to_alloy_payload(NewPayloadRequest::Deneb(payload_request))
-                    .map_err(|e| {
-                        error!("Failed to convert Deneb payload: {}", e);
-                        EngineApiError::PayloadIdUnavailable
-                    })?;
+                let execution_payload =
+                    convert_lighthouse_to_alloy_payload(NewPayloadRequest::Deneb(payload_request))
+                        .map_err(|e| {
+                            error!("Failed to convert Deneb payload: {}", e);
+                            EngineApiError::PayloadIdUnavailable
+                        })?;
 
-                self.reth_handle.new_payload_v3(execution_payload).await
-                    .map_err(|e| {
-                        EngineApiError::EngineApiError(format!("{e:?}"))
-                    })?
+                self.reth_handle
+                    .new_payload_v3(execution_payload)
+                    .await
+                    .map_err(|e| EngineApiError::EngineApiError(format!("{e:?}")))?
             }
             NewPayloadRequest::Electra(payload_request) => {
                 if !engine_capabilities.new_payload_v4 {
-                    return Err(EngineApiError::RequiredMethodUnsupported("engine_newPayloadV4"));
+                    return Err(EngineApiError::RequiredMethodUnsupported(
+                        "engine_newPayloadV4",
+                    ));
                 }
 
                 // Convert payload to Alloy format
-                let execution_payload = convert_lighthouse_to_alloy_payload(NewPayloadRequest::Electra(payload_request))
-                    .map_err(|e| {
-                        error!("Failed to convert Electra payload: {}", e);
-                        EngineApiError::PayloadIdUnavailable
-                    })?;
+                let execution_payload = convert_lighthouse_to_alloy_payload(
+                    NewPayloadRequest::Electra(payload_request),
+                )
+                .map_err(|e| {
+                    error!("Failed to convert Electra payload: {}", e);
+                    EngineApiError::PayloadIdUnavailable
+                })?;
 
-                self.reth_handle.new_payload_v4(execution_payload).await
-                    .map_err(|e| {
-                        EngineApiError::EngineApiError(format!("{e:?}"))
-                    })?
+                self.reth_handle
+                    .new_payload_v4(execution_payload)
+                    .await
+                    .map_err(|e| EngineApiError::EngineApiError(format!("{e:?}")))?
             }
             NewPayloadRequest::Fulu(payload_request) => {
                 if !engine_capabilities.new_payload_v4 {
-                    return Err(EngineApiError::RequiredMethodUnsupported("engine_newPayloadV4"));
+                    return Err(EngineApiError::RequiredMethodUnsupported(
+                        "engine_newPayloadV4",
+                    ));
                 }
 
                 // Convert payload to Alloy format
-                let execution_payload = convert_lighthouse_to_alloy_payload(NewPayloadRequest::Fulu(payload_request))
-                    .map_err(|e| {
+                let execution_payload =
+                    convert_lighthouse_to_alloy_payload(NewPayloadRequest::Fulu(payload_request))
+                        .map_err(|e| {
                         error!("Failed to convert Fulu payload: {}", e);
                         EngineApiError::PayloadIdUnavailable
                     })?;
 
-                self.reth_handle.new_payload_v4(execution_payload).await
-                    .map_err(|e| {
-                        EngineApiError::EngineApiError(format!("{e:?}"))
-                    })?
+                self.reth_handle
+                    .new_payload_v4(execution_payload)
+                    .await
+                    .map_err(|e| EngineApiError::EngineApiError(format!("{e:?}")))?
             }
             NewPayloadRequest::Gloas(_) => {
-                return Err(EngineApiError::UnsupportedForkVariant("Gloas not yet supported in Reth integration".to_string()));
+                return Err(EngineApiError::UnsupportedForkVariant(
+                    "Gloas not yet supported in Reth integration".to_string(),
+                ));
             }
         };
 
@@ -355,7 +398,10 @@ impl EthereumRethEngineApi {
         block_hashes: Vec<ExecutionBlockHash>,
     ) -> Result<Vec<Option<ExecutionPayloadBodyV1<E>>>, EngineApiError> {
         // TODO: Query Reth for payload bodies
-        debug!(count = block_hashes.len(), "get_payload_bodies_by_hash_v1() called - returning empty vec (TODO: implement)");
+        debug!(
+            count = block_hashes.len(),
+            "get_payload_bodies_by_hash_v1() called - returning empty vec (TODO: implement)"
+        );
         Ok(vec![])
     }
 
@@ -366,7 +412,11 @@ impl EthereumRethEngineApi {
         count: u64,
     ) -> Result<Vec<Option<ExecutionPayloadBodyV1<E>>>, EngineApiError> {
         // TODO: Query Reth for payload bodies by range
-        debug!(start = start, count = count, "get_payload_bodies_by_range_v1() called - returning empty vec (TODO: implement)");
+        debug!(
+            start = start,
+            count = count,
+            "get_payload_bodies_by_range_v1() called - returning empty vec (TODO: implement)"
+        );
         Ok(vec![])
     }
 
@@ -376,7 +426,10 @@ impl EthereumRethEngineApi {
         versioned_hashes: Vec<Hash256>,
     ) -> Result<Vec<Option<BlobAndProofV1<E>>>, EngineApiError> {
         // TODO: Query Reth for blobs
-        debug!(count = versioned_hashes.len(), "get_blobs_v1() called - returning empty vec (TODO: implement)");
+        debug!(
+            count = versioned_hashes.len(),
+            "get_blobs_v1() called - returning empty vec (TODO: implement)"
+        );
         Ok(vec![])
     }
 
@@ -386,7 +439,10 @@ impl EthereumRethEngineApi {
         versioned_hashes: Vec<Hash256>,
     ) -> Result<Option<Vec<BlobAndProofV2<E>>>, EngineApiError> {
         // TODO: Query Reth for blobs
-        debug!(count = versioned_hashes.len(), "get_blobs_v2() called - returning None (TODO: implement)");
+        debug!(
+            count = versioned_hashes.len(),
+            "get_blobs_v2() called - returning None (TODO: implement)"
+        );
         Ok(None)
     }
 }
@@ -425,33 +481,41 @@ fn convert_lighthouse_to_reth_payload_attrs(
     use alloy_rpc_types_engine::PayloadAttributes as RethPayloadAttributes;
 
     match lh {
-        PayloadAttributes::V1(attrs) => {
-            RethPayloadAttributes {
-                timestamp: attrs.timestamp,
-                prev_randao: B256::from_slice(attrs.prev_randao.as_ref()),
-                suggested_fee_recipient: AlloyAddress::from(attrs.suggested_fee_recipient.0),
-                withdrawals: None,
-                parent_beacon_block_root: None,
-            }
-        }
-        PayloadAttributes::V2(attrs) => {
-            RethPayloadAttributes {
-                timestamp: attrs.timestamp,
-                prev_randao: B256::from_slice(attrs.prev_randao.as_ref()),
-                suggested_fee_recipient: AlloyAddress::from(attrs.suggested_fee_recipient.0),
-                withdrawals: Some(attrs.withdrawals.into_iter().map(convert_withdrawal).collect()),
-                parent_beacon_block_root: None,
-            }
-        }
-        PayloadAttributes::V3(attrs) => {
-            RethPayloadAttributes {
-                timestamp: attrs.timestamp,
-                prev_randao: B256::from_slice(attrs.prev_randao.as_ref()),
-                suggested_fee_recipient: AlloyAddress::from(attrs.suggested_fee_recipient.0),
-                withdrawals: Some(attrs.withdrawals.into_iter().map(convert_withdrawal).collect()),
-                parent_beacon_block_root: Some(B256::from_slice(attrs.parent_beacon_block_root.as_ref())),
-            }
-        }
+        PayloadAttributes::V1(attrs) => RethPayloadAttributes {
+            timestamp: attrs.timestamp,
+            prev_randao: B256::from_slice(attrs.prev_randao.as_ref()),
+            suggested_fee_recipient: AlloyAddress::from(attrs.suggested_fee_recipient.0),
+            withdrawals: None,
+            parent_beacon_block_root: None,
+        },
+        PayloadAttributes::V2(attrs) => RethPayloadAttributes {
+            timestamp: attrs.timestamp,
+            prev_randao: B256::from_slice(attrs.prev_randao.as_ref()),
+            suggested_fee_recipient: AlloyAddress::from(attrs.suggested_fee_recipient.0),
+            withdrawals: Some(
+                attrs
+                    .withdrawals
+                    .into_iter()
+                    .map(convert_withdrawal)
+                    .collect(),
+            ),
+            parent_beacon_block_root: None,
+        },
+        PayloadAttributes::V3(attrs) => RethPayloadAttributes {
+            timestamp: attrs.timestamp,
+            prev_randao: B256::from_slice(attrs.prev_randao.as_ref()),
+            suggested_fee_recipient: AlloyAddress::from(attrs.suggested_fee_recipient.0),
+            withdrawals: Some(
+                attrs
+                    .withdrawals
+                    .into_iter()
+                    .map(convert_withdrawal)
+                    .collect(),
+            ),
+            parent_beacon_block_root: Some(B256::from_slice(
+                attrs.parent_beacon_block_root.as_ref(),
+            )),
+        },
     }
 }
 
@@ -471,10 +535,8 @@ fn convert_withdrawal(lh: types::Withdrawal) -> alloy_eips::eip4895::Withdrawal 
 fn convert_lighthouse_to_alloy_payload<E: EthSpec>(
     request: NewPayloadRequest<'_, E>,
 ) -> Result<ExecutionData, String> {
-    use alloy_primitives::{Address as AlloyAddress, Bloom, Bytes, B256, U256};
-    use alloy_rpc_types_engine::{
-        ExecutionPayloadV1, ExecutionPayloadV2, ExecutionPayloadV3,
-    };
+    use alloy_primitives::{Address as AlloyAddress, B256, Bloom, Bytes, U256};
+    use alloy_rpc_types_engine::{ExecutionPayloadV1, ExecutionPayloadV2, ExecutionPayloadV3};
 
     let res = match request {
         NewPayloadRequest::Bellatrix(payload_request) => {
@@ -492,7 +554,9 @@ fn convert_lighthouse_to_alloy_payload<E: EthSpec>(
                 gas_used: payload.gas_used,
                 timestamp: payload.timestamp,
                 extra_data: Bytes::copy_from_slice(payload.extra_data.as_ref()),
-                base_fee_per_gas: U256::from_be_bytes::<32>(payload.base_fee_per_gas.to_be_bytes::<32>()),
+                base_fee_per_gas: U256::from_be_bytes::<32>(
+                    payload.base_fee_per_gas.to_be_bytes::<32>(),
+                ),
                 block_hash: B256::from_slice(payload.block_hash.0.as_ref()),
                 transactions: payload
                     .transactions
@@ -519,7 +583,9 @@ fn convert_lighthouse_to_alloy_payload<E: EthSpec>(
                     gas_used: payload.gas_used,
                     timestamp: payload.timestamp,
                     extra_data: Bytes::copy_from_slice(payload.extra_data.as_ref()),
-                    base_fee_per_gas: U256::from_be_bytes::<32>(payload.base_fee_per_gas.to_be_bytes::<32>()),
+                    base_fee_per_gas: U256::from_be_bytes::<32>(
+                        payload.base_fee_per_gas.to_be_bytes::<32>(),
+                    ),
                     block_hash: B256::from_slice(payload.block_hash.0.as_ref()),
                     transactions: payload
                         .transactions
@@ -553,7 +619,9 @@ fn convert_lighthouse_to_alloy_payload<E: EthSpec>(
                         gas_used: payload.gas_used,
                         timestamp: payload.timestamp,
                         extra_data: Bytes::copy_from_slice(payload.extra_data.as_ref()),
-                        base_fee_per_gas: U256::from_be_bytes::<32>(payload.base_fee_per_gas.to_be_bytes::<32>()),
+                        base_fee_per_gas: U256::from_be_bytes::<32>(
+                            payload.base_fee_per_gas.to_be_bytes::<32>(),
+                        ),
                         block_hash: B256::from_slice(payload.block_hash.0.as_ref()),
                         transactions: payload
                             .transactions
@@ -590,7 +658,9 @@ fn convert_lighthouse_to_alloy_payload<E: EthSpec>(
                         gas_used: payload.gas_used,
                         timestamp: payload.timestamp,
                         extra_data: Bytes::copy_from_slice(payload.extra_data.as_ref()),
-                        base_fee_per_gas: U256::from_be_bytes::<32>(payload.base_fee_per_gas.to_be_bytes::<32>()),
+                        base_fee_per_gas: U256::from_be_bytes::<32>(
+                            payload.base_fee_per_gas.to_be_bytes::<32>(),
+                        ),
                         block_hash: B256::from_slice(payload.block_hash.0.as_ref()),
                         transactions: payload
                             .transactions
@@ -627,7 +697,9 @@ fn convert_lighthouse_to_alloy_payload<E: EthSpec>(
                         gas_used: payload.gas_used,
                         timestamp: payload.timestamp,
                         extra_data: Bytes::copy_from_slice(payload.extra_data.as_ref()),
-                        base_fee_per_gas: U256::from_be_bytes::<32>(payload.base_fee_per_gas.to_be_bytes::<32>()),
+                        base_fee_per_gas: U256::from_be_bytes::<32>(
+                            payload.base_fee_per_gas.to_be_bytes::<32>(),
+                        ),
                         block_hash: B256::from_slice(payload.block_hash.0.as_ref()),
                         transactions: payload
                             .transactions
@@ -666,7 +738,9 @@ fn convert_alloy_to_lighthouse_payload_status(
     Ok(PayloadStatusV1 {
         status: match alloy_status.status {
             PayloadStatusEnum::Valid => PayloadStatusV1Status::Valid,
-            PayloadStatusEnum::Invalid { validation_error: _ } => PayloadStatusV1Status::Invalid,
+            PayloadStatusEnum::Invalid {
+                validation_error: _,
+            } => PayloadStatusV1Status::Invalid,
             PayloadStatusEnum::Syncing => PayloadStatusV1Status::Syncing,
             PayloadStatusEnum::Accepted => PayloadStatusV1Status::Accepted,
         },
@@ -690,7 +764,9 @@ fn convert_reth_to_lighthouse_forkchoice_response(
     let payload_status = PayloadStatusV1 {
         status: match reth.payload_status.status {
             PayloadStatusEnum::Valid => PayloadStatusV1Status::Valid,
-            PayloadStatusEnum::Invalid { validation_error: _ } => PayloadStatusV1Status::Invalid,
+            PayloadStatusEnum::Invalid {
+                validation_error: _,
+            } => PayloadStatusV1Status::Invalid,
             PayloadStatusEnum::Syncing => PayloadStatusV1Status::Syncing,
             PayloadStatusEnum::Accepted => PayloadStatusV1Status::Accepted,
         },
@@ -700,7 +776,7 @@ fn convert_reth_to_lighthouse_forkchoice_response(
             .map(|h| ExecutionBlockHash::from(Hash256::from_slice(h.as_slice()))),
         validation_error: match reth.payload_status.status {
             PayloadStatusEnum::Invalid { validation_error } => Some(validation_error),
-            _ => None
+            _ => None,
         },
     };
 
@@ -753,13 +829,13 @@ fn launch_reth_and_get_handle_with_config(
     >,
     String,
 > {
+    use reth_db::{ClientVersion, DatabaseEnv, init_db, mdbx::DatabaseArguments};
     use reth_ethereum::{
-        node::{builder::NodeBuilder, node::EthereumNode, core::node_config::NodeConfig},
+        node::{builder::NodeBuilder, core::node_config::NodeConfig, node::EthereumNode},
         tasks::TaskManager,
     };
-    use reth_db::{mdbx::DatabaseArguments, ClientVersion, DatabaseEnv, init_db};
-    use reth_provider::{ProviderFactory, providers::StaticFileProvider};
     use reth_node_types::NodeTypesWithDBAdapter;
+    use reth_provider::{ProviderFactory, providers::StaticFileProvider};
     use std::sync::Arc;
 
     // Enable Reth logging - set environment variable if not already set
@@ -813,7 +889,7 @@ fn launch_reth_and_get_handle_with_config(
     // Use init_db which creates/opens the database properly
     let db = Arc::new(
         init_db(&db_path, DatabaseArguments::new(ClientVersion::default()))
-            .map_err(|e| format!("Failed to initialize database: {}", e))?
+            .map_err(|e| format!("Failed to initialize database: {}", e))?,
     );
 
     debug!("Database initialized, creating static file provider");
@@ -824,12 +900,13 @@ fn launch_reth_and_get_handle_with_config(
 
     // Create provider factory for genesis initialization
     debug!("Creating provider factory for genesis initialization");
-    let provider_factory = ProviderFactory::<NodeTypesWithDBAdapter<EthereumNode, Arc<DatabaseEnv>>>::new(
-        db.clone(),
-        config.chain_spec.clone(),
-        sfp,
-    )
-    .map_err(|e| format!("Failed to create provider factory: {}", e))?;
+    let provider_factory =
+        ProviderFactory::<NodeTypesWithDBAdapter<EthereumNode, Arc<DatabaseEnv>>>::new(
+            db.clone(),
+            config.chain_spec.clone(),
+            sfp,
+        )
+        .map_err(|e| format!("Failed to create provider factory: {}", e))?;
 
     // Drop provider_factory as NodeBuilder will handle genesis initialization
     // The panic catching in the spawn thread will handle any genesis initialization bugs
@@ -873,12 +950,14 @@ fn launch_reth_and_get_handle_with_config(
             rt.block_on(async move {
                 debug!("Launching Reth node");
 
-                let engine_api =
-                    EngineApiExt::new(BasicEngineApiBuilder::<EthereumEngineValidatorBuilder>::default(), move |api| {
+                let engine_api = EngineApiExt::new(
+                    BasicEngineApiBuilder::<EthereumEngineValidatorBuilder>::default(),
+                    move |api| {
                         info!("Reth node started, extracting engine api handle");
                         let _ = handle_tx.send(Ok(api));
                         debug!("Extracted engine api  handle");
-                    });
+                    },
+                );
 
                 let node_builder = NodeBuilder::new(node_config)
                     .with_database(db)
@@ -933,7 +1012,8 @@ fn launch_reth_and_get_handle_with_config(
     // Wait for handle with longer timeout (Reth initialization can take time)
     info!("Waiting for Reth to initialize (30s timeout)");
 
-    handle_rx.recv_timeout(Duration::from_secs(30))
+    handle_rx
+        .recv_timeout(Duration::from_secs(30))
         .map_err(|e| format!("Timeout waiting for Reth to launch: {}", e))?
         .map_err(|e| format!("Reth launch error: {}", e))
 }
