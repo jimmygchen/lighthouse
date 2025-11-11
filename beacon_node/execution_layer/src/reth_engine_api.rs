@@ -12,6 +12,7 @@ use crate::engine_api::{
 use crate::engines::ForkchoiceState;
 use crate::json_structures::{BlobAndProofV1, BlobAndProofV2};
 use alloy_eips::eip7685::Requests;
+use alloy_primitives::B256;
 use alloy_rpc_types_engine::{CancunPayloadFields, ExecutionPayloadSidecar, PraguePayloadFields};
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -376,12 +377,29 @@ impl EthereumRethEngineApi {
         &self,
         versioned_hashes: Vec<Hash256>,
     ) -> Result<Vec<Option<BlobAndProofV1<E>>>, EngineApiError> {
-        // TODO: Query Reth for blobs
-        debug!(
-            count = versioned_hashes.len(),
-            "get_blobs_v1() called - returning empty vec (TODO: implement)"
-        );
-        Ok(vec![])
+        // Spawn the rpc request in a separate task to avoid polluting
+        // this future with non-Sync jsonrpsee types
+        let reth_handle = self.reth_handle.clone();
+        let versioned_hashes = versioned_hashes.into_iter().map(to_alloy_b256).collect();
+
+        let resp = tokio::task::spawn(async move {
+            reth_handle
+                .get_blobs_v1(versioned_hashes)
+                .await
+                .map_err(|e| EngineApiError::EngineApiError(format!("{e:?}")))
+        })
+        .await
+        .map_err(EngineApiError::TokioJoin)??
+        .into_iter()
+        .map(|blob_and_proof_opt| {
+            blob_and_proof_opt.map(|blob_and_proof| BlobAndProofV1::<E> {
+                blob: blob_and_proof.blob.0.to_vec().try_into().unwrap(),
+                proof: blob_and_proof.proof.0.into(),
+            })
+        })
+        .collect();
+
+        Ok(resp)
     }
 
     /// Get blobs by versioned hashes (v2)
@@ -389,12 +407,36 @@ impl EthereumRethEngineApi {
         &self,
         versioned_hashes: Vec<Hash256>,
     ) -> Result<Option<Vec<BlobAndProofV2<E>>>, EngineApiError> {
-        // TODO: Query Reth for blobs
-        debug!(
-            count = versioned_hashes.len(),
-            "get_blobs_v2() called - returning None (TODO: implement)"
-        );
-        Ok(None)
+        // Spawn the rpc request in a separate task to avoid polluting
+        // this future with non-Sync jsonrpsee types
+        let reth_handle = self.reth_handle.clone();
+        let versioned_hashes = versioned_hashes.into_iter().map(to_alloy_b256).collect();
+
+        let resp = tokio::task::spawn(async move {
+            reth_handle
+                .get_blobs_v2(versioned_hashes)
+                .await
+                .map_err(|e| EngineApiError::EngineApiError(format!("{e:?}")))
+        })
+        .await
+        .map_err(EngineApiError::TokioJoin)??
+        .map(|blobs_and_proofs| {
+            blobs_and_proofs
+                .into_iter()
+                .map(|blob_and_proof| BlobAndProofV2::<E> {
+                    blob: blob_and_proof.blob.0.to_vec().try_into().unwrap(),
+                    proofs: blob_and_proof
+                        .proofs
+                        .into_iter()
+                        .map(|bytes| bytes.0.try_into().unwrap())
+                        .collect::<Vec<_>>()
+                        .try_into()
+                        .unwrap(),
+                })
+                .collect()
+        });
+
+        Ok(resp)
     }
 }
 
@@ -422,6 +464,10 @@ fn convert_lighthouse_to_reth_forkchoice(
         safe_block_hash: B256::from_slice(lh.safe_block_hash.0.as_ref()),
         finalized_block_hash: B256::from_slice(lh.finalized_block_hash.0.as_ref()),
     }
+}
+
+fn to_alloy_b256(hash: Hash256) -> B256 {
+    B256::from_slice(hash.0.as_ref())
 }
 
 /// Convert Lighthouse PayloadAttributes → Reth PayloadAttributes

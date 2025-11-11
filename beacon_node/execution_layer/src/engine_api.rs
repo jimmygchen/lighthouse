@@ -18,6 +18,7 @@ use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use strum::IntoStaticStr;
 use superstruct::superstruct;
+use tokio::task::JoinError;
 pub use types::{
     Address, BeaconBlockRef, ConsolidationRequest, EthSpec, ExecutionBlockHash, ExecutionPayload,
     ExecutionPayloadHeader, ExecutionPayloadRef, FixedVector, ForkName, Hash256, Transactions,
@@ -72,6 +73,7 @@ pub enum Error {
     InvalidClientVersion(String),
     TooManyConsolidationRequests(usize),
     EngineApiError(String),
+    TokioJoin(JoinError),
 }
 
 impl From<reqwest::Error> for Error {
