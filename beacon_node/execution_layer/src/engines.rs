@@ -1,10 +1,10 @@
 //! Provides generic behaviour for multiple execution engines, specifically fallback behaviour.
 
-use crate::ClientVersionV1;
 use crate::engine_api::{
     EngineCapabilities, Error as EngineApiError, ForkchoiceUpdatedResponse, PayloadAttributes,
     PayloadId,
 };
+use crate::{ClientVersionV1, HttpJsonRpc};
 use lru::LruCache;
 use std::future::Future;
 use std::num::NonZeroUsize;
@@ -124,6 +124,7 @@ pub enum EngineError {
 /// An execution engine.
 pub struct Engine {
     pub api: crate::reth_engine_api::EthereumRethEngineApi,
+    pub json_api: HttpJsonRpc,
     payload_id_cache: Mutex<LruCache<PayloadIdCacheKey, PayloadId>>,
     state: RwLock<State>,
     latest_forkchoice_state: RwLock<Option<ForkchoiceState>>,
@@ -132,9 +133,14 @@ pub struct Engine {
 
 impl Engine {
     /// Creates a new, offline engine.
-    pub fn new(api: crate::reth_engine_api::EthereumRethEngineApi, executor: TaskExecutor) -> Self {
+    pub fn new(
+        api: crate::reth_engine_api::EthereumRethEngineApi,
+        json_api: HttpJsonRpc,
+        executor: TaskExecutor,
+    ) -> Self {
         Self {
             api,
+            json_api,
             payload_id_cache: Mutex::new(LruCache::new(PAYLOAD_ID_LRU_CACHE_SIZE)),
             state: Default::default(),
             latest_forkchoice_state: Default::default(),
@@ -232,7 +238,7 @@ impl Engine {
     /// Run the `EngineApi::upcheck` function if the node's last known state is not synced. This
     /// might be used to recover the node if offline.
     pub async fn upcheck(&self) {
-        let (state, cache_action) = match self.api.upcheck().await {
+        let (state, cache_action) = match self.json_api.upcheck().await {
             Ok(()) => {
                 let mut state = self.state.write().await;
                 if **state != EngineStateInternal::Synced {
@@ -297,8 +303,8 @@ impl Engine {
                 }
             }
             ResponseCacheAction::Clear => {
-                self.api.clear_exchange_capabilties_cache().await;
-                self.api.clear_engine_version_cache().await;
+                self.json_api.clear_exchange_capabilties_cache().await;
+                self.json_api.clear_engine_version_cache().await;
             }
         }
 
@@ -318,7 +324,7 @@ impl Engine {
         &self,
         age_limit: Option<Duration>,
     ) -> Result<EngineCapabilities, EngineApiError> {
-        self.api.get_engine_capabilities(age_limit).await
+        self.json_api.get_engine_capabilities(age_limit).await
     }
 
     /// Returns the execution engine version resulting from a call to
@@ -334,7 +340,7 @@ impl Engine {
         &self,
         age_limit: Option<Duration>,
     ) -> Result<Vec<ClientVersionV1>, EngineApiError> {
-        self.api.get_engine_version(age_limit).await
+        self.json_api.get_engine_version(age_limit).await
     }
 
     /// Run `func` on the node regardless of the node's current state.

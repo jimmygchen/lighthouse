@@ -529,7 +529,7 @@ impl<E: EthSpec> ExecutionLayer<E> {
     /// Instantiate `Self` with an Execution engine specified in `Config`, using JSON-RPC via HTTP.
     pub fn from_config(config: Config, executor: TaskExecutor) -> Result<Self, Error> {
         let Config {
-            execution_endpoint: _url,
+            execution_endpoint: url,
             builder_url,
             builder_user_agent,
             builder_header_timeout,
@@ -539,12 +539,12 @@ impl<E: EthSpec> ExecutionLayer<E> {
             jwt_id,
             jwt_version,
             default_datadir,
-            execution_timeout_multiplier: _,
+            execution_timeout_multiplier,
             network,
         } = config;
 
-        // Note: We don't need an execution URL for in-process Reth integration
-        // The url parameter is ignored when using RethEngineApi
+        // We only use `execution_url` for methods that haven't been implemented in `RethEngineApi`.
+        let execution_url = url.ok_or(Error::NoEngine)?;
 
         // Use the default jwt secret path if not provided via cli.
         let secret_file = secret_file.unwrap_or_else(|| default_datadir.join(DEFAULT_JWT_FILE));
@@ -579,8 +579,6 @@ impl<E: EthSpec> ExecutionLayer<E> {
         }?;
 
         let engine: Engine = {
-            // TODO: Remove JWT auth setup since we're using in-process Reth
-            let _auth = Auth::new(jwt_key, jwt_id, jwt_version);
             info!("Using in-process Reth engine instead of HTTP JSON-RPC");
 
             // Configure Reth with Lighthouse's data directory
@@ -596,7 +594,14 @@ impl<E: EthSpec> ExecutionLayer<E> {
             );
 
             let api = RethEngineApi::new(reth_config).map_err(Error::ApiError)?;
-            Engine::new(api, executor.clone())
+
+            let auth = Auth::new(jwt_key, jwt_id, jwt_version);
+            debug!(endpoint = %execution_url, jwt_path = ?secret_file.as_path(),"Loaded execution endpoint");
+            let json_api =
+                HttpJsonRpc::new_with_auth(execution_url, auth, execution_timeout_multiplier)
+                    .map_err(Error::ApiError)?;
+
+            Engine::new(api, json_api, executor.clone())
         };
 
         let inner = Inner {
@@ -692,7 +697,7 @@ impl<E: EthSpec> ExecutionLayer<E> {
     pub async fn get_current_difficulty(&self) -> Result<Option<Uint256>, ApiError> {
         let block = self
             .engine()
-            .api
+            .json_api
             .get_block_by_number(BlockByNumberQuery::Tag(LATEST_TAG))
             .await?
             .ok_or(ApiError::ExecutionHeadBlockNotFound)?;
@@ -814,7 +819,7 @@ impl<E: EthSpec> ExecutionLayer<E> {
         if synced
             && let Ok(Some(block)) = self
                 .engine()
-                .api
+                .json_api
                 .get_block_by_number(BlockByNumberQuery::Tag(LATEST_TAG))
                 .await
             && block.block_number == 0
@@ -1384,7 +1389,10 @@ impl<E: EthSpec> ExecutionLayer<E> {
                         &metrics::EXECUTION_LAYER_REQUEST_TIMES,
                         &[metrics::GET_PAYLOAD],
                     );
-                    engine.api.get_payload::<E>(current_fork, payload_id).await
+                    engine
+                        .json_api
+                        .get_payload::<E>(current_fork, payload_id)
+                        .await
                 }
                 .await?;
 
@@ -1723,7 +1731,7 @@ impl<E: EthSpec> ExecutionLayer<E> {
         spec: &ChainSpec,
     ) -> Result<Option<ExecutionBlock>, ApiError> {
         let mut block = engine
-            .api
+            .json_api
             .get_block_by_number(BlockByNumberQuery::Tag(LATEST_TAG))
             .await?
             .ok_or(ApiError::ExecutionHeadBlockNotFound)?;
@@ -1839,7 +1847,7 @@ impl<E: EthSpec> ExecutionLayer<E> {
 
         // The block was *not* in the cache, request it from the execution
         // engine and cache it for future reference.
-        if let Some(block) = engine.api.get_block_by_hash(hash).await? {
+        if let Some(block) = engine.json_api.get_block_by_hash(hash).await? {
             self.execution_blocks().await.put(hash, block);
             Ok(Some(block))
         } else {
@@ -1853,7 +1861,7 @@ impl<E: EthSpec> ExecutionLayer<E> {
     ) -> Result<Vec<Option<ExecutionPayloadBodyV1<E>>>, Error> {
         self.engine()
             .request(|engine: &Engine| async move {
-                engine.api.get_payload_bodies_by_hash_v1(hashes).await
+                engine.json_api.get_payload_bodies_by_hash_v1(hashes).await
             })
             .await
             .map_err(Box::new)
@@ -1869,7 +1877,7 @@ impl<E: EthSpec> ExecutionLayer<E> {
         self.engine()
             .request(|engine: &Engine| async move {
                 engine
-                    .api
+                    .json_api
                     .get_payload_bodies_by_range_v1(start, count)
                     .await
             })
@@ -1964,7 +1972,7 @@ impl<E: EthSpec> ExecutionLayer<E> {
         query: BlockByNumberQuery<'_>,
     ) -> Result<Option<ExecutionBlock>, Error> {
         self.engine()
-            .request(|engine| async move { engine.api.get_block_by_number(query).await })
+            .request(|engine| async move { engine.json_api.get_block_by_number(query).await })
             .await
             .map_err(Box::new)
             .map_err(Error::EngineError)

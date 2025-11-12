@@ -428,7 +428,7 @@ impl EthereumRethEngineApi {
                     proofs: blob_and_proof
                         .proofs
                         .into_iter()
-                        .map(|bytes| bytes.0.try_into().unwrap())
+                        .map(|bytes| bytes.0.into())
                         .collect::<Vec<_>>()
                         .try_into()
                         .unwrap(),
