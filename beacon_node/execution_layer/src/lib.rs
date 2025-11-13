@@ -586,6 +586,7 @@ impl<E: EthSpec> ExecutionLayer<E> {
             let reth_config = reth_engine_api::RethConfig {
                 datadir: reth_datadir.clone(),
                 chain_spec: get_reth_chain_spec(network.as_deref()),
+                jwt_path: secret_file.clone(),
             };
 
             info!(

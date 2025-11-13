@@ -991,19 +991,11 @@ pub struct RethConfig {
     pub datadir: std::path::PathBuf,
     /// Chain specification (mainnet, sepolia, holesky, etc.)
     pub chain_spec: std::sync::Arc<reth_chainspec::ChainSpec>,
+    /// Path to JWT secret file for Engine API authentication
+    pub jwt_path: std::path::PathBuf,
 }
 
-impl Default for RethConfig {
-    fn default() -> Self {
-        use reth_ethereum::chainspec::MAINNET;
-        Self {
-            datadir: std::path::PathBuf::from("/tmp/reth-dev"),
-            chain_spec: MAINNET.clone(),
-        }
-    }
-}
-
-/// Launch Reth and return the ConsensusEngineHandle
+/// Launch Reth and return the Reth Engine API handle
 ///
 /// This initializes Reth's full node with a persistent database and returns
 /// the handle we can use to send Engine API messages to it.
@@ -1011,6 +1003,7 @@ impl Default for RethConfig {
 /// The function accepts a RethConfig to specify:
 /// - Data directory path for persistent storage
 /// - Chain spec (mainnet, sepolia, holesky, gnosis, etc.)
+/// - JWT secret path
 fn launch_reth_and_get_handle_with_config(config: RethConfig) -> Result<RethHandle, String> {
     use reth_db::{ClientVersion, init_db, mdbx::DatabaseArguments};
     use reth_ethereum::{
@@ -1056,10 +1049,15 @@ fn launch_reth_and_get_handle_with_config(config: RethConfig) -> Result<RethHand
             .map_err(|e| format!("Failed to initialize database: {}", e))?,
     );
 
-    let node_config = NodeConfig::new(config.chain_spec).with_datadir_args(DatadirArgs {
-        datadir: config.datadir.clone().into(),
-        static_files_path: Some(sf_path),
-    });
+    let node_config = NodeConfig::new(config.chain_spec)
+        .with_datadir_args(DatadirArgs {
+            datadir: config.datadir.clone().into(),
+            static_files_path: Some(sf_path),
+        })
+        .with_rpc(reth_node_core::args::RpcServerArgs {
+            auth_jwtsecret: Some(config.jwt_path.clone()),
+            ..<_>::default()
+        });
 
     // Channel to extract the EngineApi or error
     let (handle_tx, handle_rx) = std::sync::mpsc::channel();

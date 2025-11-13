@@ -309,7 +309,11 @@ pub fn get_config<E: EthSpec>(
 
         Some((execution_endpoint, secret_file))
     } else {
-        None
+        // default value used for single lighthouse-reth integration
+        let execution_endpoint = SensitiveUrl::parse("http://localhost:8551")
+            .map_err(|e| format!("Error parsing default EE url: {e:?}"))?;
+        let secret_file = data_dir_ref.join(DEFAULT_JWT_FILE);
+        Some((execution_endpoint, secret_file))
     };
 
     // Parse and set the payload builder, if any.
