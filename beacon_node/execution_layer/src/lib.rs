@@ -594,7 +594,7 @@ impl<E: EthSpec> ExecutionLayer<E> {
                 "Initializing Reth execution engine"
             );
 
-            let api = RethEngineApi::new(reth_config).map_err(Error::ApiError)?;
+            let api = RethEngineApi::new(reth_config, executor.clone()).map_err(Error::ApiError)?;
 
             let auth = Auth::new(jwt_key, jwt_id, jwt_version);
             debug!(endpoint = %execution_url, jwt_path = ?secret_file.as_path(),"Loaded execution endpoint");

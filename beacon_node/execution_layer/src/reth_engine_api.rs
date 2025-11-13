@@ -42,6 +42,7 @@ use reth_node_core::args::DatadirArgs;
 use reth_node_ethereum::{
     EthereumAddOns, EthereumEngineValidator, EthereumEngineValidatorBuilder, EthereumNode,
 };
+use task_executor::TaskExecutor;
 
 /// Direct Reth Engine API handler - communicates with Reth in-process
 /// Stores Reth's EngineApi and converts between Lighthouse and Reth types
@@ -66,12 +67,13 @@ type RethHandle = EngineApi<
 
 impl RethEngineApi {
     /// Create a new RethEngineApi by launching Reth with configuration
-    pub fn new(config: RethConfig) -> Result<Self, EngineApiError> {
+    pub fn new(config: RethConfig, executor: TaskExecutor) -> Result<Self, EngineApiError> {
         // Launch Reth with the provided configuration
-        let reth_handle = launch_reth_and_get_handle_with_config(config).map_err(|e| {
-            error!("Failed to launch Reth: {}", e);
-            EngineApiError::IsSyncing
-        })?;
+        let reth_handle =
+            launch_reth_and_get_handle_with_config(config, executor).map_err(|e| {
+                error!("Failed to launch Reth: {}", e);
+                EngineApiError::IsSyncing
+            })?;
 
         info!("Successfully launched Reth and obtained EngineApi handle");
 
@@ -969,7 +971,10 @@ pub struct RethConfig {
 /// - Data directory path for persistent storage
 /// - Chain spec (mainnet, sepolia, holesky, gnosis, etc.)
 /// - JWT secret path
-fn launch_reth_and_get_handle_with_config(config: RethConfig) -> Result<RethHandle, String> {
+fn launch_reth_and_get_handle_with_config(
+    config: RethConfig,
+    executor: TaskExecutor,
+) -> Result<RethHandle, String> {
     use reth_db::{ClientVersion, init_db, mdbx::DatabaseArguments};
     use reth_ethereum::{
         node::{builder::NodeBuilder, core::node_config::NodeConfig, node::EthereumNode},
@@ -993,15 +998,12 @@ fn launch_reth_and_get_handle_with_config(config: RethConfig) -> Result<RethHand
     info!(
         datadir = %config.datadir.display(),
         chain = %config.chain_spec.chain.to_string(),
-        "Launching Reth execution engine in-process with persistent database"
+        "Launching Reth execution engine in-process"
     );
 
     // Create data directory if it doesn't exist
     std::fs::create_dir_all(&config.datadir)
         .map_err(|e| format!("Failed to create data directory: {}", e))?;
-
-    debug!("Created data directory");
-
     let db_path = config.datadir.join("db");
     let sf_path = config.datadir.join("static_files");
 
@@ -1024,30 +1026,16 @@ fn launch_reth_and_get_handle_with_config(config: RethConfig) -> Result<RethHand
     let (handle_tx, handle_rx) = std::sync::mpsc::channel();
     let error_tx = handle_tx.clone();
 
-    info!("Spawning Reth node on dedicated thread with independent runtime");
+    info!("Spawning Reth launch task on executor");
 
-    // Spawn Reth on a dedicated thread with its own tokio runtime
-    // This is necessary because:
-    // 1. We're being called from a sync context that blocks waiting for the handle
-    // 2. The spawned task needs an active runtime to execute
-    // 3. A dedicated thread ensures Reth has full CPU/async scheduling independence
-    let thread_error_tx = error_tx.clone();
+    // Spawn a thread that queues the async task on executor and exits immediately
+    // This avoids deadlock:
+    // - This thread exits quickly after queuing the task
+    // - Main thread can block on recv_timeout
+    // - Executor's worker threads run the spawned async task
     let _join_handle = std::thread::spawn(move || {
-        debug!("Started dedicated Reth thread");
-
-        // Wrap everything in catch_unwind to convert panics to errors
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            // Create a new tokio runtime for Reth
-            let rt = tokio::runtime::Builder::new_multi_thread()
-                .thread_name("reth-runtime")
-                .enable_all()
-                .build()
-                .expect("Failed to create Reth tokio runtime");
-
-            debug!("Created tokio runtime for Reth");
-
-            // Run Reth on this dedicated runtime
-            rt.block_on(async move {
+        executor.spawn_without_exit(
+            async move {
                 debug!("Launching Reth node");
 
                 let engine_api = EngineApiExt::new(
@@ -1055,9 +1043,10 @@ fn launch_reth_and_get_handle_with_config(config: RethConfig) -> Result<RethHand
                     move |api| {
                         info!("Reth node started, extracting engine api handle");
                         let _ = handle_tx.send(Ok(api));
-                        debug!("Extracted engine api  handle");
+                        debug!("Extracted engine api handle");
                     },
                 );
+
                 let tasks = TaskManager::current();
                 let node_builder = NodeBuilder::new(node_config)
                     .with_database(db)
@@ -1079,37 +1068,11 @@ fn launch_reth_and_get_handle_with_config(config: RethConfig) -> Result<RethHand
                         let _ = error_tx.send(Err(format!("Reth launch failed: {}", e)));
                     }
                 }
-            })
-        }));
-
-        // Handle panic result
-        match result {
-            Ok(_) => {
-                debug!("Reth thread completed normally");
-            }
-            Err(panic_err) => {
-                let panic_msg = if let Some(s) = panic_err.downcast_ref::<&str>() {
-                    s.to_string()
-                } else if let Some(s) = panic_err.downcast_ref::<String>() {
-                    s.clone()
-                } else {
-                    "Unknown panic".to_string()
-                };
-
-                error!("Reth thread panicked: {}", panic_msg);
-
-                // Send panic as error through channel
-                let error_msg = format!(
-                    "Reth genesis initialization panicked: {}\n\
-                     This is a known Reth bug with IntegerList requiring non-empty history lists.",
-                    panic_msg
-                );
-                let _ = thread_error_tx.send(Err(error_msg));
-            }
-        }
+            },
+            "launch_reth",
+        );
     });
 
-    // Wait for handle with longer timeout (Reth initialization can take time)
     info!("Waiting for Reth to initialize (30s timeout)");
 
     handle_rx
