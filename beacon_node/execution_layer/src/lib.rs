@@ -583,7 +583,7 @@ impl<E: EthSpec> ExecutionLayer<E> {
 
             // Configure Reth with Lighthouse's data directory
             let reth_datadir = default_datadir.join("reth");
-            let reth_config = crate::reth_engine_api::RethConfig {
+            let reth_config = reth_engine_api::RethConfig {
                 datadir: reth_datadir.clone(),
                 chain_spec: get_reth_chain_spec(network.as_deref()),
             };
@@ -1389,10 +1389,7 @@ impl<E: EthSpec> ExecutionLayer<E> {
                         &metrics::EXECUTION_LAYER_REQUEST_TIMES,
                         &[metrics::GET_PAYLOAD],
                     );
-                    engine
-                        .json_api
-                        .get_payload::<E>(current_fork, payload_id)
-                        .await
+                    engine.api.get_payload::<E>(current_fork, payload_id).await
                 }
                 .await?;
 

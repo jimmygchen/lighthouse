@@ -4,8 +4,9 @@ use crate::engine_api::{
     EngineCapabilities, Error as EngineApiError, ForkchoiceUpdatedResponse, PayloadAttributes,
     PayloadId,
 };
-use crate::{ClientVersionV1, HttpJsonRpc};
+use crate::{ClientVersionV1, HttpJsonRpc, reth_engine_api};
 use lru::LruCache;
+use reth_engine_api::RethEngineApi;
 use std::future::Future;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
@@ -123,7 +124,7 @@ pub enum EngineError {
 
 /// An execution engine.
 pub struct Engine {
-    pub api: crate::reth_engine_api::EthereumRethEngineApi,
+    pub api: RethEngineApi,
     pub json_api: HttpJsonRpc,
     payload_id_cache: Mutex<LruCache<PayloadIdCacheKey, PayloadId>>,
     state: RwLock<State>,
@@ -133,11 +134,7 @@ pub struct Engine {
 
 impl Engine {
     /// Creates a new, offline engine.
-    pub fn new(
-        api: crate::reth_engine_api::EthereumRethEngineApi,
-        json_api: HttpJsonRpc,
-        executor: TaskExecutor,
-    ) -> Self {
+    pub fn new(api: RethEngineApi, json_api: HttpJsonRpc, executor: TaskExecutor) -> Self {
         Self {
             api,
             json_api,

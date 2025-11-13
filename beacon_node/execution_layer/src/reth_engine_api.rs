@@ -3,22 +3,29 @@
 //! This module provides channel-based communication with a Reth execution engine running
 //! in the same process, eliminating HTTP overhead.
 
-use crate::ClientVersionV1;
 use crate::engine_api::{
-    BlockByNumberQuery, EngineCapabilities, Error as EngineApiError, ExecutionBlock,
+    BlockByNumberQuery, EngineCapabilities, Error as EngineApiError, Error, ExecutionBlock,
     ExecutionPayloadBodyV1, ForkchoiceUpdatedResponse, GetPayloadResponse, NewPayloadRequest,
     PayloadAttributes, PayloadId,
 };
 use crate::engines::ForkchoiceState;
-use crate::json_structures::{BlobAndProofV1, BlobAndProofV2};
+use crate::json_structures::{BlobAndProofV1, BlobAndProofV2, JsonExecutionRequests};
+use crate::{ClientVersionV1, GetPayloadResponseElectra, GetPayloadResponseFulu};
 use alloy_eips::eip7685::Requests;
 use alloy_primitives::B256;
-use alloy_rpc_types_engine::{CancunPayloadFields, ExecutionPayloadSidecar, PraguePayloadFields};
+use alloy_rpc_types_engine::{
+    CancunPayloadFields, ExecutionPayloadEnvelopeV3, ExecutionPayloadEnvelopeV4,
+    ExecutionPayloadEnvelopeV5, ExecutionPayloadSidecar, ExecutionPayloadV3, PraguePayloadFields,
+};
+use core::fmt;
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
 use tracing::{debug, error, info, warn};
-use types::{EthSpec, ExecutionBlockHash, ForkName, Hash256};
+use types::{
+    Blob, EthSpec, ExecutionBlockHash, ExecutionPayloadElectra, ExecutionPayloadFulu,
+    ExecutionRequests, FixedVector, ForkName, Hash256, VariableList,
+};
 
 // Reth imports
 use reth_ethereum::pool::EthTransactionPool;
@@ -35,20 +42,22 @@ use crate::http::{
     ENGINE_NEW_PAYLOAD_V4, LIGHTHOUSE_CAPABILITIES,
 };
 use alloy_rpc_types_engine::payload::ExecutionData;
+use eth2::types::BlobsBundle;
+use kzg::{KzgCommitment, KzgProof};
 use reth_ethereum::rpc::api::EngineApiServer;
 use reth_ethereum_engine_primitives::EthEngineTypes;
 use reth_node_builder::EngineApiExt;
 use reth_node_builder::rpc::BasicEngineApiBuilder;
+use reth_node_core::args::DatadirArgs;
 use reth_node_ethereum::{
     EthereumAddOns, EthereumEngineValidator, EthereumEngineValidatorBuilder, EthereumNode,
 };
-use reth_payload_primitives::PayloadTypes;
 
 /// Direct Reth Engine API handler - communicates with Reth in-process
 /// Stores Reth's EngineApi and converts between Lighthouse and Reth types
-pub struct RethEngineApi<Provider, PayloadT: PayloadTypes, Pool, Validator, ChainSpec> {
+pub struct RethEngineApi {
     /// Reth's engine API handle - this is the key integration point!
-    reth_handle: EngineApi<Provider, PayloadT, Pool, Validator, ChainSpec>,
+    reth_handle: RethHandle,
 }
 
 // Type aliases to avoid repetition in the complex generic parameters
@@ -56,9 +65,8 @@ type EthereumProvider = reth_provider::providers::BlockchainProvider<
     reth_node_types::NodeTypesWithDBAdapter<EthereumNode, Arc<reth_db::DatabaseEnv>>,
 >;
 
-/// Type alias for RethEngineApi with concrete Ethereum types
-/// This is what gets stored in the Engine struct in engines.rs
-pub type EthereumRethEngineApi = RethEngineApi<
+// Type alias for the concrete Reth Engine Api type
+type RethHandle = EngineApi<
     EthereumProvider,
     EthEngineTypes,
     EthTransactionPool<EthereumProvider, DiskFileBlobStore>,
@@ -66,7 +74,7 @@ pub type EthereumRethEngineApi = RethEngineApi<
     reth_chainspec::ChainSpec,
 >;
 
-impl EthereumRethEngineApi {
+impl RethEngineApi {
     /// Create a new RethEngineApi by launching Reth with configuration
     pub fn new(config: RethConfig) -> Result<Self, EngineApiError> {
         // Launch Reth with the provided configuration
@@ -158,7 +166,7 @@ impl EthereumRethEngineApi {
         };
 
         // Convert Reth response → Lighthouse response
-        result.and_then(convert_reth_to_lighthouse_forkchoice_response)
+        result.and_then(reth_to_lighthouse_forkchoice_response)
     }
 
     /// Get engine capabilities
@@ -166,30 +174,25 @@ impl EthereumRethEngineApi {
         &self,
         _age_limit: Option<Duration>,
     ) -> Result<EngineCapabilities, EngineApiError> {
-        // Spawn the capability exchange in a separate task to avoid polluting
-        // this future with non-Sync jsonrpsee types
-        let reth_handle = self.reth_handle.clone();
         let lighthouse_capabilities: Vec<String> = LIGHTHOUSE_CAPABILITIES
             .iter()
             .map(|s| s.to_string())
             .collect();
 
-        let capabilities = tokio::task::spawn(async move {
-            reth_handle
-                .exchange_capabilities(lighthouse_capabilities)
-                .await
-        })
-        .await
-        .map_err(|e| {
-            EngineApiError::EngineApiError(format!(
-                "failed to spawn capability exchange task: {e:?}"
-            ))
-        })?
-        .map_err(|e| {
-            EngineApiError::EngineApiError(format!("failed to exchange capabilities: {e:?}"))
-        })?
-        .into_iter()
-        .collect::<HashSet<String>>();
+        let capabilities = self
+            .spawn_reth_task(|reth_handle| async move {
+                reth_handle
+                    .exchange_capabilities(lighthouse_capabilities)
+                    .await
+                    .map_err(|e| {
+                        EngineApiError::EngineApiError(format!(
+                            "failed to spawn capability exchange task: {e:?}"
+                        ))
+                    })
+            })
+            .await?
+            .into_iter()
+            .collect::<HashSet<String>>();
 
         Ok(EngineCapabilities {
             new_payload_v1: capabilities.contains(ENGINE_NEW_PAYLOAD_V1),
@@ -296,7 +299,7 @@ impl EthereumRethEngineApi {
             }
         };
 
-        convert_alloy_to_lighthouse_payload_status(reth_response)
+        reth_to_lighthouse_payload_status(reth_response)
     }
 
     /// Get a payload by ID for block production
@@ -305,23 +308,92 @@ impl EthereumRethEngineApi {
         fork_name: ForkName,
         payload_id: PayloadId,
     ) -> Result<GetPayloadResponse<E>, EngineApiError> {
-        use tracing::warn;
+        let engine_capabilities = self.get_engine_capabilities(None).await?;
+        let alloy_payload_id = alloy_rpc_types_engine::PayloadId::new(payload_id);
+        match fork_name {
+            ForkName::Fulu if engine_capabilities.get_payload_v5 => {
+                let ExecutionPayloadEnvelopeV5 {
+                    execution_payload,
+                    block_value,
+                    blobs_bundle,
+                    should_override_builder,
+                    execution_requests,
+                } = self
+                    .spawn_reth_task(move |reth_handle| async move {
+                        reth_handle
+                            .get_payload_v5(alloy_payload_id)
+                            .await
+                            .map_err(|e| EngineApiError::EngineApiError(format!("{e:?}")))
+                    })
+                    .await?;
 
-        warn!(
-            fork = ?fork_name,
-            payload_id = ?payload_id,
-            "RethEngineApi::get_payload() called - implementation needed"
-        );
+                let execution_payload =
+                    reth_to_lighthouse_execution_payload_fulu(execution_payload)?;
 
-        // TODO: Full implementation
-        // get_payload requires access to Reth's payload builder, not just the consensus engine.
-        // This typically involves:
-        // 1. Converting the payload_id to Reth's format
-        // 2. Calling Reth's payload builder API (separate from ConsensusEngineHandle)
-        // 3. Converting the returned ExecutionPayload back to Lighthouse format
-        //
-        // For now, return an error to indicate this is not yet implemented
-        Err(EngineApiError::PayloadIdUnavailable)
+                let requests = JsonExecutionRequests(
+                    execution_requests
+                        .iter()
+                        .map(|b| format!("{:#x}", b))
+                        .collect::<Vec<String>>(),
+                );
+                let requests = ExecutionRequests::try_from(requests)
+                    .map_err(|e| EngineApiError::BadResponse(format!("{e:?}")))?;
+                let blobs_bundle = reth_to_lighthouse_blobs_bundle_v2(blobs_bundle)?;
+
+                Ok(GetPayloadResponse::Fulu(GetPayloadResponseFulu {
+                    execution_payload,
+                    block_value,
+                    blobs_bundle,
+                    should_override_builder,
+                    requests,
+                }))
+            }
+            ForkName::Electra if engine_capabilities.get_payload_v4 => {
+                let envelope_v4 = self
+                    .spawn_reth_task(move |reth_handle| async move {
+                        reth_handle
+                            .get_payload_v4(alloy_payload_id)
+                            .await
+                            .map_err(|e| EngineApiError::EngineApiError(format!("{e:?}")))
+                    })
+                    .await?;
+
+                let ExecutionPayloadEnvelopeV4 {
+                    envelope_inner: envelope_v3,
+                    execution_requests,
+                } = envelope_v4;
+                let ExecutionPayloadEnvelopeV3 {
+                    execution_payload,
+                    block_value,
+                    blobs_bundle,
+                    should_override_builder,
+                } = envelope_v3;
+
+                let execution_payload =
+                    reth_to_lighthouse_execution_payload_electra(execution_payload)?;
+                let requests = JsonExecutionRequests(
+                    execution_requests
+                        .into_iter()
+                        .map(|b| format!("{:#x}", b))
+                        .collect::<Vec<String>>(),
+                );
+                let requests = ExecutionRequests::try_from(requests)
+                    .map_err(|e| EngineApiError::BadResponse(format!("{e:?}")))?;
+                let blobs_bundle = reth_to_lighthouse_blobs_bundle_v1(blobs_bundle)?;
+
+                Ok(GetPayloadResponse::Electra(GetPayloadResponseElectra {
+                    execution_payload,
+                    block_value,
+                    blobs_bundle,
+                    should_override_builder,
+                    requests,
+                }))
+            }
+            _ => Err(Error::UnsupportedForkVariant(format!(
+                "called get_payload with {}",
+                fork_name
+            ))),
+        }
     }
 
     /// Get execution block by hash
@@ -377,27 +449,36 @@ impl EthereumRethEngineApi {
         &self,
         versioned_hashes: Vec<Hash256>,
     ) -> Result<Vec<Option<BlobAndProofV1<E>>>, EngineApiError> {
-        // Spawn the rpc request in a separate task to avoid polluting
-        // this future with non-Sync jsonrpsee types
-        let reth_handle = self.reth_handle.clone();
         let versioned_hashes = versioned_hashes.into_iter().map(to_alloy_b256).collect();
 
-        let resp = tokio::task::spawn(async move {
-            reth_handle
-                .get_blobs_v1(versioned_hashes)
-                .await
-                .map_err(|e| EngineApiError::EngineApiError(format!("{e:?}")))
-        })
-        .await
-        .map_err(EngineApiError::TokioJoin)??
-        .into_iter()
-        .map(|blob_and_proof_opt| {
-            blob_and_proof_opt.map(|blob_and_proof| BlobAndProofV1::<E> {
-                blob: blob_and_proof.blob.0.to_vec().try_into().unwrap(),
-                proof: blob_and_proof.proof.0.into(),
+        let resp = self
+            .spawn_reth_task(|reth_handle| async move {
+                reth_handle
+                    .get_blobs_v1(versioned_hashes)
+                    .await
+                    .map_err(|e| EngineApiError::EngineApiError(format!("{e:?}")))
             })
-        })
-        .collect();
+            .await?
+            .into_iter()
+            .map(|blob_and_proof_opt| {
+                blob_and_proof_opt
+                    .map(|blob_and_proof| {
+                        blob_and_proof
+                            .blob
+                            .0
+                            .to_vec()
+                            .try_into()
+                            .map(|blob| BlobAndProofV1::<E> {
+                                blob,
+                                proof: blob_and_proof.proof.0.into(),
+                            })
+                            .map_err(|e| {
+                                EngineApiError::BadResponse(format!("Invalid blob: {e:?}"))
+                            })
+                    })
+                    .transpose()
+            })
+            .collect::<Result<Vec<_>, _>>()?;
 
         Ok(resp)
     }
@@ -407,45 +488,59 @@ impl EthereumRethEngineApi {
         &self,
         versioned_hashes: Vec<Hash256>,
     ) -> Result<Option<Vec<BlobAndProofV2<E>>>, EngineApiError> {
-        // Spawn the rpc request in a separate task to avoid polluting
-        // this future with non-Sync jsonrpsee types
-        let reth_handle = self.reth_handle.clone();
         let versioned_hashes = versioned_hashes.into_iter().map(to_alloy_b256).collect();
 
-        let resp = tokio::task::spawn(async move {
-            reth_handle
-                .get_blobs_v2(versioned_hashes)
-                .await
-                .map_err(|e| EngineApiError::EngineApiError(format!("{e:?}")))
-        })
-        .await
-        .map_err(EngineApiError::TokioJoin)??
-        .map(|blobs_and_proofs| {
-            blobs_and_proofs
-                .into_iter()
-                .map(|blob_and_proof| BlobAndProofV2::<E> {
-                    blob: blob_and_proof.blob.0.to_vec().try_into().unwrap(),
-                    proofs: blob_and_proof
-                        .proofs
-                        .into_iter()
-                        .map(|bytes| bytes.0.into())
-                        .collect::<Vec<_>>()
-                        .try_into()
-                        .unwrap(),
-                })
-                .collect()
-        });
+        let resp = self
+            .spawn_reth_task(|reth_handle| async move {
+                reth_handle
+                    .get_blobs_v2(versioned_hashes)
+                    .await
+                    .map_err(|e| EngineApiError::EngineApiError(format!("{e:?}")))
+            })
+            .await?
+            .map(|blobs_and_proofs| {
+                blobs_and_proofs
+                    .into_iter()
+                    .map(|blob_and_proof| {
+                        let blob = blob_and_proof.blob.0.to_vec().try_into().map_err(|e| {
+                            EngineApiError::BadResponse(format!("Invalid blob: {e:?}"))
+                        })?;
+                        let proofs = blob_and_proof
+                            .proofs
+                            .into_iter()
+                            .map(|bytes| bytes.0.into())
+                            .collect::<Vec<_>>()
+                            .try_into()
+                            .map_err(|e| {
+                                EngineApiError::BadResponse(format!("Invalid proofs: {e:?}"))
+                            })?;
+                        Ok(BlobAndProofV2::<E> { blob, proofs })
+                    })
+                    .collect::<Result<Vec<_>, EngineApiError>>()
+            })
+            .transpose()?;
 
         Ok(resp)
     }
+
+    // Spawn the rpc request in a separate task to avoid polluting
+    // this future with non-Sync jsonrpsee types
+    async fn spawn_reth_task<F, Fut, T>(&self, f: F) -> Result<T, EngineApiError>
+    where
+        F: FnOnce(RethHandle) -> Fut + Send + 'static,
+        Fut: Future<Output = Result<T, EngineApiError>> + Send,
+        T: Send + 'static,
+    {
+        let reth_handle = self.reth_handle.clone();
+        tokio::task::spawn(async move { f(reth_handle).await })
+            .await
+            .map_err(EngineApiError::TokioJoin)
+            .flatten()
+    }
 }
 
-impl<Provider, PayloadT, Pool, Validator, ChainSpec> std::fmt::Display
-    for RethEngineApi<Provider, PayloadT, Pool, Validator, ChainSpec>
-where
-    PayloadT: PayloadTypes,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for RethEngineApi {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "RethEngineApi (in-process)")
     }
 }
@@ -660,7 +755,7 @@ fn convert_lighthouse_to_alloy_payload<E: EthSpec>(
 }
 
 /// Convert Alloy PayloadStatus → Lighthouse PayloadStatusV1
-fn convert_alloy_to_lighthouse_payload_status(
+fn reth_to_lighthouse_payload_status(
     alloy_status: alloy_rpc_types_engine::PayloadStatus,
 ) -> Result<crate::engine_api::PayloadStatusV1, EngineApiError> {
     use crate::engine_api::{PayloadStatusV1, PayloadStatusV1Status};
@@ -686,7 +781,7 @@ fn convert_alloy_to_lighthouse_payload_status(
 }
 
 /// Convert Reth ForkchoiceUpdated response → Lighthouse response
-fn convert_reth_to_lighthouse_forkchoice_response(
+fn reth_to_lighthouse_forkchoice_response(
     reth: alloy_rpc_types_engine::ForkchoiceUpdated,
 ) -> Result<ForkchoiceUpdatedResponse, EngineApiError> {
     use crate::engine_api::{PayloadStatusV1, PayloadStatusV1Status};
@@ -714,6 +809,174 @@ fn convert_reth_to_lighthouse_forkchoice_response(
     Ok(ForkchoiceUpdatedResponse {
         payload_status,
         payload_id: reth.payload_id.map(|id| id.0.into()),
+    })
+}
+
+fn reth_to_lighthouse_execution_payload_fulu<E: EthSpec>(
+    reth_execution_payload_v3: ExecutionPayloadV3,
+) -> Result<ExecutionPayloadFulu<E>, EngineApiError> {
+    let inner = &reth_execution_payload_v3.payload_inner.payload_inner;
+
+    Ok(ExecutionPayloadFulu {
+        parent_hash: Hash256::from_slice(inner.parent_hash.as_slice()).into(),
+        fee_recipient: inner.fee_recipient,
+        state_root: inner.state_root,
+        receipts_root: inner.receipts_root,
+        logs_bloom: FixedVector::new(inner.logs_bloom.as_slice().to_vec())
+            .map_err(|e| EngineApiError::BadResponse(format!("Invalid logs_bloom: {e:?}")))?,
+        prev_randao: inner.prev_randao,
+        block_number: inner.block_number,
+        gas_limit: inner.gas_limit,
+        gas_used: inner.gas_used,
+        timestamp: inner.timestamp,
+        extra_data: VariableList::new(inner.extra_data.to_vec())
+            .map_err(|e| EngineApiError::BadResponse(format!("Invalid extra_data: {e:?}")))?,
+        base_fee_per_gas: inner.base_fee_per_gas,
+        block_hash: Hash256::from_slice(inner.block_hash.as_slice()).into(),
+        transactions: VariableList::new(
+            inner
+                .transactions
+                .iter()
+                .map(|tx| VariableList::new(tx.to_vec()))
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| EngineApiError::BadResponse(format!("Invalid transaction: {e:?}")))?,
+        )
+        .map_err(|e| EngineApiError::BadResponse(format!("Invalid transactions: {e:?}")))?,
+        withdrawals: VariableList::new(
+            reth_execution_payload_v3
+                .payload_inner
+                .withdrawals
+                .iter()
+                .map(|w| types::Withdrawal {
+                    index: w.index,
+                    validator_index: w.validator_index,
+                    address: w.address,
+                    amount: w.amount,
+                })
+                .collect(),
+        )
+        .map_err(|e| EngineApiError::BadResponse(format!("Invalid withdrawals: {e:?}")))?,
+        blob_gas_used: reth_execution_payload_v3.blob_gas_used,
+        excess_blob_gas: reth_execution_payload_v3.excess_blob_gas,
+    })
+}
+
+fn reth_to_lighthouse_execution_payload_electra<E: EthSpec>(
+    reth_execution_payload_v3: ExecutionPayloadV3,
+) -> Result<ExecutionPayloadElectra<E>, EngineApiError> {
+    let inner = &reth_execution_payload_v3.payload_inner.payload_inner;
+
+    Ok(ExecutionPayloadElectra {
+        parent_hash: Hash256::from_slice(inner.parent_hash.as_slice()).into(),
+        fee_recipient: inner.fee_recipient,
+        state_root: inner.state_root,
+        receipts_root: inner.receipts_root,
+        logs_bloom: FixedVector::new(inner.logs_bloom.as_slice().to_vec())
+            .map_err(|e| EngineApiError::BadResponse(format!("Invalid logs_bloom: {e:?}")))?,
+        prev_randao: inner.prev_randao,
+        block_number: inner.block_number,
+        gas_limit: inner.gas_limit,
+        gas_used: inner.gas_used,
+        timestamp: inner.timestamp,
+        extra_data: VariableList::new(inner.extra_data.to_vec())
+            .map_err(|e| EngineApiError::BadResponse(format!("Invalid extra_data: {e:?}")))?,
+        base_fee_per_gas: inner.base_fee_per_gas,
+        block_hash: Hash256::from_slice(inner.block_hash.as_slice()).into(),
+        transactions: VariableList::new(
+            inner
+                .transactions
+                .iter()
+                .map(|tx| VariableList::new(tx.to_vec()))
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| EngineApiError::BadResponse(format!("Invalid transaction: {e:?}")))?,
+        )
+        .map_err(|e| EngineApiError::BadResponse(format!("Invalid transactions: {e:?}")))?,
+        withdrawals: VariableList::new(
+            reth_execution_payload_v3
+                .payload_inner
+                .withdrawals
+                .iter()
+                .map(|w| types::Withdrawal {
+                    index: w.index,
+                    validator_index: w.validator_index,
+                    address: w.address,
+                    amount: w.amount,
+                })
+                .collect(),
+        )
+        .map_err(|e| EngineApiError::BadResponse(format!("Invalid withdrawals: {e:?}")))?,
+        blob_gas_used: reth_execution_payload_v3.blob_gas_used,
+        excess_blob_gas: reth_execution_payload_v3.excess_blob_gas,
+    })
+}
+
+fn reth_to_lighthouse_blobs_bundle_v1<E: EthSpec>(
+    reth_blobs_bundle: alloy_rpc_types_engine::BlobsBundleV1,
+) -> Result<BlobsBundle<E>, EngineApiError> {
+    let alloy_rpc_types_engine::BlobsBundleV1 {
+        commitments,
+        proofs,
+        blobs,
+    } = reth_blobs_bundle;
+
+    Ok(BlobsBundle {
+        commitments: commitments
+            .into_iter()
+            .map(|v| KzgCommitment(v.0))
+            .collect::<Vec<_>>()
+            .try_into()
+            .map_err(|e| EngineApiError::BadResponse(format!("Invalid commitments: {e:?}")))?,
+        proofs: proofs
+            .into_iter()
+            .map(|v| KzgProof(v.0))
+            .collect::<Vec<_>>()
+            .try_into()
+            .map_err(|e| EngineApiError::BadResponse(format!("Invalid proofs: {e:?}")))?,
+        blobs: blobs
+            .into_iter()
+            .map(|v| {
+                Vec::from(v.0)
+                    .try_into()
+                    .map_err(|e| EngineApiError::BadResponse(format!("Invalid blob: {e:?}")))
+            })
+            .collect::<Result<Vec<Blob<E>>, _>>()?
+            .try_into()
+            .map_err(|e| EngineApiError::BadResponse(format!("Invalid blobs: {e:?}")))?,
+    })
+}
+
+fn reth_to_lighthouse_blobs_bundle_v2<E: EthSpec>(
+    reth_blobs_bundle: alloy_rpc_types_engine::BlobsBundleV2,
+) -> Result<BlobsBundle<E>, EngineApiError> {
+    let alloy_rpc_types_engine::BlobsBundleV2 {
+        commitments,
+        proofs,
+        blobs,
+    } = reth_blobs_bundle;
+
+    Ok(BlobsBundle {
+        commitments: commitments
+            .into_iter()
+            .map(|v| KzgCommitment(v.0))
+            .collect::<Vec<_>>()
+            .try_into()
+            .map_err(|e| EngineApiError::BadResponse(format!("Invalid commitments: {e:?}")))?,
+        proofs: proofs
+            .into_iter()
+            .map(|v| KzgProof(v.0))
+            .collect::<Vec<_>>()
+            .try_into()
+            .map_err(|e| EngineApiError::BadResponse(format!("Invalid proofs: {e:?}")))?,
+        blobs: blobs
+            .into_iter()
+            .map(|v| {
+                Vec::from(v.0)
+                    .try_into()
+                    .map_err(|e| EngineApiError::BadResponse(format!("Invalid blob: {e:?}")))
+            })
+            .collect::<Result<Vec<Blob<E>>, _>>()?
+            .try_into()
+            .map_err(|e| EngineApiError::BadResponse(format!("Invalid blobs: {e:?}")))?,
     })
 }
 
@@ -748,25 +1011,12 @@ impl Default for RethConfig {
 /// The function accepts a RethConfig to specify:
 /// - Data directory path for persistent storage
 /// - Chain spec (mainnet, sepolia, holesky, gnosis, etc.)
-fn launch_reth_and_get_handle_with_config(
-    config: RethConfig,
-) -> Result<
-    EngineApi<
-        EthereumProvider,
-        EthEngineTypes,
-        EthTransactionPool<EthereumProvider, DiskFileBlobStore>,
-        EthereumEngineValidator,
-        reth_chainspec::ChainSpec,
-    >,
-    String,
-> {
-    use reth_db::{ClientVersion, DatabaseEnv, init_db, mdbx::DatabaseArguments};
+fn launch_reth_and_get_handle_with_config(config: RethConfig) -> Result<RethHandle, String> {
+    use reth_db::{ClientVersion, init_db, mdbx::DatabaseArguments};
     use reth_ethereum::{
         node::{builder::NodeBuilder, core::node_config::NodeConfig, node::EthereumNode},
         tasks::TaskManager,
     };
-    use reth_node_types::NodeTypesWithDBAdapter;
-    use reth_provider::{ProviderFactory, providers::StaticFileProvider};
     use std::sync::Arc;
 
     // Enable Reth logging - set environment variable if not already set
@@ -798,58 +1048,18 @@ fn launch_reth_and_get_handle_with_config(
     let tasks = TaskManager::current();
 
     debug!("Task manager initialized");
-    info!("Initializing Reth database with genesis block");
-
-    // Initialize database with genesis block if needed
     let db_path = config.datadir.join("db");
     let sf_path = config.datadir.join("static_files");
 
-    debug!(
-        db_path = %db_path.display(),
-        sf_path = %sf_path.display(),
-        "Creating database and static files directories"
-    );
-
-    std::fs::create_dir_all(&db_path)
-        .map_err(|e| format!("Failed to create db directory: {}", e))?;
-    std::fs::create_dir_all(&sf_path)
-        .map_err(|e| format!("Failed to create static files directory: {}", e))?;
-
-    debug!(db_path = %db_path.display(), "Initializing MDBX database");
-
-    // Use init_db which creates/opens the database properly
     let db = Arc::new(
         init_db(&db_path, DatabaseArguments::new(ClientVersion::default()))
             .map_err(|e| format!("Failed to initialize database: {}", e))?,
     );
 
-    debug!("Database initialized, creating static file provider");
-
-    // Create static file provider
-    let sfp = StaticFileProvider::read_write(&sf_path)
-        .map_err(|e| format!("Failed to create static file provider: {}", e))?;
-
-    // Create provider factory for genesis initialization
-    debug!("Creating provider factory for genesis initialization");
-    let provider_factory =
-        ProviderFactory::<NodeTypesWithDBAdapter<EthereumNode, Arc<DatabaseEnv>>>::new(
-            db.clone(),
-            config.chain_spec.clone(),
-            sfp,
-        )
-        .map_err(|e| format!("Failed to create provider factory: {}", e))?;
-
-    // Drop provider_factory as NodeBuilder will handle genesis initialization
-    // The panic catching in the spawn thread will handle any genesis initialization bugs
-    drop(provider_factory);
-
-    info!("Database ready for NodeBuilder (genesis will be initialized by Reth)");
-
-    info!(db_path = %db_path.display(), "Database ready with genesis block");
-
-    // Create node config with persistent database
-    debug!("Creating node config");
-    let node_config = NodeConfig::new(config.chain_spec);
+    let node_config = NodeConfig::new(config.chain_spec).with_datadir_args(DatadirArgs {
+        datadir: config.datadir.clone().into(),
+        static_files_path: Some(sf_path),
+    });
 
     // Channel to extract the EngineApi or error
     let (handle_tx, handle_rx) = std::sync::mpsc::channel();
