@@ -1002,10 +1002,6 @@ fn launch_reth_and_get_handle_with_config(config: RethConfig) -> Result<RethHand
 
     debug!("Created data directory");
 
-    // Create task manager for Reth
-    let tasks = TaskManager::current();
-
-    debug!("Task manager initialized");
     let db_path = config.datadir.join("db");
     let sf_path = config.datadir.join("static_files");
 
@@ -1062,7 +1058,7 @@ fn launch_reth_and_get_handle_with_config(config: RethConfig) -> Result<RethHand
                         debug!("Extracted engine api  handle");
                     },
                 );
-
+                let tasks = TaskManager::current();
                 let node_builder = NodeBuilder::new(node_config)
                     .with_database(db)
                     .with_launch_context(tasks.executor())
