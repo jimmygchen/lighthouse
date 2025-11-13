@@ -18,7 +18,6 @@ use alloy_rpc_types_engine::{
     ExecutionPayloadEnvelopeV5, ExecutionPayloadSidecar, ExecutionPayloadV3, PraguePayloadFields,
 };
 use core::fmt;
-use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
 use tracing::{debug, error, info, warn};
@@ -32,15 +31,6 @@ use reth_ethereum::pool::EthTransactionPool;
 use reth_ethereum::pool::blobstore::DiskFileBlobStore;
 use reth_ethereum::rpc::EngineApi;
 
-// Use Reth's built-in Ethereum engine types - already properly implemented!
-use crate::http::{
-    ENGINE_FORKCHOICE_UPDATED_V1, ENGINE_FORKCHOICE_UPDATED_V2, ENGINE_FORKCHOICE_UPDATED_V3,
-    ENGINE_GET_BLOBS_V1, ENGINE_GET_BLOBS_V2, ENGINE_GET_CLIENT_VERSION_V1,
-    ENGINE_GET_PAYLOAD_BODIES_BY_HASH_V1, ENGINE_GET_PAYLOAD_BODIES_BY_RANGE_V1,
-    ENGINE_GET_PAYLOAD_V1, ENGINE_GET_PAYLOAD_V2, ENGINE_GET_PAYLOAD_V3, ENGINE_GET_PAYLOAD_V4,
-    ENGINE_GET_PAYLOAD_V5, ENGINE_NEW_PAYLOAD_V1, ENGINE_NEW_PAYLOAD_V2, ENGINE_NEW_PAYLOAD_V3,
-    ENGINE_NEW_PAYLOAD_V4, LIGHTHOUSE_CAPABILITIES,
-};
 use alloy_rpc_types_engine::payload::ExecutionData;
 use eth2::types::BlobsBundle;
 use kzg::{KzgCommitment, KzgProof};
@@ -101,7 +91,7 @@ impl RethEngineApi {
         forkchoice_state: ForkchoiceState,
         maybe_payload_attributes: Option<PayloadAttributes>,
     ) -> Result<ForkchoiceUpdatedResponse, EngineApiError> {
-        let engine_capabilities = self.get_engine_capabilities(None).await?;
+        let engine_capabilities = self.get_engine_capabilities()?;
 
         // Convert Lighthouse ForkchoiceState → Reth ForkchoiceState
         let reth_forkchoice_state = convert_lighthouse_to_reth_forkchoice(forkchoice_state);
@@ -170,50 +160,25 @@ impl RethEngineApi {
     }
 
     /// Get engine capabilities
-    pub async fn get_engine_capabilities(
-        &self,
-        _age_limit: Option<Duration>,
-    ) -> Result<EngineCapabilities, EngineApiError> {
-        let lighthouse_capabilities: Vec<String> = LIGHTHOUSE_CAPABILITIES
-            .iter()
-            .map(|s| s.to_string())
-            .collect();
-
-        let capabilities = self
-            .spawn_reth_task(|reth_handle| async move {
-                reth_handle
-                    .exchange_capabilities(lighthouse_capabilities)
-                    .await
-                    .map_err(|e| {
-                        EngineApiError::EngineApiError(format!(
-                            "failed to spawn capability exchange task: {e:?}"
-                        ))
-                    })
-            })
-            .await?
-            .into_iter()
-            .collect::<HashSet<String>>();
-
+    pub fn get_engine_capabilities(&self) -> Result<EngineCapabilities, EngineApiError> {
         Ok(EngineCapabilities {
-            new_payload_v1: capabilities.contains(ENGINE_NEW_PAYLOAD_V1),
-            new_payload_v2: capabilities.contains(ENGINE_NEW_PAYLOAD_V2),
-            new_payload_v3: capabilities.contains(ENGINE_NEW_PAYLOAD_V3),
-            new_payload_v4: capabilities.contains(ENGINE_NEW_PAYLOAD_V4),
-            forkchoice_updated_v1: capabilities.contains(ENGINE_FORKCHOICE_UPDATED_V1),
-            forkchoice_updated_v2: capabilities.contains(ENGINE_FORKCHOICE_UPDATED_V2),
-            forkchoice_updated_v3: capabilities.contains(ENGINE_FORKCHOICE_UPDATED_V3),
-            get_payload_bodies_by_hash_v1: capabilities
-                .contains(ENGINE_GET_PAYLOAD_BODIES_BY_HASH_V1),
-            get_payload_bodies_by_range_v1: capabilities
-                .contains(ENGINE_GET_PAYLOAD_BODIES_BY_RANGE_V1),
-            get_payload_v1: capabilities.contains(ENGINE_GET_PAYLOAD_V1),
-            get_payload_v2: capabilities.contains(ENGINE_GET_PAYLOAD_V2),
-            get_payload_v3: capabilities.contains(ENGINE_GET_PAYLOAD_V3),
-            get_payload_v4: capabilities.contains(ENGINE_GET_PAYLOAD_V4),
-            get_payload_v5: capabilities.contains(ENGINE_GET_PAYLOAD_V5),
-            get_client_version_v1: capabilities.contains(ENGINE_GET_CLIENT_VERSION_V1),
-            get_blobs_v1: capabilities.contains(ENGINE_GET_BLOBS_V1),
-            get_blobs_v2: capabilities.contains(ENGINE_GET_BLOBS_V2),
+            new_payload_v1: true,
+            new_payload_v2: true,
+            new_payload_v3: true,
+            new_payload_v4: true,
+            forkchoice_updated_v1: true,
+            forkchoice_updated_v2: true,
+            forkchoice_updated_v3: true,
+            get_payload_bodies_by_hash_v1: true,
+            get_payload_bodies_by_range_v1: true,
+            get_payload_v1: true,
+            get_payload_v2: true,
+            get_payload_v3: true,
+            get_payload_v4: true,
+            get_payload_v5: true,
+            get_client_version_v1: true,
+            get_blobs_v1: true,
+            get_blobs_v2: true,
         })
     }
 
@@ -244,7 +209,7 @@ impl RethEngineApi {
         &self,
         new_payload_request: NewPayloadRequest<'_, E>,
     ) -> Result<crate::engine_api::PayloadStatusV1, EngineApiError> {
-        let engine_capabilities = self.get_engine_capabilities(None).await?;
+        let engine_capabilities = self.get_engine_capabilities()?;
 
         // Match on request variant and convert to Alloy types per-variant
         let reth_response = match new_payload_request {
@@ -308,7 +273,7 @@ impl RethEngineApi {
         fork_name: ForkName,
         payload_id: PayloadId,
     ) -> Result<GetPayloadResponse<E>, EngineApiError> {
-        let engine_capabilities = self.get_engine_capabilities(None).await?;
+        let engine_capabilities = self.get_engine_capabilities()?;
         let alloy_payload_id = alloy_rpc_types_engine::PayloadId::new(payload_id);
         match fork_name {
             ForkName::Fulu if engine_capabilities.get_payload_v5 => {
@@ -990,7 +955,7 @@ pub struct RethConfig {
     /// Data directory for Reth database
     pub datadir: std::path::PathBuf,
     /// Chain specification (mainnet, sepolia, holesky, etc.)
-    pub chain_spec: std::sync::Arc<reth_chainspec::ChainSpec>,
+    pub chain_spec: Arc<reth_chainspec::ChainSpec>,
     /// Path to JWT secret file for Engine API authentication
     pub jwt_path: std::path::PathBuf,
 }
