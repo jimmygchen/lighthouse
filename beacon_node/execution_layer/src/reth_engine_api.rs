@@ -9,21 +9,23 @@ use crate::engine_api::{
     PayloadAttributes, PayloadId,
 };
 use crate::engines::ForkchoiceState;
-use crate::json_structures::{BlobAndProofV1, BlobAndProofV2, JsonExecutionRequests};
+use crate::json_structures::{BlobAndProofV1, BlobAndProofV2};
 use crate::{ClientVersionV1, GetPayloadResponseElectra, GetPayloadResponseFulu};
 use alloy_eips::eip7685::Requests;
-use alloy_primitives::B256;
+use alloy_primitives::{B256, Bytes as AlloyBytes, U256};
 use alloy_rpc_types_engine::{
-    CancunPayloadFields, ExecutionPayloadEnvelopeV3, ExecutionPayloadEnvelopeV4,
-    ExecutionPayloadEnvelopeV5, ExecutionPayloadSidecar, ExecutionPayloadV3, PraguePayloadFields,
+    BlobsBundleV1, BlobsBundleV2, CancunPayloadFields, ExecutionPayloadEnvelopeV3,
+    ExecutionPayloadEnvelopeV4, ExecutionPayloadEnvelopeV5, ExecutionPayloadSidecar,
+    ExecutionPayloadV3, PraguePayloadFields,
 };
 use core::fmt;
 use std::sync::Arc;
 use std::time::Duration;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, instrument, warn};
 use types::{
     Blob, EthSpec, ExecutionBlockHash, ExecutionPayloadElectra, ExecutionPayloadFulu,
-    ExecutionRequests, FixedVector, ForkName, Hash256, VariableList,
+    ExecutionRequests, FixedVector, ForkName, Hash256, RequestType, VariableList,
+    execution_requests::{ConsolidationRequests, DepositRequests, WithdrawalRequests},
 };
 
 // Reth imports
@@ -42,6 +44,7 @@ use reth_node_core::args::DatadirArgs;
 use reth_node_ethereum::{
     EthereumAddOns, EthereumEngineValidator, EthereumEngineValidatorBuilder, EthereumNode,
 };
+use ssz::Decode;
 use task_executor::TaskExecutor;
 
 /// Direct Reth Engine API handler - communicates with Reth in-process
@@ -214,7 +217,7 @@ impl RethEngineApi {
         let engine_capabilities = self.get_engine_capabilities()?;
 
         // Match on request variant and convert to Alloy types per-variant
-        let reth_response = match new_payload_request {
+        let execution_payload = match new_payload_request {
             NewPayloadRequest::Electra(payload_request) => {
                 if !engine_capabilities.new_payload_v4 {
                     return Err(EngineApiError::RequiredMethodUnsupported(
@@ -223,18 +226,11 @@ impl RethEngineApi {
                 }
 
                 // Convert payload to Alloy format
-                let execution_payload = convert_lighthouse_to_alloy_payload(
-                    NewPayloadRequest::Electra(payload_request),
-                )
-                .map_err(|e| {
-                    error!("Failed to convert Electra payload: {}", e);
-                    EngineApiError::PayloadIdUnavailable
-                })?;
-
-                self.reth_handle
-                    .new_payload_v4(execution_payload)
-                    .await
-                    .map_err(|e| EngineApiError::EngineApiError(format!("{e:?}")))?
+                convert_lighthouse_to_reth_payload(NewPayloadRequest::Electra(payload_request))
+                    .map_err(|e| {
+                        error!("Failed to convert Electra payload: {}", e);
+                        EngineApiError::PayloadIdUnavailable
+                    })?
             }
             NewPayloadRequest::Fulu(payload_request) => {
                 if !engine_capabilities.new_payload_v4 {
@@ -243,18 +239,11 @@ impl RethEngineApi {
                     ));
                 }
 
-                // Convert payload to Alloy format
-                let execution_payload =
-                    convert_lighthouse_to_alloy_payload(NewPayloadRequest::Fulu(payload_request))
-                        .map_err(|e| {
+                convert_lighthouse_to_reth_payload(NewPayloadRequest::Fulu(payload_request))
+                    .map_err(|e| {
                         error!("Failed to convert Fulu payload: {}", e);
                         EngineApiError::PayloadIdUnavailable
-                    })?;
-
-                self.reth_handle
-                    .new_payload_v4(execution_payload)
-                    .await
-                    .map_err(|e| EngineApiError::EngineApiError(format!("{e:?}")))?
+                    })?
             }
             NewPayloadRequest::Bellatrix(_)
             | NewPayloadRequest::Capella(_)
@@ -265,6 +254,15 @@ impl RethEngineApi {
                 ));
             }
         };
+
+        let reth_response = self
+            .spawn_reth_task(move |reth_handle| async move {
+                reth_handle
+                    .new_payload_v4(execution_payload)
+                    .await
+                    .map_err(|e| EngineApiError::EngineApiError(format!("{e:?}")))
+            })
+            .await?;
 
         reth_to_lighthouse_payload_status(reth_response)
     }
@@ -294,26 +292,13 @@ impl RethEngineApi {
                     })
                     .await?;
 
-                let execution_payload =
-                    reth_to_lighthouse_execution_payload_fulu(execution_payload)?;
-
-                let requests = JsonExecutionRequests(
-                    execution_requests
-                        .iter()
-                        .map(|b| format!("{:#x}", b))
-                        .collect::<Vec<String>>(),
-                );
-                let requests = ExecutionRequests::try_from(requests)
-                    .map_err(|e| EngineApiError::BadResponse(format!("{e:?}")))?;
-                let blobs_bundle = reth_to_lighthouse_blobs_bundle_v2(blobs_bundle)?;
-
-                Ok(GetPayloadResponse::Fulu(GetPayloadResponseFulu {
+                convert_get_payload_v5_response(
                     execution_payload,
                     block_value,
                     blobs_bundle,
                     should_override_builder,
-                    requests,
-                }))
+                    execution_requests,
+                )?
             }
             ForkName::Electra if engine_capabilities.get_payload_v4 => {
                 let envelope_v4 = self
@@ -336,25 +321,13 @@ impl RethEngineApi {
                     should_override_builder,
                 } = envelope_v3;
 
-                let execution_payload =
-                    reth_to_lighthouse_execution_payload_electra(execution_payload)?;
-                let requests = JsonExecutionRequests(
-                    execution_requests
-                        .into_iter()
-                        .map(|b| format!("{:#x}", b))
-                        .collect::<Vec<String>>(),
-                );
-                let requests = ExecutionRequests::try_from(requests)
-                    .map_err(|e| EngineApiError::BadResponse(format!("{e:?}")))?;
-                let blobs_bundle = reth_to_lighthouse_blobs_bundle_v1(blobs_bundle)?;
-
-                Ok(GetPayloadResponse::Electra(GetPayloadResponseElectra {
+                convert_get_payload_v4_response(
+                    execution_requests,
                     execution_payload,
                     block_value,
                     blobs_bundle,
                     should_override_builder,
-                    requests,
-                }))
+                )?
             }
             _ => Err(Error::UnsupportedForkVariant(format!(
                 "called get_payload with {}",
@@ -591,7 +564,8 @@ fn convert_withdrawal(lh: types::Withdrawal) -> alloy_eips::eip4895::Withdrawal 
 }
 
 /// Convert Lighthouse ExecutionPayload → Alloy ExecutionPayload for new_payload
-fn convert_lighthouse_to_alloy_payload<E: EthSpec>(
+#[instrument(level = "debug", skip_all)]
+fn convert_lighthouse_to_reth_payload<E: EthSpec>(
     request: NewPayloadRequest<'_, E>,
 ) -> Result<ExecutionData, String> {
     use alloy_primitives::{Address as AlloyAddress, B256, Bloom, Bytes, U256};
@@ -628,7 +602,8 @@ fn convert_lighthouse_to_alloy_payload<E: EthSpec>(
                     withdrawals: payload
                         .withdrawals
                         .iter()
-                        .map(|w| convert_withdrawal(w.clone()))
+                        .cloned()
+                        .map(convert_withdrawal)
                         .collect(),
                 },
                 blob_gas_used: payload.blob_gas_used,
@@ -685,7 +660,8 @@ fn convert_lighthouse_to_alloy_payload<E: EthSpec>(
                     withdrawals: payload
                         .withdrawals
                         .iter()
-                        .map(|w| convert_withdrawal(w.clone()))
+                        .cloned()
+                        .map(convert_withdrawal)
                         .collect(),
                 },
                 blob_gas_used: payload.blob_gas_used,
@@ -777,6 +753,48 @@ fn reth_to_lighthouse_forkchoice_response(
         payload_status,
         payload_id: reth.payload_id.map(|id| id.0.into()),
     })
+}
+
+#[instrument(level = "debug", skip_all)]
+fn convert_get_payload_v4_response<E: EthSpec>(
+    execution_requests: Requests,
+    execution_payload: ExecutionPayloadV3,
+    block_value: U256,
+    blobs_bundle: BlobsBundleV1,
+    should_override_builder: bool,
+) -> Result<Result<GetPayloadResponse<E>, Error>, Error> {
+    let execution_payload = reth_to_lighthouse_execution_payload_electra(execution_payload)?;
+    let requests = reth_lighthouse_execution_requests(execution_requests.to_vec())?;
+    let blobs_bundle = reth_to_lighthouse_blobs_bundle_v1(blobs_bundle)?;
+
+    Ok(Ok(GetPayloadResponse::Electra(GetPayloadResponseElectra {
+        execution_payload,
+        block_value,
+        blobs_bundle,
+        should_override_builder,
+        requests,
+    })))
+}
+
+#[instrument(level = "debug", skip_all)]
+fn convert_get_payload_v5_response<E: EthSpec>(
+    execution_payload: ExecutionPayloadV3,
+    block_value: U256,
+    blobs_bundle: BlobsBundleV2,
+    should_override_builder: bool,
+    execution_requests: Requests,
+) -> Result<Result<GetPayloadResponse<E>, Error>, Error> {
+    let execution_payload = reth_to_lighthouse_execution_payload_fulu(execution_payload)?;
+    let requests = reth_lighthouse_execution_requests(execution_requests.to_vec())?;
+    let blobs_bundle = reth_to_lighthouse_blobs_bundle_v2(blobs_bundle)?;
+
+    Ok(Ok(GetPayloadResponse::Fulu(GetPayloadResponseFulu {
+        execution_payload,
+        block_value,
+        blobs_bundle,
+        should_override_builder,
+        requests,
+    })))
 }
 
 fn reth_to_lighthouse_execution_payload_fulu<E: EthSpec>(
@@ -945,6 +963,68 @@ fn reth_to_lighthouse_blobs_bundle_v2<E: EthSpec>(
             .try_into()
             .map_err(|e| EngineApiError::BadResponse(format!("Invalid blobs: {e:?}")))?,
     })
+}
+
+/// Convert Alloy execution requests directly to Lighthouse ExecutionRequests
+/// This is much faster than converting to hex strings and back
+fn reth_lighthouse_execution_requests<E: EthSpec>(
+    alloy_requests: Vec<AlloyBytes>,
+) -> Result<ExecutionRequests<E>, EngineApiError> {
+    let mut requests = ExecutionRequests::default();
+    let mut prev_prefix: Option<RequestType> = None;
+
+    for (i, request) in alloy_requests.into_iter().enumerate() {
+        let request_bytes = request.as_ref();
+
+        // The first byte is the request_type, remaining bytes are request_data
+        let Some((prefix_byte, request_data)) = request_bytes.split_first() else {
+            return Err(EngineApiError::BadResponse(format!(
+                "Empty request at index {i}"
+            )));
+        };
+
+        if request_data.is_empty() {
+            return Err(EngineApiError::BadResponse(format!(
+                "Empty request data at index {i}"
+            )));
+        }
+
+        // Validate ordering (must be ascending)
+        let current_prefix = RequestType::from_u8(*prefix_byte).ok_or_else(|| {
+            EngineApiError::BadResponse(format!("Invalid request prefix: {prefix_byte}"))
+        })?;
+
+        if let Some(prev) = prev_prefix
+            && prev.to_u8() >= current_prefix.to_u8()
+        {
+            return Err(EngineApiError::BadResponse(
+                "Requests not in ascending order".to_string(),
+            ));
+        }
+        prev_prefix = Some(current_prefix);
+
+        // Decode SSZ based on request type
+        match current_prefix {
+            RequestType::Deposit => {
+                requests.deposits = DepositRequests::<E>::from_ssz_bytes(request_data)
+                    .map_err(|e| EngineApiError::BadResponse(format!("Invalid deposits: {e:?}")))?;
+            }
+            RequestType::Withdrawal => {
+                requests.withdrawals = WithdrawalRequests::<E>::from_ssz_bytes(request_data)
+                    .map_err(|e| {
+                        EngineApiError::BadResponse(format!("Invalid withdrawals: {e:?}"))
+                    })?;
+            }
+            RequestType::Consolidation => {
+                requests.consolidations = ConsolidationRequests::<E>::from_ssz_bytes(request_data)
+                    .map_err(|e| {
+                        EngineApiError::BadResponse(format!("Invalid consolidations: {e:?}"))
+                    })?;
+            }
+        }
+    }
+
+    Ok(requests)
 }
 
 // ============================================================================
