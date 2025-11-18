@@ -96,3 +96,7 @@ zeroize = { workspace = true }
 [[test]]
 name = "lighthouse_tests"
 path = "tests/main.rs"
+
+[[bin]]
+name = "fullhouse"
+path = "src/main.rs"

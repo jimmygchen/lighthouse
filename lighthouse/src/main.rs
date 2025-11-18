@@ -418,7 +418,14 @@ fn main() {
 
     let cli = LighthouseSubcommands::augment_subcommands(cli);
 
-    let matches = cli.get_matches();
+    // [Fullhouse]: defaults to `beacon_node`
+    let mut args = std::env::args().collect::<Vec<_>>();
+    let matches = if args.len() == 1 {
+        args.push("beacon_node".to_string());
+        cli.get_matches_from(args)
+    } else {
+        cli.get_matches()
+    };
 
     // Configure the allocator early in the process, before it has the chance to use the default values for
     // anything important.
