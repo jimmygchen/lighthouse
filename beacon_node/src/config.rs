@@ -503,13 +503,14 @@ pub fn get_config<E: EthSpec>(
     let genesis_state_url_opt =
         clap_utils::parse_optional::<String>(cli_args, "genesis-state-url")?;
     let checkpoint_sync_url_opt =
-        clap_utils::parse_optional::<String>(cli_args, "checkpoint-sync-url")?;
+        clap_utils::parse_optional::<String>(cli_args, "checkpoint-sync-url")?
+            .or_else(|| get_default_checkpoint_sync_url(spec.config_name.clone()));
 
     // If the `--genesis-state-url` is defined, use that to download the
     // genesis state bytes. If it's not defined, try `--checkpoint-sync-url`.
     client_config.genesis_state_url = if let Some(genesis_state_url) = genesis_state_url_opt {
         Some(genesis_state_url)
-    } else if let Some(checkpoint_sync_url) = checkpoint_sync_url_opt {
+    } else if let Some(checkpoint_sync_url) = checkpoint_sync_url_opt.clone() {
         // If the checkpoint sync URL is going to be used to download the
         // genesis state, adopt the timeout from the checkpoint sync URL too.
         client_config.genesis_state_url_timeout =
@@ -549,10 +550,9 @@ pub fn get_config<E: EthSpec>(
                 anchor_block_bytes,
                 anchor_blobs_bytes,
             }
-        } else if let Some(remote_bn_url) = cli_args.get_one::<String>("checkpoint-sync-url") {
-            let url = SensitiveUrl::parse(remote_bn_url)
+        } else if let Some(remote_bn_url) = checkpoint_sync_url_opt {
+            let url = SensitiveUrl::parse(&remote_bn_url)
                 .map_err(|e| format!("Invalid checkpoint sync URL: {:?}", e))?;
-
             ClientGenesis::CheckpointSyncUrl { url }
         } else {
             ClientGenesis::GenesisState
@@ -903,6 +903,14 @@ pub fn get_config<E: EthSpec>(
     }
 
     Ok(client_config)
+}
+
+fn get_default_checkpoint_sync_url(network_opt: Option<String>) -> Option<String> {
+    match network_opt?.as_str() {
+        "mainnet" => Some("https://checkpoint.sigp.io".to_string()),
+        "hoodi" => Some("https://hoodi.checkpoint.sigp.io".to_string()),
+        _ => None,
+    }
 }
 
 /// Gets the listening_addresses for lighthouse based on the cli options.
