@@ -1,4 +1,4 @@
-FROM rust:1.88.0-bullseye AS builder
+FROM rust:1.91.1-bullseye AS builder
 RUN apt-get update && apt-get -y upgrade && apt-get install -y cmake libclang-dev
 COPY . lighthouse
 ARG FEATURES
@@ -15,4 +15,6 @@ RUN apt-get update && apt-get -y upgrade && apt-get install -y --no-install-reco
   ca-certificates \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
-COPY --from=builder /usr/local/cargo/bin/lighthouse /usr/local/bin/lighthouse
+COPY --from=builder /usr/local/cargo/bin/fullhouse /usr/local/bin/fullhouse
+ENTRYPOINT ["fullhouse"]
+
