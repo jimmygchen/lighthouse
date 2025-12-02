@@ -10,6 +10,8 @@ use types::{
     SyncCommitteeMessage, SyncSelectionProof, SyncSubnetId, ValidatorRegistrationData,
 };
 
+pub mod mock;
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum Error<T> {
     DoppelgangerProtected(PublicKeyBytes),

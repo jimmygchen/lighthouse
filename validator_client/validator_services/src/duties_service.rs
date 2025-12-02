@@ -233,7 +233,7 @@ impl DutyAndProof {
 }
 
 impl SubscriptionSlots {
-    fn new(duty_slot: Slot, current_slot: Slot) -> Arc<Self> {
+    pub(crate) fn new(duty_slot: Slot, current_slot: Slot) -> Arc<Self> {
         let slots = ATTESTATION_SUBSCRIPTION_OFFSETS
             .into_iter()
             .filter_map(|offset| duty_slot.safe_sub(offset).ok())

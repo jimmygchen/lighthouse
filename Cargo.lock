@@ -9881,13 +9881,16 @@ dependencies = [
  "types",
  "validator_metrics",
  "validator_store",
+ "validator_test_rig",
 ]
 
 [[package]]
 name = "validator_store"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "eth2",
+ "mockall",
  "slashing_protection",
  "types",
 ]

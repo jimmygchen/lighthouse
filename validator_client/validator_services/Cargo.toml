@@ -22,3 +22,6 @@ tree_hash = { workspace = true }
 types = { workspace = true }
 validator_metrics = { workspace = true }
 validator_store = { workspace = true }
+
+[dev-dependencies]
+validator_test_rig = { workspace = true }

@@ -738,8 +738,96 @@ impl<S: ValidatorStore + 'static, T: SlotClock + 'static> AttestationService<S, 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::duties_service::{DutiesServiceBuilder, SubscriptionSlots};
+    use bls::PublicKeyBytes;
+    use eth2::types::AttesterData;
     use futures::future::FutureExt;
     use parking_lot::RwLock;
+    use slot_clock::TestingSlotClock;
+    use task_executor::test_utils::TestRuntime;
+    use types::{Checkpoint, Epoch, Hash256, MinimalEthSpec};
+    use validator_store::mock::MockValidatorStore;
+    use validator_test_rig::mock_beacon_node::MockBeaconNode;
+
+    type E = MinimalEthSpec;
+
+    /// Test rig for setting up attestation service tests
+    pub struct AttestationServiceTestRig {
+        pub mock_beacon_node: MockBeaconNode<E>,
+        pub attestation_service: AttestationService<MockValidatorStore<E>, TestingSlotClock>,
+    }
+
+    impl AttestationServiceTestRig {
+        /// Create a new test rig with fully initialized attestation service
+        async fn new(slot: Slot) -> Self {
+            use beacon_node_fallback::{CandidateBeaconNode, Config as BnConfig};
+
+            let test_runtime = TestRuntime::default();
+            let spec = Arc::new(E::default_spec());
+            let slot_clock = TestingSlotClock::new(
+                slot,
+                Duration::ZERO,
+                Duration::from_secs(spec.seconds_per_slot),
+            );
+
+            // Setup mock validator store with expectations
+            let mut mock_validator_store = MockValidatorStore::default();
+            mock_validator_store
+                .inner
+                .expect_sign_attestation()
+                .returning(|_, _, _, _| Ok(()));
+            mock_validator_store
+                .inner
+                .expect_prune_slashing_protection_db()
+                .returning(|_, _| ());
+
+            let validator_store = Arc::new(mock_validator_store);
+
+            // Setup mock beacon node
+            let mut mock_beacon_node = MockBeaconNode::<E>::new().await;
+            mock_beacon_node.mock_config_spec(&spec);
+
+            let beacon_node =
+                CandidateBeaconNode::new(mock_beacon_node.beacon_api_client.clone(), 0);
+
+            let mut beacon_nodes = BeaconNodeFallback::new(
+                vec![beacon_node],
+                BnConfig::default(),
+                vec![],
+                spec.clone(),
+            );
+            beacon_nodes.set_slot_clock(slot_clock.clone());
+            let beacon_nodes = Arc::new(beacon_nodes);
+
+            // Build duties service
+            let duties_service = Arc::new(
+                DutiesServiceBuilder::new()
+                    .validator_store(validator_store.clone())
+                    .slot_clock(slot_clock.clone())
+                    .beacon_nodes(beacon_nodes.clone())
+                    .executor(test_runtime.task_executor.clone())
+                    .spec(spec.clone())
+                    .build()
+                    .expect("should build duties service"),
+            );
+
+            // Build attestation service
+            let attestation_service = AttestationServiceBuilder::new()
+                .duties_service(duties_service)
+                .validator_store(validator_store)
+                .slot_clock(slot_clock)
+                .beacon_nodes(beacon_nodes)
+                .executor(test_runtime.task_executor.clone())
+                .chain_spec(spec)
+                .build()
+                .expect("should build attestation service");
+
+            Self {
+                mock_beacon_node,
+                attestation_service,
+            }
+        }
+    }
 
     /// This test is to ensure that a `tokio_timer::Sleep` with an instant in the past will still
     /// trigger.
@@ -756,6 +844,65 @@ mod tests {
         assert!(
             *state_2.read() > in_the_past,
             "state should have been updated"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_produce_and_publish_attestations_fetches_attestation_data() {
+        let slot = Slot::new(10);
+        let committee_index = 0;
+
+        // GIVEN an attestation service with mocked beacon node returning attestation data
+        let mut rig = AttestationServiceTestRig::new(slot).await;
+
+        let expected_attestation_data = AttestationData {
+            slot,
+            index: committee_index,
+            beacon_block_root: Hash256::repeat_byte(0x42),
+            source: Checkpoint {
+                epoch: Epoch::new(0),
+                root: Hash256::repeat_byte(0x01),
+            },
+            target: Checkpoint {
+                epoch: Epoch::new(0),
+                root: Hash256::repeat_byte(0x02),
+            },
+        };
+
+        rig.mock_beacon_node.mock_get_validator_attestation_data(
+            slot,
+            committee_index,
+            expected_attestation_data.clone(),
+        );
+        rig.mock_beacon_node
+            .mock_post_validator_attestation(Duration::from_secs(0));
+
+        let validator_duties = vec![DutyAndProof {
+            duty: AttesterData {
+                pubkey: PublicKeyBytes::empty(),
+                validator_index: 0,
+                committees_at_slot: 1,
+                committee_index,
+                committee_length: 128,
+                validator_committee_index: 0,
+                slot,
+            },
+            selection_proof: None,
+            subscription_slots: SubscriptionSlots::new(slot, slot),
+        }];
+
+        // WHEN producing attestations with valid duties
+        let result = rig
+            .attestation_service
+            .produce_and_publish_attestations(slot, committee_index, &validator_duties)
+            .await;
+
+        // THEN it should successfully fetch attestation data and sign attestations
+        assert!(result.is_ok(), "should successfully produce attestations");
+        assert_eq!(
+            result.unwrap(),
+            Some(expected_attestation_data),
+            "should return the attestation data"
         );
     }
 }

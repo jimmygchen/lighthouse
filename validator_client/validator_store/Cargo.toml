@@ -8,3 +8,5 @@ authors = ["Sigma Prime <contact@sigmaprime.io>"]
 eth2 = { workspace = true }
 slashing_protection = { workspace = true }
 types = { workspace = true }
+mockall = { workspace = true }
+async-trait = "0.1"

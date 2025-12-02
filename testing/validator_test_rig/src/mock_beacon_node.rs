@@ -123,4 +123,47 @@ impl<E: EthSpec> MockBeaconNode<E> {
             )
             .create()
     }
+
+    pub fn mock_get_validator_attestation_data<T: Into<u64>>(
+        &mut self,
+        slot: types::Slot,
+        committee_index: T,
+        attestation_data: types::AttestationData,
+    ) {
+        let committee_index_u64 = committee_index.into();
+        let slot_u64 = slot.as_u64();
+        let path_pattern = Regex::new(&format!(
+            r"^/eth/v1/validator/attestation_data\?slot={}&committee_index={}$",
+            slot_u64, committee_index_u64
+        ))
+        .unwrap();
+
+        let data = GenericResponse::from(attestation_data);
+
+        self.server
+            .mock("GET", Matcher::Regex(path_pattern.to_string()))
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(serde_json::to_string(&data).unwrap())
+            .create();
+    }
+
+    pub fn mock_post_validator_attestation(&mut self, delay: Duration) -> Mock {
+        let path_pattern = Regex::new(r"^/eth/v1/beacon/pool/attestations$").unwrap();
+        let url = self.server.url();
+
+        self.server
+            .mock("POST", Matcher::Regex(path_pattern.to_string()))
+            .with_status(200)
+            .with_body_from_request(move |_request| {
+                info!(
+                    "Received attestation submission on server {} with delay {} s",
+                    url,
+                    delay.as_secs(),
+                );
+                std::thread::sleep(delay);
+                vec![]
+            })
+            .create()
+    }
 }

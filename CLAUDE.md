@@ -322,6 +322,111 @@ async fn process_block(&self, block: Block) -> Result<(), Error> {
 }
 ```
 
+### Test Structure and Organization
+
+**Use GIVEN/WHEN/THEN structure** for clarity:
+
+```rust
+#[tokio::test]
+async fn test_example() {
+    // GIVEN setup and preconditions
+    let rig = TestRig::new().await;
+
+    // WHEN executing the operation being tested
+    let result = rig.service.do_something().await;
+
+    // THEN verify the outcome
+    assert!(result.is_ok());
+}
+```
+
+**Create Test Rigs for complex dependencies:**
+
+```rust
+// ✅ Encapsulate all test dependencies in a test rig
+struct MyServiceTestRig {
+    pub mock_beacon_node: MockBeaconNode<E>,
+    pub service: MyService<MockValidatorStore<E>, TestingSlotClock>,
+}
+
+impl MyServiceTestRig {
+    async fn new(slot: Slot) -> Self {
+        // Initialize all dependencies
+        // Set up default mock expectations here
+        let mut mock_validator_store = MockValidatorStore::default();
+        mock_validator_store
+            .expect_common_method()
+            .returning(|_| Ok(()));
+
+        // Build and return the rig with service ready
+        Self {
+            mock_beacon_node,
+            service,
+        }
+    }
+}
+
+// Test is clean and focused
+#[tokio::test]
+async fn test_with_rig() {
+    let mut rig = MyServiceTestRig::new(Slot::new(10)).await;
+
+    // GIVEN - set test-specific expectations
+    rig.mock_beacon_node.mock_some_endpoint(...);
+
+    // WHEN - test the behavior
+    let result = rig.service.do_something().await;
+
+    // THEN - verify
+    assert!(result.is_ok());
+}
+```
+
+**Mocking patterns:**
+
+- Use `mockall` for sync trait methods with `#[automock]` or `mock!` macro
+- For traits with `impl Future` return types, use `mock!` for sync methods and manually implement async methods
+- Use `validator_test_rig::mock_beacon_node::MockBeaconNode` for mocking beacon node HTTP endpoints (uses mockito internally)
+- Move prerequisite mock expectations into test rig setup, keep test-specific expectations in tests
+
+```rust
+// ❌ Avoid - mixing setup with test logic
+#[tokio::test]
+async fn test_bad() {
+    let mut mock = MockValidatorStore::new();
+    mock.expect_prerequisite().returning(|| Ok(()));  // Common to all tests
+    mock.expect_test_specific().returning(|| Ok(())); // Specific to this test
+    // ... rest of test
+}
+
+// ✅ Preferred - prerequisites in rig, specifics in test
+struct TestRig {
+    pub mock: MockValidatorStore<E>,
+}
+
+impl TestRig {
+    fn new() -> Self {
+        let mut mock = MockValidatorStore::default();
+        // Set prerequisites here
+        mock.expect_prerequisite().returning(|| Ok(()));
+        Self { mock }
+    }
+}
+
+#[tokio::test]
+async fn test_good() {
+    let mut rig = TestRig::new();
+    // Only test-specific expectations here
+    rig.mock.expect_test_specific().returning(|| Ok(()));
+    // ... rest of test
+}
+```
+
+**Avoid confusing patterns:**
+- Don't create test rigs with `.build()` methods that return `Self` - do all initialization in `::new()`
+- Don't expose `.service()` getters - make the service a public field
+- Keep test rigs simple: they're not builders, just convenient containers
+
 ## Build and Development Notes
 
 - Full builds and tests take 5+ minutes - use large timeouts (300s+) for any `cargo build`, `cargo nextest`, or `make` commands
