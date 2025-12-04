@@ -2195,7 +2195,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         })
     }
 
-    #[instrument(skip_all, level = "trace")]
+    #[instrument(skip_all, level = "debug")]
     pub fn verify_data_column_sidecar_for_gossip(
         self: &Arc<Self>,
         data_column_sidecar: Arc<DataColumnSidecar<T::EthSpec>>,
