@@ -29,6 +29,7 @@ impl<E: EthSpec> IndexedPayloadAttestation<E> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::MainnetEthSpec;
 
     ssz_and_tree_hash_tests!(IndexedPayloadAttestation<MainnetEthSpec>);
 }

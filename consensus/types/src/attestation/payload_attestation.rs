@@ -24,6 +24,7 @@ pub struct PayloadAttestation<E: EthSpec> {
 #[cfg(test)]
 mod payload_attestation_tests {
     use super::*;
+    use crate::MainnetEthSpec;
 
     ssz_and_tree_hash_tests!(PayloadAttestation<MinimalEthSpec>);
 }
