@@ -54,18 +54,19 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         &self,
         epoch: Epoch,
         historical_data_column_sidecar_list: DataColumnSidecarList<T::EthSpec>,
+        expected_cgc: u64,
     ) -> Result<usize, HistoricalDataColumnError> {
         let mut total_imported = 0;
         let mut ops = vec![];
 
         let unique_column_indices = historical_data_column_sidecar_list
             .iter()
-            .map(|item| item.index)
+            .map(|item| *item.index())
             .collect::<HashSet<_>>();
 
         let mut slot_and_column_index_to_data_columns = historical_data_column_sidecar_list
             .iter()
-            .map(|data_column| ((data_column.slot(), data_column.index), data_column))
+            .map(|data_column| ((data_column.slot(), *data_column.index()), data_column))
             .collect::<HashMap<_, _>>();
 
         let forward_blocks_iter = self
@@ -79,20 +80,16 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             let (block_root, slot) = block_iter_result
                 .map_err(|e| HistoricalDataColumnError::BeaconChainError(Box::new(e)))?;
 
+            let fork_name = self.spec.fork_name_at_slot::<T::EthSpec>(slot);
             for column_index in unique_column_indices.clone() {
                 if let Some(data_column) =
                     slot_and_column_index_to_data_columns.remove(&(slot, column_index))
                 {
                     if self
                         .store
-                        .get_data_column(&block_root, &data_column.index)?
+                        .get_data_column(&block_root, data_column.index(), fork_name)?
                         .is_some()
                     {
-                        debug!(
-                            block_root = ?block_root,
-                            column_index = data_column.index,
-                            "Skipping data column import as identical data column exists"
-                        );
                         continue;
                     }
                     if block_root != data_column.block_root() {
@@ -136,7 +133,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
 
         self.data_availability_checker
             .custody_context()
-            .update_and_backfill_custody_count_at_epoch(epoch);
+            .update_and_backfill_custody_count_at_epoch(epoch, expected_cgc);
 
         self.safely_backfill_data_column_custody_info(epoch)
             .map_err(|e| HistoricalDataColumnError::BeaconChainError(Box::new(e)))?;

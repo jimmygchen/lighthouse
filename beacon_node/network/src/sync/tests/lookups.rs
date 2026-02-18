@@ -20,6 +20,7 @@ use beacon_chain::{
     PayloadVerificationOutcome, PayloadVerificationStatus,
     blob_verification::GossipVerifiedBlob,
     block_verification_types::{AsBlock, BlockImportData},
+    custody_context::NodeCustodyType,
     data_availability_checker::Availability,
     test_utils::{
         BeaconChainHarness, EphemeralHarnessType, NumBlobs, generate_rand_block_and_blobs,
@@ -45,7 +46,7 @@ use types::{
     BeaconState, BeaconStateBase, BlobSidecar, BlockImportSource, DataColumnSidecar,
     DataColumnSubnetId, EthSpec, ForkContext, ForkName, Hash256, MinimalEthSpec as E,
     SignedBeaconBlock, Slot,
-    data_column_sidecar::ColumnIndex,
+    data::ColumnIndex,
     test_utils::{SeedableRng, TestRandom, XorShiftRng},
 };
 
@@ -56,6 +57,10 @@ type DCByRootId = (SyncRequestId, Vec<ColumnIndex>);
 
 impl TestRig {
     pub fn test_setup() -> Self {
+        Self::test_setup_with_custody_type(NodeCustodyType::Fullnode)
+    }
+
+    pub fn test_setup_with_custody_type(node_custody_type: NodeCustodyType) -> Self {
         // Use `fork_from_env` logic to set correct fork epochs
         let spec = test_spec::<E>();
 
@@ -70,6 +75,7 @@ impl TestRig {
                 Duration::from_secs(0),
                 Duration::from_secs(12),
             ))
+            .node_custody_type(node_custody_type)
             .build();
 
         let chain = harness.chain.clone();
@@ -103,8 +109,6 @@ impl TestRig {
             .network_globals
             .set_sync_state(SyncState::Synced);
 
-        let spec = chain.spec.clone();
-
         // deterministic seed
         let rng_08 = <rand_chacha_03::ChaCha20Rng as rand_08::SeedableRng>::from_seed([0u8; 32]);
         let rng = ChaCha20Rng::from_seed([0u8; 32]);
@@ -130,7 +134,6 @@ impl TestRig {
             ),
             harness,
             fork_name,
-            spec,
         }
     }
 
@@ -196,7 +199,7 @@ impl TestRig {
     ) -> (SignedBeaconBlock<E>, Vec<BlobSidecar<E>>) {
         let fork_name = self.fork_name;
         let rng = &mut self.rng;
-        generate_rand_block_and_blobs::<E>(fork_name, num_blobs, rng, &self.spec)
+        generate_rand_block_and_blobs::<E>(fork_name, num_blobs, rng)
     }
 
     fn rand_block_and_data_columns(
@@ -1173,10 +1176,8 @@ impl TestRig {
 
 #[test]
 fn stable_rng() {
-    let spec = types::MainnetEthSpec::default_spec();
     let mut rng = XorShiftRng::from_seed([42; 16]);
-    let (block, _) =
-        generate_rand_block_and_blobs::<E>(ForkName::Base, NumBlobs::None, &mut rng, &spec);
+    let (block, _) = generate_rand_block_and_blobs::<E>(ForkName::Base, NumBlobs::None, &mut rng);
     assert_eq!(
         block.canonical_root(),
         Hash256::from_slice(
@@ -1959,7 +1960,6 @@ mod deneb_only {
         data_availability_checker::AvailabilityCheckError,
     };
     use std::collections::VecDeque;
-    use types::RuntimeVariableList;
 
     struct DenebTester {
         rig: TestRig,
@@ -2312,15 +2312,13 @@ mod deneb_only {
         fn parent_block_unknown_parent(mut self) -> Self {
             self.rig.log("parent_block_unknown_parent");
             let block = self.unknown_parent_block.take().unwrap();
-            let max_len = self.rig.spec.max_blobs_per_block(block.epoch()) as usize;
             // Now this block is the one we expect requests from
             self.block = block.clone();
             let block = RpcBlock::new(
-                Some(block.canonical_root()),
                 block,
-                self.unknown_parent_blobs
-                    .take()
-                    .map(|vec| RuntimeVariableList::new(vec, max_len).unwrap()),
+                None,
+                &self.rig.harness.chain.data_availability_checker,
+                self.rig.harness.chain.spec.clone(),
             )
             .unwrap();
             self.rig.parent_block_processed(

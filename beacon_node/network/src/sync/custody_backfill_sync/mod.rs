@@ -10,7 +10,6 @@ use lighthouse_network::{
     service::api_types::{CustodyBackFillBatchRequestId, CustodyBackfillBatchId},
     types::CustodyBackFillState,
 };
-use lighthouse_tracing::SPAN_CUSTODY_BACKFILL_SYNC_BATCH_REQUEST;
 use logging::crit;
 use std::hash::{DefaultHasher, Hash, Hasher};
 use tracing::{debug, error, info, info_span, warn};
@@ -382,11 +381,9 @@ impl<T: BeaconChainTypes> CustodyBackFillSync<T> {
             return None;
         };
 
-        let mut missing_columns = HashSet::new();
-
         // Skip all batches (Epochs) that don't have missing columns.
         for epoch in Epoch::range_inclusive_rev(self.to_be_downloaded, column_da_boundary) {
-            missing_columns = self.beacon_chain.get_missing_columns_for_epoch(epoch);
+            let missing_columns = self.beacon_chain.get_missing_columns_for_epoch(epoch);
 
             if !missing_columns.is_empty() {
                 self.to_be_downloaded = epoch;
@@ -445,6 +442,7 @@ impl<T: BeaconChainTypes> CustodyBackFillSync<T> {
                 self.include_next_batch()
             }
             Entry::Vacant(entry) => {
+                let missing_columns = self.beacon_chain.get_missing_columns_for_epoch(batch_id);
                 entry.insert(BatchInfo::new(
                     &batch_id,
                     CUSTODY_BACKFILL_EPOCHS_PER_BATCH,
@@ -504,6 +502,7 @@ impl<T: BeaconChainTypes> CustodyBackFillSync<T> {
                 run_id: self.run_id,
             },
             data_columns,
+            self.cgc,
         ) {
             crit!(
                 msg = "process_batch",
@@ -1004,7 +1003,7 @@ impl<T: BeaconChainTypes> CustodyBackFillSync<T> {
         network: &mut SyncNetworkContext<T>,
         batch_id: BatchId,
     ) -> Result<(), CustodyBackfillError> {
-        let span = info_span!(SPAN_CUSTODY_BACKFILL_SYNC_BATCH_REQUEST);
+        let span = info_span!("lh_custody_backfill_sync_batch_request");
         let _enter = span.enter();
 
         if let Some(batch) = self.batches.get_mut(&batch_id) {
