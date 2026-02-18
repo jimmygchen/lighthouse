@@ -683,7 +683,7 @@ fn finalized_sync_not_enough_custody_peers_resume_after_peer_cgc_update() {
     }
 
     // WHEN: peer 1 sends its CGC via metadata response
-    let all_custody_subnets = (0..r.spec.data_column_sidecar_subnet_count)
+    let all_custody_subnets = (0..r.harness.spec.data_column_sidecar_subnet_count)
         .map(|i| i.into())
         .collect::<HashSet<_>>();
     r.send_peer_cgc_update_to_sync(&peer_1, all_custody_subnets.clone());
