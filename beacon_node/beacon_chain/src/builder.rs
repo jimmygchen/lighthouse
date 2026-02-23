@@ -4,11 +4,12 @@ use crate::beacon_chain::{
     BEACON_CHAIN_DB_KEY, CanonicalHead, LightClientProducerEvent, OP_POOL_DB_KEY,
 };
 use crate::beacon_proposer_cache::BeaconProposerCache;
+use crate::custody_context::NodeCustodyType;
 use crate::data_availability_checker::DataAvailabilityChecker;
 use crate::fork_choice_signal::ForkChoiceSignalTx;
 use crate::fork_revert::{reset_fork_choice_to_finalization, revert_to_fork_boundary};
 use crate::graffiti_calculator::{GraffitiCalculator, GraffitiOrigin};
-use crate::kzg_utils::build_data_column_sidecars;
+use crate::kzg_utils::{build_data_column_sidecars_fulu, build_data_column_sidecars_gloas};
 use crate::light_client_server_cache::LightClientServerCache;
 use crate::migrate::{BackgroundMigrator, MigratorConfig};
 use crate::observed_data_sidecars::ObservedDataSidecars;
@@ -20,7 +21,9 @@ use crate::validator_pubkey_cache::ValidatorPubkeyCache;
 use crate::{
     BeaconChain, BeaconChainTypes, BeaconForkChoiceStore, BeaconSnapshot, ServerSentEventHandler,
 };
+use bls::Signature;
 use execution_layer::ExecutionLayer;
+use fixed_bytes::FixedBytesExtended;
 use fork_choice::{ForkChoice, ResetPayloadStatuses};
 use futures::channel::mpsc::Sender;
 use kzg::Kzg;
@@ -38,10 +41,12 @@ use std::sync::Arc;
 use std::time::Duration;
 use store::{Error as StoreError, HotColdDB, ItemStore, KeyValueStoreOp};
 use task_executor::{ShutdownReason, TaskExecutor};
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
+use tree_hash::TreeHash;
+use types::data::CustodyIndex;
 use types::{
-    BeaconBlock, BeaconState, BlobSidecarList, ChainSpec, DataColumnSidecarList, Epoch, EthSpec,
-    FixedBytesExtended, Hash256, Signature, SignedBeaconBlock, Slot,
+    BeaconBlock, BeaconState, BlobSidecarList, ChainSpec, ColumnIndex, DataColumnSidecarList,
+    Epoch, EthSpec, Hash256, SignedBeaconBlock, Slot,
 };
 
 /// An empty struct used to "witness" all the `BeaconChainTypes` traits. It has no user-facing
@@ -100,7 +105,8 @@ pub struct BeaconChainBuilder<T: BeaconChainTypes> {
     kzg: Arc<Kzg>,
     task_executor: Option<TaskExecutor>,
     validator_monitor_config: Option<ValidatorMonitorConfig>,
-    import_all_data_columns: bool,
+    node_custody_type: NodeCustodyType,
+    ordered_custody_column_indices: Option<Vec<CustodyIndex>>,
     rng: Option<Box<dyn RngCore + Send>>,
 }
 
@@ -139,7 +145,8 @@ where
             kzg,
             task_executor: None,
             validator_monitor_config: None,
-            import_all_data_columns: false,
+            node_custody_type: NodeCustodyType::Fullnode,
+            ordered_custody_column_indices: None,
             rng: None,
         }
     }
@@ -365,8 +372,8 @@ where
 
         // Initialize anchor info before attempting to write the genesis state.
         // Since v4.4.0 we will set the anchor with a dummy state upper limit in order to prevent
-        // historic states from being retained (unless `--reconstruct-historic-states` is set).
-        let retain_historic_states = self.chain_config.reconstruct_historic_states;
+        // historic states from being retained (unless `--archive` is set).
+        let retain_historic_states = self.chain_config.archive;
         let genesis_beacon_block = genesis_block(&mut beacon_state, &self.spec)?;
         self.pending_io_batch.push(
             store
@@ -522,7 +529,7 @@ where
         // case it will be stored in the hot DB. In this case, we need to ensure the store's anchor
         // is initialised prior to storing the state, as the anchor is required for working out
         // hdiff storage strategies.
-        let retain_historic_states = self.chain_config.reconstruct_historic_states;
+        let retain_historic_states = self.chain_config.archive;
         self.pending_io_batch.push(
             store
                 .init_anchor_info(
@@ -640,9 +647,19 @@ where
         self
     }
 
-    /// Sets whether to require and import all data columns when importing block.
-    pub fn import_all_data_columns(mut self, import_all_data_columns: bool) -> Self {
-        self.import_all_data_columns = import_all_data_columns;
+    /// Sets the node custody type for data column import.
+    pub fn node_custody_type(mut self, node_custody_type: NodeCustodyType) -> Self {
+        self.node_custody_type = node_custody_type;
+        self
+    }
+
+    /// Sets the ordered custody column indices for this node.
+    /// This is used to determine the data columns the node is required to custody.
+    pub fn ordered_custody_column_indices(
+        mut self,
+        ordered_custody_column_indices: Vec<ColumnIndex>,
+    ) -> Self {
+        self.ordered_custody_column_indices = Some(ordered_custody_column_indices);
         self
     }
 
@@ -739,6 +756,9 @@ where
             .genesis_state_root
             .ok_or("Cannot build without a genesis state root")?;
         let validator_monitor_config = self.validator_monitor_config.unwrap_or_default();
+        let ordered_custody_column_indices = self
+            .ordered_custody_column_indices
+            .ok_or("Cannot build without ordered custody column indices")?;
         let rng = self.rng.ok_or("Cannot build without an RNG")?;
         let beacon_proposer_cache: Arc<Mutex<BeaconProposerCache>> = <_>::default();
 
@@ -826,6 +846,33 @@ where
                     {:?}",
                 fc_finalized, head_finalized
             ));
+        }
+
+        // Check if the head snapshot is within the weak subjectivity period
+        let head_state = &head_snapshot.beacon_state;
+        let Ok(ws_period) = head_state.compute_weak_subjectivity_period(&self.spec) else {
+            return Err(format!(
+                "Unable to compute the weak subjectivity period at the head snapshot slot: {:?}",
+                head_state.slot()
+            ));
+        };
+        if current_slot.epoch(E::slots_per_epoch())
+            > head_state.slot().epoch(E::slots_per_epoch()) + ws_period
+        {
+            if self.chain_config.ignore_ws_check {
+                warn!(
+                    head_slot=%head_state.slot(),
+                    %current_slot,
+                    "The current head state is outside the weak subjectivity period. You are currently running a node that is susceptible to long range attacks. \
+                    It is highly recommended to purge your db and checkpoint sync. For more information please \
+                    read this blog post: https://blog.ethereum.org/2014/11/25/proof-stake-learned-love-weak-subjectivity"
+                )
+            }
+            return Err(
+                "The current head state is outside the weak subjectivity period. A node in this state is susceptible to long range attacks. You should purge your db and \
+                checkpoint sync. For more information please read this blog post: https://blog.ethereum.org/2014/11/25/proof-stake-learned-love-weak-subjectivity \
+                If you understand the risks, it is possible to ignore this error with the --ignore-ws-check flag.".to_string()
+            );
         }
 
         let validator_pubkey_cache = self
@@ -930,17 +977,31 @@ where
 
         // Load the persisted custody context from the db and initialize
         // the context for this run
-        let custody_context = if let Some(custody) =
+        let (custody_context, cgc_changed_opt) = if let Some(custody) =
             load_custody_context::<E, THotStore, TColdStore>(store.clone())
         {
-            Arc::new(CustodyContext::new_from_persisted_custody_context(
+            let head_epoch = canonical_head
+                .cached_head()
+                .head_slot()
+                .epoch(E::slots_per_epoch());
+            CustodyContext::new_from_persisted_custody_context(
                 custody,
-                self.import_all_data_columns,
-            ))
+                self.node_custody_type,
+                head_epoch,
+                ordered_custody_column_indices,
+                &self.spec,
+            )
         } else {
-            Arc::new(CustodyContext::new(self.import_all_data_columns))
+            (
+                CustodyContext::new(
+                    self.node_custody_type,
+                    ordered_custody_column_indices,
+                    &self.spec,
+                ),
+                None,
+            )
         };
-        debug!(?custody_context, "Loading persisted custody context");
+        debug!(?custody_context, "Loaded persisted custody context");
 
         let beacon_chain = BeaconChain {
             spec: self.spec.clone(),
@@ -975,6 +1036,7 @@ where
             observed_column_sidecars: RwLock::new(ObservedDataSidecars::new(self.spec.clone())),
             observed_blob_sidecars: RwLock::new(ObservedDataSidecars::new(self.spec.clone())),
             observed_slashable: <_>::default(),
+            pending_payload_envelopes: <_>::default(),
             observed_voluntary_exits: <_>::default(),
             observed_proposer_slashings: <_>::default(),
             observed_attester_slashings: <_>::default(),
@@ -996,7 +1058,6 @@ where
             block_times_cache: <_>::default(),
             pre_finalization_block_cache: <_>::default(),
             validator_pubkey_cache: RwLock::new(validator_pubkey_cache),
-            attester_cache: <_>::default(),
             early_attester_cache: <_>::default(),
             light_client_server_cache: LightClientServerCache::new(),
             light_client_server_tx: self.light_client_server_tx,
@@ -1016,8 +1077,7 @@ where
                     complete_blob_backfill,
                     slot_clock,
                     self.kzg.clone(),
-                    store,
-                    custody_context,
+                    Arc::new(custody_context),
                     self.spec,
                 )
                 .map_err(|e| format!("Error initializing DataAvailabilityChecker: {:?}", e))?,
@@ -1027,16 +1087,6 @@ where
         };
 
         let head = beacon_chain.head_snapshot();
-
-        // Prime the attester cache with the head state.
-        beacon_chain
-            .attester_cache
-            .maybe_cache_state(
-                &head.beacon_state,
-                head.beacon_block_root,
-                &beacon_chain.spec,
-            )
-            .map_err(|e| format!("Failed to prime attester cache: {:?}", e))?;
 
         // Only perform the check if it was configured.
         if let Some(wss_checkpoint) = beacon_chain.config.weak_subjectivity_checkpoint
@@ -1060,6 +1110,14 @@ where
             return Err(format!("Weak subjectivity verification failed: {:?}", e));
         }
 
+        if let Some(cgc_changed) = cgc_changed_opt {
+            // Update data column custody info if there's a CGC change from CLI flags.
+            // This will trigger column backfill.
+            let cgc_change_effective_slot =
+                cgc_changed.effective_epoch.start_slot(E::slots_per_epoch());
+            beacon_chain.update_data_column_custody_info(Some(cgc_change_effective_slot));
+        }
+
         info!(
             head_state = %head.beacon_state_root(),
             head_block = %head.beacon_block_root,
@@ -1068,9 +1126,7 @@ where
         );
 
         // Check for states to reconstruct (in the background).
-        if beacon_chain.config.reconstruct_historic_states
-            && beacon_chain.store.get_oldest_block_slot() == 0
-        {
+        if beacon_chain.config.archive && beacon_chain.store.get_oldest_block_slot() == 0 {
             beacon_chain.store_migrator.process_reconstruction();
         }
 
@@ -1183,17 +1239,29 @@ fn build_data_columns_from_blobs<E: EthSpec>(
             .blob_kzg_commitments()
             .cloned()
             .map_err(|e| format!("Unexpected pre Deneb block: {e:?}"))?;
-        let kzg_commitments_inclusion_proof = beacon_block_body
-            .kzg_commitments_merkle_proof()
-            .map_err(|e| format!("Failed to compute kzg commitments merkle proof: {e:?}"))?;
-        build_data_column_sidecars(
-            kzg_commitments,
-            kzg_commitments_inclusion_proof,
-            block.signed_block_header(),
-            blob_cells_and_proofs_vec,
-            spec,
-        )
-        .map_err(|e| format!("Failed to compute weak subjectivity data_columns: {e:?}"))?
+
+        if block.fork_name_unchecked().gloas_enabled() {
+            build_data_column_sidecars_gloas(
+                block.message().tree_hash_root(),
+                block.slot(),
+                blob_cells_and_proofs_vec,
+                spec,
+            )
+            .map_err(|e| format!("Failed to compute weak subjectivity data_columns: {e:?}"))?
+        } else {
+            let kzg_commitments_inclusion_proof = beacon_block_body
+                .kzg_commitments_merkle_proof()
+                .map_err(|e| format!("Failed to compute kzg commitments merkle proof: {e:?}"))?;
+
+            build_data_column_sidecars_fulu(
+                kzg_commitments,
+                kzg_commitments_inclusion_proof,
+                block.signed_block_header(),
+                blob_cells_and_proofs_vec,
+                spec,
+            )
+            .map_err(|e| format!("Failed to compute weak subjectivity data_columns: {e:?}"))?
+        }
     };
     Ok(data_columns)
 }
@@ -1202,7 +1270,9 @@ fn build_data_columns_from_blobs<E: EthSpec>(
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::test_utils::{EphemeralHarnessType, get_kzg};
+    use crate::test_utils::{
+        EphemeralHarnessType, generate_data_column_indices_rand_order, get_kzg,
+    };
     use ethereum_hashing::hash;
     use genesis::{
         DEFAULT_ETH1_BLOCK_HASH, generate_deterministic_keypairs, interop_genesis_state,
@@ -1254,6 +1324,9 @@ mod test {
             .expect("should configure testing slot clock")
             .shutdown_sender(shutdown_tx)
             .rng(Box::new(StdRng::seed_from_u64(42)))
+            .ordered_custody_column_indices(
+                generate_data_column_indices_rand_order::<MinimalEthSpec>(),
+            )
             .build()
             .expect("should build");
 

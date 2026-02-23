@@ -1,7 +1,6 @@
 pub mod attestation_rewards;
 pub mod attestation_simulator;
 pub mod attestation_verification;
-mod attester_cache;
 pub mod beacon_block_reward;
 mod beacon_block_streamer;
 mod beacon_chain;
@@ -10,6 +9,7 @@ pub mod beacon_proposer_cache;
 mod beacon_snapshot;
 pub mod bellatrix_readiness;
 pub mod blob_verification;
+mod block_production;
 pub mod block_reward;
 mod block_times_cache;
 mod block_verification;
@@ -17,6 +17,7 @@ pub mod block_verification_types;
 pub mod builder;
 pub mod canonical_head;
 pub mod chain_config;
+pub mod custody_context;
 pub mod data_availability_checker;
 pub mod data_column_verification;
 mod early_attester_cache;
@@ -28,6 +29,7 @@ pub mod fork_choice_signal;
 pub mod fork_revert;
 pub mod graffiti_calculator;
 pub mod historical_blocks;
+pub mod historical_data_columns;
 pub mod kzg_utils;
 pub mod light_client_finality_update_verification;
 pub mod light_client_optimistic_update_verification;
@@ -41,6 +43,7 @@ pub mod observed_block_producers;
 pub mod observed_data_sidecars;
 pub mod observed_operations;
 mod observed_slashable;
+pub mod pending_payload_envelopes;
 pub mod persisted_beacon_chain;
 pub mod persisted_custody;
 mod persisted_fork_choice;
@@ -54,7 +57,6 @@ pub mod summaries_dag;
 pub mod sync_committee_rewards;
 pub mod sync_committee_verification;
 pub mod test_utils;
-pub mod validator_custody;
 pub mod validator_monitor;
 pub mod validator_pubkey_cache;
 
@@ -78,11 +80,12 @@ pub use block_verification::{
     BlockError, ExecutionPayloadError, ExecutionPendingBlock, GossipVerifiedBlock,
     IntoExecutionPendingBlock, IntoGossipVerifiedBlock, InvalidSignature,
     PayloadVerificationOutcome, PayloadVerificationStatus, build_blob_data_column_sidecars,
-    get_block_root,
+    get_block_root, signature_verify_chain_segment,
 };
 pub use block_verification_types::AvailabilityPendingExecutedBlock;
 pub use block_verification_types::ExecutedBlock;
 pub use canonical_head::{CachedHead, CanonicalHead, CanonicalHeadRwLock};
+pub use custody_context::CustodyContext;
 pub use events::ServerSentEventHandler;
 pub use execution_layer::EngineState;
 pub use execution_payload::NotifyExecutionLayer;
@@ -98,4 +101,3 @@ pub use state_processing::per_block_processing::errors::{
 };
 pub use store;
 pub use types;
-pub use validator_custody::CustodyContext;

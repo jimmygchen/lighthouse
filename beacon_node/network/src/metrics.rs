@@ -212,6 +212,22 @@ pub static BEACON_PROCESSOR_RPC_BLOCK_IMPORTED_TOTAL: LazyLock<Result<IntCounter
             "Total number of gossip blocks imported to fork choice, etc.",
         )
     });
+// Custody Sync.
+pub static BEACON_PROCESSOR_CUSTODY_BACKFILL_COLUMN_IMPORT_SUCCESS_TOTAL: LazyLock<
+    Result<IntCounter>,
+> = LazyLock::new(|| {
+    try_create_int_counter(
+        "beacon_processor_custody_backfill_column_import_success_total",
+        "Total number of custody backfill sync columns successfully processed.",
+    )
+});
+pub static BEACON_PROCESSOR_CUSTODY_BACKFILL_BATCH_FAILED_TOTAL: LazyLock<Result<IntCounter>> =
+    LazyLock::new(|| {
+        try_create_int_counter(
+            "beacon_processor_custody_backfill_batch_failed_total",
+            "Total number of custody backfill batches that failed to be processed.",
+        )
+    });
 // Chain segments.
 pub static BEACON_PROCESSOR_CHAIN_SEGMENT_SUCCESS_TOTAL: LazyLock<Result<IntCounter>> =
     LazyLock::new(|| {
@@ -489,6 +505,30 @@ pub static SYNC_UNKNOWN_NETWORK_REQUESTS: LazyLock<Result<IntCounterVec>> = Lazy
         "sync_unknwon_network_request",
         "Total count of network messages received for unknown active requests",
         &["type"],
+    )
+});
+pub static SYNC_RPC_REQUEST_SUCCESSES: LazyLock<Result<IntCounterVec>> = LazyLock::new(|| {
+    try_create_int_counter_vec(
+        "sync_rpc_requests_success_total",
+        "Total count of sync RPC requests successes",
+        &["protocol"],
+    )
+});
+pub static SYNC_RPC_REQUEST_ERRORS: LazyLock<Result<IntCounterVec>> = LazyLock::new(|| {
+    try_create_int_counter_vec(
+        "sync_rpc_requests_error_total",
+        "Total count of sync RPC requests errors",
+        &["protocol", "error"],
+    )
+});
+pub static SYNC_RPC_REQUEST_TIME: LazyLock<Result<HistogramVec>> = LazyLock::new(|| {
+    try_create_histogram_vec_with_buckets(
+        "sync_rpc_request_duration_sec",
+        "Time to complete a successful sync RPC requesst",
+        Ok(vec![
+            0.001, 0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5, 1.0, 2.0,
+        ]),
+        &["protocol"],
     )
 });
 
