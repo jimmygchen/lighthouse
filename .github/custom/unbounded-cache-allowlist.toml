@@ -1,0 +1,118 @@
+# Allowlist for unbounded cache detection (v2).
+#
+# Each entry suppresses a FAIL or WARN for a struct field that uses
+# HashMap/BTreeMap/HashSet/BTreeSet without detected pruning logic.
+# Pruning may happen externally, via local variable alias, or the
+# collection may be bounded by design.
+
+[[allowed]]
+entry = "beacon_node/beacon_chain/src/beacon_fork_choice_store.rs::BeaconForkChoiceStore::equivocating_indices"
+reason = "Bounded by validator set size, pruned on finalization"
+
+[[allowed]]
+entry = "beacon_node/beacon_chain/src/beacon_fork_choice_store.rs::PersistedForkChoiceStore::equivocating_indices"
+reason = "Serialization counterpart of BeaconForkChoiceStore, same bounds"
+
+[[allowed]]
+entry = "beacon_node/beacon_chain/src/observed_aggregates.rs::SlotHashSet::map"
+reason = "Pruned externally by ObservedAggregates which removes old slots"
+
+[[allowed]]
+entry = "beacon_node/beacon_chain/src/observed_attesters.rs::EpochHashSet::set"
+reason = "Pruned externally by AutoPruningEpochContainer"
+
+[[allowed]]
+entry = "beacon_node/beacon_chain/src/observed_attesters.rs::SyncAggregatorSlotHashSet::set"
+reason = "Pruned externally by AutoPruningSlotContainer"
+
+[[allowed]]
+entry = "beacon_node/beacon_chain/src/observed_attesters.rs::SyncContributorSlotHashSet::map"
+reason = "Pruned externally by AutoPruningSlotContainer"
+
+[[allowed]]
+entry = "beacon_node/beacon_chain/src/summaries_dag.rs::StateSummariesDAG::child_state_roots"
+reason = "Short-lived DAG rebuilt on demand, not a persistent cache"
+
+[[allowed]]
+entry = "beacon_node/beacon_chain/src/summaries_dag.rs::StateSummariesDAG::state_summaries_by_block_root"
+reason = "Short-lived DAG rebuilt on demand, not a persistent cache"
+
+[[allowed]]
+entry = "beacon_node/beacon_chain/src/summaries_dag.rs::StateSummariesDAG::state_summaries_by_state_root"
+reason = "Short-lived DAG rebuilt on demand, not a persistent cache"
+
+[[allowed]]
+entry = "beacon_node/beacon_chain/src/validator_monitor.rs::ValidatorMonitor::indices"
+reason = "Bounded by active validator set size from BeaconState"
+
+[[allowed]]
+entry = "beacon_node/beacon_chain/src/validator_monitor.rs::ValidatorMonitor::unaggregated_attestations"
+reason = "Bounded by MAX_UNAGGREGATED_ATTESTATION_HASHMAP_LENGTH (64), pruned via local variable alias"
+
+[[allowed]]
+entry = "beacon_node/beacon_chain/src/validator_monitor.rs::ValidatorMonitor::validators"
+reason = "Bounded by individual_tracking_threshold or active validator set"
+
+[[allowed]]
+entry = "beacon_node/beacon_chain/src/validator_pubkey_cache.rs::ValidatorPubkeyCache::indices"
+reason = "Bounded by validator set size, append-only by design"
+
+[[allowed]]
+entry = "beacon_node/lighthouse_network/src/discovery/mod.rs::DiscoveredPeers::peers"
+reason = "Transient discovery result, not a persistent cache"
+
+[[allowed]]
+entry = "beacon_node/lighthouse_network/src/peer_manager/mod.rs::PeerCondition::custody_subnets"
+reason = "Per-peer condition struct, bounded by subnet count"
+
+[[allowed]]
+entry = "beacon_node/lighthouse_network/src/peer_manager/mod.rs::PeerSubnetInfo::attestation_subnets"
+reason = "Per-peer info struct, bounded by subnet count"
+
+[[allowed]]
+entry = "beacon_node/lighthouse_network/src/peer_manager/mod.rs::PeerSubnetInfo::custody_subnets"
+reason = "Per-peer info struct, bounded by subnet count"
+
+[[allowed]]
+entry = "beacon_node/lighthouse_network/src/peer_manager/mod.rs::PeerSubnetInfo::sync_committees"
+reason = "Per-peer info struct, bounded by sync committee count"
+
+[[allowed]]
+entry = "beacon_node/lighthouse_network/src/peer_manager/peerdb.rs::BannedPeersCount::banned_peers_per_ip"
+reason = "Bounded by max banned peers, pruned by PeerDB"
+
+[[allowed]]
+entry = "beacon_node/lighthouse_network/src/peer_manager/peerdb/peer_info.rs::PeerInfo::custody_subnets"
+reason = "Bounded by data_column_sidecar_subnet_count constant (128)"
+
+[[allowed]]
+entry = "beacon_node/lighthouse_network/src/peer_manager/peerdb/peer_info.rs::PeerInfo::seen_multiaddrs"
+reason = "Bounded by max peer connections; addresses from connection events"
+
+[[allowed]]
+entry = "beacon_node/network/src/subnet_service/mod.rs::SubnetService::permanent_attestation_subscriptions"
+reason = "Bounded by number of local validators"
+
+[[allowed]]
+entry = "beacon_node/network/src/sync/network_context.rs::PeerGroup::peers"
+reason = "Bounded by max peers per request"
+
+[[allowed]]
+entry = "beacon_node/network/src/sync/range_sync/chain.rs::SyncingChain::attempted_optimistic_starts"
+reason = "Bounded by chain epoch range; set discarded when chain completes"
+
+[[allowed]]
+entry = "beacon_node/operation_pool/src/attestation_storage.rs::AttestationDataMap::attestations"
+reason = "Pruned externally by OperationPool on finalization"
+
+[[allowed]]
+entry = "beacon_node/store/src/state_cache.rs::SlotMap::slots"
+reason = "Pruned by StateCache which limits total entries"
+
+[[allowed]]
+entry = "slasher/src/attestation_queue.rs::AttestationBatch::attesters"
+reason = "Per-batch struct, consumed and dropped after processing"
+
+[[allowed]]
+entry = "validator_client/validator_services/src/sync.rs::SlotDuties::aggregators"
+reason = "Per-slot struct, bounded by sync committee size"
