@@ -280,7 +280,7 @@ Group related state and behavior together. If two fields are always set together
 - [ ] Errors logged: Not silently swallowed
 - [ ] Clear naming: Variable names are unambiguous
 - [ ] TODOs linked: All TODOs have GitHub issue links
-- [ ] Tests present: Non-trivial changes have tests
+- [ ] Tests present: Non-trivial changes have tests (see [Test Quality](DEVELOPMENT.md#test-quality) for what good tests look like)
 - [ ] Lock safety: Lock ordering is safe and documented
 - [ ] No blocking: Async code doesn't block runtime
 
