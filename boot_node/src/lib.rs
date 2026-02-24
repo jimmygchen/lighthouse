@@ -11,6 +11,7 @@ use tracing_subscriber::EnvFilter;
 use types::{EthSpec, EthSpecId};
 
 /// Run the bootnode given the CLI configuration.
+#[allow(clippy::unwrap_used)] // startup initialization, panic is appropriate
 pub fn run(
     lh_matches: &ArgMatches,
     bn_matches: &ArgMatches,

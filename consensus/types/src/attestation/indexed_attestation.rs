@@ -123,9 +123,13 @@ impl<E: EthSpec> IndexedAttestation<E> {
     pub fn to_electra(self) -> IndexedAttestationElectra<E> {
         match self {
             Self::Base(att) => {
-                let extended_attesting_indices: VariableList<u64, E::MaxValidatorsPerSlot> =
-                    VariableList::new(att.attesting_indices.to_vec())
-                        .expect("MaxValidatorsPerSlot must be >= MaxValidatorsPerCommittee");
+                #[allow(clippy::expect_used)]
+                // MaxValidatorsPerSlot >= MaxValidatorsPerCommittee (asserted in eth_spec tests)
+                let extended_attesting_indices: VariableList<
+                    u64,
+                    E::MaxValidatorsPerSlot,
+                > = VariableList::new(att.attesting_indices.to_vec())
+                    .expect("MaxValidatorsPerSlot must be >= MaxValidatorsPerCommittee");
                 // Note a unit test in consensus/types/src/eth_spec.rs asserts this invariant for
                 // all known specs
 

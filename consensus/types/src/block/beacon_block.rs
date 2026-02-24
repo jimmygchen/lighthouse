@@ -348,6 +348,7 @@ impl<E: EthSpec, Payload: AbstractExecPayload<E>> EmptyBlock for BeaconBlockBase
 
 impl<E: EthSpec, Payload: AbstractExecPayload<E>> BeaconBlockBase<E, Payload> {
     /// Return a block where the block has maximum size.
+    #[allow(clippy::unwrap_used)] // compile-time capacity constants, cannot fail
     pub fn full(spec: &ChainSpec) -> Self {
         let header = BeaconBlockHeader {
             slot: Slot::new(1),
@@ -446,6 +447,7 @@ impl<E: EthSpec, Payload: AbstractExecPayload<E>> EmptyBlock for BeaconBlockAlta
     /// Returns an empty Altair block to be used during genesis.
     fn empty(spec: &ChainSpec) -> Self {
         BeaconBlockAltair {
+            #[allow(clippy::expect_used)] // fork epoch must be set for this block type
             slot: spec
                 .altair_fork_epoch
                 .expect("altair enabled")
@@ -482,6 +484,7 @@ impl<E: EthSpec, Payload: AbstractExecPayload<E>> BeaconBlockAltair<E, Payload> 
             sync_committee_bits: BitVector::default(),
         };
         BeaconBlockAltair {
+            #[allow(clippy::expect_used)] // fork epoch must be set for this block type
             slot: spec
                 .altair_fork_epoch
                 .expect("altair enabled")
@@ -513,6 +516,7 @@ impl<E: EthSpec, Payload: AbstractExecPayload<E>> EmptyBlock for BeaconBlockBell
     /// Returns an empty Bellatrix block to be used during genesis.
     fn empty(spec: &ChainSpec) -> Self {
         BeaconBlockBellatrix {
+            #[allow(clippy::expect_used)] // fork epoch must be set for this block type
             slot: spec
                 .bellatrix_fork_epoch
                 .expect("bellatrix enabled")
@@ -544,6 +548,7 @@ impl<E: EthSpec, Payload: AbstractExecPayload<E>> EmptyBlock for BeaconBlockCape
     /// Returns an empty Capella block to be used during genesis.
     fn empty(spec: &ChainSpec) -> Self {
         BeaconBlockCapella {
+            #[allow(clippy::expect_used)] // fork epoch must be set for this block type
             slot: spec
                 .capella_fork_epoch
                 .expect("capella enabled")
@@ -576,6 +581,7 @@ impl<E: EthSpec, Payload: AbstractExecPayload<E>> EmptyBlock for BeaconBlockDene
     /// Returns an empty Deneb block to be used during genesis.
     fn empty(spec: &ChainSpec) -> Self {
         BeaconBlockDeneb {
+            #[allow(clippy::expect_used)] // fork epoch must be set for this block type
             slot: spec
                 .deneb_fork_epoch
                 .expect("deneb enabled")
@@ -609,6 +615,7 @@ impl<E: EthSpec, Payload: AbstractExecPayload<E>> EmptyBlock for BeaconBlockElec
     /// Returns an empty Electra block to be used during genesis.
     fn empty(spec: &ChainSpec) -> Self {
         BeaconBlockElectra {
+            #[allow(clippy::expect_used)] // fork epoch must be set for this block type
             slot: spec
                 .electra_fork_epoch
                 .expect("electra enabled")
@@ -643,6 +650,7 @@ impl<E: EthSpec, Payload: AbstractExecPayload<E>> EmptyBlock for BeaconBlockFulu
     /// Returns an empty Fulu block to be used during genesis.
     fn empty(spec: &ChainSpec) -> Self {
         BeaconBlockFulu {
+            #[allow(clippy::expect_used)] // fork epoch must be set for this block type
             slot: spec
                 .fulu_fork_epoch
                 .expect("fulu enabled")

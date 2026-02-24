@@ -10,6 +10,7 @@ impl TestRandom for SignatureBytes {
             SignatureBytes::from(Signature::random_for_test(rng))
         } else {
             //invalid signature, just random bytes
+            #[allow(clippy::unwrap_used)] // test utility
             SignatureBytes::deserialize(&<[u8; SIGNATURE_BYTES_LEN]>::random_for_test(rng)).unwrap()
         }
     }

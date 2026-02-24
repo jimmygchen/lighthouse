@@ -41,9 +41,11 @@ pub fn test_ssz_tree_hash_pair_with<T, U>(
     assert_eq!(encoding1, encoding2);
 
     // Decoding the encoding should yield either value.
+    #[allow(clippy::unwrap_used)] // test utility
     let decoded1 = t_decoder(&encoding1).unwrap();
     assert_eq!(&decoded1, v1);
 
+    #[allow(clippy::unwrap_used)] // test utility
     let decoded2 = U::from_ssz_bytes(&encoding1).unwrap();
     assert_eq!(&decoded2, v2);
 

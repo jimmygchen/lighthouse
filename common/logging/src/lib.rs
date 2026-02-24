@@ -50,6 +50,7 @@ impl TimeLatch {
 /// ```
 pub fn create_test_tracing_subscriber() {
     if cfg!(feature = "test_logger") {
+        #[allow(clippy::unwrap_used)] // test utility
         let _ = tracing_subscriber::fmt()
             .with_env_filter(EnvFilter::try_new("debug").unwrap())
             .try_init();

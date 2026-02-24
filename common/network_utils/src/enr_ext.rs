@@ -262,6 +262,8 @@ impl CombinedKeyPublicExt for CombinedPublicKey {
         match self {
             Self::Secp256k1(pk) => {
                 let pk_bytes = pk.to_sec1_bytes();
+                #[allow(clippy::expect_used)]
+                // re-encoding a valid secp256k1 key, conversion cannot fail
                 let libp2p_pk: PublicKey = secp256k1::PublicKey::try_from_bytes(&pk_bytes)
                     .expect("valid public key")
                     .into();
@@ -269,6 +271,8 @@ impl CombinedKeyPublicExt for CombinedPublicKey {
             }
             Self::Ed25519(pk) => {
                 let pk_bytes = pk.to_bytes();
+                #[allow(clippy::expect_used)]
+                // re-encoding a valid ed25519 key, conversion cannot fail
                 let libp2p_pk: PublicKey = ed25519::PublicKey::try_from_bytes(&pk_bytes)
                     .expect("valid public key")
                     .into();
@@ -279,6 +283,7 @@ impl CombinedKeyPublicExt for CombinedPublicKey {
 }
 
 impl CombinedKeyExt for CombinedKey {
+    #[allow(clippy::expect_used)] // key type conversions, type already verified by match
     fn from_libp2p(key: Keypair) -> Result<CombinedKey, &'static str> {
         match key.key_type() {
             KeyType::Secp256k1 => {
@@ -301,6 +306,8 @@ impl CombinedKeyExt for CombinedKey {
         }
     }
     fn from_secp256k1(key: &secp256k1::Keypair) -> Self {
+        #[allow(clippy::expect_used)]
+        // valid secp256k1 secret bytes always produce a valid signing key
         let secret = discv5::enr::k256::ecdsa::SigningKey::from_slice(&key.secret().to_bytes())
             .expect("libp2p key must be valid");
         CombinedKey::Secp256k1(secret)
@@ -323,6 +330,7 @@ pub fn peer_id_to_node_id(peer_id: &PeerId) -> Result<discv5::enr::NodeId, Strin
 
     match public_key.key_type() {
         KeyType::Secp256k1 => {
+            #[allow(clippy::expect_used)] // key type already matched as Secp256k1
             let pk = public_key
                 .clone()
                 .try_into_secp256k1()
@@ -332,9 +340,11 @@ pub fn peer_id_to_node_id(peer_id: &PeerId) -> Result<discv5::enr::NodeId, Strin
             let mut hasher = Keccak::v256();
             hasher.update(uncompressed_key_bytes);
             hasher.finalize(&mut output);
+            #[allow(clippy::expect_used)] // compile-time constant, cannot fail
             Ok(discv5::enr::NodeId::parse(&output).expect("Must be correct length"))
         }
         KeyType::Ed25519 => {
+            #[allow(clippy::expect_used)] // key type already matched as Ed25519
             let pk = public_key
                 .clone()
                 .try_into_ed25519()
@@ -344,6 +354,7 @@ pub fn peer_id_to_node_id(peer_id: &PeerId) -> Result<discv5::enr::NodeId, Strin
             let mut hasher = Keccak::v256();
             hasher.update(&uncompressed_key_bytes);
             hasher.finalize(&mut output);
+            #[allow(clippy::expect_used)] // compile-time constant, cannot fail
             Ok(discv5::enr::NodeId::parse(&output).expect("Must be correct length"))
         }
 

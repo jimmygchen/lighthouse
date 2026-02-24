@@ -1180,7 +1180,9 @@ impl InitializedValidators {
         let mut passwords = Vec::new();
         let mut public_keys = Vec::new();
         for uuid in cache.uuids() {
-            let def = definitions_map.get(uuid).expect("Existence checked before");
+            let Some(def) = definitions_map.get(uuid) else {
+                continue;
+            };
             match &def.signing_definition {
                 SigningDefinition::LocalKeystore {
                     voting_keystore_password_path,

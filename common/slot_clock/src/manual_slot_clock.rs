@@ -28,6 +28,8 @@ impl Clone for ManualSlotClock {
 }
 
 impl ManualSlotClock {
+    // Test utility.
+    #[allow(clippy::expect_used)]
     pub fn set_slot(&self, slot: u64) {
         let slots_since_genesis = slot
             .checked_sub(self.genesis_slot.as_u64())
@@ -47,6 +49,8 @@ impl ManualSlotClock {
         *self.current_time.write() = current_time.add(duration);
     }
 
+    // Test utility.
+    #[allow(clippy::unwrap_used)]
     pub fn advance_slot(&self) {
         self.set_slot(self.now().unwrap().as_u64() + 1)
     }
@@ -114,6 +118,8 @@ impl SlotClock for ManualSlotClock {
         Some(*self.current_time.read())
     }
 
+    // Test utility.
+    #[allow(clippy::expect_used)]
     fn slot_of(&self, now: Duration) -> Option<Slot> {
         let genesis = self.genesis_duration;
 

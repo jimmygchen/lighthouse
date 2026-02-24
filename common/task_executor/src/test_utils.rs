@@ -27,6 +27,7 @@ impl Default for TestRuntime {
         let (runtime, handle) = if let Ok(handle) = runtime::Handle::try_current() {
             (None, handle)
         } else {
+            #[allow(clippy::unwrap_used)] // test utility
             let runtime = Arc::new(
                 runtime::Builder::new_multi_thread()
                     .enable_all()
@@ -50,7 +51,9 @@ impl Default for TestRuntime {
 impl Drop for TestRuntime {
     fn drop(&mut self) {
         if let Some(runtime) = self.runtime.take() {
-            Arc::try_unwrap(runtime).unwrap().shutdown_background()
+            #[allow(clippy::unwrap_used)] // test utility
+            let runtime = Arc::try_unwrap(runtime).unwrap();
+            runtime.shutdown_background()
         }
     }
 }

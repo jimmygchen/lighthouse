@@ -83,13 +83,13 @@ async fn data_column_sidecar_event_on_process_gossip_data_column() {
             let mut random_sidecar = DataColumnSidecarGloas::random_for_test(&mut rng);
             let epoch = slot.epoch(E::slots_per_epoch());
             random_sidecar.slot = slot;
-            random_sidecar.index = harness.chain.sampling_columns_for_epoch(epoch)[0];
+            random_sidecar.index = harness.chain.sampling_columns_for_epoch(epoch).unwrap()[0];
             DataColumnSidecar::Gloas(random_sidecar)
         } else {
             let mut random_sidecar = DataColumnSidecarFulu::random_for_test(&mut rng);
             let epoch = slot.epoch(E::slots_per_epoch());
             random_sidecar.signed_block_header.message.slot = slot;
-            random_sidecar.index = harness.chain.sampling_columns_for_epoch(epoch)[0];
+            random_sidecar.index = harness.chain.sampling_columns_for_epoch(epoch).unwrap()[0];
             DataColumnSidecar::Fulu(random_sidecar)
         }
     };

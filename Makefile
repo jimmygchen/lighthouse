@@ -284,8 +284,31 @@ mdlint:
 test-full: cargo-fmt test-release test-debug test-ef test-exec-engine
 
 # Lints the code for bad style and potentially unsafe arithmetic using Clippy.
-# Clippy lints are opt-in per-crate for now. By default, everything is allowed except for performance and correctness lints.
+# Two-pass lint: Pass 1 enforces strict unwrap/expect deny on production code only.
+# Pass 2 runs the standard lints on everything including tests and benches.
 lint:
+	cargo clippy --workspace \
+		--exclude ef_tests \
+		--exclude simulator \
+		--exclude node_test_rig \
+		--exclude execution_engine_integration \
+		--exclude state_transition_vectors \
+		--exclude validator_test_rig \
+		--exclude web3signer_tests \
+		$(EXTRA_CLIPPY_OPTS) --features "$(TEST_FEATURES)" -- \
+		-D clippy::unwrap_used \
+		-D clippy::expect_used \
+		-D clippy::fn_to_numeric_cast_any \
+		-D clippy::manual_let_else \
+		-D clippy::large_stack_frames \
+		-D clippy::disallowed_methods \
+		-D warnings \
+		-A clippy::derive_partial_eq_without_eq \
+		-A clippy::upper-case-acronyms \
+		-A clippy::vec-init-then-push \
+		-A clippy::question-mark \
+		-A clippy::uninlined-format-args \
+		-A clippy::enum_variant_names
 	cargo clippy --workspace --benches --tests $(EXTRA_CLIPPY_OPTS) --features "$(TEST_FEATURES)" -- \
 		-D clippy::fn_to_numeric_cast_any \
 		-D clippy::manual_let_else \
@@ -306,6 +329,10 @@ lint-fix:
 # Also run the lints on the optimized-only tests
 lint-full:
 	TEST_FEATURES="beacon-node-leveldb,beacon-node-redb,${TEST_FEATURES}"  RUSTFLAGS="-C debug-assertions=no $(RUSTFLAGS)" $(MAKE) lint
+
+# Checks for struct fields using unbounded collections (HashMap, etc.) without pruning logic.
+check-unbounded-caches:
+	cargo run --manifest-path scripts/ci/check_unbounded_caches/Cargo.toml -- .
 
 # Runs the makefile in the `ef_tests` repo.
 #

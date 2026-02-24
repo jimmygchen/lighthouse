@@ -23,20 +23,22 @@ impl<const N: usize> FixedBytesExtended for FixedBytes<N> {
         let mut buffer = [0x0; N];
         let bytes_to_copy = value_bytes.len().min(buffer.len());
         // Panic-free because bytes_to_copy <= buffer.len()
+        #[allow(clippy::expect_used)] // compile-time guaranteed bounds
         let start_index = buffer
             .len()
             .safe_sub(bytes_to_copy)
             .expect("bytes_to_copy <= buffer.len()");
         // Panic-free because start_index <= buffer.len()
         // and bytes_to_copy <= value_bytes.len()
-        buffer
+        #[allow(clippy::expect_used)] // compile-time guaranteed bounds
+        let buffer_slice = buffer
             .get_mut(start_index..)
-            .expect("start_index <= buffer.len()")
-            .copy_from_slice(
-                value_bytes
-                    .get(..bytes_to_copy)
-                    .expect("bytes_to_copy <= value_byte.len()"),
-            );
+            .expect("start_index <= buffer.len()");
+        #[allow(clippy::expect_used)] // compile-time guaranteed bounds
+        let value_slice = value_bytes
+            .get(..bytes_to_copy)
+            .expect("bytes_to_copy <= value_byte.len()");
+        buffer_slice.copy_from_slice(value_slice);
         Self::from(buffer)
     }
 
@@ -46,14 +48,15 @@ impl<const N: usize> FixedBytesExtended for FixedBytes<N> {
         let bytes_to_copy = value_bytes.len().min(buffer.len());
         // Panic-free because bytes_to_copy <= buffer.len(),
         // and bytes_to_copy <= value_bytes.len()
-        buffer
+        #[allow(clippy::expect_used)] // compile-time guaranteed bounds
+        let buffer_slice = buffer
             .get_mut(..bytes_to_copy)
-            .expect("bytes_to_copy <= buffer.len()")
-            .copy_from_slice(
-                value_bytes
-                    .get(..bytes_to_copy)
-                    .expect("bytes_to_copy <= value_byte.len()"),
-            );
+            .expect("bytes_to_copy <= buffer.len()");
+        #[allow(clippy::expect_used)] // compile-time guaranteed bounds
+        let value_slice = value_bytes
+            .get(..bytes_to_copy)
+            .expect("bytes_to_copy <= value_byte.len()");
+        buffer_slice.copy_from_slice(value_slice);
         Self::from(buffer)
     }
 

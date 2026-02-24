@@ -1,5 +1,6 @@
 mod metrics;
 mod rayon_pool_provider;
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 pub mod test_utils;
 
 use futures::channel::mpsc::Sender;

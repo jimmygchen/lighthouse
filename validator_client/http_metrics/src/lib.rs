@@ -90,6 +90,8 @@ impl Default for Config {
 ///
 /// Returns an error if the server is unable to bind or there is another error during
 /// configuration.
+// invariant: Response::builder() with valid status and headers cannot fail
+#[allow(clippy::unwrap_used)]
 pub fn serve<E: EthSpec>(
     ctx: Arc<Context<E>>,
     shutdown: impl Future<Output = ()> + Send + Sync + 'static,

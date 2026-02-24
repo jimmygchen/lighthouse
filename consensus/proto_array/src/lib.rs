@@ -1,4 +1,5 @@
 mod error;
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 pub mod fork_choice_test_definition;
 mod justified_balances;
 mod proto_array;

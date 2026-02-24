@@ -10,6 +10,7 @@ impl TestRandom for PublicKeyBytes {
             PublicKeyBytes::from(PublicKey::random_for_test(rng))
         } else {
             //invalid signature, just random bytes
+            #[allow(clippy::unwrap_used)] // test utility
             PublicKeyBytes::deserialize(&<[u8; PUBLIC_KEY_BYTES_LEN]>::random_for_test(rng))
                 .unwrap()
         }

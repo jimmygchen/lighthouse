@@ -160,6 +160,8 @@ pub struct RPC<Id: ReqId, E: EthSpec> {
 }
 
 impl<Id: ReqId, E: EthSpec> RPC<Id, E> {
+    // startup initialization, panic is appropriate
+    #[allow(clippy::expect_used)]
     pub fn new(
         fork_context: Arc<ForkContext>,
         enable_light_client_server: bool,
@@ -475,6 +477,8 @@ where
                 // If we received a Ping, we queue a Pong response.
                 if let RequestType::Ping(_) = request_type {
                     trace!(connection_id = %connection_id, %peer_id, "Received Ping, queueing Pong");
+                    // invariant: request was just inserted into active_inbound_requests above
+                    #[allow(clippy::expect_used)]
                     self.send_response(
                         request_id,
                         RpcResponse::Success(RpcSuccessResponse::Pong(Ping {

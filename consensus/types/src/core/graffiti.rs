@@ -18,7 +18,8 @@ pub struct Graffiti(#[serde(with = "serde_graffiti")] pub [u8; GRAFFITI_BYTES_LE
 
 impl Graffiti {
     pub fn as_utf8_lossy(&self) -> String {
-        #[allow(clippy::invalid_regex)] // This is a false positive, this regex is valid.
+        #[allow(clippy::invalid_regex, clippy::expect_used)]
+        // false positive regex; constant pattern, cannot fail
         let re = Regex::new("\\p{C}").expect("graffiti regex is valid");
         String::from_utf8_lossy(&re.replace_all(&self.0[..], &b""[..])).to_string()
     }
@@ -86,10 +87,12 @@ impl From<GraffitiString> for Graffiti {
         // Copy the provided bytes over.
         //
         // Panic-free because `graffiti_bytes.len()` <= `GRAFFITI_BYTES_LEN`.
+        #[allow(clippy::expect_used)] // constant conversion, cannot fail
         graffiti
             .get_mut(..graffiti_len)
             .expect("graffiti_len <= GRAFFITI_BYTES_LEN")
             .copy_from_slice(
+                #[allow(clippy::expect_used)] // constant conversion, cannot fail
                 graffiti_bytes
                     .get(..graffiti_len)
                     .expect("graffiti_len <= GRAFFITI_BYTES_LEN"),

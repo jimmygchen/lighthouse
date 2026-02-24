@@ -28,6 +28,7 @@ mod state_id;
 mod sync_committee_rewards;
 mod sync_committees;
 mod task_spawner;
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 pub mod test_utils;
 mod ui;
 mod utils;

@@ -177,6 +177,8 @@ impl<'a, E: EthSpec> MaxCover for AttMaxCover<'a, E> {
 /// removed from the `aggregation_bits` before returning it.
 ///
 /// This isn't optimal, but with the Altair fork this code is obsolete and not worth upgrading.
+// invariant: BitList::with_capacity(0) cannot fail
+#[allow(clippy::unwrap_used)]
 pub fn earliest_attestation_validators<E: EthSpec>(
     attestation: &CompactAttestationRef<E>,
     state: &BeaconState<E>,

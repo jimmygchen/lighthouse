@@ -48,6 +48,7 @@ impl ForkName {
 
     pub fn latest() -> ForkName {
         // This unwrap is safe as long as we have 1+ forks. It is tested below.
+        #[allow(clippy::unwrap_used)] // startup initialization, panic is appropriate
         *ForkName::list_all().last().unwrap()
     }
 

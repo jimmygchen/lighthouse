@@ -171,6 +171,8 @@ impl<E: EthSpec> PeerManager<E> {
         let heartbeat = tokio::time::interval(Duration::from_secs(HEARTBEAT_INTERVAL));
 
         // Compute subnets for all custody groups
+        // startup initialization, panic is appropriate
+        #[allow(clippy::expect_used)]
         let subnets_by_custody_group = if network_globals.spec.is_peer_das_scheduled() {
             (0..network_globals.spec.number_of_custody_groups)
                 .map(|custody_index| {

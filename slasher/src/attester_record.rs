@@ -69,6 +69,8 @@ impl<E: EthSpec> IndexedAttesterRecord<E> {
         })
     }
 
+    // Invariant: IDs are only set once (from 0 to a valid ID).
+    #[allow(clippy::expect_used)]
     pub fn set_id(&self, id: u64) {
         self.indexed_attestation_id
             .compare_exchange(0, id, Ordering::Relaxed, Ordering::Relaxed)

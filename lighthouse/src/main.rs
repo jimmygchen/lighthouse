@@ -445,6 +445,7 @@ fn main() {
         // boot node subcommand circumvents the environment
         if let Some(bootnode_matches) = matches.subcommand_matches("boot_node") {
             // The bootnode uses the main debug-level flag
+            #[allow(clippy::expect_used)] // CLI arg with default value, always present
             let debug_info = matches
                 .get_one::<String>("debug-level")
                 .expect("Debug-level must be present")

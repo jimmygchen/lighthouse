@@ -30,6 +30,8 @@ pub struct ErrorType(pub VariableList<u8, MaxErrorLen>);
 
 impl From<&str> for ErrorType {
     // This will truncate the error if `string.as_bytes()` exceeds `MaxErrorLen`.
+    // invariant: bytes are truncated to MAX_ERROR_LEN before conversion
+    #[allow(clippy::expect_used)]
     fn from(s: &str) -> Self {
         let mut bytes = s.as_bytes().to_vec();
         bytes.truncate(MAX_ERROR_LEN as usize);
@@ -54,6 +56,8 @@ impl Deref for ErrorType {
 }
 
 impl Display for ErrorType {
+    // compile-time constant regex, cannot fail
+    #[allow(clippy::expect_used)]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         #[allow(clippy::invalid_regex)]
         let re = Regex::new("\\p{C}").expect("Regex is valid");

@@ -118,6 +118,8 @@ pub fn cli_run(matches: &ArgMatches, wallet_base_dir: PathBuf) -> Result<(), Str
     //
     // The `tiny-bip39` crate uses `thread_rng()` for this entropy.
     let mnemonic_length = clap_utils::parse_required(matches, MNEMONIC_LENGTH_FLAG)?;
+    // invariant: mnemonic_length already validated by clap value_parser
+    #[allow(clippy::expect_used)]
     let mnemonic = Mnemonic::new(
         MnemonicType::for_word_count(mnemonic_length).expect("Mnemonic length already validated"),
         Language::English,

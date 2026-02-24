@@ -137,6 +137,8 @@ impl<E: EthSpec> SSZSnappyInboundCodec<E> {
 impl<E: EthSpec> Encoder<RpcResponse<E>> for SSZSnappyInboundCodec<E> {
     type Error = RPCError;
 
+    // invariant: stream terminations are never encoded
+    #[allow(clippy::expect_used)]
     fn encode(&mut self, item: RpcResponse<E>, dst: &mut BytesMut) -> Result<(), Self::Error> {
         dst.clear();
         dst.reserve(1);

@@ -41,6 +41,7 @@ impl TreeHash for AttestationKey {
         unreachable!("AttestationKey should never be packed.")
     }
 
+    #[allow(clippy::expect_used)] // invariant: MerkleHasher with 2 leaves cannot fail
     fn tree_hash_root(&self) -> Hash256 {
         match self.committee_index {
             None => self.data_root, // Return just the data root if no committee index is present

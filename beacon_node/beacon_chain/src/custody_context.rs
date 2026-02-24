@@ -6,7 +6,7 @@ use std::{
     collections::{BTreeMap, HashMap},
     sync::atomic::{AtomicU64, Ordering},
 };
-use tracing::{debug, warn};
+use tracing::{debug, error, warn};
 use types::{ChainSpec, ColumnIndex, Epoch, EthSpec, Slot};
 
 /// A delay before making the CGC change effective to the data availability checker.
@@ -317,6 +317,7 @@ impl<E: EthSpec> CustodyContext<E> {
                 let old_custody_group_count = validator_custody_at_head;
                 validator_custody_at_head = cgc_from_cli;
 
+                #[allow(clippy::expect_used)] // startup initialization, panic is appropriate
                 let sampling_count = spec
                     .sampling_size_custody_groups(cgc_from_cli)
                     .expect("should compute node sampling size from valid chain spec");
@@ -404,10 +405,18 @@ impl<E: EthSpec> CustodyContext<E> {
                     old_cgc = current_cgc,
                     updated_cgc, "Custody group count updated"
                 );
+                let sampling_count =
+                    match self.num_of_custody_groups_to_sample(effective_epoch, spec) {
+                        Ok(count) => count,
+                        Err(e) => {
+                            error!(error = %e, "Failed to compute sampling size");
+                            return None;
+                        }
+                    };
                 return Some(CustodyCountChanged {
                     new_custody_group_count: updated_cgc,
                     old_custody_group_count: current_cgc,
-                    sampling_count: self.num_of_custody_groups_to_sample(effective_epoch, spec),
+                    sampling_count,
                     effective_epoch,
                 });
             }
@@ -444,17 +453,23 @@ impl<E: EthSpec> CustodyContext<E> {
     }
 
     /// Returns the count of custody groups this node must _sample_ for a block at `epoch` to import.
-    pub fn num_of_custody_groups_to_sample(&self, epoch: Epoch, spec: &ChainSpec) -> u64 {
+    pub fn num_of_custody_groups_to_sample(
+        &self,
+        epoch: Epoch,
+        spec: &ChainSpec,
+    ) -> Result<u64, String> {
         let custody_group_count = self.custody_group_count_at_epoch(epoch, spec);
         spec.sampling_size_custody_groups(custody_group_count)
-            .expect("should compute node sampling size from valid chain spec")
     }
 
     /// Returns the count of columns this node must _sample_ for a block at `epoch` to import.
-    pub fn num_of_data_columns_to_sample(&self, epoch: Epoch, spec: &ChainSpec) -> usize {
+    pub fn num_of_data_columns_to_sample(
+        &self,
+        epoch: Epoch,
+        spec: &ChainSpec,
+    ) -> Result<usize, String> {
         let custody_group_count = self.custody_group_count_at_epoch(epoch, spec);
         spec.sampling_size_columns::<E>(custody_group_count)
-            .expect("should compute node sampling size from valid chain spec")
     }
 
     /// Returns whether the node should attempt reconstruction at a given epoch.
@@ -462,7 +477,9 @@ impl<E: EthSpec> CustodyContext<E> {
         let min_columns_for_reconstruction = E::number_of_columns() / 2;
         // performing reconstruction is not necessary if sampling column count is exactly 50%,
         // because the node doesn't need the remaining columns.
-        self.num_of_data_columns_to_sample(epoch, spec) > min_columns_for_reconstruction
+        self.num_of_data_columns_to_sample(epoch, spec)
+            .map(|count| count > min_columns_for_reconstruction)
+            .unwrap_or(false)
     }
 
     /// Returns the ordered list of column indices that should be sampled for data availability checking at the given epoch.
@@ -473,9 +490,13 @@ impl<E: EthSpec> CustodyContext<E> {
     ///
     /// # Returns
     /// A slice of ordered column indices that should be sampled for this epoch based on the node's custody configuration
-    pub fn sampling_columns_for_epoch(&self, epoch: Epoch, spec: &ChainSpec) -> &[ColumnIndex] {
-        let num_of_columns_to_sample = self.num_of_data_columns_to_sample(epoch, spec);
-        &self.ordered_custody_column_indices[..num_of_columns_to_sample]
+    pub fn sampling_columns_for_epoch(
+        &self,
+        epoch: Epoch,
+        spec: &ChainSpec,
+    ) -> Result<&[ColumnIndex], String> {
+        let num_of_columns_to_sample = self.num_of_data_columns_to_sample(epoch, spec)?;
+        Ok(&self.ordered_custody_column_indices[..num_of_columns_to_sample])
     }
 
     /// Returns the ordered list of column indices that the node is assigned to custody
@@ -739,7 +760,9 @@ mod tests {
             spec.number_of_custody_groups
         );
         assert_eq!(
-            custody_context.num_of_custody_groups_to_sample(Epoch::new(0), &spec),
+            custody_context
+                .num_of_custody_groups_to_sample(Epoch::new(0), &spec)
+                .unwrap(),
             spec.number_of_custody_groups
         );
     }
@@ -757,7 +780,9 @@ mod tests {
             spec.number_of_custody_groups / 2
         );
         assert_eq!(
-            custody_context.num_of_custody_groups_to_sample(Epoch::new(0), &spec),
+            custody_context
+                .num_of_custody_groups_to_sample(Epoch::new(0), &spec)
+                .unwrap(),
             spec.number_of_custody_groups / 2
         );
     }
@@ -776,7 +801,9 @@ mod tests {
             "head custody count should be minimum spec custody requirement"
         );
         assert_eq!(
-            custody_context.num_of_custody_groups_to_sample(Epoch::new(0), &spec),
+            custody_context
+                .num_of_custody_groups_to_sample(Epoch::new(0), &spec)
+                .unwrap(),
             spec.samples_per_slot
         );
     }
@@ -887,7 +914,9 @@ mod tests {
         );
         let current_epoch = Epoch::new(2);
         assert_eq!(
-            custody_context.num_of_custody_groups_to_sample(current_epoch, &spec),
+            custody_context
+                .num_of_custody_groups_to_sample(current_epoch, &spec)
+                .unwrap(),
             spec.number_of_custody_groups
         );
     }
@@ -902,8 +931,9 @@ mod tests {
         );
         let current_slot = Slot::new(10);
         let current_epoch = current_slot.epoch(E::slots_per_epoch());
-        let default_sampling_size =
-            custody_context.num_of_custody_groups_to_sample(current_epoch, &spec);
+        let default_sampling_size = custody_context
+            .num_of_custody_groups_to_sample(current_epoch, &spec)
+            .unwrap();
         let validator_custody_units = 10;
 
         let _cgc_changed = custody_context.register_validators(
@@ -917,12 +947,16 @@ mod tests {
 
         // CGC update is not applied for `current_epoch`.
         assert_eq!(
-            custody_context.num_of_custody_groups_to_sample(current_epoch, &spec),
+            custody_context
+                .num_of_custody_groups_to_sample(current_epoch, &spec)
+                .unwrap(),
             default_sampling_size
         );
         // CGC update is applied for the next epoch.
         assert_eq!(
-            custody_context.num_of_custody_groups_to_sample(current_epoch + 1, &spec),
+            custody_context
+                .num_of_custody_groups_to_sample(current_epoch + 1, &spec)
+                .unwrap(),
             validator_custody_units
         );
     }
@@ -1357,12 +1391,16 @@ mod tests {
 
         // Verify sampling size calculation uses correct historical values
         assert_eq!(
-            custody_context.num_of_custody_groups_to_sample(Epoch::new(5), &spec),
+            custody_context
+                .num_of_custody_groups_to_sample(Epoch::new(5), &spec)
+                .unwrap(),
             spec.samples_per_slot,
             "sampling at epoch 5 should use spec minimum since cgc is at minimum"
         );
         assert_eq!(
-            custody_context.num_of_custody_groups_to_sample(Epoch::new(25), &spec),
+            custody_context
+                .num_of_custody_groups_to_sample(Epoch::new(25), &spec)
+                .unwrap(),
             final_cgc,
             "sampling at epoch 25 should match final cgc"
         );

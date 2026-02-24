@@ -143,6 +143,8 @@ pub struct Eth2NetArchiveAndDirectory<'a> {
 
 impl Eth2NetArchiveAndDirectory<'_> {
     /// The directory that should be used to store files downloaded for this net.
+    // Compile-time constant, cannot fail.
+    #[allow(clippy::expect_used)]
     pub fn dir(&self) -> PathBuf {
         env::var("CARGO_MANIFEST_DIR")
             .expect("should know manifest dir")

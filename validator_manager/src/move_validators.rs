@@ -56,9 +56,10 @@ impl PasswordSource {
                 eprintln!("Please enter a password for keystore {:?}:", pubkey);
                 read_password_from_user(*stdin_inputs)
             }
-            // This path with panic if the password list is empty. Since the
+            // This path will panic if the password list is empty. Since the
             // password prompt will just keep retrying on a failed password, the
             // panic helps us break the loop if we misconfigure the test.
+            #[allow(clippy::expect_used)]
             PasswordSource::Testing(passwords) => Ok(passwords
                 .get_mut(pubkey)
                 .expect("pubkey should be known")

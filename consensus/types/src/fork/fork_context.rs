@@ -61,6 +61,7 @@ impl ForkContext {
             .collect();
 
         let current_epoch = current_slot.epoch(E::slots_per_epoch());
+        #[allow(clippy::expect_used)] // startup initialization, panic is appropriate
         let current_fork = epoch_to_forks
             .values()
             .rfind(|&fork| fork.fork_epoch <= current_epoch)
@@ -116,6 +117,7 @@ impl ForkContext {
 
     /// Returns the context bytes/fork_digest corresponding to the genesis fork version.
     pub fn genesis_context_bytes(&self) -> [u8; 4] {
+        #[allow(clippy::expect_used)] // startup initialization, panic is appropriate
         self.epoch_to_forks
             .first_key_value()
             .expect("must contain genesis epoch")
@@ -135,6 +137,7 @@ impl ForkContext {
     /// Returns the context bytes/fork_digest corresponding to an epoch.
     /// See [`ChainSpec::compute_fork_digest`]
     pub fn context_bytes(&self, epoch: Epoch) -> [u8; 4] {
+        #[allow(clippy::expect_used)] // startup initialization, panic is appropriate
         self.epoch_to_forks
             .range(..=epoch)
             .next_back()

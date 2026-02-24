@@ -7075,6 +7075,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         }
     }
 
+    #[allow(clippy::unwrap_used, clippy::expect_used)] // debug-only DOT graph writer, panics acceptable
     pub fn dump_as_dot<W: Write>(&self, output: &mut W) {
         let canonical_head_hash = self.canonical_head.cached_head().head_block_root();
         let mut visited: HashSet<Hash256> = HashSet::new();
@@ -7177,6 +7178,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
 
     // Used for debugging
     #[allow(dead_code)]
+    #[allow(clippy::unwrap_used)] // debug-only helper for writing DOT files
     pub fn dump_dot_file(&self, file_name: &str) {
         let mut file = std::fs::File::create(file_name).unwrap();
         self.dump_as_dot(&mut file);
@@ -7319,7 +7321,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
 
     /// Returns a list of column indices that should be sampled for a given epoch.
     /// Used for data availability sampling in PeerDAS.
-    pub fn sampling_columns_for_epoch(&self, epoch: Epoch) -> &[ColumnIndex] {
+    pub fn sampling_columns_for_epoch(&self, epoch: Epoch) -> Result<&[ColumnIndex], String> {
         self.data_availability_checker
             .custody_context()
             .sampling_columns_for_epoch(epoch, &self.spec)

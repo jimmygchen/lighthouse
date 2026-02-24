@@ -12,6 +12,7 @@ use network_utils::enr_ext::EnrExt;
 use tracing::{info, warn};
 use types::EthSpec;
 
+#[allow(clippy::unwrap_used)] // startup initialization, panic is appropriate
 pub async fn run<E: EthSpec>(
     lh_matches: &ArgMatches,
     bn_matches: &ArgMatches,

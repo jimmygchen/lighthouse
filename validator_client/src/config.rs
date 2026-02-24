@@ -106,6 +106,7 @@ impl Default for Config {
         let validator_dir = base_dir.join(DEFAULT_VALIDATOR_DIR);
         let secrets_dir = base_dir.join(DEFAULT_SECRET_DIR);
 
+        #[allow(clippy::expect_used)] // compile-time constant, cannot fail
         let beacon_nodes = vec![
             SensitiveUrl::parse(DEFAULT_BEACON_NODE)
                 .expect("beacon_nodes must always be a valid url."),

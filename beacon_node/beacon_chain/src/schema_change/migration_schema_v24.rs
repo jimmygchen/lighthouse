@@ -272,6 +272,7 @@ pub fn upgrade_to_v24<T: BeaconChainTypes>(
     // prunned, it should have a single root equal to the split.
     let state_summaries_dag_roots = state_summaries_dag.tree_roots();
     if state_summaries_dag_roots.len() == 1 {
+        #[allow(clippy::expect_used)] // invariant: len == 1 checked on previous line
         let (root_summary_state_root, root_summary) =
             state_summaries_dag_roots.first().expect("len == 1");
         if *root_summary_state_root != split.state_root {

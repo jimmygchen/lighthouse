@@ -794,6 +794,7 @@ impl<E: EthSpec> PeerDB<E> {
     }
 
     /// Updates the connection state. MUST ONLY BE USED IN TESTS.
+    #[allow(clippy::unwrap_used, clippy::expect_used)]
     pub fn __add_connected_peer_testing_only(
         &mut self,
         supernode: bool,

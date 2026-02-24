@@ -10,6 +10,7 @@
 )]
 
 #[macro_use]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 pub mod test_utils;
 
 pub mod attestation;

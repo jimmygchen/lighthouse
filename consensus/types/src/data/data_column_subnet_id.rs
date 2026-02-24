@@ -26,6 +26,7 @@ impl DataColumnSubnetId {
     }
 
     pub fn from_column_index(column_index: ColumnIndex, spec: &ChainSpec) -> Self {
+        #[allow(clippy::expect_used)] // data_column_sidecar_subnet_count is a nonzero spec constant
         column_index
             .safe_rem(spec.data_column_sidecar_subnet_count)
             .expect(

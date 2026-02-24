@@ -131,6 +131,7 @@ fn parse_inspect_config(inspect_config: &Inspect) -> Result<InspectConfig, Strin
     })
 }
 
+#[allow(clippy::expect_used)] // CLI tool, crash is appropriate
 pub fn inspect_db<E: EthSpec>(
     inspect_config: InspectConfig,
     client_config: ClientConfig,
@@ -239,6 +240,7 @@ pub struct CompactConfig {
     blobs_db: bool,
 }
 
+#[allow(clippy::expect_used)] // CLI tool, crash is appropriate
 fn parse_compact_config(compact_config: &Compact) -> Result<CompactConfig, String> {
     let column: DBColumn = compact_config
         .column

@@ -1479,7 +1479,8 @@ impl FromStr for Accept {
                         })
                         .or(Some(1000_u16));
 
-                    (q_val.unwrap(), item_accept_type)
+                    // `q_val` always has a value because of the `.or(Some(1000_u16))` above
+                    (q_val.unwrap_or(1000_u16), item_accept_type)
                 });
 
                 match q_accept {

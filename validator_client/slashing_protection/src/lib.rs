@@ -1,12 +1,14 @@
 mod attestation_tests;
 mod block_tests;
 mod extra_interchange_tests;
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 pub mod interchange_test;
 mod parallel_tests;
 mod registration_tests;
 mod signed_attestation;
 mod signed_block;
 mod slashing_database;
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 pub mod test_utils;
 
 pub mod interchange {

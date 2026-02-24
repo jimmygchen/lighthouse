@@ -39,6 +39,8 @@ pub struct Metadata {
 }
 
 impl Metadata {
+    // startup initialization, panic is appropriate
+    #[allow(clippy::expect_used)]
     pub fn new(process: ProcessType) -> Self {
         Self {
             version: VERSION,
@@ -164,6 +166,8 @@ pub struct ValidatorProcessMetrics {
 }
 
 /// Returns the client version
+// compile-time constant, cannot fail
+#[allow(clippy::expect_used)]
 fn client_version() -> Option<String> {
     let re = regex::Regex::new(r"\d+\.\d+\.\d+").expect("Regex is valid");
     re.find(lighthouse_version::VERSION)

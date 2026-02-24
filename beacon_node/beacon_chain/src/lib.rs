@@ -56,6 +56,7 @@ pub mod state_advance_timer;
 pub mod summaries_dag;
 pub mod sync_committee_rewards;
 pub mod sync_committee_verification;
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 pub mod test_utils;
 pub mod validator_monitor;
 pub mod validator_pubkey_cache;

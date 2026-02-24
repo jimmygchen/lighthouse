@@ -174,6 +174,8 @@ pub fn load_private_key(config: &NetworkConfig) -> Keypair {
 }
 
 /// Generate authenticated XX Noise config from identity keys
+// startup initialization, panic is appropriate
+#[allow(clippy::expect_used)]
 fn generate_noise_config(identity_keypair: &Keypair) -> noise::Config {
     noise::Config::new(identity_keypair).expect("signing can fail only once during starting a node")
 }

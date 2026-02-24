@@ -69,6 +69,7 @@ pub static JEMALLOC_ARENAS_LARGE_NDALLOC: LazyLock<metrics::Result<IntGaugeVec>>
     });
 
 pub fn scrape_jemalloc_metrics() {
+    #[allow(clippy::unwrap_used)] // allocator configuration, panic is appropriate
     scrape_jemalloc_metrics_fallible().unwrap()
 }
 

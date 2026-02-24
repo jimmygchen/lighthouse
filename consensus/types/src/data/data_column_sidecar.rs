@@ -168,6 +168,7 @@ impl<E: EthSpec> DataColumnSidecarFulu<E> {
         )
     }
 
+    #[allow(clippy::unwrap_used)] // SSZ size computation, list sizes within max capacity
     pub fn min_size() -> usize {
         // min size is one cell
         Self {
@@ -185,6 +186,7 @@ impl<E: EthSpec> DataColumnSidecarFulu<E> {
         .len()
     }
 
+    #[allow(clippy::unwrap_used)] // SSZ size computation, list sizes within max capacity
     pub fn max_size(max_blobs_per_block: usize) -> usize {
         Self {
             index: 0,
@@ -207,6 +209,7 @@ impl<E: EthSpec> DataColumnSidecarFulu<E> {
 }
 
 impl<E: EthSpec> DataColumnSidecarGloas<E> {
+    #[allow(clippy::unwrap_used)] // SSZ size computation, list sizes within max capacity
     pub fn min_size() -> usize {
         // min size is one cell
         Self {
@@ -220,6 +223,7 @@ impl<E: EthSpec> DataColumnSidecarGloas<E> {
         .len()
     }
 
+    #[allow(clippy::unwrap_used)] // SSZ size computation, list sizes within max capacity
     pub fn max_size(max_blobs_per_block: usize) -> usize {
         Self {
             index: 0,

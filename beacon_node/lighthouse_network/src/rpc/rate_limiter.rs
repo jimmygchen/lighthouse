@@ -63,6 +63,8 @@ pub struct Quota {
 
 impl Quota {
     /// A hard limit of one token every `seconds`.
+    // compile-time constant, cannot fail
+    #[allow(clippy::unwrap_used)]
     pub const fn one_every(seconds: u64) -> Self {
         Quota {
             replenish_all_every: Duration::from_secs(seconds),
@@ -457,6 +459,8 @@ impl<Key: Hash + Eq + Clone> Limiter<Key> {
         if tau == 0 {
             return Err("Replenish time must be positive");
         }
+        // invariant: NonZeroU64 guarantees divisor is non-zero
+        #[allow(clippy::expect_used)]
         let t = tau
             .checked_div(quota.max_tokens.get() as u128)
             .expect("Division by zero never occurs, since Quota::max_token is of type NonZeroU64.")

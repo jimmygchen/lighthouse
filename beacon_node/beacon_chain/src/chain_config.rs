@@ -22,6 +22,7 @@ pub const FORK_CHOICE_LOOKAHEAD_FACTOR: u32 = 24;
 pub const DEFAULT_SYNC_TOLERANCE_EPOCHS: u64 = 2;
 
 /// Invalid block root to be banned from processing and importing on Holesky network by default.
+#[allow(clippy::expect_used)] // compile-time constant, cannot fail
 pub static INVALID_HOLESKY_BLOCK_ROOT: LazyLock<Hash256> = LazyLock::new(|| {
     Hash256::from_str("2db899881ed8546476d0b92c6aa9110bea9a4cd0dbeb5519eb0ea69575f1f359")
         .expect("valid block root")

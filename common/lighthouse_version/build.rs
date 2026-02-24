@@ -8,10 +8,12 @@ const CLIENT_NAME: &str = "Lighthouse";
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
 
+    #[allow(clippy::unwrap_used)] // build script, crash is appropriate
     let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
     let manifest_path = Path::new(&manifest_dir);
 
     // The crate version is inherited from the workspace.
+    #[allow(clippy::unwrap_used)] // build script, crash is appropriate
     let semantic_version = env::var("CARGO_PKG_VERSION").unwrap();
 
     // Hardcode the .git/ path.

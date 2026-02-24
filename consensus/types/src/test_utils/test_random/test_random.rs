@@ -79,6 +79,7 @@ impl<T, N: Unsigned> TestRandom for ssz_types::FixedVector<T, N>
 where
     T: TestRandom,
 {
+    #[allow(clippy::expect_used)] // test utility
     fn random_for_test(rng: &mut impl RngCore) -> Self {
         Self::new(
             (0..N::to_usize())
@@ -102,6 +103,7 @@ where
             }
         }
 
+        #[allow(clippy::unwrap_used)] // test utility
         output.try_into().unwrap()
     }
 }

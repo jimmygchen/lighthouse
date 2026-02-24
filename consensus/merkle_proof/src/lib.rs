@@ -302,6 +302,7 @@ impl MerkleTree {
                 return Err(MerkleTreeError::ProofEncounteredFinalizedNode);
             }
             // Note: unwrap is safe because leaves are only ever constructed at depth == 0.
+            #[allow(clippy::unwrap_used)] // guarded by Finalized check above
             let (left, right) = current_node.left_and_right_branches().unwrap();
 
             // Go right, include the left branch in the proof.

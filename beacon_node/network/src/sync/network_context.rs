@@ -582,6 +582,7 @@ impl<T: BeaconChainTypes> SyncNetworkContext<T> {
                 let column_indexes = self
                     .chain
                     .sampling_columns_for_epoch(epoch)
+                    .map_err(RpcRequestSendError::InternalError)?
                     .iter()
                     .cloned()
                     .collect();
@@ -658,15 +659,15 @@ impl<T: BeaconChainTypes> SyncNetworkContext<T> {
             .transpose()?;
 
         let epoch = Slot::new(*request.start_slot()).epoch(T::EthSpec::slots_per_epoch());
+        let sampling_columns = self
+            .chain
+            .sampling_columns_for_epoch(epoch)
+            .map_err(RpcRequestSendError::InternalError)?;
         let info = RangeBlockComponentsRequest::new(
             blocks_req_id,
             blobs_req_id,
-            data_column_requests.map(|data_column_requests| {
-                (
-                    data_column_requests,
-                    self.chain.sampling_columns_for_epoch(epoch).to_vec(),
-                )
-            }),
+            data_column_requests
+                .map(|data_column_requests| (data_column_requests, sampling_columns.to_vec())),
             range_request_span,
         );
         self.components_by_range_requests.insert(id, info);
@@ -1098,6 +1099,7 @@ impl<T: BeaconChainTypes> SyncNetworkContext<T> {
         let mut custody_indexes_to_fetch = self
             .chain
             .sampling_columns_for_epoch(current_epoch)
+            .map_err(RpcRequestSendError::InternalError)?
             .iter()
             .copied()
             .filter(|index| !custody_indexes_imported.contains(index))
@@ -1387,6 +1389,8 @@ impl<T: BeaconChainTypes> SyncNetworkContext<T> {
     /// Attempt to make progress on all custody_by_root requests. Some request may be stale waiting
     /// for custody peers. Returns a Vec of results as zero or more requests may fail in this
     /// attempt.
+    // Allow expect: invariant: id was just collected from custody_by_root_requests keys
+    #[allow(clippy::expect_used)]
     pub fn continue_custody_by_root_requests(
         &mut self,
     ) -> Vec<(CustodyRequester, CustodyByRootResult<T::EthSpec>)> {
@@ -1688,6 +1692,7 @@ impl<T: BeaconChainTypes> SyncNetworkContext<T> {
             let column_indexes = self
                 .chain
                 .sampling_columns_for_epoch(batch_id.epoch)
+                .map_err(RpcRequestSendError::InternalError)?
                 .iter()
                 .cloned()
                 .collect();

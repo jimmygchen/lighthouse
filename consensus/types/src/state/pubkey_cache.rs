@@ -27,10 +27,12 @@ impl PubkeyCache {
     pub fn insert(&mut self, pubkey: PublicKeyBytes, index: ValidatorIndex) -> bool {
         if index == self.len {
             self.map.insert_mut(pubkey, index);
-            self.len = self
+            #[allow(clippy::expect_used)] // validator count bounded well below usize::MAX
+            let new_len = self
                 .len
                 .checked_add(1)
                 .expect("map length cannot exceed usize");
+            self.len = new_len;
             true
         } else {
             false

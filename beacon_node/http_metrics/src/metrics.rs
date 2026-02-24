@@ -4,6 +4,8 @@ use lighthouse_network::prometheus_client::encoding::text::encode;
 use malloc_utils::scrape_allocator_metrics;
 use metrics::TextEncoder;
 
+// Allow unwrap: encode_utf8 writing to a String cannot fail
+#[allow(clippy::unwrap_used)]
 pub fn gather_prometheus_metrics<T: BeaconChainTypes>(
     ctx: &Context<T>,
 ) -> std::result::Result<String, String> {

@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)] // CLI developer tool
 mod block_root;
 mod check_deposit_data;
 mod generate_bootnode_enr;

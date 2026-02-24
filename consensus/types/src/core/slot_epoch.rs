@@ -51,6 +51,7 @@ impl Slot {
     }
 
     pub fn epoch(self, slots_per_epoch: u64) -> Epoch {
+        #[allow(clippy::expect_used)] // constant conversion, cannot fail
         Epoch::new(self.0)
             .safe_div(slots_per_epoch)
             .expect("slots_per_epoch is not 0")

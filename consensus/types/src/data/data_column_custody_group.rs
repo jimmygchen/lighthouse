@@ -65,10 +65,13 @@ fn get_custody_groups_ordered(
         let mut node_id_bytes = [0u8; 32];
         node_id_bytes.copy_from_slice(current_id.as_le_slice());
         let hash = ethereum_hashing::hash_fixed(&node_id_bytes);
+        #[allow(clippy::expect_used)]
+        // hash_fixed always returns 32 bytes, slicing first 8 cannot fail
         let hash_prefix: [u8; 8] = hash[0..8]
             .try_into()
             .expect("hash_fixed produces a 32 byte array");
         let hash_prefix_u64 = u64::from_le_bytes(hash_prefix);
+        #[allow(clippy::expect_used)] // number_of_custody_groups is a nonzero spec constant
         let custody_group = hash_prefix_u64
             .safe_rem(spec.number_of_custody_groups)
             .expect("spec.number_of_custody_groups must not be zero");

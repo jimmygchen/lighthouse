@@ -21,6 +21,7 @@ impl<N: Unsigned + Clone> TestRandom for BitList<N> {
             raw_bytes.truncate(non_zero_bytes);
         }
 
+        #[allow(clippy::expect_used)] // test utility
         Self::from_bytes(raw_bytes).expect("we generate a valid BitList")
     }
 }
@@ -38,6 +39,7 @@ impl<N: Unsigned + Clone> TestRandom for BitVector<N> {
             }
             *last_byte &= mask;
         }
+        #[allow(clippy::expect_used)] // test utility
         Self::from_bytes(raw_bytes).expect("we generate a valid BitVector")
     }
 }

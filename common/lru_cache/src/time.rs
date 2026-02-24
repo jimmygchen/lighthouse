@@ -50,11 +50,13 @@ where
                 inserted: Instant::now(),
             });
         } else {
+            #[allow(clippy::expect_used)] // key derived from entry that was just inserted
             let position = self
                 .list
                 .iter()
                 .position(|e| e.key == key)
                 .expect("Key is not new");
+            #[allow(clippy::expect_used)] // position derived from element in list
             let mut element = self
                 .list
                 .remove(position)
@@ -71,12 +73,15 @@ where
     /// existed.
     pub fn raw_remove(&mut self, key: &Key) -> bool {
         if self.map.remove(key) {
+            #[allow(clippy::expect_used)] // key derived from map entry that was just removed
             let position = self
                 .list
                 .iter()
                 .position(|e| &e.key == key)
                 .expect("Key must exist");
-            self.list
+            #[allow(clippy::expect_used)] // position derived from element in list
+            let _removed = self
+                .list
                 .remove(position)
                 .expect("Position is not occupied");
             true
@@ -124,11 +129,13 @@ where
                 inserted: Instant::now(),
             });
         } else {
+            #[allow(clippy::expect_used)] // key derived from entry that was just inserted
             let position = self
                 .list
                 .iter()
                 .position(|e| e.key == key)
                 .expect("Key is not new");
+            #[allow(clippy::expect_used)] // position derived from element in list
             let mut element = self
                 .list
                 .remove(position)

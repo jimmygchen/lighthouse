@@ -161,7 +161,10 @@ impl<T: BeaconChainTypes> ChainCollection<T> {
                 RangeSyncType::Finalized => self.finalized_chains.remove(&id),
                 RangeSyncType::Head => self.head_chains.remove(&id),
             };
-            let chain = chain.expect("Chain exists");
+            let Some(chain) = chain else {
+                error!(chain_id = id, ?sync_type, "Chain not found during removal");
+                continue;
+            };
             self.on_chain_removed(&id, chain.is_syncing(), sync_type);
             results.push((chain, sync_type, reason));
         }
@@ -308,10 +311,10 @@ impl<T: BeaconChainTypes> ChainCollection<T> {
                 }
             }
 
-            let chain = self
-                .finalized_chains
-                .get_mut(&new_id)
-                .expect("Chain exists");
+            let Some(chain) = self.finalized_chains.get_mut(&new_id) else {
+                error!(chain_id = new_id, "Finalized chain not found during update");
+                return;
+            };
 
             match old_id {
                 Some(Some(old_id)) => debug!(old_id, id = chain.id(), "Switching finalized chains"),
@@ -376,7 +379,10 @@ impl<T: BeaconChainTypes> ChainCollection<T> {
 
         let mut syncing_chains = SmallVec::<[Id; PARALLEL_HEAD_CHAINS]>::new();
         for (_, _, id) in preferred_ids {
-            let chain = self.head_chains.get_mut(&id).expect("known chain");
+            let Some(chain) = self.head_chains.get_mut(&id) else {
+                error!(chain_id = id, "Head chain not found during update");
+                continue;
+            };
             if syncing_chains.len() < PARALLEL_HEAD_CHAINS {
                 // start this chain if it's not already syncing
                 if !chain.is_syncing() {

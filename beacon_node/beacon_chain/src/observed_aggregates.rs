@@ -455,6 +455,8 @@ where
             return Ok(index);
         }
 
+        #[allow(clippy::expect_used)]
+        // invariant: sets cannot be empty due to previous .is_empty() check
         let index = self
             .sets
             .iter()

@@ -71,6 +71,8 @@ pub static BLOB_SIDECAR_SIZE: LazyLock<usize> =
 pub static BLOB_SIDECAR_SIZE_MINIMAL: LazyLock<usize> =
     LazyLock::new(BlobSidecar::<MinimalEthSpec>::max_size);
 
+// static initialization, panic is appropriate
+#[allow(clippy::expect_used)]
 pub static ERROR_TYPE_MIN: LazyLock<usize> = LazyLock::new(|| {
     VariableList::<u8, MaxErrorLen>::try_from(Vec::<u8>::new())
         .expect("MaxErrorLen should not exceed MAX_ERROR_LEN")
@@ -78,6 +80,8 @@ pub static ERROR_TYPE_MIN: LazyLock<usize> = LazyLock::new(|| {
         .len()
 });
 
+// static initialization, panic is appropriate
+#[allow(clippy::expect_used)]
 pub static ERROR_TYPE_MAX: LazyLock<usize> = LazyLock::new(|| {
     VariableList::<u8, MaxErrorLen>::try_from(vec![0u8; MAX_ERROR_LEN as usize])
         .expect("MaxErrorLen should not exceed MAX_ERROR_LEN")

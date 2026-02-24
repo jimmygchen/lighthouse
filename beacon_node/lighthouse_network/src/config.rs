@@ -289,6 +289,8 @@ impl Default for Config {
             .join(DEFAULT_NETWORK_DIR);
 
         // Discv5 Unsolicited Packet Rate Limiter
+        // startup initialization, panic is appropriate
+        #[allow(clippy::expect_used)]
         let filter_rate_limiter = Some(
             discv5::RateLimiterBuilder::new()
                 .total_n_every(10, Duration::from_secs(1)) // Allow bursts, average 10 per second
@@ -439,6 +441,8 @@ impl From<u8> for NetworkLoad {
 }
 
 /// Return a Lighthouse specific `GossipsubConfig` where the `message_id_fn` depends on the current fork.
+// startup initialization, panic is appropriate
+#[allow(clippy::expect_used)]
 pub fn gossipsub_config(
     network_load: u8,
     fork_context: Arc<ForkContext>,

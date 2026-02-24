@@ -6,6 +6,7 @@ mod keystores;
 mod remotekeys;
 mod tests;
 
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 pub mod test_utils;
 pub use api_secret::PK_FILENAME;
 

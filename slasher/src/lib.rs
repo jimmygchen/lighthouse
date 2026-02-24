@@ -15,6 +15,7 @@ mod error;
 pub mod metrics;
 mod migrate;
 mod slasher;
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 pub mod test_utils;
 
 pub use crate::slasher::Slasher;

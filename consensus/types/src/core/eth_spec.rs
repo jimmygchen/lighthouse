@@ -336,6 +336,7 @@ pub trait EthSpec: 'static + Default + Sync + Send + Clone + Debug + PartialEq +
         Self::KzgCommitmentInclusionProofDepth::to_usize()
     }
 
+    #[allow(clippy::expect_used)] // compile-time constant, cannot fail
     fn kzg_commitments_tree_depth() -> usize {
         // Depth of the subtree rooted at `blob_kzg_commitments` in the `BeaconBlockBody`
         // is equal to depth of the ssz List max size + 1 for the length mixin
@@ -346,6 +347,7 @@ pub trait EthSpec: 'static + Default + Sync + Send + Clone + Debug + PartialEq +
             .expect("The log of max_blob_commitments_per_block can not overflow") as usize
     }
 
+    #[allow(clippy::expect_used)] // compile-time constant, cannot fail
     fn block_body_tree_depth() -> usize {
         Self::kzg_proof_inclusion_proof_depth()
             .safe_sub(Self::kzg_commitments_tree_depth())

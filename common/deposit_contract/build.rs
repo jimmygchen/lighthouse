@@ -152,14 +152,14 @@ fn verify_checksum(bytes: &[u8], expected_checksum: &str) {
 }
 
 /// Returns the directory that will be used to store the deposit contract ABI.
+#[allow(clippy::expect_used)] // build script, crash is appropriate
 fn abi_dir() -> PathBuf {
     let base = env::var("OUT_DIR")
         .expect("should know out dir")
         .parse::<PathBuf>()
         .expect("should parse out dir as path");
 
-    std::fs::create_dir_all(base.clone())
-        .expect("should be able to create abi directory in out dir");
+    std::fs::create_dir_all(base.clone()).expect("should create abi directory in out dir");
 
     base
 }

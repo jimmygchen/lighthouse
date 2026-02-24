@@ -100,7 +100,12 @@ pub fn get_config<E: EthSpec>(
     let mut log_dir = client_config.data_dir().clone();
     // remove /beacon from the end
     log_dir.pop();
-    info!(datadir = %log_dir.into_os_string().into_string().expect("Datadir should be a valid os string"), "Data directory initialised");
+    #[allow(clippy::expect_used)] // startup initialization, panic is appropriate
+    let log_dir_str = log_dir
+        .into_os_string()
+        .into_string()
+        .expect("Datadir should be a valid os string");
+    info!(datadir = %log_dir_str, "Data directory initialised");
 
     /*
      * Networking
@@ -930,6 +935,7 @@ pub fn parse_listening_addresses(cli_args: &ArgMatches) -> Result<ListenAddress,
     }
 
     // parse the possible tcp ports
+    #[allow(clippy::expect_used)] // CLI arg with default value, always present
     let port = cli_args
         .get_one::<String>("port")
         .expect("--port has a default value")

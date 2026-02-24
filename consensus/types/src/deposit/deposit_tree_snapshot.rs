@@ -47,7 +47,9 @@ impl Default for DepositTreeSnapshot {
             execution_block_height: 0,
         };
         // properly set the empty deposit root
-        result.deposit_root = result.calculate_root().unwrap();
+        #[allow(clippy::unwrap_used)] // empty tree (deposit_count=0) always yields a valid root
+        let deposit_root = result.calculate_root().unwrap();
+        result.deposit_root = deposit_root;
         result
     }
 }

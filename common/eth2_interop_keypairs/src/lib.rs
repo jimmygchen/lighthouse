@@ -29,6 +29,7 @@ pub const PUBLIC_KEY_BYTES: usize = 48;
 pub const HASH_BYTES: usize = 32;
 
 static CURVE_ORDER: LazyLock<BigUint> = LazyLock::new(|| {
+    #[allow(clippy::expect_used)] // compile-time constant, cannot fail
     "52435875175126190479447740508185965837690552500527637822603658699938581184513"
         .parse::<BigUint>()
         .expect("Curve order should be valid")

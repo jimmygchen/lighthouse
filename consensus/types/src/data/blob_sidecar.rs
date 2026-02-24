@@ -253,6 +253,8 @@ impl<E: EthSpec> BlobSidecar<E> {
 
         let blob = Blob::<E>::new(blob_bytes)
             .map_err(|e| format!("error constructing random blob: {:?}", e))?;
+        #[allow(clippy::unwrap_used)]
+        // blob was constructed with canonical field elements (high byte zeroed)
         let kzg_blob = KzgBlob::from_bytes(&blob).unwrap();
 
         let commitment = kzg

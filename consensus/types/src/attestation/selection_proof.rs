@@ -54,6 +54,7 @@ impl SelectionProof {
     pub fn is_aggregator_from_modulo(&self, modulo: u64) -> Result<bool, ArithError> {
         let signature_hash = hash(&self.0.as_ssz_bytes());
         let signature_hash_int = u64::from_le_bytes(
+            #[allow(clippy::expect_used)] // hash always produces 32 bytes; first 8 fit in [u8; 8]
             signature_hash
                 .get(0..8)
                 .expect("hash is 32 bytes")

@@ -611,6 +611,8 @@ impl<T: BeaconChainTypes> SubnetService<T> {
 impl<T: BeaconChainTypes> Stream for SubnetService<T> {
     type Item = SubnetServiceMessage;
 
+    // Allow expect: waker is always set at the start of poll_next before use
+    #[allow(clippy::expect_used)]
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         // Update the waker if needed.
         if let Some(waker) = &self.waker {

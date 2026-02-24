@@ -91,6 +91,7 @@ fn hkdf_mod_r(ikm: &[u8]) -> ZeroizeHash {
     ikm_with_postfix.as_mut_bytes()[..ikm.len()].copy_from_slice(ikm);
 
     // info = "" + I2OSP(L, 2)
+    #[allow(clippy::expect_used)] // compile-time constant, cannot fail
     let info = u16::try_from(MOD_R_L)
         .expect("MOD_R_L too large")
         .to_be_bytes();
@@ -118,6 +119,7 @@ fn hkdf_mod_r(ikm: &[u8]) -> ZeroizeHash {
 /// This function is a part of the `HKDF_mod_r` function in EIP-2333.
 fn mod_r(bytes: &[u8]) -> ZeroizeHash {
     let n = BigUint::from_bytes_be(bytes);
+    #[allow(clippy::expect_used)] // compile-time constant, cannot fail
     let r = BigUint::parse_bytes(R.as_bytes(), 10).expect("must be able to parse R");
     let x = SecretBytes::from((n % r).to_bytes_be());
 
@@ -194,6 +196,7 @@ fn hkdf_expand(prk: Prk, info: &[u8], l: usize) -> SecretBytes {
     }
 
     let mut okm = SecretBytes::zero(l);
+    #[allow(clippy::expect_used)] // constant lengths, cannot fail
     prk.expand(&[info], ExpandLen(l))
         .expect("expand len is constant and cannot be too large")
         .fill(okm.as_mut_bytes())

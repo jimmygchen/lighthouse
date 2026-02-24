@@ -584,6 +584,7 @@ impl ChainSpec {
         let mut base_digest = [0u8; 4];
         let root = Self::compute_fork_data_root(fork_version, genesis_validators_root);
         base_digest.copy_from_slice(
+            #[allow(clippy::expect_used)] // startup configuration, panic is appropriate
             root.as_slice()
                 .get(0..4)
                 .expect("root hash is at least 4 bytes"),
@@ -656,6 +657,7 @@ impl ChainSpec {
         let mut domain = [0; 32];
         domain[0..4].copy_from_slice(&int_to_bytes4(domain_constant));
         domain[4..].copy_from_slice(
+            #[allow(clippy::expect_used)] // startup configuration, panic is appropriate
             Self::compute_fork_data_root(fork_version, genesis_validators_root)
                 .as_slice()
                 .get(..28)
@@ -743,6 +745,7 @@ impl ChainSpec {
                 .blob_parameters_for_epoch(epoch)
                 .or_else(|| {
                     Some(BlobParameters {
+                        #[allow(clippy::expect_used)] // startup configuration, panic is appropriate
                         epoch: self
                             .electra_fork_epoch
                             .expect("electra fork epoch must be set if fulu epoch is set"),
@@ -796,6 +799,7 @@ impl ChainSpec {
 
     /// Returns the number of data columns per custody group.
     pub fn data_columns_per_group<E: EthSpec>(&self) -> u64 {
+        #[allow(clippy::expect_used)] // startup configuration, panic is appropriate
         (E::number_of_columns() as u64)
             .safe_div(self.number_of_custody_groups)
             .expect("Custody group count must be greater than 0")
@@ -845,6 +849,7 @@ impl ChainSpec {
 
     /// Max compressed length of a message that we receive over gossip.
     pub fn max_compressed_len(&self) -> usize {
+        #[allow(clippy::expect_used)] // startup configuration, panic is appropriate
         Self::max_compressed_len_snappy(self.max_payload_size as usize)
             .expect("should not overflow")
     }
@@ -855,6 +860,7 @@ impl ChainSpec {
     pub fn max_message_size(&self) -> usize {
         std::cmp::max(
             // 1024 to account for framing + encoding overhead
+            #[allow(clippy::expect_used)] // startup configuration, panic is appropriate
             Self::max_compressed_len_snappy(self.max_payload_size as usize)
                 .expect("should not overflow")
                 .safe_add(1024)
@@ -916,6 +922,7 @@ impl ChainSpec {
     /// Must be called after loading or modifying a ChainSpec's fields.
     ///
     /// Panics if any computation fails (indicates invalid config).
+    #[allow(clippy::expect_used)] // startup configuration, panic is appropriate
     pub fn compute_derived_values<E: EthSpec>(mut self) -> Self {
         assert!(
             self.attestation_due_bps <= BASIS_POINTS,
@@ -997,6 +1004,7 @@ impl ChainSpec {
     }
 
     /// Returns a `ChainSpec` compatible with the Ethereum Foundation specification.
+    #[allow(clippy::expect_used)] // startup configuration, panic is appropriate
     pub fn mainnet() -> Self {
         Self {
             /*
@@ -1307,6 +1315,7 @@ impl ChainSpec {
     }
 
     /// Ethereum Foundation minimal spec, as defined in the eth2.0-specs repo.
+    #[allow(clippy::expect_used)] // startup configuration, panic is appropriate
     pub fn minimal() -> Self {
         // Note: bootnodes to be updated when static nodes exist.
         let boot_nodes = vec![];
@@ -1394,6 +1403,7 @@ impl ChainSpec {
     }
 
     /// Returns a `ChainSpec` compatible with the Gnosis Beacon Chain specification.
+    #[allow(clippy::expect_used)] // startup configuration, panic is appropriate
     pub fn gnosis() -> Self {
         Self {
             config_name: Some("gnosis".to_string()),
@@ -2280,6 +2290,7 @@ const fn default_contribution_due_bps() -> u64 {
 
 fn max_blocks_by_root_request_common(max_request_blocks: u64) -> usize {
     let max_request_blocks = max_request_blocks as usize;
+    #[allow(clippy::expect_used)] // startup configuration, panic is appropriate
     RuntimeVariableList::<Hash256>::new(
         vec![Hash256::zero(); max_request_blocks],
         max_request_blocks,
@@ -2298,6 +2309,7 @@ pub(crate) fn max_blobs_by_root_request_common(max_request_blob_sidecars: u64) -
     // Since BlobIdentifier is fixed-size, the outer List does not add any byte overhead.
     let blob_identifier_ssz_size = 40_usize;
 
+    #[allow(clippy::expect_used)] // startup configuration, panic is appropriate
     (max_request_blob_sidecars as usize)
         .safe_mul(blob_identifier_ssz_size)
         .expect("should not overflow")
@@ -2316,11 +2328,13 @@ pub(crate) fn max_data_columns_by_root_request_common<E: EthSpec>(
     let column_index_ssz_size = 8_usize;
     let ssz_fixed_size = 40_usize;
 
+    #[allow(clippy::expect_used)] // startup configuration, panic is appropriate
     let data_columns_by_root_identifier_ssz_size = column_index_ssz_size
         .safe_mul(E::number_of_columns())
         .and_then(|b| b.safe_add(ssz_fixed_size))
         .expect("should not overflow");
 
+    #[allow(clippy::expect_used)] // startup configuration, panic is appropriate
     (max_request_blocks as usize)
         .safe_mul(data_columns_by_root_identifier_ssz_size)
         .expect("should not overflow")

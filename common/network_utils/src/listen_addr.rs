@@ -84,6 +84,7 @@ impl ListenAddress {
             .chain(v6_tcp_multiaddr)
     }
 
+    #[allow(clippy::unwrap_used)] // test utility, panics if OS cannot allocate ports
     pub fn unused_v4_ports() -> Self {
         ListenAddress::V4(ListenAddr {
             addr: Ipv4Addr::UNSPECIFIED,
@@ -93,6 +94,7 @@ impl ListenAddress {
         })
     }
 
+    #[allow(clippy::unwrap_used)] // test utility, panics if OS cannot allocate ports
     pub fn unused_v6_ports() -> Self {
         ListenAddress::V6(ListenAddr {
             addr: Ipv6Addr::UNSPECIFIED,

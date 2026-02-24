@@ -228,6 +228,7 @@ impl TAggregateSignature<blst_core::PublicKey, BlstAggregatePublicKey, blst_core
     for BlstAggregateSignature
 {
     fn infinity() -> Self {
+        #[allow(clippy::expect_used)] // constant decode, cannot fail
         blst_core::Signature::from_bytes(&INFINITY_SIGNATURE)
             .map(|sig| blst_core::AggregateSignature::from_signature(&sig))
             .map(Self)
@@ -286,6 +287,7 @@ impl TSecretKey<blst_core::Signature, blst_core::PublicKey> for blst_core::Secre
         let rng = &mut rand::rng();
         let ikm: [u8; 32] = rng.random();
 
+        #[allow(clippy::unwrap_used)] // random key generation, cannot fail
         Self::key_gen(&ikm, &[]).unwrap()
     }
 

@@ -68,6 +68,8 @@ pub enum Prf {
 impl Prf {
     pub fn mac(&self, password: &[u8]) -> impl Mac {
         match &self {
+            #[allow(clippy::expect_used)]
+            // HMAC-SHA256 accepts any key length, new_from_slice cannot fail
             Prf::HmacSha256 => <Hmac<Sha256> as KeyInit>::new_from_slice(password)
                 .expect("Could not derive HMAC using SHA256."),
         }

@@ -219,6 +219,8 @@ impl<E: EthSpec> Network<E> {
         let network_globals = Arc::new(globals);
 
         // Grab our local ENR FORK ID
+        // startup initialization, panic is appropriate
+        #[allow(clippy::expect_used)]
         let enr_fork_id = network_globals
             .local_enr()
             .eth2()
@@ -308,6 +310,8 @@ impl<E: EthSpec> Network<E> {
 
             // For simplicity find the fork with the most individual topics and assume all forks
             // have the same topic count
+            // invariant: fork digests list is never empty, each fork has core topics
+            #[allow(clippy::expect_used)]
             let max_topics_at_any_fork = all_topics_for_digests
                 .iter()
                 .map(|topics| topics.len())
@@ -346,6 +350,8 @@ impl<E: EthSpec> Network<E> {
                 );
             }
 
+            // startup initialization, panic is appropriate
+            #[allow(clippy::expect_used)]
             gossipsub
                 .with_peer_score(params, thresholds)
                 .expect("Valid score params and thresholds");
@@ -468,6 +474,8 @@ impl<E: EthSpec> Network<E> {
         // sets up the libp2p swarm.
 
         let swarm = {
+            // compile-time constants, cannot fail
+            #[allow(clippy::unwrap_used, clippy::expect_used)]
             let config = libp2p::swarm::Config::with_executor(Executor(executor))
                 .with_notify_handler_buffer_size(NonZeroUsize::new(7).expect("Not zero"))
                 .with_per_connection_event_buffer_size(4)
@@ -778,8 +786,13 @@ impl<E: EthSpec> Network<E> {
 
     /// Subscribe to all data columns determined by the cgc.
     pub fn subscribe_new_data_column_subnets(&mut self, sampling_column_count: u64) {
-        self.network_globals
-            .update_data_column_subnets(sampling_column_count);
+        if let Err(e) = self
+            .network_globals
+            .update_data_column_subnets(sampling_column_count)
+        {
+            error!(error = %e, "Failed to update data column subnets");
+            return;
+        }
 
         for column in self.network_globals.sampling_subnets() {
             let kind = GossipKind::DataColumnSidecar(column);
@@ -1132,6 +1145,8 @@ impl<E: EthSpec> Network<E> {
     /* Private internal functions */
 
     /// Updates the current meta data of the node to match the local ENR.
+    // invariant: local ENR always has attestation and sync committee bitfields
+    #[allow(clippy::expect_used)]
     fn update_metadata_bitfields(&mut self) {
         let local_attnets = self
             .discovery_mut()

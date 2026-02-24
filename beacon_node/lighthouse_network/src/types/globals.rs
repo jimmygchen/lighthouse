@@ -66,14 +66,20 @@ impl<E: EthSpec> NetworkGlobals<E> {
 
         // The below `expect` calls will panic on start up if the chain spec config values used
         // are invalid
+        // startup initialization, panic is appropriate
+        #[allow(clippy::expect_used)]
         let sampling_size = spec
             .sampling_size_custody_groups(custody_group_count)
             .expect("should compute node sampling size from valid chain spec");
+        // startup initialization, panic is appropriate
+        #[allow(clippy::expect_used)]
         let custody_groups = get_custody_groups(node_id, sampling_size, &spec)
             .expect("should compute node custody groups");
 
         let mut sampling_subnets = HashSet::new();
         for custody_index in &custody_groups {
+            // startup initialization, panic is appropriate
+            #[allow(clippy::expect_used)]
             let subnets = compute_subnets_from_custody_group::<E>(*custody_index, &spec)
                 .expect("should compute custody subnets for node");
             sampling_subnets.extend(subnets);
@@ -104,19 +110,18 @@ impl<E: EthSpec> NetworkGlobals<E> {
     }
 
     /// Update the sampling subnets based on an updated cgc.
-    pub fn update_data_column_subnets(&self, sampling_size: u64) {
-        // The below `expect` calls will panic on start up if the chain spec config values used
-        // are invalid
+    pub fn update_data_column_subnets(&self, sampling_size: u64) -> Result<(), String> {
         let custody_groups =
             get_custody_groups(self.local_enr().node_id().raw(), sampling_size, &self.spec)
-                .expect("should compute node custody groups");
+                .map_err(|e| format!("Failed to compute custody groups: {e:?}"))?;
 
         let mut sampling_subnets = self.sampling_subnets.write();
         for custody_index in &custody_groups {
             let subnets = compute_subnets_from_custody_group::<E>(*custody_index, &self.spec)
-                .expect("should compute custody subnets for node");
+                .map_err(|e| format!("Failed to compute custody subnets: {e:?}"))?;
             sampling_subnets.extend(subnets);
         }
+        Ok(())
     }
 
     /// Returns the local ENR from the underlying Discv5 behaviour that external peers may connect
@@ -259,6 +264,7 @@ impl<E: EthSpec> NetworkGlobals<E> {
         use network_utils::enr_ext::CombinedKeyExt;
         let keypair = libp2p::identity::secp256k1::Keypair::generate();
         let enr_key: discv5::enr::CombinedKey = discv5::enr::CombinedKey::from_secp256k1(&keypair);
+        #[allow(clippy::unwrap_used)]
         let enr = discv5::enr::Enr::builder().build(&enr_key).unwrap();
         NetworkGlobals::new(enr, metadata, trusted_peers, false, config, spec)
     }

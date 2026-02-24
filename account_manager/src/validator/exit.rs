@@ -105,6 +105,8 @@ pub fn cli_run<E: EthSpec>(matches: &ArgMatches, env: Environment<E>) -> Result<
         Timeouts::set_all(env.eth2_config.spec.get_slot_duration()),
     );
 
+    // startup initialization, panic is appropriate
+    #[allow(clippy::expect_used)]
     let eth2_network_config = env
         .eth2_network_config
         .clone()

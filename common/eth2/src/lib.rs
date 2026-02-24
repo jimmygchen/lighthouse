@@ -471,6 +471,7 @@ impl BeaconNodeHttpClient {
     }
 
     /// Generic POST function supporting arbitrary responses and timeouts.
+    #[allow(clippy::expect_used)] // fork name string is always valid header value
     async fn post_generic_with_consensus_version_and_ssz_body<T: Into<Body>, U: IntoUrl>(
         &self,
         url: U,

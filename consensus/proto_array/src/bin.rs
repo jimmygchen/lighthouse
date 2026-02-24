@@ -1,3 +1,6 @@
+// test binary
+#![allow(clippy::unwrap_used, clippy::expect_used)]
+
 use proto_array::fork_choice_test_definition::*;
 use std::fs::File;
 

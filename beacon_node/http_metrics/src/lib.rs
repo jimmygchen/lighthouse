@@ -81,6 +81,8 @@ impl Default for Config {
 ///
 /// Returns an error if the server is unable to bind or there is another error during
 /// configuration.
+// Allow unwrap: Response::builder() with valid constants cannot fail
+#[allow(clippy::unwrap_used)]
 pub fn serve<T: BeaconChainTypes>(
     ctx: Arc<Context<T>>,
     shutdown: impl Future<Output = ()> + Send + Sync + 'static,

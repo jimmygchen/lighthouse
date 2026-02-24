@@ -618,6 +618,7 @@ mod tests {
         let expects_custody_columns = da_checker
             .custody_context()
             .sampling_columns_for_epoch(Epoch::new(0), &spec)
+            .unwrap()
             .to_vec();
         let mut rng = XorShiftRng::from_seed([42; 16]);
         let blocks = (0..4)
@@ -695,6 +696,7 @@ mod tests {
         let expected_sampling_columns = da_checker
             .custody_context()
             .sampling_columns_for_epoch(Epoch::new(0), &spec)
+            .unwrap()
             .to_vec();
         // Split sampling columns into two batches
         let mid = expected_sampling_columns.len() / 2;
@@ -786,6 +788,7 @@ mod tests {
         let expected_sampling_columns = da_checker
             .custody_context()
             .sampling_columns_for_epoch(Epoch::new(0), &spec)
+            .unwrap()
             .to_vec();
         let mut rng = XorShiftRng::from_seed([42; 16]);
         let blocks = (0..2)
@@ -883,6 +886,7 @@ mod tests {
         let expected_sampling_columns = da_checker
             .custody_context()
             .sampling_columns_for_epoch(Epoch::new(0), &spec)
+            .unwrap()
             .to_vec();
         let mut rng = XorShiftRng::from_seed([42; 16]);
         let blocks = (0..2)
@@ -998,6 +1002,7 @@ mod tests {
         let expected_sampling_columns = da_checker
             .custody_context()
             .sampling_columns_for_epoch(Epoch::new(0), &spec)
+            .unwrap()
             .to_vec();
         let mut rng = XorShiftRng::from_seed([42; 16]);
         let blocks = (0..1)

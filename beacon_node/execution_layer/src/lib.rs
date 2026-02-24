@@ -66,6 +66,7 @@ mod keccak;
 mod metrics;
 pub mod payload_cache;
 mod payload_status;
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 pub mod test_utils;
 pub mod versioned_hashes;
 

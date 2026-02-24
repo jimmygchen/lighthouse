@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)] // test generator binary
 use eip_3076::{Interchange, InterchangeData, InterchangeMetadata, SignedAttestation, SignedBlock};
 use fixed_bytes::FixedBytesExtended;
 use slashing_protection::SUPPORTED_INTERCHANGE_FORMAT_VERSION;

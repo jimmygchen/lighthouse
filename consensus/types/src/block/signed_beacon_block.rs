@@ -793,6 +793,8 @@ pub mod ssz_tagged_signed_beacon_block {
         pub fn ssz_bytes_len<E: EthSpec, Payload: AbstractExecPayload<E>>(
             block: &SignedBeaconBlock<E, Payload>,
         ) -> usize {
+            #[allow(clippy::expect_used)]
+            // SSZ-encoded block length + 1 byte for fork cannot overflow usize
             block
                 .ssz_bytes_len()
                 .checked_add(1)
