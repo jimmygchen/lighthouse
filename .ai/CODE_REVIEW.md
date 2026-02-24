@@ -118,8 +118,9 @@ async fn handler() {
 **Limit to 3-5 key comments.** Prioritize:
 1. Correctness issues - bugs, race conditions, panics
 2. Missing test coverage - especially edge cases
-3. Complex logic needing documentation
-4. API design concerns
+3. Test quality - public API interaction, specific error variant assertions, assertion fragility
+4. Complex logic needing documentation
+5. API design concerns
 
 **Don't comment on:**
 - Minor style issues
@@ -280,7 +281,7 @@ Group related state and behavior together. If two fields are always set together
 - [ ] Errors logged: Not silently swallowed
 - [ ] Clear naming: Variable names are unambiguous
 - [ ] TODOs linked: All TODOs have GitHub issue links
-- [ ] Tests present: Non-trivial changes have tests (see [Test Quality](DEVELOPMENT.md#test-quality) for what good tests look like)
+- [ ] Tests present: Non-trivial changes have tests
 - [ ] Lock safety: Lock ordering is safe and documented
 - [ ] No blocking: Async code doesn't block runtime
 
