@@ -368,6 +368,11 @@ impl<T: BeaconChainTypes> SyncManager<T> {
         self.handle_new_execution_engine_state(state);
     }
 
+    #[cfg(test)]
+    pub(crate) fn network_context(&mut self) -> &mut SyncNetworkContext<T> {
+        &mut self.network
+    }
+
     fn network_globals(&self) -> &NetworkGlobals<T::EthSpec> {
         self.network.network_globals()
     }

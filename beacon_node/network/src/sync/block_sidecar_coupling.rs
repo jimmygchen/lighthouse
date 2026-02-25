@@ -12,7 +12,7 @@ use lighthouse_network::{
     },
 };
 use ssz_types::RuntimeVariableList;
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, sync::Arc, time::Instant};
 use tracing::{Span, debug};
 use types::{
     BlobSidecar, ChainSpec, ColumnIndex, DataColumnSidecar, DataColumnSidecarList, EthSpec,
@@ -39,6 +39,8 @@ pub struct RangeBlockComponentsRequest<E: EthSpec> {
     block_data_request: RangeBlockDataRequest<E>,
     /// Span to track the range request and all children range requests.
     pub(crate) request_span: Span,
+    /// When this entry was created, for stale entry detection.
+    pub(crate) created_at: Instant,
 }
 
 pub enum ByRangeRequest<I: PartialEq + std::fmt::Display, T> {
@@ -111,6 +113,7 @@ impl<E: EthSpec> RangeBlockComponentsRequest<E> {
             blocks_request: ByRangeRequest::Active(blocks_req_id),
             block_data_request,
             request_span,
+            created_at: Instant::now(),
         }
     }
 

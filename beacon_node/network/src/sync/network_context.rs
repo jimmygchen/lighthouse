@@ -278,6 +278,16 @@ impl<E: EthSpec> SyncNetworkContext<TestBeaconChainType<E>> {
             fork_context,
         )
     }
+
+    /// Returns true if there is a `components_by_range_requests` entry with the given id.
+    pub fn has_components_by_range_entry(&self, id: Id) -> bool {
+        self.components_by_range_requests.keys().any(|k| k.id == id)
+    }
+
+    /// Returns the number of entries in `components_by_range_requests`.
+    pub fn components_by_range_count(&self) -> usize {
+        self.components_by_range_requests.len()
+    }
 }
 
 impl<T: BeaconChainTypes> SyncNetworkContext<T> {
@@ -309,6 +319,16 @@ impl<T: BeaconChainTypes> SyncNetworkContext<T> {
     pub fn send_sync_message(&mut self, sync_message: SyncMessage<T::EthSpec>) {
         self.network_beacon_processor
             .send_sync_message(sync_message);
+    }
+
+    /// Remove all `components_by_range_requests` entries matching the given predicate on the
+    /// requester. Used to clean up orphaned entries when a sync session is reset.
+    pub fn remove_components_by_range_requests(
+        &mut self,
+        should_remove: impl Fn(&RangeRequestId) -> bool,
+    ) {
+        self.components_by_range_requests
+            .retain(|key, _| !should_remove(&key.requester));
     }
 
     /// Returns the ids of all the requests made to the given peer_id.
@@ -487,19 +507,24 @@ impl<T: BeaconChainTypes> SyncNetworkContext<T> {
         );
 
         // Attempt to find all required custody peers to request the failed columns from
-        let columns_by_range_peers_to_request = self
-            .select_columns_by_range_peers_to_request(
-                failed_columns,
-                peers,
-                active_request_count_by_peer,
-                peers_to_deprioritize,
-            )
-            .map_err(|e| format!("{:?}", e))?;
+        let columns_by_range_peers_to_request = match self.select_columns_by_range_peers_to_request(
+            failed_columns,
+            peers,
+            active_request_count_by_peer,
+            peers_to_deprioritize,
+        ) {
+            Ok(peers) => peers,
+            Err(e) => {
+                let id = ComponentsByRangeRequestId { id, requester };
+                self.components_by_range_requests.remove(&id);
+                return Err(format!("{:?}", e));
+            }
+        };
 
         // Reuse the id for the request that received partially correct responses
         let id = ComponentsByRangeRequestId { id, requester };
 
-        let data_column_requests = columns_by_range_peers_to_request
+        let data_column_requests: Result<Vec<_>, _> = columns_by_range_peers_to_request
             .into_iter()
             .map(|(peer_id, columns)| {
                 self.send_data_columns_by_range_request(
@@ -518,11 +543,17 @@ impl<T: BeaconChainTypes> SyncNetworkContext<T> {
                     ),
                 )
             })
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| format!("{:?}", e))?;
+            .collect();
 
-        // instead of creating a new `RangeBlockComponentsRequest`, we reinsert
-        // the new requests created for the failed requests
+        let data_column_requests = match data_column_requests {
+            Ok(reqs) => reqs,
+            Err(e) => {
+                self.components_by_range_requests.remove(&id);
+                return Err(format!("{:?}", e));
+            }
+        };
+
+        // Reinsert the new requests created for the failed columns
         let Some(range_request) = self.components_by_range_requests.get_mut(&id) else {
             return Err(
                 "retrying custody request for range request that does not exist".to_string(),
@@ -796,8 +827,6 @@ impl<T: BeaconChainTypes> SyncNetworkContext<T> {
                     entry.remove();
                 };
             } else {
-                // also remove the entry only if it coupled successfully
-                // or if it isn't a column peer failure.
                 entry.remove();
             }
             // If the request is finished, dequeue everything
@@ -1787,11 +1816,9 @@ impl<T: BeaconChainTypes> SyncNetworkContext<T> {
         }
 
         if let Some(data_column_result) = entry.get_mut().responses() {
-            if data_column_result.is_ok() {
-                // remove the entry only if it coupled successfully with
-                // no errors
-                entry.remove();
-            }
+            // Request is complete — always remove the entry. On error, the caller
+            // will create a new entry for the retry.
+            entry.remove();
             // If the request is finished, dequeue everything
             Some(data_column_result.map_err(RpcResponseError::BlockComponentCouplingError))
         } else {
@@ -1820,6 +1847,22 @@ impl<T: BeaconChainTypes> SyncNetworkContext<T> {
             ),
         ] {
             metrics::set_gauge_vec(&metrics::SYNC_ACTIVE_NETWORK_REQUESTS, &[id], count as i64);
+        }
+
+        // Detect stale components_by_range entries (older than 60s)
+        let stale_threshold = Duration::from_secs(60);
+        for (key, entry) in &self.components_by_range_requests {
+            let age = entry.created_at.elapsed();
+            if age > stale_threshold {
+                entry.request_span.in_scope(|| {
+                    warn!(
+                        entry = ?key,
+                        age_secs = age.as_secs(),
+                        map_len = self.components_by_range_requests.len(),
+                        "components_by_range: stale entry detected"
+                    );
+                });
+            }
         }
     }
 }
