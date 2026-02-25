@@ -576,6 +576,7 @@ impl<E: EthSpec, Hot: ItemStore<E>, Cold: ItemStore<E>> HotColdDB<E, Hot, Cold> 
     ///
     /// Return the original block for re-use after storage. It's passed by value so it can be
     /// cracked open and have its payload extracted.
+    #[instrument(skip_all)]
     pub fn block_as_kv_store_ops(
         &self,
         key: &Hash256,
@@ -948,6 +949,7 @@ impl<E: EthSpec, Hot: ItemStore<E>, Cold: ItemStore<E>> HotColdDB<E, Hot, Cold> 
         Ok(())
     }
 
+    #[instrument(skip_all)]
     pub fn blobs_as_kv_store_ops(
         &self,
         key: &Hash256,
@@ -1012,6 +1014,7 @@ impl<E: EthSpec, Hot: ItemStore<E>, Cold: ItemStore<E>> HotColdDB<E, Hot, Cold> 
         Ok(())
     }
 
+    #[instrument(skip_all)]
     pub fn data_columns_as_kv_store_ops(
         &self,
         block_root: &Hash256,
@@ -1582,6 +1585,7 @@ impl<E: EthSpec, Hot: ItemStore<E>, Cold: ItemStore<E>> HotColdDB<E, Hot, Cold> 
     ///
     /// On an epoch boundary, store a full state. On an intermediate slot, store
     /// just a backpointer to the nearest epoch boundary.
+    #[instrument(skip_all)]
     pub fn store_hot_state(
         &self,
         state_root: &Hash256,
@@ -1643,6 +1647,7 @@ impl<E: EthSpec, Hot: ItemStore<E>, Cold: ItemStore<E>> HotColdDB<E, Hot, Cold> 
     }
 
     /// Store a post-finalization state efficiently in the hot database.
+    #[instrument(skip_all)]
     pub fn store_hot_state_summary(
         &self,
         state_root: &Hash256,
@@ -1662,6 +1667,7 @@ impl<E: EthSpec, Hot: ItemStore<E>, Cold: ItemStore<E>> HotColdDB<E, Hot, Cold> 
         Ok(hot_state_summary)
     }
 
+    #[instrument(skip_all)]
     pub fn store_hot_state_diffs(
         &self,
         state_root: &Hash256,
@@ -1692,6 +1698,7 @@ impl<E: EthSpec, Hot: ItemStore<E>, Cold: ItemStore<E>> HotColdDB<E, Hot, Cold> 
         Ok(())
     }
 
+    #[instrument(skip_all)]
     fn store_hot_state_as_diff(
         &self,
         state_root: &Hash256,
@@ -1782,6 +1789,7 @@ impl<E: EthSpec, Hot: ItemStore<E>, Cold: ItemStore<E>> HotColdDB<E, Hot, Cold> 
         }
     }
 
+    #[instrument(skip_all)]
     fn load_hot_hdiff_buffer(&self, state_root: Hash256) -> Result<HDiffBuffer, Error> {
         if let Some(buffer) = self
             .state_cache
@@ -2097,6 +2105,7 @@ impl<E: EthSpec, Hot: ItemStore<E>, Cold: ItemStore<E>> HotColdDB<E, Hot, Cold> 
         }
     }
 
+    #[instrument(skip_all)]
     pub fn store_hot_state_as_snapshot(
         &self,
         state_root: &Hash256,
@@ -3000,6 +3009,7 @@ impl<E: EthSpec, Hot: ItemStore<E>, Cold: ItemStore<E>> HotColdDB<E, Hot, Cold> 
     }
 
     /// Load a hot state's summary, given its root.
+    #[instrument(skip_all)]
     pub fn load_hot_state_summary(
         &self,
         state_root: &Hash256,
@@ -3725,6 +3735,7 @@ pub enum StateSummaryIteratorError {
 
 /// Return the ancestor state root of a state beyond SlotsPerHistoricalRoot using the roots iterator
 /// and the store
+#[instrument(skip_all)]
 pub fn get_ancestor_state_root<'a, E: EthSpec, Hot: ItemStore<E>, Cold: ItemStore<E>>(
     store: &'a HotColdDB<E, Hot, Cold>,
     from_state: &'a BeaconState<E>,

@@ -11,6 +11,7 @@ use std::ops::RangeInclusive;
 use std::str::FromStr;
 use std::sync::LazyLock;
 use superstruct::superstruct;
+use tracing::instrument;
 use types::state::HistoricalSummary;
 use types::{BeaconState, ChainSpec, Epoch, EthSpec, Hash256, Slot, Validator};
 
@@ -246,6 +247,7 @@ impl HDiffBuffer {
 }
 
 impl HDiff {
+    #[instrument(skip_all)]
     pub fn compute(
         source: &HDiffBuffer,
         target: &HDiffBuffer,
