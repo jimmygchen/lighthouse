@@ -89,11 +89,17 @@ Use scoped rayon pools from beacon processor, not global pool. Global pool cause
 
 ## Good Practices
 
-### 6. TODOs Need Issues
+### 6. Don't Follow Bad Patterns
+
+Don't copy existing patterns in the codebase without evaluating whether they're good. If the codebase has 7 scattered `#[cfg(test)]` field accessors, that doesn't make it the right approach for the next one. Always ask: is there a more principled way?
+
+For test infrastructure specifically: prefer exposing meaningful abstractions (e.g., a struct of resource counts) over raw field access. Tests should verify behavior or observable state, not poke at implementation details.
+
+### 7. TODOs Need Issues
 
 All `TODO` comments must link to a GitHub issue.
 
-### 7. Clear Variable Names
+### 8. Clear Variable Names
 
 Avoid ambiguous abbreviations (`bb`, `bl`). Use `beacon_block`, `blob`.
 
