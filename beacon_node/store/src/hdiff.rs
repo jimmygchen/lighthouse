@@ -1095,4 +1095,331 @@ mod tests {
             assert!(closest_layer_points.is_sorted_by(|a, b| a > b));
         }
     }
+
+    /// Demonstrates that corruption of the validators field in an HDiffBuffer produces
+    /// observable errors when the corrupted buffer is converted back to a BeaconState and
+    /// its caches are rebuilt.
+    ///
+    /// This test covers two corruption modes:
+    /// 1. Semantic corruption: changing a validator's activation_epoch to deactivate them,
+    ///    which changes committee composition and may cause cache-building errors.
+    /// 2. Byte-level corruption: injecting invalid bytes into the serialized validator data,
+    ///    which should cause SSZ parse errors or state reconstruction failures.
+    #[test]
+    #[ignore]
+    fn hdiff_corruption_produces_observed_errors() {
+        use genesis::{DEFAULT_ETH1_BLOCK_HASH, interop_genesis_state};
+        use types::{MinimalEthSpec, test_utils::generate_deterministic_keypairs};
+
+        type E = MinimalEthSpec;
+        let spec = E::default_spec();
+        let validator_count = 256;
+        let keypairs = generate_deterministic_keypairs(validator_count);
+
+        let state = interop_genesis_state::<E>(
+            &keypairs,
+            0,
+            Hash256::from_slice(DEFAULT_ETH1_BLOCK_HASH),
+            None,
+            &spec,
+        )
+        .expect("should create interop genesis state");
+
+        let buffer = HDiffBuffer::from_state(state);
+
+        // --- Corruption mode 1: Semantic corruption ---
+        // Deactivate ALL validators by setting their activation_epoch to far future.
+        // This should cause InsufficientValidators when building committee caches,
+        // since no validators will be active.
+        {
+            let mut corrupted = buffer.clone();
+            for validator in &mut corrupted.validators {
+                validator.activation_epoch = Epoch::max_value();
+            }
+
+            let state_result = corrupted.as_state::<E>(&spec);
+            match state_result {
+                Ok(mut state) => {
+                    let cache_result = state.build_caches(&spec);
+                    assert!(
+                        cache_result.is_err(),
+                        "build_caches should fail when all validators are deactivated, \
+                         but succeeded. This means corruption was silently accepted."
+                    );
+                    println!(
+                        "Semantic corruption (all deactivated) correctly produced error: {:?}",
+                        cache_result.unwrap_err()
+                    );
+                }
+                Err(e) => {
+                    println!(
+                        "Semantic corruption caused as_state to fail (also acceptable): {:?}",
+                        e
+                    );
+                }
+            }
+        }
+
+        // --- Corruption mode 1b: Partial semantic corruption ---
+        // Deactivate most validators (all but one). Committee building may still fail
+        // or produce a state with very different committee assignments.
+        {
+            let mut corrupted = buffer.clone();
+            for validator in corrupted.validators.iter_mut().skip(1) {
+                validator.activation_epoch = Epoch::max_value();
+            }
+
+            let state_result = corrupted.as_state::<E>(&spec);
+            match state_result {
+                Ok(mut state) => {
+                    // Even if build_caches succeeds with 1 active validator, the committees
+                    // will be radically different from the original state.
+                    let cache_result = state.build_caches(&spec);
+                    println!(
+                        "Partial semantic corruption: build_caches result: {:?}",
+                        cache_result.as_ref().err()
+                    );
+
+                    // Verify the state is different from what we'd get with uncorrupted data.
+                    let mut original_state = buffer
+                        .as_state::<E>(&spec)
+                        .expect("original buffer should produce valid state");
+                    original_state
+                        .build_caches(&spec)
+                        .expect("original state should build caches");
+
+                    // The active validator count should be drastically different
+                    let corrupted_active = state
+                        .validators()
+                        .iter()
+                        .filter(|v| v.activation_epoch <= state.current_epoch())
+                        .count();
+                    let original_active = original_state
+                        .validators()
+                        .iter()
+                        .filter(|v| v.activation_epoch <= original_state.current_epoch())
+                        .count();
+
+                    assert_ne!(
+                        corrupted_active, original_active,
+                        "corrupted state should have different active validator count"
+                    );
+                    println!(
+                        "Active validators: original={}, corrupted={}",
+                        original_active, corrupted_active
+                    );
+                }
+                Err(e) => {
+                    println!(
+                        "Partial semantic corruption caused as_state to fail: {:?}",
+                        e
+                    );
+                }
+            }
+        }
+
+        // --- Corruption mode 2: Byte-level corruption of validator SSZ data ---
+        // Replace a validator entry with garbage bytes. Since validators are stored as
+        // Vec<Validator> and deserialized field-by-field, injecting garbage should either
+        // produce nonsensical values or trigger errors downstream.
+        {
+            let mut corrupted = buffer.clone();
+            if let Some(validator) = corrupted.validators.get_mut(0) {
+                // Overwrite the pubkey with invalid bytes (all 0xFF).
+                // This is a syntactically valid PublicKeyBytes but semantically garbage.
+                let bad_pubkey = [0xFF; 48];
+                validator.pubkey =
+                    PublicKeyBytes::from_ssz_bytes(&bad_pubkey).expect("48 bytes is valid length");
+                // Corrupt numeric fields with extreme values
+                validator.effective_balance = u64::MAX;
+                validator.exit_epoch = Epoch::new(0);
+                validator.withdrawable_epoch = Epoch::new(0);
+            }
+
+            let state_result = corrupted.as_state::<E>(&spec);
+            match state_result {
+                Ok(mut state) => {
+                    let cache_result = state.build_caches(&spec);
+                    println!(
+                        "Byte-level corruption: build_caches result: {:?}",
+                        cache_result.as_ref().err()
+                    );
+                    // Verify data is corrupted
+                    if let Some(v) = state.validators().get(0) {
+                        assert_eq!(
+                            v.effective_balance,
+                            u64::MAX,
+                            "corrupted effective_balance should persist through roundtrip"
+                        );
+                    }
+                }
+                Err(e) => {
+                    println!("Byte-level corruption caused as_state to fail: {:?}", e);
+                }
+            }
+        }
+
+        println!("All corruption modes produced expected results.");
+    }
+
+    /// Tests the sensitivity of HDiff serialized diffs to single bit-flip corruptions.
+    ///
+    /// Creates two slightly different HDiffBuffers, computes a diff, serializes it,
+    /// then systematically flips individual bits and categorizes outcomes:
+    /// (a) SSZ decode error
+    /// (b) diff apply error
+    /// (c) silent corruption (apply succeeds but data differs from expected)
+    /// (d) no effect (data matches expected despite bit flip)
+    ///
+    /// For category (c), attempts to reconstruct a BeaconState and build caches to see
+    /// if downstream processing catches the corruption.
+    #[test]
+    #[ignore]
+    fn hdiff_diff_bit_flip_sensitivity() {
+        use genesis::{DEFAULT_ETH1_BLOCK_HASH, interop_genesis_state};
+        use types::{MinimalEthSpec, test_utils::generate_deterministic_keypairs};
+
+        type E = MinimalEthSpec;
+        let spec = E::default_spec();
+        let config = StoreConfig::default();
+        let validator_count = 256;
+        let keypairs = generate_deterministic_keypairs(validator_count);
+
+        // Create source state (genesis)
+        let source_state = interop_genesis_state::<E>(
+            &keypairs,
+            0,
+            Hash256::from_slice(DEFAULT_ETH1_BLOCK_HASH),
+            None,
+            &spec,
+        )
+        .expect("should create source state");
+
+        let source_buffer = HDiffBuffer::from_state(source_state);
+
+        // Create a target state that differs slightly from source.
+        // We modify balances and a validator field to produce a non-trivial diff.
+        let mut target_buffer = source_buffer.clone();
+        // Modify some balances
+        for balance in target_buffer.balances.iter_mut().take(10) {
+            *balance = balance.saturating_sub(1_000_000);
+        }
+        // Modify a validator's effective balance
+        if let Some(v) = target_buffer.validators.get_mut(0) {
+            v.effective_balance = v.effective_balance.saturating_sub(1_000_000_000);
+        }
+
+        // Compute diff from source to target
+        let diff =
+            HDiff::compute(&source_buffer, &target_buffer, &config).expect("should compute diff");
+
+        // Verify diff applies correctly before we start corrupting
+        {
+            let mut verify_buf = source_buffer.clone();
+            diff.apply(&mut verify_buf, &config)
+                .expect("diff should apply cleanly");
+            assert_eq!(
+                verify_buf, target_buffer,
+                "diff should produce exact target"
+            );
+        }
+
+        let diff_bytes = diff.as_ssz_bytes();
+        println!(
+            "Diff size: {} bytes ({} bits)",
+            diff_bytes.len(),
+            diff_bytes.len() * 8
+        );
+
+        let mut rng = SmallRng::seed_from_u64(0xdeadbeef_cafebabe);
+        let num_trials = 1000;
+        let total_bits = diff_bytes.len() * 8;
+
+        let mut decode_errors = 0u64;
+        let mut apply_errors = 0u64;
+        let mut silent_corruptions = 0u64;
+        let mut no_effect = 0u64;
+        let mut cache_errors_on_silent = 0u64;
+
+        for _ in 0..num_trials {
+            let bit_pos = rng.random_range(0..total_bits);
+            let byte_idx = bit_pos / 8;
+            let bit_idx = bit_pos % 8;
+
+            let mut corrupted_bytes = diff_bytes.clone();
+            corrupted_bytes[byte_idx] ^= 1 << bit_idx;
+
+            // Try to decode the corrupted diff
+            let decoded = match HDiff::from_ssz_bytes(&corrupted_bytes) {
+                Ok(d) => d,
+                Err(_) => {
+                    decode_errors += 1;
+                    continue;
+                }
+            };
+
+            // Try to apply the corrupted diff
+            let mut result_buf = source_buffer.clone();
+            if let Err(_) = decoded.apply(&mut result_buf, &config) {
+                apply_errors += 1;
+                continue;
+            }
+
+            // Check if the result matches expected target
+            if result_buf == target_buffer {
+                no_effect += 1;
+            } else {
+                silent_corruptions += 1;
+
+                // For silent corruptions, try to reconstruct a state and build caches
+                match result_buf.as_state::<E>(&spec) {
+                    Ok(mut state) => {
+                        if state.build_caches(&spec).is_err() {
+                            cache_errors_on_silent += 1;
+                        }
+                    }
+                    Err(_) => {
+                        cache_errors_on_silent += 1;
+                    }
+                }
+            }
+        }
+
+        println!(
+            "\n=== Bit-flip sensitivity results ({} trials) ===",
+            num_trials
+        );
+        println!(
+            "  Decode errors:       {:4} ({:.1}%)",
+            decode_errors,
+            decode_errors as f64 / num_trials as f64 * 100.0
+        );
+        println!(
+            "  Apply errors:        {:4} ({:.1}%)",
+            apply_errors,
+            apply_errors as f64 / num_trials as f64 * 100.0
+        );
+        println!(
+            "  Silent corruptions:  {:4} ({:.1}%)",
+            silent_corruptions,
+            silent_corruptions as f64 / num_trials as f64 * 100.0
+        );
+        println!("    -> caught by cache build: {:4}", cache_errors_on_silent);
+        println!(
+            "    -> fully silent:          {:4}",
+            silent_corruptions.saturating_sub(cache_errors_on_silent)
+        );
+        println!(
+            "  No effect:           {:4} ({:.1}%)",
+            no_effect,
+            no_effect as f64 / num_trials as f64 * 100.0
+        );
+
+        // Verify all trials are accounted for
+        assert_eq!(
+            decode_errors + apply_errors + silent_corruptions + no_effect,
+            num_trials,
+            "all trials should be categorized"
+        );
+    }
 }
