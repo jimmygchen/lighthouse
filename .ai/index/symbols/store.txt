@@ -1,0 +1,409 @@
+# rust-symbols symbols/store | 2026-03-24T06:27:26Z | 407 symbols
+# name|kind|path|signature
+ANCHOR_INFO_KEY|const|beacon_node/store/src/metadata.rs|pub const ANCHOR_INFO_KEY: Hash256 = Hash256::repeat_byte(5);
+ANCHOR_UNINITIALIZED|const|beacon_node/store/src/metadata.rs|pub const ANCHOR_UNINITIALIZED: AnchorInfo = AnchorInfo
+AncestorIter|trait|beacon_node/store/src/iter.rs|pub trait AncestorIter<'a, E: EthSpec, Hot: ItemStore<E>, Cold: ItemStore<E>, I: Iterator>
+AnchorInfo|struct|beacon_node/store/src/metadata.rs|pub struct AnchorInfo
+AnchorInfo::all_historic_states_stored|fn|beacon_node/store/src/metadata.rs|pub fn all_historic_states_stored(&self) -> bool
+AnchorInfo::as_archive_anchor|fn|beacon_node/store/src/metadata.rs|pub fn as_archive_anchor(&self) -> Self
+AnchorInfo::block_backfill_complete|fn|beacon_node/store/src/metadata.rs|pub fn block_backfill_complete(&self, target_slot : Slot) -> bool
+AnchorInfo::full_state_pruning_enabled|fn|beacon_node/store/src/metadata.rs|pub fn full_state_pruning_enabled(&self) -> bool
+AnchorInfo::no_historic_states_stored|fn|beacon_node/store/src/metadata.rs|pub fn no_historic_states_stored(&self, split_slot : Slot) -> bool
+AppendOnlyDiff|struct|beacon_node/store/src/hdiff.rs|pub struct AppendOnlyDiff<T: Encode + Decode>
+AppendOnlyDiff::apply|fn|beacon_node/store/src/hdiff.rs|pub fn apply(&self, xs : & mut Vec < T >)
+AppendOnlyDiff::compute|fn|beacon_node/store/src/hdiff.rs|pub fn compute(xs : & [T], ys : & [T]) -> Result < Self , Error >
+AppendOnlyDiff::size|fn|beacon_node/store/src/hdiff.rs|pub fn size(&self) -> usize
+BLOB_INFO_KEY|const|beacon_node/store/src/metadata.rs|pub const BLOB_INFO_KEY: Hash256 = Hash256::repeat_byte(6);
+BeaconNodeBackend|enum|beacon_node/store/src/database/interface.rs|pub enum BeaconNodeBackend<E: EthSpec>
+BeaconNodeBackend::open|fn|beacon_node/store/src/database/interface.rs|pub fn open(config : & StoreConfig, path : & Path) -> Result < Self , Error >
+BlobInfo|struct|beacon_node/store/src/metadata.rs|pub struct BlobInfo
+BlobSidecarListFromRoot|enum|beacon_node/store/src/blob_sidecar_list_from_root.rs|pub enum BlobSidecarListFromRoot<E: EthSpec>
+BlobSidecarListFromRoot::blobs|fn|beacon_node/store/src/blob_sidecar_list_from_root.rs|pub fn blobs(self) -> Option < BlobSidecarList < E > >
+BlobSidecarListFromRoot::iter|fn|beacon_node/store/src/blob_sidecar_list_from_root.rs|pub fn iter(&self) -> impl Iterator < Item = & Arc < BlobSidecar < E > > >
+BlobSidecarListFromRoot::len|fn|beacon_node/store/src/blob_sidecar_list_from_root.rs|pub fn len(&self) -> usize
+BlockCache::delete|fn|beacon_node/store/src/hot_cold_store.rs|pub fn delete(&mut self, block_root : & Hash256)
+BlockCache::delete_blobs|fn|beacon_node/store/src/hot_cold_store.rs|pub fn delete_blobs(&mut self, block_root : & Hash256)
+BlockCache::delete_block|fn|beacon_node/store/src/hot_cold_store.rs|pub fn delete_block(&mut self, block_root : & Hash256)
+BlockCache::delete_data_columns|fn|beacon_node/store/src/hot_cold_store.rs|pub fn delete_data_columns(&mut self, block_root : & Hash256)
+BlockCache::get_blobs|fn|beacon_node/store/src/hot_cold_store.rs|pub fn get_blobs<'a>(&mut self, block_root : & Hash256) -> Option < & 'a BlobSidecarList < E > >
+BlockCache::get_block|fn|beacon_node/store/src/hot_cold_store.rs|pub fn get_block<'a>(&mut self, block_root : & Hash256) -> Option < & 'a SignedBeaconBlock < E > >
+BlockCache::get_data_column|fn|beacon_node/store/src/hot_cold_store.rs|pub fn get_data_column(&mut self, block_root : & Hash256, column_index : & ColumnIndex) -> Option < Arc < DataColumnS...
+BlockCache::get_data_column_custody_info|fn|beacon_node/store/src/hot_cold_store.rs|pub fn get_data_column_custody_info(&self) -> Option < DataColumnCustodyInfo >
+BlockCache::new|fn|beacon_node/store/src/hot_cold_store.rs|pub fn new(size : NonZeroUsize) -> Self
+BlockCache::put_blobs|fn|beacon_node/store/src/hot_cold_store.rs|pub fn put_blobs(&mut self, block_root : Hash256, blobs : BlobSidecarList < E >)
+BlockCache::put_block|fn|beacon_node/store/src/hot_cold_store.rs|pub fn put_block(&mut self, block_root : Hash256, block : SignedBeaconBlock < E >)
+BlockCache::put_data_column|fn|beacon_node/store/src/hot_cold_store.rs|pub fn put_data_column(&mut self, block_root : Hash256, data_column : Arc < DataColumnSidecar < E > >)
+BlockCache::put_data_column_custody_info|fn|beacon_node/store/src/hot_cold_store.rs|pub fn put_data_column_custody_info(&mut self, data_column_custody_info : Option < DataColumnCustodyInfo >)
+BlockIterator|struct|beacon_node/store/src/iter.rs|pub struct BlockIterator<'a, E: EthSpec, Hot: ItemStore<E>, Cold: ItemStore<E>>
+BlockIterator::new|fn|beacon_node/store/src/iter.rs|pub fn new(store : & 'a HotColdDB < E , Hot , Cold >, beacon_state : & 'a BeaconState < E >) -> Self
+BlockIterator::owned|fn|beacon_node/store/src/iter.rs|pub fn owned(store : & 'a HotColdDB < E , Hot , Cold >, beacon_state : BeaconState < E >) -> Self
+BlockMap|struct|beacon_node/store/src/state_cache.rs|pub struct BlockMap
+BlockRootsIterator|struct|beacon_node/store/src/iter.rs|pub struct BlockRootsIterator<'a, E: EthSpec, Hot: ItemStore<E>, Cold: ItemStore<E>>
+BlockRootsIterator::from_block|fn|beacon_node/store/src/iter.rs|pub fn from_block(store : & 'a HotColdDB < E , Hot , Cold >, block_hash : Hash256) -> Result < Self , Error >
+BlockRootsIterator::new|fn|beacon_node/store/src/iter.rs|pub fn new(store : & 'a HotColdDB < E , Hot , Cold >, beacon_state : & 'a BeaconState < E >) -> Self
+BlockRootsIterator::owned|fn|beacon_node/store/src/iter.rs|pub fn owned(store : & 'a HotColdDB < E , Hot , Cold >, beacon_state : BeaconState < E >) -> Self
+BytesDiff|struct|beacon_node/store/src/hdiff.rs|pub struct BytesDiff
+BytesDiff::apply|fn|beacon_node/store/src/hdiff.rs|pub fn apply(&self, source : & [u8], target : & mut Vec < u8 >) -> Result < () , Error >
+BytesDiff::apply_xdelta|fn|beacon_node/store/src/hdiff.rs|pub fn apply_xdelta(&self, source : & [u8], target : & mut Vec < u8 >) -> Result < () , Error >
+BytesDiff::compute|fn|beacon_node/store/src/hdiff.rs|pub fn compute(source : & [u8], target : & [u8]) -> Result < Self , Error >
+BytesDiff::compute_xdelta|fn|beacon_node/store/src/hdiff.rs|pub fn compute_xdelta(source_bytes : & [u8], target_bytes : & [u8]) -> Result < Self , Error >
+BytesDiff::size|fn|beacon_node/store/src/hdiff.rs|pub fn size(&self) -> usize
+BytesKey|struct|beacon_node/store/src/hot_cold_store.rs|pub struct BytesKey
+BytesKey::from_vec|fn|beacon_node/store/src/hot_cold_store.rs|pub fn from_vec(key : Vec < u8 >) -> Self
+BytesKey::matches_column|fn|beacon_node/store/src/hot_cold_store.rs|pub fn matches_column(&self, column : DBColumn) -> bool
+BytesKey::remove_column|fn|beacon_node/store/src/hot_cold_store.rs|pub fn remove_column(&self, column : DBColumn) -> Option < Hash256 >
+BytesKey::remove_column_variable|fn|beacon_node/store/src/hot_cold_store.rs|pub fn remove_column_variable(&self, column : DBColumn) -> Option < & [u8] >
+BytesKey::starts_with|fn|beacon_node/store/src/hot_cold_store.rs|pub fn starts_with(&self, prefix : & Self) -> bool
+COLD_METRIC|const|beacon_node/store/src/metrics.rs|pub const COLD_METRIC: &[&str] = &["cold"];
+COMPACTION_TIMESTAMP_KEY|const|beacon_node/store/src/metadata.rs|pub const COMPACTION_TIMESTAMP_KEY: Hash256 = Hash256::repeat_byte(4);
+CONFIG_KEY|const|beacon_node/store/src/metadata.rs|pub const CONFIG_KEY: Hash256 = Hash256::repeat_byte(1);
+CURRENT_SCHEMA_VERSION|const|beacon_node/store/src/metadata.rs|pub const CURRENT_SCHEMA_VERSION: SchemaVersion = SchemaVersion(28);
+ColdStateSummary|struct|beacon_node/store/src/hot_cold_store.rs|pub(crate) struct ColdStateSummary
+ColumnIter|type|beacon_node/store/src/lib.rs|pub type ColumnIter<'a, K> = Box<dyn Iterator<Item = Result<(K, Vec<u8>), Error>> + 'a>;
+ColumnKeyIter|type|beacon_node/store/src/lib.rs|pub type ColumnKeyIter<'a, K> = Box<dyn Iterator<Item = Result<K, Error>> + 'a>;
+CompactionTimestamp|struct|beacon_node/store/src/metadata.rs|pub struct CompactionTimestamp(pub u64);
+CompressedU64Diff|struct|beacon_node/store/src/hdiff.rs|pub struct CompressedU64Diff
+CompressedU64Diff::apply|fn|beacon_node/store/src/hdiff.rs|pub fn apply(&self, xs : & mut Vec < u64 >, config : & StoreConfig) -> Result < () , Error >
+CompressedU64Diff::compute|fn|beacon_node/store/src/hdiff.rs|pub fn compute(xs : & [u64], ys : & [u64], config : & StoreConfig) -> Result < Self , Error >
+CompressedU64Diff::size|fn|beacon_node/store/src/hdiff.rs|pub fn size(&self) -> usize
+DATA_COLUMN_CUSTODY_INFO_KEY|const|beacon_node/store/src/metadata.rs|pub const DATA_COLUMN_CUSTODY_INFO_KEY: Hash256 = Hash256::repeat_byte(8);
+DATA_COLUMN_INFO_KEY|const|beacon_node/store/src/metadata.rs|pub const DATA_COLUMN_INFO_KEY: Hash256 = Hash256::repeat_byte(7);
+DBColumn|enum|beacon_node/store/src/lib.rs|pub enum DBColumn
+DBColumn::as_bytes|fn|beacon_node/store/src/lib.rs|pub fn as_bytes(self) -> & 'static [u8]
+DBColumn::as_str|fn|beacon_node/store/src/lib.rs|pub fn as_str(self) -> & 'static str
+DBColumn::key_size|fn|beacon_node/store/src/lib.rs|pub fn key_size(self) -> usize
+DBError|struct|beacon_node/store/src/errors.rs|pub struct DBError
+DBError::new|fn|beacon_node/store/src/errors.rs|pub fn new(message : String) -> Self
+DB_FILE_NAME|const|beacon_node/store/src/database/redb_impl.rs|pub const DB_FILE_NAME: &str = "database.redb";
+DEFAULT_BACKEND|const|beacon_node/store/src/config.rs|pub const DEFAULT_BACKEND: DatabaseBackend = DatabaseBackend::Redb;
+DEFAULT_BACKEND|const|beacon_node/store/src/config.rs|pub const DEFAULT_BACKEND: DatabaseBackend = DatabaseBackend::LevelDb;
+DEFAULT_BLOB_PUNE_MARGIN_EPOCHS|const|beacon_node/store/src/config.rs|pub const DEFAULT_BLOB_PUNE_MARGIN_EPOCHS: u64 = 0;
+DEFAULT_BLOCK_CACHE_SIZE|const|beacon_node/store/src/config.rs|pub const DEFAULT_BLOCK_CACHE_SIZE: usize = 0;
+DEFAULT_COLD_HDIFF_BUFFER_CACHE_SIZE|const|beacon_node/store/src/config.rs|pub const DEFAULT_COLD_HDIFF_BUFFER_CACHE_SIZE: NonZeroUsize = new_non_zero_usize(16);
+DEFAULT_COMPRESSION_LEVEL|const|beacon_node/store/src/config.rs|pub const DEFAULT_COMPRESSION_LEVEL: i32 = 1;
+DEFAULT_EPOCHS_PER_BLOB_PRUNE|const|beacon_node/store/src/config.rs|pub const DEFAULT_EPOCHS_PER_BLOB_PRUNE: u64 = 1;
+DEFAULT_EPOCHS_PER_STATE_DIFF|const|beacon_node/store/src/config.rs|pub const DEFAULT_EPOCHS_PER_STATE_DIFF: u64 = 8;
+DEFAULT_HISTORIC_STATE_CACHE_SIZE|const|beacon_node/store/src/config.rs|pub const DEFAULT_HISTORIC_STATE_CACHE_SIZE: NonZeroUsize = new_non_zero_usize(1);
+DEFAULT_HOT_HDIFF_BUFFER_CACHE_SIZE|const|beacon_node/store/src/config.rs|pub const DEFAULT_HOT_HDIFF_BUFFER_CACHE_SIZE: NonZeroUsize = new_non_zero_usize(1);
+DEFAULT_SLOTS_PER_RESTORE_POINT|const|beacon_node/store/src/config.rs|pub const DEFAULT_SLOTS_PER_RESTORE_POINT: u64 = 8192;
+DEFAULT_STATE_CACHE_HEADROOM|const|beacon_node/store/src/config.rs|pub const DEFAULT_STATE_CACHE_HEADROOM: NonZeroUsize = new_non_zero_usize(1);
+DEFAULT_STATE_CACHE_SIZE|const|beacon_node/store/src/config.rs|pub const DEFAULT_STATE_CACHE_SIZE: NonZeroUsize = new_non_zero_usize(128);
+DataColumnCustodyInfo|struct|beacon_node/store/src/metadata.rs|pub struct DataColumnCustodyInfo
+DataColumnInfo|struct|beacon_node/store/src/metadata.rs|pub struct DataColumnInfo
+DatabaseBackend|enum|beacon_node/store/src/config.rs|pub enum DatabaseBackend
+DatabaseBlock|enum|beacon_node/store/src/lib.rs|pub enum DatabaseBlock<E: EthSpec>
+DiffBaseState|struct|beacon_node/store/src/hot_cold_store.rs|pub struct DiffBaseState
+Error|enum|beacon_node/store/src/errors.rs|pub enum Error
+Error|enum|beacon_node/store/src/hdiff.rs|pub enum Error
+FinalizedState|struct|beacon_node/store/src/state_cache.rs|pub struct FinalizedState<E: EthSpec>
+FrozenForwardsIterator|struct|beacon_node/store/src/forwards_iter.rs|pub struct FrozenForwardsIterator<'a, E: EthSpec, Hot: ItemStore<E>, Cold: ItemStore<E>>
+FrozenForwardsIterator::new|fn|beacon_node/store/src/forwards_iter.rs|pub fn new(store : & 'a HotColdDB < E , Hot , Cold >, column : DBColumn, start_slot : Slot, end_slot : Slot) -> Resul...
+HDiff|struct|beacon_node/store/src/hdiff.rs|pub struct HDiff
+HDiff::apply|fn|beacon_node/store/src/hdiff.rs|pub fn apply(&self, source : & mut HDiffBuffer, config : & StoreConfig) -> Result < () , Error >
+HDiff::compute|fn|beacon_node/store/src/hdiff.rs|pub fn compute(source : & HDiffBuffer, target : & HDiffBuffer, config : & StoreConfig) -> Result < Self , Error >
+HDiff::size|fn|beacon_node/store/src/hdiff.rs|pub fn size(&self) -> usize
+HDiff::sizes|fn|beacon_node/store/src/hdiff.rs|pub fn sizes(&self) -> Vec < usize >
+HDiffBuffer|struct|beacon_node/store/src/hdiff.rs|pub struct HDiffBuffer
+HDiffBuffer::as_state|fn|beacon_node/store/src/hdiff.rs|pub fn as_state<E : EthSpec>(&self, spec : & ChainSpec) -> Result < BeaconState < E > , Error >
+HDiffBuffer::from_state|fn|beacon_node/store/src/hdiff.rs|pub fn from_state<E : EthSpec>(mut beacon_state : BeaconState < E >) -> Self
+HDiffBuffer::size|fn|beacon_node/store/src/hdiff.rs|pub fn size(&self) -> usize
+HOT_METRIC|const|beacon_node/store/src/metrics.rs|pub const HOT_METRIC: &[&str] = &["hot"];
+HandleUnavailable|trait|beacon_node/store/src/errors.rs|pub trait HandleUnavailable<T>
+HierarchyConfig|struct|beacon_node/store/src/hdiff.rs|pub struct HierarchyConfig
+HierarchyConfig::exponent_for_slot|fn|beacon_node/store/src/hdiff.rs|pub fn exponent_for_slot(slot : Slot) -> u32
+HierarchyConfig::to_moduli|fn|beacon_node/store/src/hdiff.rs|pub fn to_moduli(&self) -> Result < HierarchyModuli , Error >
+HierarchyConfig::validate|fn|beacon_node/store/src/hdiff.rs|pub fn validate(&self) -> Result < () , Error >
+HierarchyModuli|struct|beacon_node/store/src/hdiff.rs|pub struct HierarchyModuli
+HierarchyModuli::closest_layer_points|fn|beacon_node/store/src/hdiff.rs|pub fn closest_layer_points(&self, slot : Slot, start_slot : Slot) -> Vec < Slot >
+HierarchyModuli::next_snapshot_slot|fn|beacon_node/store/src/hdiff.rs|pub fn next_snapshot_slot(&self, slot : Slot) -> Result < Slot , Error >
+HierarchyModuli::should_commit_immediately|fn|beacon_node/store/src/hdiff.rs|pub fn should_commit_immediately(&self, slot : Slot) -> Result < bool , Error >
+HierarchyModuli::storage_strategy|fn|beacon_node/store/src/hdiff.rs|pub fn storage_strategy(&self, slot : Slot, start_slot : Slot) -> Result < StorageStrategy , Error >
+HistoricStateCache|struct|beacon_node/store/src/historic_state_cache.rs|pub struct HistoricStateCache<E: EthSpec>
+HistoricStateCache::get_hdiff_buffer|fn|beacon_node/store/src/historic_state_cache.rs|pub fn get_hdiff_buffer(&mut self, slot : Slot) -> Option < HDiffBuffer >
+HistoricStateCache::get_state|fn|beacon_node/store/src/historic_state_cache.rs|pub fn get_state(&mut self, slot : Slot, spec : & ChainSpec) -> Result < Option < BeaconState < E > > , Error >
+HistoricStateCache::metrics|fn|beacon_node/store/src/historic_state_cache.rs|pub fn metrics(&self) -> Metrics
+HistoricStateCache::new|fn|beacon_node/store/src/historic_state_cache.rs|pub fn new(hdiff_buffer_cache_size : NonZeroUsize, state_cache_size : NonZeroUsize) -> Self
+HistoricStateCache::put_both|fn|beacon_node/store/src/historic_state_cache.rs|pub fn put_both(&mut self, slot : Slot, state : BeaconState < E >, buffer : HDiffBuffer)
+HistoricStateCache::put_hdiff_buffer|fn|beacon_node/store/src/historic_state_cache.rs|pub fn put_hdiff_buffer(&mut self, slot : Slot, buffer : HDiffBuffer)
+HistoricStateCache::put_state|fn|beacon_node/store/src/historic_state_cache.rs|pub fn put_state(&mut self, slot : Slot, state : BeaconState < E >)
+HotColdDB|struct|beacon_node/store/src/hot_cold_store.rs|pub struct HotColdDB<E: EthSpec, Hot: ItemStore<E>, Cold: ItemStore<E>>
+HotColdDB::blinded_block_as_kv_store_ops|fn|beacon_node/store/src/hot_cold_store.rs|pub fn blinded_block_as_kv_store_ops(&self, key : & Hash256, blinded_block : & SignedBeaconBlock < E , BlindedPayload...
+HotColdDB::blobs_as_kv_store_ops|fn|beacon_node/store/src/hot_cold_store.rs|pub fn blobs_as_kv_store_ops(&self, key : & Hash256, blobs : BlobSidecarList < E >, ops : & mut Vec < KeyValueStoreOp >)
+HotColdDB::blobs_exist|fn|beacon_node/store/src/hot_cold_store.rs|pub fn blobs_exist(&self, block_root : & Hash256) -> Result < bool , Error >
+HotColdDB::block_as_kv_store_ops|fn|beacon_node/store/src/hot_cold_store.rs|pub fn block_as_kv_store_ops(&self, key : & Hash256, block : SignedBeaconBlock < E >, ops : & mut Vec < KeyValueStore...
+HotColdDB::block_exists|fn|beacon_node/store/src/hot_cold_store.rs|pub fn block_exists(&self, block_root : & Hash256) -> Result < bool , Error >
+HotColdDB::check_invariants|fn|beacon_node/store/src/invariants.rs|pub fn check_invariants(&self, ctx : & InvariantContext) -> Result < InvariantCheckResult , Error >
+HotColdDB::compact|fn|beacon_node/store/src/hot_cold_store.rs|pub fn compact(&self) -> Result < () , Error >
+HotColdDB::compact_freezer|fn|beacon_node/store/src/hot_cold_store.rs|pub fn compact_freezer(&self) -> Result < () , Error >
+HotColdDB::compact_on_prune|fn|beacon_node/store/src/hot_cold_store.rs|pub fn compact_on_prune(&self) -> bool
+HotColdDB::compare_and_set_anchor_info|fn|beacon_node/store/src/hot_cold_store.rs|pub fn compare_and_set_anchor_info(&self, prev_value : AnchorInfo, new_value : AnchorInfo) -> Result < KeyValueStoreO...
+HotColdDB::compare_and_set_anchor_info_with_write|fn|beacon_node/store/src/hot_cold_store.rs|pub fn compare_and_set_anchor_info_with_write(&self, prev_value : AnchorInfo, new_value : AnchorInfo) -> Result < () ...
+HotColdDB::compare_and_set_blob_info|fn|beacon_node/store/src/hot_cold_store.rs|pub fn compare_and_set_blob_info(&self, prev_value : BlobInfo, new_value : BlobInfo) -> Result < KeyValueStoreOp , Er...
+HotColdDB::compare_and_set_blob_info_with_write|fn|beacon_node/store/src/hot_cold_store.rs|pub fn compare_and_set_blob_info_with_write(&self, prev_value : BlobInfo, new_value : BlobInfo) -> Result < () , Error >
+HotColdDB::compare_and_set_data_column_info|fn|beacon_node/store/src/hot_cold_store.rs|pub fn compare_and_set_data_column_info(&self, prev_value : DataColumnInfo, new_value : DataColumnInfo) -> Result < K...
+HotColdDB::compare_and_set_data_column_info_with_write|fn|beacon_node/store/src/hot_cold_store.rs|pub fn compare_and_set_data_column_info_with_write(&self, prev_value : DataColumnInfo, new_value : DataColumnInfo) ->...
+HotColdDB::convert_to_kv_batch|fn|beacon_node/store/src/hot_cold_store.rs|pub fn convert_to_kv_batch(&self, batch : Vec < StoreOp < E > >) -> Result < Vec < KeyValueStoreOp > , Error >
+HotColdDB::data_column_as_kv_store_ops|fn|beacon_node/store/src/hot_cold_store.rs|pub fn data_column_as_kv_store_ops(&self, block_root : & Hash256, data_column : Arc < DataColumnSidecar < E > >, ops ...
+HotColdDB::data_columns_as_kv_store_ops|fn|beacon_node/store/src/hot_cold_store.rs|pub fn data_columns_as_kv_store_ops(&self, block_root : & Hash256, data_columns : DataColumnSidecarList < E >, ops : ...
+HotColdDB::delete_batch|fn|beacon_node/store/src/hot_cold_store.rs|pub fn delete_batch(&self, col : DBColumn, ops : Vec < Hash256 >) -> Result < () , Error >
+HotColdDB::delete_block|fn|beacon_node/store/src/hot_cold_store.rs|pub fn delete_block(&self, block_root : & Hash256) -> Result < () , Error >
+HotColdDB::delete_if|fn|beacon_node/store/src/hot_cold_store.rs|pub fn delete_if(&self, column : DBColumn, f : impl Fn (& [u8]) -> Result < bool , Error >) -> Result < () , Error >
+HotColdDB::delete_state|fn|beacon_node/store/src/hot_cold_store.rs|pub fn delete_state(&self, state_root : & Hash256, slot : Slot) -> Result < () , Error >
+HotColdDB::do_atomically_with_block_and_blobs_cache|fn|beacon_node/store/src/hot_cold_store.rs|pub fn do_atomically_with_block_and_blobs_cache(&self, batch : Vec < StoreOp < E > >) -> Result < () , Error >
+HotColdDB::execution_payload_exists|fn|beacon_node/store/src/hot_cold_store.rs|pub fn execution_payload_exists(&self, block_root : & Hash256) -> Result < bool , Error >
+HotColdDB::forwards_block_roots_iterator|fn|beacon_node/store/src/hot_cold_store.rs|pub fn forwards_block_roots_iterator(&self, start_slot : Slot, end_state : BeaconState < E >, end_block_root : Hash25...
+HotColdDB::forwards_block_roots_iterator_until|fn|beacon_node/store/src/hot_cold_store.rs|pub fn forwards_block_roots_iterator_until(&self, start_slot : Slot, end_slot : Slot, get_state : impl FnOnce () -> R...
+HotColdDB::forwards_state_roots_iterator|fn|beacon_node/store/src/hot_cold_store.rs|pub fn forwards_state_roots_iterator(&self, start_slot : Slot, end_state_root : Hash256, end_state : BeaconState < E ...
+HotColdDB::forwards_state_roots_iterator_until|fn|beacon_node/store/src/hot_cold_store.rs|pub fn forwards_state_roots_iterator_until(&self, start_slot : Slot, end_slot : Slot, get_state : impl FnOnce () -> R...
+HotColdDB::freezer_upper_bound_for_column|fn|beacon_node/store/src/forwards_iter.rs|pub fn freezer_upper_bound_for_column(&self, column : DBColumn, start_slot : Slot) -> Result < Option < Slot > >
+HotColdDB::get_advanced_hot_state|fn|beacon_node/store/src/hot_cold_store.rs|pub fn get_advanced_hot_state(&self, block_root : Hash256, payload_status : StatePayloadStatus, max_slot : Slot, stat...
+HotColdDB::get_advanced_hot_state_from_cache|fn|beacon_node/store/src/hot_cold_store.rs|pub fn get_advanced_hot_state_from_cache(&self, block_root : Hash256, payload_status : StatePayloadStatus, max_slot :...
+HotColdDB::get_all_data_column_keys|fn|beacon_node/store/src/hot_cold_store.rs|pub fn get_all_data_column_keys(&self, block_root : Hash256) -> Vec < Vec < u8 > >
+HotColdDB::get_anchor_info|fn|beacon_node/store/src/hot_cold_store.rs|pub fn get_anchor_info(&self) -> AnchorInfo
+HotColdDB::get_blinded_block|fn|beacon_node/store/src/hot_cold_store.rs|pub fn get_blinded_block(&self, block_root : & Hash256) -> Result < Option < SignedBeaconBlock < E , BlindedPayload <...
+HotColdDB::get_blob_info|fn|beacon_node/store/src/hot_cold_store.rs|pub fn get_blob_info(&self) -> BlobInfo
+HotColdDB::get_blobs|fn|beacon_node/store/src/hot_cold_store.rs|pub fn get_blobs(&self, block_root : & Hash256) -> Result < BlobSidecarListFromRoot < E > , Error >
+HotColdDB::get_block_with|fn|beacon_node/store/src/hot_cold_store.rs|pub fn get_block_with<Payload : AbstractExecPayload < E >>(&self, block_root : & Hash256, decoder : impl FnOnce (& [u...
+HotColdDB::get_chain_spec|fn|beacon_node/store/src/hot_cold_store.rs|pub fn get_chain_spec(&self) -> & Arc < ChainSpec >
+HotColdDB::get_cold_block_root|fn|beacon_node/store/src/hot_cold_store.rs|pub fn get_cold_block_root(&self, slot : Slot) -> Result < Option < Hash256 > , Error >
+HotColdDB::get_cold_state_root|fn|beacon_node/store/src/hot_cold_store.rs|pub fn get_cold_state_root(&self, slot : Slot) -> Result < Option < Hash256 > , Error >
+HotColdDB::get_config|fn|beacon_node/store/src/hot_cold_store.rs|pub fn get_config(&self) -> & StoreConfig
+HotColdDB::get_data_column|fn|beacon_node/store/src/hot_cold_store.rs|pub fn get_data_column(&self, block_root : & Hash256, column_index : & ColumnIndex, fork_name : ForkName) -> Result <...
+HotColdDB::get_data_column_custody_info|fn|beacon_node/store/src/hot_cold_store.rs|pub fn get_data_column_custody_info(&self) -> Result < Option < DataColumnCustodyInfo > , Error >
+HotColdDB::get_data_column_info|fn|beacon_node/store/src/hot_cold_store.rs|pub fn get_data_column_info(&self) -> DataColumnInfo
+HotColdDB::get_data_column_keys|fn|beacon_node/store/src/hot_cold_store.rs|pub fn get_data_column_keys(&self, block_root : Hash256) -> Result < Vec < ColumnIndex > , Error >
+HotColdDB::get_data_columns|fn|beacon_node/store/src/hot_cold_store.rs|pub fn get_data_columns(&self, block_root : & Hash256, fork_name : ForkName) -> Result < Option < DataColumnSidecarLi...
+HotColdDB::get_execution_payload|fn|beacon_node/store/src/hot_cold_store.rs|pub fn get_execution_payload(&self, block_root : & Hash256, fork_name : ForkName) -> Result < Option < ExecutionPaylo...
+HotColdDB::get_execution_payload_dangerous_fork_agnostic|fn|beacon_node/store/src/hot_cold_store.rs|pub fn get_execution_payload_dangerous_fork_agnostic(&self, block_root : & Hash256) -> Result < Option < ExecutionPay...
+HotColdDB::get_full_block|fn|beacon_node/store/src/hot_cold_store.rs|pub fn get_full_block(&self, block_root : & Hash256) -> Result < Option < SignedBeaconBlock < E > > , Error >
+HotColdDB::get_historic_state_limits|fn|beacon_node/store/src/hot_cold_store.rs|pub fn get_historic_state_limits(&self) -> (Slot , Slot)
+HotColdDB::get_hot_state|fn|beacon_node/store/src/hot_cold_store.rs|pub fn get_hot_state(&self, state_root : & Hash256, update_cache : bool) -> Result < Option < BeaconState < E > > , E...
+HotColdDB::get_item|fn|beacon_node/store/src/hot_cold_store.rs|pub fn get_item<I : StoreItem>(&self, key : & Hash256) -> Result < Option < I > , Error >
+HotColdDB::get_light_client_update|fn|beacon_node/store/src/hot_cold_store.rs|pub fn get_light_client_update(&self, sync_committee_period : u64) -> Result < Option < LightClientUpdate < E > > , E...
+HotColdDB::get_light_client_updates|fn|beacon_node/store/src/hot_cold_store.rs|pub fn get_light_client_updates(&self, start_period : u64, count : u64) -> Result < Vec < LightClientUpdate < E > > ,...
+HotColdDB::get_oldest_block_slot|fn|beacon_node/store/src/hot_cold_store.rs|pub fn get_oldest_block_slot(&self) -> Slot
+HotColdDB::get_payload_envelope|fn|beacon_node/store/src/hot_cold_store.rs|pub fn get_payload_envelope(&self, block_root : & Hash256) -> Result < Option < SignedExecutionPayloadEnvelope < E > ...
+HotColdDB::get_split_info|fn|beacon_node/store/src/hot_cold_store.rs|pub fn get_split_info(&self) -> Split
+HotColdDB::get_split_slot|fn|beacon_node/store/src/hot_cold_store.rs|pub fn get_split_slot(&self) -> Slot
+HotColdDB::get_state|fn|beacon_node/store/src/hot_cold_store.rs|pub fn get_state(&self, state_root : & Hash256, slot : Option < Slot >, update_cache : bool) -> Result < Option < Bea...
+HotColdDB::get_sync_committee|fn|beacon_node/store/src/hot_cold_store.rs|pub fn get_sync_committee(&self, sync_committee_period : u64) -> Result < Option < SyncCommittee < E > > , Error >
+HotColdDB::get_sync_committee_branch|fn|beacon_node/store/src/hot_cold_store.rs|pub fn get_sync_committee_branch(&self, block_root : & Hash256) -> Result < Option < MerkleProof > , Error >
+HotColdDB::hot_hdiff_start_slot|fn|beacon_node/store/src/hot_cold_store.rs|pub fn hot_hdiff_start_slot(&self) -> Result < Slot , Error >
+HotColdDB::hot_storage_strategy|fn|beacon_node/store/src/hot_cold_store.rs|pub fn hot_storage_strategy(&self, slot : Slot) -> Result < StorageStrategy , Error >
+HotColdDB::init_anchor_info|fn|beacon_node/store/src/hot_cold_store.rs|pub fn init_anchor_info(&self, oldest_block_parent : Hash256, oldest_block_slot : Slot, anchor_slot : Slot, retain_hi...
+HotColdDB::init_blob_info|fn|beacon_node/store/src/hot_cold_store.rs|pub fn init_blob_info(&self, anchor_slot : Slot) -> Result < KeyValueStoreOp , Error >
+HotColdDB::init_data_column_info|fn|beacon_node/store/src/hot_cold_store.rs|pub fn init_data_column_info(&self, anchor_slot : Slot) -> Result < KeyValueStoreOp , Error >
+HotColdDB::item_exists|fn|beacon_node/store/src/hot_cold_store.rs|pub fn item_exists<I : StoreItem>(&self, key : & Hash256) -> Result < bool , Error >
+HotColdDB::load_block_root_from_summary_any_version|fn|beacon_node/store/src/hot_cold_store.rs|pub fn load_block_root_from_summary_any_version(&self, state_root : & Hash256) -> Option < Hash256 >
+HotColdDB::load_blocks_to_replay|fn|beacon_node/store/src/hot_cold_store.rs|pub fn load_blocks_to_replay(&self, start_slot : Slot, end_slot : Slot, end_block_root : Hash256, desired_payload_sta...
+HotColdDB::load_cold_blocks|fn|beacon_node/store/src/hot_cold_store.rs|pub fn load_cold_blocks(&self, start_slot : Slot, end_slot : Slot) -> Result < (Vec < SignedBlindedBeaconBlock < E > ...
+HotColdDB::load_cold_state|fn|beacon_node/store/src/hot_cold_store.rs|pub fn load_cold_state(&self, state_root : & Hash256) -> Result < Option < BeaconState < E > > , Error >
+HotColdDB::load_cold_state_by_slot|fn|beacon_node/store/src/hot_cold_store.rs|pub fn load_cold_state_by_slot(&self, slot : Slot) -> Result < BeaconState < E > , Error >
+HotColdDB::load_cold_state_slot|fn|beacon_node/store/src/hot_cold_store.rs|pub fn load_cold_state_slot(&self, state_root : & Hash256) -> Result < Option < Slot > , Error >
+HotColdDB::load_compaction_timestamp|fn|beacon_node/store/src/hot_cold_store.rs|pub fn load_compaction_timestamp(&self) -> Result < Option < Duration > , Error >
+HotColdDB::load_hot_state|fn|beacon_node/store/src/hot_cold_store.rs|pub fn load_hot_state(&self, state_root : & Hash256, update_cache : bool) -> Result < Option < (BeaconState < E > , H...
+HotColdDB::load_hot_state_summaries|fn|beacon_node/store/src/hot_cold_store.rs|pub fn load_hot_state_summaries(&self) -> Result < Vec < (Hash256 , HotStateSummary) > , Error >
+HotColdDB::load_hot_state_summary|fn|beacon_node/store/src/hot_cold_store.rs|pub fn load_hot_state_summary(&self, state_root : & Hash256) -> Result < Option < HotStateSummary > , Error >
+HotColdDB::load_hot_state_summary_v22|fn|beacon_node/store/src/hot_cold_store.rs|pub fn load_hot_state_summary_v22(&self, state_root : & Hash256) -> Result < Option < HotStateSummaryV22 > , Error >
+HotColdDB::load_hot_state_using_replay|fn|beacon_node/store/src/hot_cold_store.rs|pub fn load_hot_state_using_replay(&self, base_state : BeaconState < E >, slot : Slot, latest_block_root : Hash256, d...
+HotColdDB::load_payload_envelopes_for_blocks|fn|beacon_node/store/src/hot_cold_store.rs|pub fn load_payload_envelopes_for_blocks(&self, blocks : & [SignedBlindedBeaconBlock < E >], end_block_root : Hash256...
+HotColdDB::make_full_block|fn|beacon_node/store/src/hot_cold_store.rs|pub fn make_full_block(&self, block_root : & Hash256, blinded_block : SignedBeaconBlock < E , BlindedPayload < E > >)...
+HotColdDB::open|fn|beacon_node/store/src/hot_cold_store.rs|pub fn open(hot_path : & Path, cold_path : & Path, blobs_db_path : & Path, migrate_schema : impl FnOnce (Arc < Self >...
+HotColdDB::open_ephemeral|fn|beacon_node/store/src/hot_cold_store.rs|pub fn open_ephemeral(config : StoreConfig, spec : Arc < ChainSpec >) -> Result < HotColdDB < E , MemoryStore < E > ,...
+HotColdDB::payload_envelope_as_kv_store_ops|fn|beacon_node/store/src/hot_cold_store.rs|pub fn payload_envelope_as_kv_store_ops(&self, key : & Hash256, payload : & SignedExecutionPayloadEnvelope < E >, ops...
+HotColdDB::payload_envelope_exists|fn|beacon_node/store/src/hot_cold_store.rs|pub fn payload_envelope_exists(&self, block_root : & Hash256) -> Result < bool , Error >
+HotColdDB::prune_historic_states|fn|beacon_node/store/src/hot_cold_store.rs|pub fn prune_historic_states(&self, genesis_state_root : Hash256, genesis_state : & BeaconState < E >) -> Result < ()...
+HotColdDB::put_blobs|fn|beacon_node/store/src/hot_cold_store.rs|pub fn put_blobs(&self, block_root : & Hash256, blobs : BlobSidecarList < E >) -> Result < () , Error >
+HotColdDB::put_block|fn|beacon_node/store/src/hot_cold_store.rs|pub fn put_block(&self, block_root : & Hash256, block : SignedBeaconBlock < E >) -> Result < () , Error >
+HotColdDB::put_data_column_custody_info|fn|beacon_node/store/src/hot_cold_store.rs|pub fn put_data_column_custody_info(&self, earliest_data_column_slot : Option < Slot >) -> Result < () , Error >
+HotColdDB::put_data_columns|fn|beacon_node/store/src/hot_cold_store.rs|pub fn put_data_columns(&self, block_root : & Hash256, data_columns : DataColumnSidecarList < E >) -> Result < () , E...
+HotColdDB::put_item|fn|beacon_node/store/src/hot_cold_store.rs|pub fn put_item<I : StoreItem>(&self, key : & Hash256, item : & I) -> Result < () , Error >
+HotColdDB::put_payload_envelope|fn|beacon_node/store/src/hot_cold_store.rs|pub fn put_payload_envelope(&self, block_root : & Hash256, payload_envelope : SignedExecutionPayloadEnvelope < E >) -...
+HotColdDB::put_state|fn|beacon_node/store/src/hot_cold_store.rs|pub fn put_state(&self, state_root : & Hash256, state : & BeaconState < E >) -> Result < () , Error >
+HotColdDB::reconstruct_historic_states|fn|beacon_node/store/src/reconstruct.rs|pub fn reconstruct_historic_states(self, num_blocks : Option < usize >) -> Result < () , Error >
+HotColdDB::register_metrics|fn|beacon_node/store/src/hot_cold_store.rs|pub fn register_metrics(&self)
+HotColdDB::replay_blocks|fn|beacon_node/store/src/hot_cold_store.rs|pub fn replay_blocks(&self, state : BeaconState < E >, blocks : Vec < SignedBlindedBeaconBlock < E > >, envelopes : V...
+HotColdDB::set_split|fn|beacon_node/store/src/hot_cold_store.rs|pub fn set_split(&self, slot : Slot, state_root : Hash256, block_root : Hash256)
+HotColdDB::state_cache_len|fn|beacon_node/store/src/hot_cold_store.rs|pub fn state_cache_len(&self) -> usize
+HotColdDB::store_cold_state|fn|beacon_node/store/src/hot_cold_store.rs|pub fn store_cold_state(&self, state_root : & Hash256, state : & BeaconState < E >, ops : & mut Vec < KeyValueStoreOp...
+HotColdDB::store_cold_state_as_diff|fn|beacon_node/store/src/hot_cold_store.rs|pub fn store_cold_state_as_diff(&self, state : & BeaconState < E >, from_slot : Slot, ops : & mut Vec < KeyValueStore...
+HotColdDB::store_cold_state_as_snapshot|fn|beacon_node/store/src/hot_cold_store.rs|pub fn store_cold_state_as_snapshot(&self, state : & BeaconState < E >, ops : & mut Vec < KeyValueStoreOp >) -> Resul...
+HotColdDB::store_cold_state_summary|fn|beacon_node/store/src/hot_cold_store.rs|pub fn store_cold_state_summary(&self, state_root : & Hash256, slot : Slot, ops : & mut Vec < KeyValueStoreOp >) -> R...
+HotColdDB::store_compaction_timestamp|fn|beacon_node/store/src/hot_cold_store.rs|pub fn store_compaction_timestamp(&self, compaction_timestamp : Duration) -> Result < () , Error >
+HotColdDB::store_frozen_block_root_at_skip_slots|fn|beacon_node/store/src/hot_cold_store.rs|pub fn store_frozen_block_root_at_skip_slots(&self, start_slot : Slot, end_slot : Slot, block_root : Hash256) -> Resu...
+HotColdDB::store_hot_state|fn|beacon_node/store/src/hot_cold_store.rs|pub fn store_hot_state(&self, state_root : & Hash256, state : & BeaconState < E >, ops : & mut Vec < KeyValueStoreOp ...
+HotColdDB::store_hot_state_as_snapshot|fn|beacon_node/store/src/hot_cold_store.rs|pub fn store_hot_state_as_snapshot(&self, state_root : & Hash256, state : & BeaconState < E >, ops : & mut Vec < KeyV...
+HotColdDB::store_hot_state_diffs|fn|beacon_node/store/src/hot_cold_store.rs|pub fn store_hot_state_diffs(&self, state_root : & Hash256, state : & BeaconState < E >, ops : & mut Vec < KeyValueSt...
+HotColdDB::store_hot_state_summary|fn|beacon_node/store/src/hot_cold_store.rs|pub fn store_hot_state_summary(&self, state_root : & Hash256, state : & BeaconState < E >, ops : & mut Vec < KeyValue...
+HotColdDB::store_light_client_update|fn|beacon_node/store/src/hot_cold_store.rs|pub fn store_light_client_update(&self, sync_committee_period : u64, light_client_update : & LightClientUpdate < E >)...
+HotColdDB::store_schema_version|fn|beacon_node/store/src/hot_cold_store.rs|pub fn store_schema_version(&self, schema_version : SchemaVersion) -> Result < () , Error >
+HotColdDB::store_schema_version_atomically|fn|beacon_node/store/src/hot_cold_store.rs|pub fn store_schema_version_atomically(&self, schema_version : SchemaVersion, mut ops : Vec < KeyValueStoreOp >) -> R...
+HotColdDB::store_split_in_batch|fn|beacon_node/store/src/hot_cold_store.rs|pub fn store_split_in_batch(&self) -> KeyValueStoreOp
+HotColdDB::store_sync_committee|fn|beacon_node/store/src/hot_cold_store.rs|pub fn store_sync_committee(&self, sync_committee_period : u64, sync_committee : & SyncCommittee < E >) -> Result < (...
+HotColdDB::store_sync_committee_branch|fn|beacon_node/store/src/hot_cold_store.rs|pub fn store_sync_committee_branch(&self, block_root : Hash256, sync_committee_branch : & MerkleProof) -> Result < ()...
+HotColdDB::try_get_full_block|fn|beacon_node/store/src/hot_cold_store.rs|pub fn try_get_full_block(&self, block_root : & Hash256) -> Result < Option < DatabaseBlock < E > > , Error >
+HotColdDB::try_prune_blobs|fn|beacon_node/store/src/hot_cold_store.rs|pub fn try_prune_blobs(&self, force : bool, data_availability_boundary : Epoch) -> Result < () , Error >
+HotColdDB::try_prune_execution_payloads|fn|beacon_node/store/src/hot_cold_store.rs|pub fn try_prune_execution_payloads(&self, force : bool) -> Result < () , Error >
+HotColdDB::try_prune_most_blobs|fn|beacon_node/store/src/hot_cold_store.rs|pub fn try_prune_most_blobs(&self, force : bool) -> Result < () , Error >
+HotColdDB::update_finalized_state|fn|beacon_node/store/src/hot_cold_store.rs|pub fn update_finalized_state(&self, state_root : Hash256, block_root : Hash256, state : BeaconState < E >) -> Result...
+HotColdDBError|enum|beacon_node/store/src/hot_cold_store.rs|pub enum HotColdDBError
+HotHDiffBufferCache|struct|beacon_node/store/src/state_cache.rs|pub struct HotHDiffBufferCache
+HotHDiffBufferCache::cap|fn|beacon_node/store/src/state_cache.rs|pub fn cap(&self) -> NonZeroUsize
+HotHDiffBufferCache::get|fn|beacon_node/store/src/state_cache.rs|pub fn get(&mut self, state_root : & Hash256) -> Option < HDiffBuffer >
+HotHDiffBufferCache::len|fn|beacon_node/store/src/state_cache.rs|pub fn len(&self) -> usize
+HotHDiffBufferCache::mem_usage|fn|beacon_node/store/src/state_cache.rs|pub fn mem_usage(&self) -> usize
+HotHDiffBufferCache::new|fn|beacon_node/store/src/state_cache.rs|pub fn new(capacity : NonZeroUsize) -> Self
+HotHDiffBufferCache::put|fn|beacon_node/store/src/state_cache.rs|pub fn put(&mut self, state_root : Hash256, slot : Slot, buffer : HDiffBuffer) -> bool
+HotStateSummary|struct|beacon_node/store/src/hot_cold_store.rs|pub struct HotStateSummary
+HotStateSummary::new|fn|beacon_node/store/src/hot_cold_store.rs|pub fn new<E : EthSpec, Hot : ItemStore < E >, Cold : ItemStore < E >>(store : & HotColdDB < E , Hot , Cold >, state_...
+HotStateSummaryV22|struct|beacon_node/store/src/hot_cold_store.rs|pub struct HotStateSummaryV22
+HybridForwardsBlockRootsIterator|type|beacon_node/store/src/forwards_iter.rs|pub type HybridForwardsBlockRootsIterator<'a, E, Hot, Cold> =
+HybridForwardsIterator|enum|beacon_node/store/src/forwards_iter.rs|pub enum HybridForwardsIterator<'a, E: EthSpec, Hot: ItemStore<E>, Cold: ItemStore<E>>
+HybridForwardsIterator::new|fn|beacon_node/store/src/forwards_iter.rs|pub fn new(store : & 'a HotColdDB < E , Hot , Cold >, column : DBColumn, start_slot : Slot, end_slot : Option < Slot ...
+HybridForwardsStateRootsIterator|type|beacon_node/store/src/forwards_iter.rs|pub type HybridForwardsStateRootsIterator<'a, E, Hot, Cold> =
+InvariantCheckResult|struct|beacon_node/store/src/invariants.rs|pub struct InvariantCheckResult
+InvariantCheckResult::add_violation|fn|beacon_node/store/src/invariants.rs|pub fn add_violation(&mut self, violation : InvariantViolation)
+InvariantCheckResult::is_ok|fn|beacon_node/store/src/invariants.rs|pub fn is_ok(&self) -> bool
+InvariantCheckResult::merge|fn|beacon_node/store/src/invariants.rs|pub fn merge(&mut self, other : InvariantCheckResult)
+InvariantCheckResult::new|fn|beacon_node/store/src/invariants.rs|pub fn new() -> Self
+InvariantContext|struct|beacon_node/store/src/invariants.rs|pub struct InvariantContext
+InvariantViolation|enum|beacon_node/store/src/invariants.rs|pub enum InvariantViolation
+ItemStore|trait|beacon_node/store/src/lib.rs|pub trait ItemStore<E: EthSpec>: KeyValueStore<E> + Sync + Send + Sized + 'static
+Key|trait|beacon_node/store/src/lib.rs|pub trait Key: Sized + 'static
+KeyValueStore|trait|beacon_node/store/src/lib.rs|pub trait KeyValueStore<E: EthSpec>: Sync + Send + Sized + 'static
+KeyValueStoreOp|enum|beacon_node/store/src/lib.rs|pub enum KeyValueStoreOp
+LevelDB|struct|beacon_node/store/src/database/leveldb_impl.rs|pub struct LevelDB<E: EthSpec>
+LevelDB::compact|fn|beacon_node/store/src/database/leveldb_impl.rs|pub fn compact(&self) -> Result < () , Error >
+LevelDB::compact_column|fn|beacon_node/store/src/database/leveldb_impl.rs|pub fn compact_column(&self, column : DBColumn) -> Result < () , Error >
+LevelDB::delete_batch|fn|beacon_node/store/src/database/leveldb_impl.rs|pub fn delete_batch(&self, col : DBColumn, ops : HashSet < & [u8] >) -> Result < () , Error >
+LevelDB::delete_if|fn|beacon_node/store/src/database/leveldb_impl.rs|pub fn delete_if(&self, column : DBColumn, mut f : impl FnMut (& [u8]) -> Result < bool , Error >) -> Result < () , E...
+LevelDB::do_atomically|fn|beacon_node/store/src/database/leveldb_impl.rs|pub fn do_atomically(&self, ops_batch : Vec < KeyValueStoreOp >) -> Result < () , Error >
+LevelDB::get_bytes|fn|beacon_node/store/src/database/leveldb_impl.rs|pub fn get_bytes(&self, col : DBColumn, key : & [u8]) -> Result < Option < Vec < u8 > > , Error >
+LevelDB::iter_column|fn|beacon_node/store/src/database/leveldb_impl.rs|pub fn iter_column<K : Key>(&self, column : DBColumn) -> ColumnIter < '_ , K >
+LevelDB::iter_column_from|fn|beacon_node/store/src/database/leveldb_impl.rs|pub fn iter_column_from<K : Key>(&self, column : DBColumn, from : & [u8]) -> ColumnIter < '_ , K >
+LevelDB::iter_column_keys|fn|beacon_node/store/src/database/leveldb_impl.rs|pub fn iter_column_keys<K : Key>(&self, column : DBColumn) -> ColumnKeyIter < '_ , K >
+LevelDB::iter_column_keys_from|fn|beacon_node/store/src/database/leveldb_impl.rs|pub fn iter_column_keys_from<K : Key>(&self, column : DBColumn, from : & [u8]) -> ColumnKeyIter < '_ , K >
+LevelDB::key_delete|fn|beacon_node/store/src/database/leveldb_impl.rs|pub fn key_delete(&self, col : DBColumn, key : & [u8]) -> Result < () , Error >
+LevelDB::key_exists|fn|beacon_node/store/src/database/leveldb_impl.rs|pub fn key_exists(&self, col : DBColumn, key : & [u8]) -> Result < bool , Error >
+LevelDB::open|fn|beacon_node/store/src/database/leveldb_impl.rs|pub fn open(path : & Path) -> Result < Self , Error >
+LevelDB::put_bytes|fn|beacon_node/store/src/database/leveldb_impl.rs|pub fn put_bytes(&self, col : DBColumn, key : & [u8], val : & [u8]) -> Result < () , Error >
+LevelDB::put_bytes_sync|fn|beacon_node/store/src/database/leveldb_impl.rs|pub fn put_bytes_sync(&self, col : DBColumn, key : & [u8], val : & [u8]) -> Result < () , Error >
+LevelDB::put_bytes_with_options|fn|beacon_node/store/src/database/leveldb_impl.rs|pub fn put_bytes_with_options(&self, col : DBColumn, key : & [u8], val : & [u8], opts : WriteOptions) -> Result < () ...
+LevelDB::read_options|fn|beacon_node/store/src/database/leveldb_impl.rs|pub fn read_options(&self) -> ReadOptions < '_ , BytesKey >
+LevelDB::sync|fn|beacon_node/store/src/database/leveldb_impl.rs|pub fn sync(&self) -> Result < () , Error >
+LevelDB::write_options|fn|beacon_node/store/src/database/leveldb_impl.rs|pub fn write_options(&self) -> WriteOptions
+LevelDB::write_options_sync|fn|beacon_node/store/src/database/leveldb_impl.rs|pub fn write_options_sync(&self) -> WriteOptions
+MemoryStore|struct|beacon_node/store/src/memory_store.rs|pub struct MemoryStore<E: EthSpec>
+MemoryStore::open|fn|beacon_node/store/src/memory_store.rs|pub fn open() -> Self
+Metrics|struct|beacon_node/store/src/historic_state_cache.rs|pub struct Metrics
+OnDiskStoreConfig|struct|beacon_node/store/src/config.rs|pub struct OnDiskStoreConfig
+OptionalDiffBaseState|enum|beacon_node/store/src/hot_cold_store.rs|pub enum OptionalDiffBaseState
+OptionalDiffBaseState::get_root|fn|beacon_node/store/src/hot_cold_store.rs|pub fn get_root(&self, slot : Slot) -> Result < Hash256 , Error >
+OptionalDiffBaseState::new|fn|beacon_node/store/src/hot_cold_store.rs|pub fn new(slot : Slot, state_root : Hash256) -> Self
+PREV_DEFAULT_SLOTS_PER_RESTORE_POINT|const|beacon_node/store/src/config.rs|pub const PREV_DEFAULT_SLOTS_PER_RESTORE_POINT: u64 = 2048;
+ParentRootBlockIterator|struct|beacon_node/store/src/iter.rs|pub struct ParentRootBlockIterator<'a, E: EthSpec, Hot: ItemStore<E>, Cold: ItemStore<E>>
+ParentRootBlockIterator::new|fn|beacon_node/store/src/iter.rs|pub fn new(store : & 'a HotColdDB < E , Hot , Cold >, start_block_root : Hash256) -> Self
+PutStateOutcome|enum|beacon_node/store/src/state_cache.rs|pub enum PutStateOutcome
+RawEntryIter|type|beacon_node/store/src/lib.rs|pub type RawEntryIter<'a> =
+Redb|struct|beacon_node/store/src/database/redb_impl.rs|pub struct Redb<E: EthSpec>
+Redb::compact|fn|beacon_node/store/src/database/redb_impl.rs|pub fn compact(&self) -> Result < () , Error >
+Redb::delete_batch|fn|beacon_node/store/src/database/redb_impl.rs|pub fn delete_batch(&self, col : DBColumn, ops : HashSet < & [u8] >) -> Result < () , Error >
+Redb::delete_if|fn|beacon_node/store/src/database/redb_impl.rs|pub fn delete_if(&self, column : DBColumn, mut f : impl FnMut (& [u8]) -> Result < bool , Error >) -> Result < () , E...
+Redb::do_atomically|fn|beacon_node/store/src/database/redb_impl.rs|pub fn do_atomically(&self, ops_batch : Vec < KeyValueStoreOp >) -> Result < () , Error >
+Redb::get_bytes|fn|beacon_node/store/src/database/redb_impl.rs|pub fn get_bytes(&self, col : DBColumn, key : & [u8]) -> Result < Option < Vec < u8 > > , Error >
+Redb::iter_column|fn|beacon_node/store/src/database/redb_impl.rs|pub fn iter_column<K : Key>(&self, column : DBColumn) -> ColumnIter < '_ , K >
+Redb::iter_column_from|fn|beacon_node/store/src/database/redb_impl.rs|pub fn iter_column_from<K : Key>(&self, column : DBColumn, from : & [u8]) -> ColumnIter < '_ , K >
+Redb::iter_column_keys|fn|beacon_node/store/src/database/redb_impl.rs|pub fn iter_column_keys<K : Key>(&self, column : DBColumn) -> ColumnKeyIter < '_ , K >
+Redb::iter_column_keys_from|fn|beacon_node/store/src/database/redb_impl.rs|pub fn iter_column_keys_from<K : Key>(&self, column : DBColumn, from : & [u8]) -> ColumnKeyIter < '_ , K >
+Redb::key_delete|fn|beacon_node/store/src/database/redb_impl.rs|pub fn key_delete(&self, col : DBColumn, key : & [u8]) -> Result < () , Error >
+Redb::key_exists|fn|beacon_node/store/src/database/redb_impl.rs|pub fn key_exists(&self, col : DBColumn, key : & [u8]) -> Result < bool , Error >
+Redb::open|fn|beacon_node/store/src/database/redb_impl.rs|pub fn open(path : & Path) -> Result < Self , Error >
+Redb::put_bytes|fn|beacon_node/store/src/database/redb_impl.rs|pub fn put_bytes(&self, col : DBColumn, key : & [u8], val : & [u8]) -> Result < () , Error >
+Redb::put_bytes_sync|fn|beacon_node/store/src/database/redb_impl.rs|pub fn put_bytes_sync(&self, col : DBColumn, key : & [u8], val : & [u8]) -> Result < () , Error >
+Redb::put_bytes_with_options|fn|beacon_node/store/src/database/redb_impl.rs|pub fn put_bytes_with_options(&self, col : DBColumn, key : & [u8], val : & [u8], opts : WriteOptions) -> Result < () ...
+Redb::sync|fn|beacon_node/store/src/database/redb_impl.rs|pub fn sync(&self) -> Result < () , Error >
+Redb::write_options|fn|beacon_node/store/src/database/redb_impl.rs|pub fn write_options(&self) -> WriteOptions
+Redb::write_options_sync|fn|beacon_node/store/src/database/redb_impl.rs|pub fn write_options_sync(&self) -> WriteOptions
+Result|type|beacon_node/store/src/errors.rs|pub type Result<T> = std::result::Result<T, Error>;
+RootsIterator|struct|beacon_node/store/src/iter.rs|pub struct RootsIterator<'a, E: EthSpec, Hot: ItemStore<E>, Cold: ItemStore<E>>
+RootsIterator::from_block|fn|beacon_node/store/src/iter.rs|pub fn from_block(store : & 'a HotColdDB < E , Hot , Cold >, block_hash : Hash256) -> Result < Self , Error >
+RootsIterator::new|fn|beacon_node/store/src/iter.rs|pub fn new(store : & 'a HotColdDB < E , Hot , Cold >, beacon_state : & 'a BeaconState < E >) -> Self
+RootsIterator::owned|fn|beacon_node/store/src/iter.rs|pub fn owned(store : & 'a HotColdDB < E , Hot , Cold >, beacon_state : BeaconState < E >) -> Self
+SCHEMA_VERSION_KEY|const|beacon_node/store/src/metadata.rs|pub const SCHEMA_VERSION_KEY: Hash256 = Hash256::repeat_byte(0);
+SPLIT_KEY|const|beacon_node/store/src/metadata.rs|pub const SPLIT_KEY: Hash256 = Hash256::repeat_byte(2);
+STATE_UPPER_LIMIT_NO_RETAIN|const|beacon_node/store/src/metadata.rs|pub const STATE_UPPER_LIMIT_NO_RETAIN: Slot = Slot::new(u64::MAX);
+SchemaVersion|struct|beacon_node/store/src/metadata.rs|pub struct SchemaVersion(pub u64);
+SchemaVersion::as_u64|fn|beacon_node/store/src/metadata.rs|pub fn as_u64(self) -> u64
+SimpleForwardsIterator|struct|beacon_node/store/src/forwards_iter.rs|pub struct SimpleForwardsIterator
+SlotMap|struct|beacon_node/store/src/state_cache.rs|pub struct SlotMap
+Split|struct|beacon_node/store/src/hot_cold_store.rs|pub struct Split
+SplitChange|struct|beacon_node/store/src/hot_cold_store.rs|pub struct SplitChange
+StateCache|struct|beacon_node/store/src/state_cache.rs|pub struct StateCache<E: EthSpec>
+StateCache::capacity|fn|beacon_node/store/src/state_cache.rs|pub fn capacity(&self) -> usize
+StateCache::cull|fn|beacon_node/store/src/state_cache.rs|pub fn cull(&mut self, count : usize) -> Vec < Hash256 >
+StateCache::delete_block_states|fn|beacon_node/store/src/state_cache.rs|pub fn delete_block_states(&mut self, block_root : & Hash256)
+StateCache::delete_state|fn|beacon_node/store/src/state_cache.rs|pub fn delete_state(&mut self, state_root : & Hash256)
+StateCache::get_by_block_root|fn|beacon_node/store/src/state_cache.rs|pub fn get_by_block_root(&mut self, block_root : Hash256, payload_status : StatePayloadStatus, slot : Slot) -> Option...
+StateCache::get_by_state_root|fn|beacon_node/store/src/state_cache.rs|pub fn get_by_state_root(&mut self, state_root : Hash256) -> Option < BeaconState < E > >
+StateCache::get_hdiff_buffer_by_state_root|fn|beacon_node/store/src/state_cache.rs|pub fn get_hdiff_buffer_by_state_root(&mut self, state_root : Hash256) -> Option < HDiffBuffer >
+StateCache::hdiff_buffer_mem_usage|fn|beacon_node/store/src/state_cache.rs|pub fn hdiff_buffer_mem_usage(&self) -> usize
+StateCache::len|fn|beacon_node/store/src/state_cache.rs|pub fn len(&self) -> usize
+StateCache::new|fn|beacon_node/store/src/state_cache.rs|pub fn new(state_capacity : NonZeroUsize, headroom : NonZeroUsize, hdiff_capacity : NonZeroUsize) -> Self
+StateCache::num_hdiff_buffers|fn|beacon_node/store/src/state_cache.rs|pub fn num_hdiff_buffers(&self) -> usize
+StateCache::put_hdiff_buffer|fn|beacon_node/store/src/state_cache.rs|pub fn put_hdiff_buffer(&mut self, state_root : Hash256, slot : Slot, buffer : & HDiffBuffer)
+StateCache::put_state|fn|beacon_node/store/src/state_cache.rs|pub fn put_state(&mut self, state_root : Hash256, block_root : Hash256, state : & BeaconState < E >) -> Result < PutS...
+StateCache::rebase_on_finalized|fn|beacon_node/store/src/state_cache.rs|pub fn rebase_on_finalized(&self, state : & mut BeaconState < E >, spec : & ChainSpec) -> Result < () , Error >
+StateCache::state_roots|fn|beacon_node/store/src/state_cache.rs|pub fn state_roots(&self) -> Vec < Hash256 >
+StateCache::update_finalized_state|fn|beacon_node/store/src/state_cache.rs|pub fn update_finalized_state(&mut self, state_root : Hash256, block_root : Hash256, state : BeaconState < E >, pre_f...
+StateCache::update_head_block_root|fn|beacon_node/store/src/state_cache.rs|pub fn update_head_block_root(&mut self, head_block_root : Hash256)
+StateRootsIterator|struct|beacon_node/store/src/iter.rs|pub struct StateRootsIterator<'a, E: EthSpec, Hot: ItemStore<E>, Cold: ItemStore<E>>
+StateRootsIterator::new|fn|beacon_node/store/src/iter.rs|pub fn new(store : & 'a HotColdDB < E , Hot , Cold >, beacon_state : & 'a BeaconState < E >) -> Self
+StateRootsIterator::owned|fn|beacon_node/store/src/iter.rs|pub fn owned(store : & 'a HotColdDB < E , Hot , Cold >, beacon_state : BeaconState < E >) -> Self
+StateSummaryIteratorError|enum|beacon_node/store/src/hot_cold_store.rs|pub enum StateSummaryIteratorError
+StorageStrategy|enum|beacon_node/store/src/hdiff.rs|pub enum StorageStrategy
+StorageStrategy::diff_base_slot|fn|beacon_node/store/src/hdiff.rs|pub fn diff_base_slot(&self) -> Option < Slot >
+StorageStrategy::is_diff_from|fn|beacon_node/store/src/hdiff.rs|pub fn is_diff_from(&self) -> bool
+StorageStrategy::is_replay_from|fn|beacon_node/store/src/hdiff.rs|pub fn is_replay_from(&self) -> bool
+StorageStrategy::is_snapshot|fn|beacon_node/store/src/hdiff.rs|pub fn is_snapshot(&self) -> bool
+StorageStrategy::replay_from_range|fn|beacon_node/store/src/hdiff.rs|pub fn replay_from_range(&self, slot : Slot) -> std :: iter :: Map < RangeInclusive < u64 > , fn (u64) -> Slot >
+StoreConfig|struct|beacon_node/store/src/config.rs|pub struct StoreConfig
+StoreConfig::as_disk_config|fn|beacon_node/store/src/config.rs|pub fn as_disk_config(&self) -> OnDiskStoreConfig
+StoreConfig::check_compatibility|fn|beacon_node/store/src/config.rs|pub fn check_compatibility(&self, on_disk_config : & OnDiskStoreConfig) -> Result < () , StoreConfigError >
+StoreConfig::compress_bytes|fn|beacon_node/store/src/config.rs|pub fn compress_bytes(&self, ssz_bytes : & [u8]) -> Result < Vec < u8 > , std :: io :: Error >
+StoreConfig::decompress_bytes|fn|beacon_node/store/src/config.rs|pub fn decompress_bytes(&self, input : & [u8]) -> Result < Vec < u8 > , std :: io :: Error >
+StoreConfig::estimate_compressed_size|fn|beacon_node/store/src/config.rs|pub fn estimate_compressed_size(&self, len : usize) -> usize
+StoreConfig::estimate_decompressed_size|fn|beacon_node/store/src/config.rs|pub fn estimate_decompressed_size(&self, len : usize) -> usize
+StoreConfig::verify|fn|beacon_node/store/src/config.rs|pub fn verify<E : EthSpec>(&self) -> Result < () , StoreConfigError >
+StoreConfigError|enum|beacon_node/store/src/config.rs|pub enum StoreConfigError
+StoreItem|trait|beacon_node/store/src/lib.rs|pub trait StoreItem: Sized
+StoreOp|enum|beacon_node/store/src/lib.rs|pub enum StoreOp<'a, E: EthSpec>
+ValidatorsDiff|struct|beacon_node/store/src/hdiff.rs|pub struct ValidatorsDiff
+ValidatorsDiff::apply|fn|beacon_node/store/src/hdiff.rs|pub fn apply(&self, xs : & mut Vec < Validator >, config : & StoreConfig) -> Result < () , Error >
+ValidatorsDiff::compute|fn|beacon_node/store/src/hdiff.rs|pub fn compute(xs : & [Validator], ys : & [Validator], config : & StoreConfig) -> Result < Self , Error >
+ValidatorsDiff::size|fn|beacon_node/store/src/hdiff.rs|pub fn size(&self) -> usize
+WriteOptions|struct|beacon_node/store/src/database/interface.rs|pub struct WriteOptions
+WriteOptions::new|fn|beacon_node/store/src/database/interface.rs|pub fn new() -> Self
+blob_sidecar_list_from_root|mod|beacon_node/store/src/lib.rs|pub mod blob_sidecar_list_from_root
+config|mod|beacon_node/store/src/lib.rs|pub mod config
+database|mod|beacon_node/store/src/lib.rs|pub mod database
+errors|mod|beacon_node/store/src/lib.rs|pub mod errors
+execution_payload|mod|beacon_node/store/src/impls.rs|pub mod execution_payload
+get_ancestor_state_root|fn|beacon_node/store/src/hot_cold_store.rs|pub fn get_ancestor_state_root<'a, E : EthSpec, Hot : ItemStore < E >, Cold : ItemStore < E >>(store : & 'a HotColdDB...
+get_col_from_key|fn|beacon_node/store/src/lib.rs|pub fn get_col_from_key(key : & [u8]) -> Option < String >
+get_data_column_key|fn|beacon_node/store/src/lib.rs|pub fn get_data_column_key(block_root : & Hash256, column_index : & ColumnIndex) -> Vec < u8 >
+get_key_for_col|fn|beacon_node/store/src/lib.rs|pub fn get_key_for_col(column : DBColumn, key : & [u8]) -> Vec < u8 >
+hdiff|mod|beacon_node/store/src/lib.rs|pub mod hdiff
+historic_state_cache|mod|beacon_node/store/src/lib.rs|pub mod historic_state_cache
+hot_cold_store|mod|beacon_node/store/src/lib.rs|pub mod hot_cold_store
+interface|mod|beacon_node/store/src/database.rs|pub mod interface
+invariants|mod|beacon_node/store/src/lib.rs|pub mod invariants
+iter|mod|beacon_node/store/src/lib.rs|pub mod iter
+leveldb_impl|mod|beacon_node/store/src/database.rs|pub mod leveldb_impl
+metadata|mod|beacon_node/store/src/lib.rs|pub mod metadata
+metrics|mod|beacon_node/store/src/lib.rs|pub mod metrics
+migrate_database|fn|beacon_node/store/src/hot_cold_store.rs|pub fn migrate_database<E : EthSpec, Hot : ItemStore < E >, Cold : ItemStore < E >>(store : Arc < HotColdDB < E , Hot...
+parse_data_column_key|fn|beacon_node/store/src/lib.rs|pub fn parse_data_column_key(data : Vec < u8 >) -> Result < (Hash256 , ColumnIndex) , Error >
+reconstruct|mod|beacon_node/store/src/lib.rs|pub mod reconstruct
+redb_impl|mod|beacon_node/store/src/database.rs|pub mod redb_impl
+scrape_for_metrics|fn|beacon_node/store/src/metrics.rs|pub fn scrape_for_metrics(db_path : & Path, freezer_db_path : & Path)
+state_cache|mod|beacon_node/store/src/lib.rs|pub mod state_cache

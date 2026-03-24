@@ -1,0 +1,8 @@
+# rust-symbols symbols/fixed_bytes | 2026-03-24T06:27:26Z | 6 symbols
+# name|kind|path|signature
+Address|type|consensus/fixed_bytes/src/lib.rs|pub type Address = alloy_primitives::Address;
+FixedBytesExtended|trait|consensus/fixed_bytes/src/lib.rs|pub trait FixedBytesExtended
+Hash256|type|consensus/fixed_bytes/src/lib.rs|pub type Hash256 = alloy_primitives::B256;
+Hash64|type|consensus/fixed_bytes/src/lib.rs|pub type Hash64 = alloy_primitives::B64;
+Uint256|type|consensus/fixed_bytes/src/lib.rs|pub type Uint256 = alloy_primitives::U256;
+UintExtended|trait|consensus/fixed_bytes/src/lib.rs|pub trait UintExtended

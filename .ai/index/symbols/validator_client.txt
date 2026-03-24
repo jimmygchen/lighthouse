@@ -1,0 +1,16 @@
+# rust-symbols symbols/validator_client | 2026-03-24T06:27:26Z | 14 symbols
+# name|kind|path|signature
+AGGREGATION_PRE_COMPUTE_EPOCHS|const|validator_client/src/lib.rs|pub const AGGREGATION_PRE_COMPUTE_EPOCHS: u64 = 2;
+AGGREGATION_PRE_COMPUTE_SLOTS_DISTRIBUTED|const|validator_client/src/lib.rs|pub const AGGREGATION_PRE_COMPUTE_SLOTS_DISTRIBUTED: u64 = 1;
+Config|struct|validator_client/src/config.rs|pub struct Config
+Config::from_cli|fn|validator_client/src/config.rs|pub fn from_cli(cli_args : & ArgMatches, validator_client_config : & ValidatorClient) -> Result < Config , String >
+DEFAULT_BEACON_NODE|const|validator_client/src/config.rs|pub const DEFAULT_BEACON_NODE: &str = "http://localhost:5052/";
+ProductionValidatorClient|struct|validator_client/src/lib.rs|pub struct ProductionValidatorClient<E: EthSpec>
+ProductionValidatorClient::new|fn|validator_client/src/lib.rs|pub async fn new(context : RuntimeContext < E >, config : Config) -> Result < Self , String >
+ProductionValidatorClient::new_from_cli|fn|validator_client/src/lib.rs|pub async fn new_from_cli(context : RuntimeContext < E >, cli_args : & ArgMatches, validator_client_config : & Valida...
+ProductionValidatorClient::start_service|fn|validator_client/src/lib.rs|pub async fn start_service(&mut self) -> Result < () , String >
+ValidatorClient|struct|validator_client/src/cli.rs|pub struct ValidatorClient
+check_node_health|fn|validator_client/src/check_synced.rs|pub async fn check_node_health(beacon_node : & BeaconNodeHttpClient) -> Result < (Slot , bool , bool) , CandidateError >
+cli|mod|validator_client/src/lib.rs|pub mod cli
+config|mod|validator_client/src/lib.rs|pub mod config
+load_pem_certificate|fn|validator_client/src/lib.rs|pub fn load_pem_certificate<P : AsRef < Path >>(pem_path : P) -> Result < Certificate , String >

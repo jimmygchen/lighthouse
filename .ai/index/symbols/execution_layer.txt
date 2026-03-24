@@ -1,0 +1,392 @@
+# rust-symbols symbols/execution_layer | 2026-03-24T06:27:26Z | 390 symbols
+# name|kind|path|signature
+Auth|struct|beacon_node/execution_layer/src/engine_api/auth.rs|pub struct Auth
+Auth::generate_token|fn|beacon_node/execution_layer/src/engine_api/auth.rs|pub fn generate_token(&self) -> Result < String , Error >
+Auth::new|fn|beacon_node/execution_layer/src/engine_api/auth.rs|pub fn new(secret : JwtKey, id : Option < String >, clv : Option < String >) -> Self
+Auth::new_with_path|fn|beacon_node/execution_layer/src/engine_api/auth.rs|pub fn new_with_path(jwt_path : PathBuf, id : Option < String >, clv : Option < String >) -> Result < Self , Error >
+Auth::validate_token|fn|beacon_node/execution_layer/src/engine_api/auth.rs|pub fn validate_token(token : & str, secret : & JwtKey) -> Result < jsonwebtoken :: TokenData < Claims > , Error >
+BAD_PARAMS_ERROR_CODE|const|beacon_node/execution_layer/src/test_utils/handle_rpc.rs|pub const BAD_PARAMS_ERROR_CODE: i64 = -32602;
+BUILDER|const|beacon_node/execution_layer/src/metrics.rs|pub const BUILDER: &str = "builder";
+BidStuff|trait|beacon_node/execution_layer/src/test_utils/mock_builder.rs|pub trait BidStuff<E: EthSpec>
+BlobAndProof|struct|beacon_node/execution_layer/src/engine_api/json_structures.rs|pub struct BlobAndProof<E: EthSpec>
+Block|enum|beacon_node/execution_layer/src/test_utils/execution_block_generator.rs|pub enum Block<E: EthSpec>
+Block::as_execution_block|fn|beacon_node/execution_layer/src/test_utils/execution_block_generator.rs|pub fn as_execution_block(&self, total_difficulty : Uint256) -> ExecutionBlock
+Block::as_execution_payload|fn|beacon_node/execution_layer/src/test_utils/execution_block_generator.rs|pub fn as_execution_payload(&self) -> Option < ExecutionPayload < E > >
+Block::block_hash|fn|beacon_node/execution_layer/src/test_utils/execution_block_generator.rs|pub fn block_hash(&self) -> ExecutionBlockHash
+Block::block_number|fn|beacon_node/execution_layer/src/test_utils/execution_block_generator.rs|pub fn block_number(&self) -> u64
+Block::gas_limit|fn|beacon_node/execution_layer/src/test_utils/execution_block_generator.rs|pub fn gas_limit(&self) -> u64
+Block::parent_hash|fn|beacon_node/execution_layer/src/test_utils/execution_block_generator.rs|pub fn parent_hash(&self) -> ExecutionBlockHash
+Block::total_difficulty|fn|beacon_node/execution_layer/src/test_utils/execution_block_generator.rs|pub fn total_difficulty(&self) -> Option < Uint256 >
+BlockByNumberQuery|enum|beacon_node/execution_layer/src/engine_api.rs|pub enum BlockByNumberQuery<'a>
+BlockProposalContents|enum|beacon_node/execution_layer/src/lib.rs|pub enum BlockProposalContents<E: EthSpec, Payload: AbstractExecPayload<E>>
+BlockProposalContents::block_value|fn|beacon_node/execution_layer/src/lib.rs|pub fn block_value(&self) -> & Uint256
+BlockProposalContents::deconstruct|fn|beacon_node/execution_layer/src/lib.rs|pub fn deconstruct(self) -> (Payload , Option < KzgCommitments < E > > , Option < (BlobsList < E > , KzgProofs < E >)...
+BlockProposalContents::payload|fn|beacon_node/execution_layer/src/lib.rs|pub fn payload(&self) -> & Payload
+BlockProposalContents::to_payload|fn|beacon_node/execution_layer/src/lib.rs|pub fn to_payload(self) -> Payload
+BlockProposalContentsGloas|struct|beacon_node/execution_layer/src/lib.rs|pub struct BlockProposalContentsGloas<E: EthSpec>
+BlockProposalContentsType|enum|beacon_node/execution_layer/src/lib.rs|pub enum BlockProposalContentsType<E: EthSpec>
+BuilderParams|struct|beacon_node/execution_layer/src/lib.rs|pub struct BuilderParams
+CachedResponse|struct|beacon_node/execution_layer/src/engine_api/http.rs|pub struct CachedResponse<T: Clone>
+CachedResponse::age|fn|beacon_node/execution_layer/src/engine_api/http.rs|pub fn age(&self) -> Duration
+CachedResponse::data|fn|beacon_node/execution_layer/src/engine_api/http.rs|pub fn data(&self) -> T
+CachedResponse::new|fn|beacon_node/execution_layer/src/engine_api/http.rs|pub fn new(data : T) -> Self
+CachedResponse::older_than|fn|beacon_node/execution_layer/src/engine_api/http.rs|pub fn older_than(&self, age_limit : Option < Duration >) -> bool
+ChainHealth|enum|beacon_node/execution_layer/src/lib.rs|pub enum ChainHealth
+Claims|struct|beacon_node/execution_layer/src/engine_api/auth.rs|pub struct Claims
+ClientCode|enum|beacon_node/execution_layer/src/engine_api.rs|pub enum ClientCode
+ClientVersionV1|struct|beacon_node/execution_layer/src/engine_api.rs|pub struct ClientVersionV1
+ClientVersionV1::calculate_graffiti|fn|beacon_node/execution_layer/src/engine_api.rs|pub fn calculate_graffiti(&self, lighthouse_commit_prefix : CommitPrefix, validator_graffiti : Option < Graffiti >) -...
+CommitPrefix|struct|beacon_node/execution_layer/src/engine_api.rs|pub struct CommitPrefix(pub String);
+Config|struct|beacon_node/execution_layer/src/test_utils/mod.rs|pub struct Config
+Config|struct|beacon_node/execution_layer/src/lib.rs|pub struct Config
+Context|struct|beacon_node/execution_layer/src/test_utils/mod.rs|pub struct Context<E: EthSpec>
+Context::get_fcu_payload_status|fn|beacon_node/execution_layer/src/test_utils/mod.rs|pub fn get_fcu_payload_status(&self, block_hash : & ExecutionBlockHash) -> Option < Result < PayloadStatusV1 , String...
+Context::get_new_payload_status|fn|beacon_node/execution_layer/src/test_utils/mod.rs|pub fn get_new_payload_status(&self, block_hash : & ExecutionBlockHash) -> Option < Result < PayloadStatusV1 , String...
+DEFAULT_BUILDER_PAYLOAD_VALUE_WEI|const|beacon_node/execution_layer/src/test_utils/mod.rs|pub const DEFAULT_BUILDER_PAYLOAD_VALUE_WEI: u128 = 20_000_000_000_000_000;
+DEFAULT_BUILDER_PRIVATE_KEY|const|beacon_node/execution_layer/src/test_utils/mock_builder.rs|pub const DEFAULT_BUILDER_PRIVATE_KEY: &str =
+DEFAULT_ENGINE_CAPABILITIES|const|beacon_node/execution_layer/src/test_utils/mod.rs|pub const DEFAULT_ENGINE_CAPABILITIES: EngineCapabilities = EngineCapabilities
+DEFAULT_EXECUTION_ENDPOINT|const|beacon_node/execution_layer/src/lib.rs|pub const DEFAULT_EXECUTION_ENDPOINT: &str = "http://localhost:8551/";
+DEFAULT_FEE_RECIPIENT|const|beacon_node/execution_layer/src/test_utils/mock_builder.rs|pub const DEFAULT_FEE_RECIPIENT: Address = Address::repeat_byte(42);
+DEFAULT_GAS_LIMIT|const|beacon_node/execution_layer/src/test_utils/execution_block_generator.rs|pub const DEFAULT_GAS_LIMIT: u64 = 60_000_000;
+DEFAULT_GAS_LIMIT|const|beacon_node/execution_layer/src/test_utils/mock_builder.rs|pub const DEFAULT_GAS_LIMIT: u64 = 60_000_000;
+DEFAULT_JWT_FILE|const|beacon_node/execution_layer/src/lib.rs|pub const DEFAULT_JWT_FILE: &str = "jwt.hex";
+DEFAULT_JWT_SECRET|const|beacon_node/execution_layer/src/test_utils/mod.rs|pub const DEFAULT_JWT_SECRET: [u8; 32] = [42; 32];
+DEFAULT_MOCK_EL_PAYLOAD_VALUE_WEI|const|beacon_node/execution_layer/src/test_utils/mod.rs|pub const DEFAULT_MOCK_EL_PAYLOAD_VALUE_WEI: u128 = 10_000_000_000_000_000;
+DEFAULT_PAYLOAD_CACHE_SIZE|const|beacon_node/execution_layer/src/payload_cache.rs|pub const DEFAULT_PAYLOAD_CACHE_SIZE: NonZeroUsize = new_non_zero_usize(10);
+EIP155_ERROR_STR|const|beacon_node/execution_layer/src/engine_api/http.rs|pub const EIP155_ERROR_STR: &str = "chain not synced beyond EIP-155 replay-protection fork block";
+ENGINE_EXCHANGE_CAPABILITIES|const|beacon_node/execution_layer/src/engine_api/http.rs|pub const ENGINE_EXCHANGE_CAPABILITIES: &str = "engine_exchangeCapabilities";
+ENGINE_EXCHANGE_CAPABILITIES_TIMEOUT|const|beacon_node/execution_layer/src/engine_api/http.rs|pub const ENGINE_EXCHANGE_CAPABILITIES_TIMEOUT: Duration = Duration::from_secs(1);
+ENGINE_FORKCHOICE_UPDATED_TIMEOUT|const|beacon_node/execution_layer/src/engine_api/http.rs|pub const ENGINE_FORKCHOICE_UPDATED_TIMEOUT: Duration = Duration::from_secs(8);
+ENGINE_FORKCHOICE_UPDATED_V1|const|beacon_node/execution_layer/src/engine_api/http.rs|pub const ENGINE_FORKCHOICE_UPDATED_V1: &str = "engine_forkchoiceUpdatedV1";
+ENGINE_FORKCHOICE_UPDATED_V2|const|beacon_node/execution_layer/src/engine_api/http.rs|pub const ENGINE_FORKCHOICE_UPDATED_V2: &str = "engine_forkchoiceUpdatedV2";
+ENGINE_FORKCHOICE_UPDATED_V3|const|beacon_node/execution_layer/src/engine_api/http.rs|pub const ENGINE_FORKCHOICE_UPDATED_V3: &str = "engine_forkchoiceUpdatedV3";
+ENGINE_GET_BLOBS_TIMEOUT|const|beacon_node/execution_layer/src/engine_api/http.rs|pub const ENGINE_GET_BLOBS_TIMEOUT: Duration = Duration::from_secs(1);
+ENGINE_GET_BLOBS_V1|const|beacon_node/execution_layer/src/engine_api/http.rs|pub const ENGINE_GET_BLOBS_V1: &str = "engine_getBlobsV1";
+ENGINE_GET_BLOBS_V2|const|beacon_node/execution_layer/src/engine_api/http.rs|pub const ENGINE_GET_BLOBS_V2: &str = "engine_getBlobsV2";
+ENGINE_GET_CLIENT_VERSION_TIMEOUT|const|beacon_node/execution_layer/src/engine_api/http.rs|pub const ENGINE_GET_CLIENT_VERSION_TIMEOUT: Duration = Duration::from_secs(1);
+ENGINE_GET_CLIENT_VERSION_V1|const|beacon_node/execution_layer/src/engine_api/http.rs|pub const ENGINE_GET_CLIENT_VERSION_V1: &str = "engine_getClientVersionV1";
+ENGINE_GET_PAYLOAD_BODIES_BY_HASH_V1|const|beacon_node/execution_layer/src/engine_api/http.rs|pub const ENGINE_GET_PAYLOAD_BODIES_BY_HASH_V1: &str = "engine_getPayloadBodiesByHashV1";
+ENGINE_GET_PAYLOAD_BODIES_BY_RANGE_V1|const|beacon_node/execution_layer/src/engine_api/http.rs|pub const ENGINE_GET_PAYLOAD_BODIES_BY_RANGE_V1: &str = "engine_getPayloadBodiesByRangeV1";
+ENGINE_GET_PAYLOAD_BODIES_TIMEOUT|const|beacon_node/execution_layer/src/engine_api/http.rs|pub const ENGINE_GET_PAYLOAD_BODIES_TIMEOUT: Duration = Duration::from_secs(10);
+ENGINE_GET_PAYLOAD_TIMEOUT|const|beacon_node/execution_layer/src/engine_api/http.rs|pub const ENGINE_GET_PAYLOAD_TIMEOUT: Duration = Duration::from_secs(2);
+ENGINE_GET_PAYLOAD_V1|const|beacon_node/execution_layer/src/engine_api/http.rs|pub const ENGINE_GET_PAYLOAD_V1: &str = "engine_getPayloadV1";
+ENGINE_GET_PAYLOAD_V2|const|beacon_node/execution_layer/src/engine_api/http.rs|pub const ENGINE_GET_PAYLOAD_V2: &str = "engine_getPayloadV2";
+ENGINE_GET_PAYLOAD_V3|const|beacon_node/execution_layer/src/engine_api/http.rs|pub const ENGINE_GET_PAYLOAD_V3: &str = "engine_getPayloadV3";
+ENGINE_GET_PAYLOAD_V4|const|beacon_node/execution_layer/src/engine_api/http.rs|pub const ENGINE_GET_PAYLOAD_V4: &str = "engine_getPayloadV4";
+ENGINE_GET_PAYLOAD_V5|const|beacon_node/execution_layer/src/engine_api/http.rs|pub const ENGINE_GET_PAYLOAD_V5: &str = "engine_getPayloadV5";
+ENGINE_NEW_PAYLOAD_TIMEOUT|const|beacon_node/execution_layer/src/engine_api/http.rs|pub const ENGINE_NEW_PAYLOAD_TIMEOUT: Duration = Duration::from_secs(8);
+ENGINE_NEW_PAYLOAD_V1|const|beacon_node/execution_layer/src/engine_api/http.rs|pub const ENGINE_NEW_PAYLOAD_V1: &str = "engine_newPayloadV1";
+ENGINE_NEW_PAYLOAD_V2|const|beacon_node/execution_layer/src/engine_api/http.rs|pub const ENGINE_NEW_PAYLOAD_V2: &str = "engine_newPayloadV2";
+ENGINE_NEW_PAYLOAD_V3|const|beacon_node/execution_layer/src/engine_api/http.rs|pub const ENGINE_NEW_PAYLOAD_V3: &str = "engine_newPayloadV3";
+ENGINE_NEW_PAYLOAD_V4|const|beacon_node/execution_layer/src/engine_api/http.rs|pub const ENGINE_NEW_PAYLOAD_V4: &str = "engine_newPayloadV4";
+ETH_GET_BLOCK_BY_HASH|const|beacon_node/execution_layer/src/engine_api/http.rs|pub const ETH_GET_BLOCK_BY_HASH: &str = "eth_getBlockByHash";
+ETH_GET_BLOCK_BY_HASH_TIMEOUT|const|beacon_node/execution_layer/src/engine_api/http.rs|pub const ETH_GET_BLOCK_BY_HASH_TIMEOUT: Duration = Duration::from_secs(1);
+ETH_GET_BLOCK_BY_NUMBER|const|beacon_node/execution_layer/src/engine_api/http.rs|pub const ETH_GET_BLOCK_BY_NUMBER: &str = "eth_getBlockByNumber";
+ETH_GET_BLOCK_BY_NUMBER_TIMEOUT|const|beacon_node/execution_layer/src/engine_api/http.rs|pub const ETH_GET_BLOCK_BY_NUMBER_TIMEOUT: Duration = Duration::from_secs(1);
+ETH_SYNCING|const|beacon_node/execution_layer/src/engine_api/http.rs|pub const ETH_SYNCING: &str = "eth_syncing";
+ETH_SYNCING_TIMEOUT|const|beacon_node/execution_layer/src/engine_api/http.rs|pub const ETH_SYNCING_TIMEOUT: Duration = Duration::from_secs(1);
+EncodableJsonWithdrawal|struct|beacon_node/execution_layer/src/engine_api/json_structures.rs|pub struct EncodableJsonWithdrawal<'a>
+Engine|struct|beacon_node/execution_layer/src/engines.rs|pub struct Engine
+Engine::get_engine_capabilities|fn|beacon_node/execution_layer/src/engines.rs|pub async fn get_engine_capabilities(&self, age_limit : Option < Duration >) -> Result < EngineCapabilities , EngineA...
+Engine::get_engine_version|fn|beacon_node/execution_layer/src/engines.rs|pub async fn get_engine_version(&self, age_limit : Option < Duration >) -> Result < Vec < ClientVersionV1 > , EngineA...
+Engine::get_payload_id|fn|beacon_node/execution_layer/src/engines.rs|pub async fn get_payload_id(&self, head_block_hash : & ExecutionBlockHash, payload_attributes : & PayloadAttributes) ...
+Engine::is_offline|fn|beacon_node/execution_layer/src/engines.rs|pub async fn is_offline(&self) -> bool
+Engine::is_synced|fn|beacon_node/execution_layer/src/engines.rs|pub async fn is_synced(&self) -> bool
+Engine::new|fn|beacon_node/execution_layer/src/engines.rs|pub fn new(api : HttpJsonRpc, executor : TaskExecutor) -> Self
+Engine::notify_forkchoice_updated|fn|beacon_node/execution_layer/src/engines.rs|pub async fn notify_forkchoice_updated(&self, forkchoice_state : ForkchoiceState, payload_attributes : Option < Paylo...
+Engine::request|fn|beacon_node/execution_layer/src/engines.rs|pub async fn request<'a, F, G, H>(self, func : F) -> Result < H , EngineError >
+Engine::set_latest_forkchoice_state|fn|beacon_node/execution_layer/src/engines.rs|pub async fn set_latest_forkchoice_state(&self, state : ForkchoiceState)
+Engine::upcheck|fn|beacon_node/execution_layer/src/engines.rs|pub async fn upcheck(&self)
+Engine::watch_state|fn|beacon_node/execution_layer/src/engines.rs|pub async fn watch_state(&self) -> WatchStream < EngineState >
+EngineCapabilities|struct|beacon_node/execution_layer/src/engine_api.rs|pub struct EngineCapabilities
+EngineCapabilities::to_response|fn|beacon_node/execution_layer/src/engine_api.rs|pub fn to_response(&self) -> Vec < & str >
+EngineError|enum|beacon_node/execution_layer/src/engines.rs|pub enum EngineError
+EngineState|enum|beacon_node/execution_layer/src/engines.rs|pub enum EngineState
+Error|enum|beacon_node/execution_layer/src/engine_api/auth.rs|pub enum Error
+Error|enum|beacon_node/execution_layer/src/test_utils/mod.rs|pub enum Error
+Error|enum|beacon_node/execution_layer/src/lib.rs|pub enum Error
+Error|enum|beacon_node/execution_layer/src/versioned_hashes.rs|pub enum Error
+Error|enum|beacon_node/execution_layer/src/engine_api.rs|pub enum Error
+ExecutionBlock|struct|beacon_node/execution_layer/src/engine_api.rs|pub struct ExecutionBlock
+ExecutionBlock::terminal_total_difficulty_reached|fn|beacon_node/execution_layer/src/engine_api.rs|pub fn terminal_total_difficulty_reached(&self, terminal_total_difficulty : Uint256) -> bool
+ExecutionBlockGenerator|struct|beacon_node/execution_layer/src/test_utils/execution_block_generator.rs|pub struct ExecutionBlockGenerator<E: EthSpec>
+ExecutionBlockGenerator::block_by_hash|fn|beacon_node/execution_layer/src/test_utils/execution_block_generator.rs|pub fn block_by_hash(&self, hash : ExecutionBlockHash) -> Option < Block < E > >
+ExecutionBlockGenerator::block_by_number|fn|beacon_node/execution_layer/src/test_utils/execution_block_generator.rs|pub fn block_by_number(&self, number : u64) -> Option < Block < E > >
+ExecutionBlockGenerator::build_new_execution_payload|fn|beacon_node/execution_layer/src/test_utils/execution_block_generator.rs|pub fn build_new_execution_payload(&mut self, head_block_hash : ExecutionBlockHash, parent : & Block < E >, id : Payl...
+ExecutionBlockGenerator::drop_all_blocks|fn|beacon_node/execution_layer/src/test_utils/execution_block_generator.rs|pub fn drop_all_blocks(&mut self)
+ExecutionBlockGenerator::execution_block_by_hash|fn|beacon_node/execution_layer/src/test_utils/execution_block_generator.rs|pub fn execution_block_by_hash(&self, hash : ExecutionBlockHash) -> Option < ExecutionBlock >
+ExecutionBlockGenerator::execution_block_by_number|fn|beacon_node/execution_layer/src/test_utils/execution_block_generator.rs|pub fn execution_block_by_number(&self, number : u64) -> Option < ExecutionBlock >
+ExecutionBlockGenerator::execution_payload_by_hash|fn|beacon_node/execution_layer/src/test_utils/execution_block_generator.rs|pub fn execution_payload_by_hash(&self, hash : ExecutionBlockHash) -> Option < ExecutionPayload < E > >
+ExecutionBlockGenerator::execution_payload_by_number|fn|beacon_node/execution_layer/src/test_utils/execution_block_generator.rs|pub fn execution_payload_by_number(&self, number : u64) -> Option < ExecutionPayload < E > >
+ExecutionBlockGenerator::forkchoice_updated|fn|beacon_node/execution_layer/src/test_utils/execution_block_generator.rs|pub fn forkchoice_updated(&mut self, forkchoice_state : ForkchoiceState, payload_attributes : Option < PayloadAttribu...
+ExecutionBlockGenerator::genesis_block|fn|beacon_node/execution_layer/src/test_utils/execution_block_generator.rs|pub fn genesis_block(&self) -> Option < Block < E > >
+ExecutionBlockGenerator::genesis_execution_block|fn|beacon_node/execution_layer/src/test_utils/execution_block_generator.rs|pub fn genesis_execution_block(&self) -> Option < ExecutionBlock >
+ExecutionBlockGenerator::get_blob_and_proof|fn|beacon_node/execution_layer/src/test_utils/execution_block_generator.rs|pub fn get_blob_and_proof(&self, versioned_hash : & Hash256) -> Option < BlobAndProof < E > >
+ExecutionBlockGenerator::get_blobs_bundle|fn|beacon_node/execution_layer/src/test_utils/execution_block_generator.rs|pub fn get_blobs_bundle(&mut self, id : & PayloadId) -> Option < BlobsBundle < E > >
+ExecutionBlockGenerator::get_fork_at_timestamp|fn|beacon_node/execution_layer/src/test_utils/execution_block_generator.rs|pub fn get_fork_at_timestamp(&self, timestamp : u64) -> ForkName
+ExecutionBlockGenerator::get_payload|fn|beacon_node/execution_layer/src/test_utils/execution_block_generator.rs|pub fn get_payload(&mut self, id : & PayloadId) -> Option < ExecutionPayload < E > >
+ExecutionBlockGenerator::insert_block|fn|beacon_node/execution_layer/src/test_utils/execution_block_generator.rs|pub fn insert_block(&mut self, block : Block < E >) -> Result < ExecutionBlockHash , String >
+ExecutionBlockGenerator::insert_block_without_checks|fn|beacon_node/execution_layer/src/test_utils/execution_block_generator.rs|pub fn insert_block_without_checks(&mut self, block : Block < E >) -> ExecutionBlockHash
+ExecutionBlockGenerator::insert_pow_block|fn|beacon_node/execution_layer/src/test_utils/execution_block_generator.rs|pub fn insert_pow_block(&mut self, block_number : u64) -> Result < () , String >
+ExecutionBlockGenerator::insert_pow_block_by_hash|fn|beacon_node/execution_layer/src/test_utils/execution_block_generator.rs|pub fn insert_pow_block_by_hash(&mut self, parent_hash : ExecutionBlockHash, unique_id : u64) -> Result < ExecutionBl...
+ExecutionBlockGenerator::insert_pow_blocks|fn|beacon_node/execution_layer/src/test_utils/execution_block_generator.rs|pub fn insert_pow_blocks(&mut self, block_numbers : impl Iterator < Item = u64 >) -> Result < () , String >
+ExecutionBlockGenerator::latest_block|fn|beacon_node/execution_layer/src/test_utils/execution_block_generator.rs|pub fn latest_block(&self) -> Option < Block < E > >
+ExecutionBlockGenerator::latest_execution_block|fn|beacon_node/execution_layer/src/test_utils/execution_block_generator.rs|pub fn latest_execution_block(&self) -> Option < ExecutionBlock >
+ExecutionBlockGenerator::modify_last_block|fn|beacon_node/execution_layer/src/test_utils/execution_block_generator.rs|pub fn modify_last_block(&mut self, block_modifier : impl FnOnce (& mut Block < E >))
+ExecutionBlockGenerator::new|fn|beacon_node/execution_layer/src/test_utils/execution_block_generator.rs|pub fn new(shanghai_time : Option < u64 >, cancun_time : Option < u64 >, prague_time : Option < u64 >, osaka_time : O...
+ExecutionBlockGenerator::new_payload|fn|beacon_node/execution_layer/src/test_utils/execution_block_generator.rs|pub fn new_payload(&mut self, payload : ExecutionPayload < E >) -> PayloadStatusV1
+ExecutionBlockGenerator::set_min_blob_count|fn|beacon_node/execution_layer/src/test_utils/execution_block_generator.rs|pub fn set_min_blob_count(&mut self, count : usize)
+ExecutionLayer|struct|beacon_node/execution_layer/src/lib.rs|pub struct ExecutionLayer<E: EthSpec>
+ExecutionLayer::builder|fn|beacon_node/execution_layer/src/lib.rs|pub fn builder(&self) -> Option < Arc < BuilderHttpClient > >
+ExecutionLayer::clear_proposer_preparation|fn|beacon_node/execution_layer/src/lib.rs|pub async fn clear_proposer_preparation(&self, proposer_index : u64)
+ExecutionLayer::execution_engine_forkchoice_lock|fn|beacon_node/execution_layer/src/lib.rs|pub async fn execution_engine_forkchoice_lock(&self) -> MutexGuard < '_ , () >
+ExecutionLayer::executor|fn|beacon_node/execution_layer/src/lib.rs|pub fn executor(&self) -> & TaskExecutor
+ExecutionLayer::from_config|fn|beacon_node/execution_layer/src/lib.rs|pub fn from_config(config : Config, executor : TaskExecutor) -> Result < Self , Error >
+ExecutionLayer::get_blobs_v1|fn|beacon_node/execution_layer/src/lib.rs|pub async fn get_blobs_v1(&self, query : Vec < Hash256 >) -> Result < Vec < Option < BlobAndProofV1 < E > > > , Error >
+ExecutionLayer::get_blobs_v2|fn|beacon_node/execution_layer/src/lib.rs|pub async fn get_blobs_v2(&self, query : Vec < Hash256 >) -> Result < Option < Vec < BlobAndProofV2 < E > > > , Error >
+ExecutionLayer::get_block_by_number|fn|beacon_node/execution_layer/src/lib.rs|pub async fn get_block_by_number(&self, query : BlockByNumberQuery < '_ >) -> Result < Option < ExecutionBlock > , Er...
+ExecutionLayer::get_current_difficulty|fn|beacon_node/execution_layer/src/lib.rs|pub async fn get_current_difficulty(&self) -> Result < Option < Uint256 > , ApiError >
+ExecutionLayer::get_engine_capabilities|fn|beacon_node/execution_layer/src/lib.rs|pub async fn get_engine_capabilities(&self, age_limit : Option < Duration >) -> Result < EngineCapabilities , Error >
+ExecutionLayer::get_engine_version|fn|beacon_node/execution_layer/src/lib.rs|pub async fn get_engine_version(&self, age_limit : Option < Duration >) -> Result < Vec < ClientVersionV1 > , Error >
+ExecutionLayer::get_payload|fn|beacon_node/execution_layer/src/lib.rs|pub async fn get_payload(&self, payload_parameters : PayloadParameters < '_ >, builder_params : BuilderParams, spec :...
+ExecutionLayer::get_payload_bodies_by_hash|fn|beacon_node/execution_layer/src/lib.rs|pub async fn get_payload_bodies_by_hash(&self, hashes : Vec < ExecutionBlockHash >) -> Result < Vec < Option < Execut...
+ExecutionLayer::get_payload_bodies_by_range|fn|beacon_node/execution_layer/src/lib.rs|pub async fn get_payload_bodies_by_range(&self, start : u64, count : u64) -> Result < Vec < Option < ExecutionPayload...
+ExecutionLayer::get_payload_by_root|fn|beacon_node/execution_layer/src/lib.rs|pub fn get_payload_by_root(&self, root : & Hash256) -> Option < FullPayloadContents < E > >
+ExecutionLayer::get_payload_for_header|fn|beacon_node/execution_layer/src/lib.rs|pub async fn get_payload_for_header(&self, header : & ExecutionPayloadHeader < E >, fork : ForkName) -> Result < Opti...
+ExecutionLayer::get_payload_gloas|fn|beacon_node/execution_layer/src/lib.rs|pub async fn get_payload_gloas(&self, payload_parameters : PayloadParameters < '_ >) -> Result < BlockProposalContent...
+ExecutionLayer::get_proposer_gas_limit|fn|beacon_node/execution_layer/src/lib.rs|pub async fn get_proposer_gas_limit(&self, proposer_index : u64) -> Option < u64 >
+ExecutionLayer::get_responsiveness_watch|fn|beacon_node/execution_layer/src/lib.rs|pub async fn get_responsiveness_watch(&self) -> WatchStream < EngineState >
+ExecutionLayer::get_suggested_fee_recipient|fn|beacon_node/execution_layer/src/lib.rs|pub async fn get_suggested_fee_recipient(&self, proposer_index : u64) -> Address
+ExecutionLayer::has_any_proposer_preparation_data|fn|beacon_node/execution_layer/src/lib.rs|pub async fn has_any_proposer_preparation_data(&self) -> bool
+ExecutionLayer::has_proposer_preparation_data|fn|beacon_node/execution_layer/src/lib.rs|pub async fn has_proposer_preparation_data(&self, proposer_index : u64) -> bool
+ExecutionLayer::has_proposer_preparation_data_blocking|fn|beacon_node/execution_layer/src/lib.rs|pub fn has_proposer_preparation_data_blocking(&self, proposer_index : u64) -> bool
+ExecutionLayer::insert_proposer|fn|beacon_node/execution_layer/src/lib.rs|pub async fn insert_proposer(&self, slot : Slot, head_block_root : Hash256, validator_index : u64, payload_attributes...
+ExecutionLayer::is_offline_or_erroring|fn|beacon_node/execution_layer/src/lib.rs|pub async fn is_offline_or_erroring(&self) -> bool
+ExecutionLayer::is_synced|fn|beacon_node/execution_layer/src/lib.rs|pub async fn is_synced(&self) -> bool
+ExecutionLayer::is_synced_for_notifier|fn|beacon_node/execution_layer/src/lib.rs|pub async fn is_synced_for_notifier(&self, current_slot : Slot) -> bool
+ExecutionLayer::notify_forkchoice_updated|fn|beacon_node/execution_layer/src/lib.rs|pub async fn notify_forkchoice_updated(&self, head_block_hash : ExecutionBlockHash, justified_block_hash : ExecutionB...
+ExecutionLayer::notify_new_payload|fn|beacon_node/execution_layer/src/lib.rs|pub async fn notify_new_payload(&self, new_payload_request : NewPayloadRequest < '_ , E >) -> Result < PayloadStatus ...
+ExecutionLayer::payload_attributes|fn|beacon_node/execution_layer/src/lib.rs|pub async fn payload_attributes(&self, current_slot : Slot, head_block_root : Hash256) -> Option < PayloadAttributes >
+ExecutionLayer::propose_blinded_beacon_block|fn|beacon_node/execution_layer/src/lib.rs|pub async fn propose_blinded_beacon_block(&self, block_root : Hash256, block : & SignedBlindedBeaconBlock < E >, spec...
+ExecutionLayer::set_builder_url|fn|beacon_node/execution_layer/src/lib.rs|pub fn set_builder_url(&self, builder_url : SensitiveUrl, builder_user_agent : Option < String >, builder_header_time...
+ExecutionLayer::spawn|fn|beacon_node/execution_layer/src/lib.rs|pub fn spawn<F, U>(&self, generate_future : F, name : & 'static str)
+ExecutionLayer::spawn_clean_proposer_caches_routine|fn|beacon_node/execution_layer/src/lib.rs|pub fn spawn_clean_proposer_caches_routine<S : SlotClock + 'static>(&self, slot_clock : S)
+ExecutionLayer::spawn_watchdog_routine|fn|beacon_node/execution_layer/src/lib.rs|pub fn spawn_watchdog_routine<S : SlotClock + 'static>(&self, slot_clock : S)
+ExecutionLayer::upcheck|fn|beacon_node/execution_layer/src/lib.rs|pub async fn upcheck(&self)
+ExecutionLayer::update_proposer_preparation|fn|beacon_node/execution_layer/src/lib.rs|pub async fn update_proposer_preparation<'a, I>(&self, update_epoch : Epoch, proposer_data : I)
+ExecutionLayer::watchdog_task|fn|beacon_node/execution_layer/src/lib.rs|pub async fn watchdog_task(&self)
+ExecutionPayloadBodyV1|struct|beacon_node/execution_layer/src/engine_api.rs|pub struct ExecutionPayloadBodyV1<E: EthSpec>
+ExecutionPayloadBodyV1::to_payload|fn|beacon_node/execution_layer/src/engine_api.rs|pub fn to_payload(self, header : ExecutionPayloadHeader < E >) -> Result < ExecutionPayload < E > , String >
+FAILURE|const|beacon_node/execution_layer/src/metrics.rs|pub const FAILURE: &str = "failure";
+FORKCHOICE_UPDATED|const|beacon_node/execution_layer/src/metrics.rs|pub const FORKCHOICE_UPDATED: &str = "forkchoice_updated";
+FORK_REQUEST_MISMATCH_ERROR_CODE|const|beacon_node/execution_layer/src/test_utils/handle_rpc.rs|pub const FORK_REQUEST_MISMATCH_ERROR_CODE: i64 = -32000;
+FailedCondition|enum|beacon_node/execution_layer/src/lib.rs|pub enum FailedCondition
+ForkchoiceState|struct|beacon_node/execution_layer/src/engines.rs|pub struct ForkchoiceState
+ForkchoiceUpdatedResponse|struct|beacon_node/execution_layer/src/engine_api.rs|pub struct ForkchoiceUpdatedResponse
+GENERIC_ERROR_CODE|const|beacon_node/execution_layer/src/test_utils/handle_rpc.rs|pub const GENERIC_ERROR_CODE: i64 = -1234;
+GET_BLINDED_PAYLOAD|const|beacon_node/execution_layer/src/metrics.rs|pub const GET_BLINDED_PAYLOAD: &str = "get_blinded_payload";
+GET_BLINDED_PAYLOAD_BUILDER|const|beacon_node/execution_layer/src/metrics.rs|pub const GET_BLINDED_PAYLOAD_BUILDER: &str = "get_blinded_payload_builder";
+GET_BLINDED_PAYLOAD_LOCAL|const|beacon_node/execution_layer/src/metrics.rs|pub const GET_BLINDED_PAYLOAD_LOCAL: &str = "get_blinded_payload_local";
+GET_PAYLOAD|const|beacon_node/execution_layer/src/metrics.rs|pub const GET_PAYLOAD: &str = "get_payload";
+GetPayloadResponse|struct|beacon_node/execution_layer/src/engine_api.rs|pub struct GetPayloadResponse<E: EthSpec>
+GetPayloadResponse::block_hash|fn|beacon_node/execution_layer/src/engine_api.rs|pub fn block_hash(&self) -> ExecutionBlockHash
+GetPayloadResponse::block_number|fn|beacon_node/execution_layer/src/engine_api.rs|pub fn block_number(&self) -> u64
+GetPayloadResponse::execution_payload_ref|fn|beacon_node/execution_layer/src/engine_api.rs|pub fn execution_payload_ref(&self) -> ExecutionPayloadRef < '_ , E >
+GetPayloadResponse::fee_recipient|fn|beacon_node/execution_layer/src/engine_api.rs|pub fn fee_recipient(&self) -> Address
+GetPayloadResponseType|enum|beacon_node/execution_layer/src/engine_api.rs|pub enum GetPayloadResponseType<E: EthSpec>
+HIT|const|beacon_node/execution_layer/src/metrics.rs|pub const HIT: &str = "hit";
+Hook|struct|beacon_node/execution_layer/src/test_utils/hook.rs|pub struct Hook
+Hook::on_forkchoice_updated|fn|beacon_node/execution_layer/src/test_utils/hook.rs|pub fn on_forkchoice_updated(&self, state : JsonForkchoiceStateV1, payload_attributes : Option < JsonPayloadAttribute...
+Hook::set_forkchoice_updated_hook|fn|beacon_node/execution_layer/src/test_utils/hook.rs|pub fn set_forkchoice_updated_hook(&mut self, f : Box < ForkChoiceUpdatedHook >)
+HttpJsonRpc|struct|beacon_node/execution_layer/src/engine_api/http.rs|pub struct HttpJsonRpc
+HttpJsonRpc::clear_engine_version_cache|fn|beacon_node/execution_layer/src/engine_api/http.rs|pub async fn clear_engine_version_cache(&self)
+HttpJsonRpc::clear_exchange_capabilties_cache|fn|beacon_node/execution_layer/src/engine_api/http.rs|pub async fn clear_exchange_capabilties_cache(&self)
+HttpJsonRpc::exchange_capabilities|fn|beacon_node/execution_layer/src/engine_api/http.rs|pub async fn exchange_capabilities(&self) -> Result < EngineCapabilities , Error >
+HttpJsonRpc::forkchoice_updated|fn|beacon_node/execution_layer/src/engine_api/http.rs|pub async fn forkchoice_updated(&self, forkchoice_state : ForkchoiceState, maybe_payload_attributes : Option < Payloa...
+HttpJsonRpc::forkchoice_updated_v1|fn|beacon_node/execution_layer/src/engine_api/http.rs|pub async fn forkchoice_updated_v1(&self, forkchoice_state : ForkchoiceState, payload_attributes : Option < PayloadAt...
+HttpJsonRpc::forkchoice_updated_v2|fn|beacon_node/execution_layer/src/engine_api/http.rs|pub async fn forkchoice_updated_v2(&self, forkchoice_state : ForkchoiceState, payload_attributes : Option < PayloadAt...
+HttpJsonRpc::forkchoice_updated_v3|fn|beacon_node/execution_layer/src/engine_api/http.rs|pub async fn forkchoice_updated_v3(&self, forkchoice_state : ForkchoiceState, payload_attributes : Option < PayloadAt...
+HttpJsonRpc::get_blobs_v1|fn|beacon_node/execution_layer/src/engine_api/http.rs|pub async fn get_blobs_v1<E : EthSpec>(&self, versioned_hashes : Vec < Hash256 >) -> Result < Vec < Option < BlobAndP...
+HttpJsonRpc::get_blobs_v2|fn|beacon_node/execution_layer/src/engine_api/http.rs|pub async fn get_blobs_v2<E : EthSpec>(&self, versioned_hashes : Vec < Hash256 >) -> Result < Option < Vec < BlobAndP...
+HttpJsonRpc::get_block_by_hash|fn|beacon_node/execution_layer/src/engine_api/http.rs|pub async fn get_block_by_hash(&self, block_hash : ExecutionBlockHash) -> Result < Option < ExecutionBlock > , Error >
+HttpJsonRpc::get_block_by_number|fn|beacon_node/execution_layer/src/engine_api/http.rs|pub async fn get_block_by_number(&self, query : BlockByNumberQuery < '_ >) -> Result < Option < ExecutionBlock > , Er...
+HttpJsonRpc::get_client_version_v1|fn|beacon_node/execution_layer/src/engine_api/http.rs|pub async fn get_client_version_v1(&self) -> Result < Vec < ClientVersionV1 > , Error >
+HttpJsonRpc::get_engine_capabilities|fn|beacon_node/execution_layer/src/engine_api/http.rs|pub async fn get_engine_capabilities(&self, age_limit : Option < Duration >) -> Result < EngineCapabilities , Error >
+HttpJsonRpc::get_engine_version|fn|beacon_node/execution_layer/src/engine_api/http.rs|pub async fn get_engine_version(&self, age_limit : Option < Duration >) -> Result < Vec < ClientVersionV1 > , Error >
+HttpJsonRpc::get_payload|fn|beacon_node/execution_layer/src/engine_api/http.rs|pub async fn get_payload<E : EthSpec>(&self, fork_name : ForkName, payload_id : PayloadId) -> Result < GetPayloadResp...
+HttpJsonRpc::get_payload_bodies_by_hash_v1|fn|beacon_node/execution_layer/src/engine_api/http.rs|pub async fn get_payload_bodies_by_hash_v1<E : EthSpec>(&self, block_hashes : Vec < ExecutionBlockHash >) -> Result <...
+HttpJsonRpc::get_payload_bodies_by_range_v1|fn|beacon_node/execution_layer/src/engine_api/http.rs|pub async fn get_payload_bodies_by_range_v1<E : EthSpec>(&self, start : u64, count : u64) -> Result < Vec < Option < ...
+HttpJsonRpc::get_payload_v1|fn|beacon_node/execution_layer/src/engine_api/http.rs|pub async fn get_payload_v1<E : EthSpec>(&self, payload_id : PayloadId) -> Result < GetPayloadResponse < E > , Error >
+HttpJsonRpc::get_payload_v2|fn|beacon_node/execution_layer/src/engine_api/http.rs|pub async fn get_payload_v2<E : EthSpec>(&self, fork_name : ForkName, payload_id : PayloadId) -> Result < GetPayloadR...
+HttpJsonRpc::get_payload_v3|fn|beacon_node/execution_layer/src/engine_api/http.rs|pub async fn get_payload_v3<E : EthSpec>(&self, fork_name : ForkName, payload_id : PayloadId) -> Result < GetPayloadR...
+HttpJsonRpc::get_payload_v4|fn|beacon_node/execution_layer/src/engine_api/http.rs|pub async fn get_payload_v4<E : EthSpec>(&self, fork_name : ForkName, payload_id : PayloadId) -> Result < GetPayloadR...
+HttpJsonRpc::get_payload_v5|fn|beacon_node/execution_layer/src/engine_api/http.rs|pub async fn get_payload_v5<E : EthSpec>(&self, fork_name : ForkName, payload_id : PayloadId) -> Result < GetPayloadR...
+HttpJsonRpc::new|fn|beacon_node/execution_layer/src/engine_api/http.rs|pub fn new(url : SensitiveUrl, execution_timeout_multiplier : Option < u32 >) -> Result < Self , Error >
+HttpJsonRpc::new_payload|fn|beacon_node/execution_layer/src/engine_api/http.rs|pub async fn new_payload<E : EthSpec>(&self, new_payload_request : NewPayloadRequest < '_ , E >) -> Result < PayloadS...
+HttpJsonRpc::new_payload_v1|fn|beacon_node/execution_layer/src/engine_api/http.rs|pub async fn new_payload_v1<E : EthSpec>(&self, execution_payload : ExecutionPayload < E >) -> Result < PayloadStatus...
+HttpJsonRpc::new_payload_v2|fn|beacon_node/execution_layer/src/engine_api/http.rs|pub async fn new_payload_v2<E : EthSpec>(&self, execution_payload : ExecutionPayload < E >) -> Result < PayloadStatus...
+HttpJsonRpc::new_payload_v3_deneb|fn|beacon_node/execution_layer/src/engine_api/http.rs|pub async fn new_payload_v3_deneb<E : EthSpec>(&self, new_payload_request_deneb : NewPayloadRequestDeneb < '_ , E >) ...
+HttpJsonRpc::new_payload_v4_electra|fn|beacon_node/execution_layer/src/engine_api/http.rs|pub async fn new_payload_v4_electra<E : EthSpec>(&self, new_payload_request_electra : NewPayloadRequestElectra < '_ ,...
+HttpJsonRpc::new_payload_v4_fulu|fn|beacon_node/execution_layer/src/engine_api/http.rs|pub async fn new_payload_v4_fulu<E : EthSpec>(&self, new_payload_request_fulu : NewPayloadRequestFulu < '_ , E >) -> ...
+HttpJsonRpc::new_payload_v4_gloas|fn|beacon_node/execution_layer/src/engine_api/http.rs|pub async fn new_payload_v4_gloas<E : EthSpec>(&self, new_payload_request_gloas : NewPayloadRequestGloas < '_ , E >) ...
+HttpJsonRpc::new_with_auth|fn|beacon_node/execution_layer/src/engine_api/http.rs|pub fn new_with_auth(url : SensitiveUrl, auth : Auth, execution_timeout_multiplier : Option < u32 >) -> Result < Self...
+HttpJsonRpc::rpc_request|fn|beacon_node/execution_layer/src/engine_api/http.rs|pub async fn rpc_request<D : DeserializeOwned>(&self, method : & str, params : serde_json :: Value, timeout : Duratio...
+HttpJsonRpc::upcheck|fn|beacon_node/execution_layer/src/engine_api/http.rs|pub async fn upcheck(&self) -> Result < () , Error >
+JSONRPC_VERSION|const|beacon_node/execution_layer/src/engine_api/http.rs|pub const JSONRPC_VERSION: &str = "2.0";
+JWT_SECRET_LENGTH|const|beacon_node/execution_layer/src/engine_api/auth.rs|pub const JWT_SECRET_LENGTH: usize = 32;
+JsonBlobsBundleV1|struct|beacon_node/execution_layer/src/engine_api/json_structures.rs|pub struct JsonBlobsBundleV1<E: EthSpec>
+JsonClientVersionV1|struct|beacon_node/execution_layer/src/engine_api/json_structures.rs|pub struct JsonClientVersionV1
+JsonError|struct|beacon_node/execution_layer/src/engine_api/json_structures.rs|pub struct JsonError
+JsonExecutionPayload|struct|beacon_node/execution_layer/src/engine_api/json_structures.rs|pub struct JsonExecutionPayload<E: EthSpec>
+JsonExecutionPayloadBodyV1|struct|beacon_node/execution_layer/src/engine_api/json_structures.rs|pub struct JsonExecutionPayloadBodyV1<E: EthSpec>
+JsonExecutionRequests|struct|beacon_node/execution_layer/src/engine_api/json_structures.rs|pub struct JsonExecutionRequests(pub Vec<String>);
+JsonForkchoiceStateV1|struct|beacon_node/execution_layer/src/engine_api/json_structures.rs|pub struct JsonForkchoiceStateV1
+JsonForkchoiceUpdatedV1Response|struct|beacon_node/execution_layer/src/engine_api/json_structures.rs|pub struct JsonForkchoiceUpdatedV1Response
+JsonGetPayloadResponse|struct|beacon_node/execution_layer/src/engine_api/json_structures.rs|pub struct JsonGetPayloadResponse<E: EthSpec>
+JsonPayloadAttributes|struct|beacon_node/execution_layer/src/engine_api/json_structures.rs|pub struct JsonPayloadAttributes
+JsonPayloadIdRequest|type|beacon_node/execution_layer/src/engine_api/json_structures.rs|pub type JsonPayloadIdRequest = TransparentJsonPayloadId;
+JsonPayloadIdResponse|struct|beacon_node/execution_layer/src/engine_api/json_structures.rs|pub struct JsonPayloadIdResponse
+JsonPayloadStatusV1|struct|beacon_node/execution_layer/src/engine_api/json_structures.rs|pub struct JsonPayloadStatusV1
+JsonPayloadStatusV1Status|enum|beacon_node/execution_layer/src/engine_api/json_structures.rs|pub enum JsonPayloadStatusV1Status
+JsonRequestBody|struct|beacon_node/execution_layer/src/engine_api/json_structures.rs|pub struct JsonRequestBody<'a>
+JsonResponseBody|struct|beacon_node/execution_layer/src/engine_api/json_structures.rs|pub struct JsonResponseBody
+JsonWithdrawal|struct|beacon_node/execution_layer/src/engine_api/json_structures.rs|pub struct JsonWithdrawal
+JwtKey|struct|beacon_node/execution_layer/src/engine_api/auth.rs|pub struct JwtKey([u8; JWT_SECRET_LENGTH]);
+JwtKey::as_bytes|fn|beacon_node/execution_layer/src/engine_api/auth.rs|pub fn as_bytes(&self) -> & [u8]
+JwtKey::from_slice|fn|beacon_node/execution_layer/src/engine_api/auth.rs|pub fn from_slice(key : & [u8]) -> Result < Self , String >
+JwtKey::hex_string|fn|beacon_node/execution_layer/src/engine_api/auth.rs|pub fn hex_string(&self) -> String
+JwtKey::random|fn|beacon_node/execution_layer/src/engine_api/auth.rs|pub fn random() -> Self
+KeccakHasher|struct|beacon_node/execution_layer/src/keccak.rs|pub struct KeccakHasher;
+LATEST_TAG|const|beacon_node/execution_layer/src/engine_api.rs|pub const LATEST_TAG: &str = "latest";
+LOCAL|const|beacon_node/execution_layer/src/metrics.rs|pub const LOCAL: &str = "local";
+METHOD_NOT_FOUND_CODE|const|beacon_node/execution_layer/src/engine_api/http.rs|pub const METHOD_NOT_FOUND_CODE: i64 = -32601;
+MISS|const|beacon_node/execution_layer/src/metrics.rs|pub const MISS: &str = "miss";
+MockBuilder|struct|beacon_node/execution_layer/src/test_utils/mock_builder.rs|pub struct MockBuilder<E: EthSpec>
+MockBuilder::add_operation|fn|beacon_node/execution_layer/src/test_utils/mock_builder.rs|pub fn add_operation(&self, op : Operation)
+MockBuilder::get_header|fn|beacon_node/execution_layer/src/test_utils/mock_builder.rs|pub async fn get_header(&self, slot : Slot, parent_hash : ExecutionBlockHash, pubkey : PublicKeyBytes) -> Result < Si...
+MockBuilder::invalid_signatures|fn|beacon_node/execution_layer/src/test_utils/mock_builder.rs|pub fn invalid_signatures(&self)
+MockBuilder::new|fn|beacon_node/execution_layer/src/test_utils/mock_builder.rs|pub fn new(el : ExecutionLayer < E >, beacon_client : BeaconNodeHttpClient, validate_pubkey : bool, apply_operations ...
+MockBuilder::new_for_testing|fn|beacon_node/execution_layer/src/test_utils/mock_builder.rs|pub fn new_for_testing(mock_el_url : SensitiveUrl, beacon_url : SensitiveUrl, validate_pubkey : bool, apply_operation...
+MockBuilder::prepare_execution_layer|fn|beacon_node/execution_layer/src/test_utils/mock_builder.rs|pub async fn prepare_execution_layer(&self) -> Result < () , String >
+MockBuilder::public_key|fn|beacon_node/execution_layer/src/test_utils/mock_builder.rs|pub fn public_key(&self) -> PublicKeyBytes
+MockBuilder::register_validators|fn|beacon_node/execution_layer/src/test_utils/mock_builder.rs|pub async fn register_validators(&self, registrations : Vec < SignedValidatorRegistrationData >) -> Result < () , Str...
+MockBuilder::submit_blinded_block|fn|beacon_node/execution_layer/src/test_utils/mock_builder.rs|pub async fn submit_blinded_block(&self, block : SignedBlindedBeaconBlock < E >) -> Result < FullPayloadContents < E ...
+MockBuilder::valid_signatures|fn|beacon_node/execution_layer/src/test_utils/mock_builder.rs|pub fn valid_signatures(&mut self)
+MockExecutionConfig|struct|beacon_node/execution_layer/src/test_utils/mod.rs|pub struct MockExecutionConfig
+MockExecutionLayer|struct|beacon_node/execution_layer/src/test_utils/mock_execution_layer.rs|pub struct MockExecutionLayer<E: EthSpec>
+MockExecutionLayer::assert_valid_execution_payload_on_head|fn|beacon_node/execution_layer/src/test_utils/mock_execution_layer.rs|pub async fn assert_valid_execution_payload_on_head<Payload : AbstractExecPayload < E >>(&self, payload : ExecutionPa...
+MockExecutionLayer::default_params|fn|beacon_node/execution_layer/src/test_utils/mock_execution_layer.rs|pub fn default_params(executor : TaskExecutor) -> Self
+MockExecutionLayer::new|fn|beacon_node/execution_layer/src/test_utils/mock_execution_layer.rs|pub fn new(executor : TaskExecutor, shanghai_time : Option < u64 >, cancun_time : Option < u64 >, prague_time : Optio...
+MockExecutionLayer::produce_valid_execution_payload_on_head|fn|beacon_node/execution_layer/src/test_utils/mock_execution_layer.rs|pub async fn produce_valid_execution_payload_on_head(self) -> Self
+MockServer|struct|beacon_node/execution_layer/src/test_utils/mod.rs|pub struct MockServer<E: EthSpec>
+MockServer::all_get_block_by_hash_requests_return_natural_value|fn|beacon_node/execution_layer/src/test_utils/mod.rs|pub fn all_get_block_by_hash_requests_return_natural_value(&self)
+MockServer::all_get_block_by_hash_requests_return_none|fn|beacon_node/execution_layer/src/test_utils/mod.rs|pub fn all_get_block_by_hash_requests_return_none(&self)
+MockServer::all_payloads_invalid|fn|beacon_node/execution_layer/src/test_utils/mod.rs|pub fn all_payloads_invalid(&self, latest_valid_hash : ExecutionBlockHash)
+MockServer::all_payloads_invalid_block_hash_on_forkchoice_updated|fn|beacon_node/execution_layer/src/test_utils/mod.rs|pub fn all_payloads_invalid_block_hash_on_forkchoice_updated(&self)
+MockServer::all_payloads_invalid_block_hash_on_new_payload|fn|beacon_node/execution_layer/src/test_utils/mod.rs|pub fn all_payloads_invalid_block_hash_on_new_payload(&self)
+MockServer::all_payloads_invalid_on_forkchoice_updated|fn|beacon_node/execution_layer/src/test_utils/mod.rs|pub fn all_payloads_invalid_on_forkchoice_updated(&self, latest_valid_hash : ExecutionBlockHash)
+MockServer::all_payloads_invalid_on_new_payload|fn|beacon_node/execution_layer/src/test_utils/mod.rs|pub fn all_payloads_invalid_on_new_payload(&self, latest_valid_hash : ExecutionBlockHash)
+MockServer::all_payloads_invalid_terminal_block_on_forkchoice_updated|fn|beacon_node/execution_layer/src/test_utils/mod.rs|pub fn all_payloads_invalid_terminal_block_on_forkchoice_updated(&self)
+MockServer::all_payloads_invalid_terminal_block_on_new_payload|fn|beacon_node/execution_layer/src/test_utils/mod.rs|pub fn all_payloads_invalid_terminal_block_on_new_payload(&self)
+MockServer::all_payloads_syncing|fn|beacon_node/execution_layer/src/test_utils/mod.rs|pub fn all_payloads_syncing(&self, should_import : bool)
+MockServer::all_payloads_syncing_on_forkchoice_updated|fn|beacon_node/execution_layer/src/test_utils/mod.rs|pub fn all_payloads_syncing_on_forkchoice_updated(&self)
+MockServer::all_payloads_syncing_on_new_payload|fn|beacon_node/execution_layer/src/test_utils/mod.rs|pub fn all_payloads_syncing_on_new_payload(&self, should_import : bool)
+MockServer::all_payloads_valid|fn|beacon_node/execution_layer/src/test_utils/mod.rs|pub fn all_payloads_valid(&self)
+MockServer::all_payloads_valid_on_forkchoice_updated|fn|beacon_node/execution_layer/src/test_utils/mod.rs|pub fn all_payloads_valid_on_forkchoice_updated(&self)
+MockServer::all_payloads_valid_on_new_payload|fn|beacon_node/execution_layer/src/test_utils/mod.rs|pub fn all_payloads_valid_on_new_payload(&self)
+MockServer::drop_all_blocks|fn|beacon_node/execution_layer/src/test_utils/mod.rs|pub fn drop_all_blocks(&self)
+MockServer::execution_block_generator|fn|beacon_node/execution_layer/src/test_utils/mod.rs|pub fn execution_block_generator(&self) -> RwLockWriteGuard < '_ , ExecutionBlockGenerator < E > >
+MockServer::full_payload_verification|fn|beacon_node/execution_layer/src/test_utils/mod.rs|pub fn full_payload_verification(&self)
+MockServer::get_block|fn|beacon_node/execution_layer/src/test_utils/mod.rs|pub fn get_block(&self, block_hash : ExecutionBlockHash) -> Option < Block < E > >
+MockServer::insert_pow_block|fn|beacon_node/execution_layer/src/test_utils/mod.rs|pub fn insert_pow_block(&self, block_number : u64, block_hash : ExecutionBlockHash, parent_hash : ExecutionBlockHash,...
+MockServer::last_echo_request|fn|beacon_node/execution_layer/src/test_utils/mod.rs|pub fn last_echo_request(&self) -> Bytes
+MockServer::new|fn|beacon_node/execution_layer/src/test_utils/mod.rs|pub fn new(handle : & runtime :: Handle, jwt_key : JwtKey, shanghai_time : Option < u64 >, cancun_time : Option < u64...
+MockServer::new_with_config|fn|beacon_node/execution_layer/src/test_utils/mod.rs|pub fn new_with_config(handle : & runtime :: Handle, config : MockExecutionConfig, kzg : Option < Arc < Kzg > >) -> Self
+MockServer::push_preloaded_response|fn|beacon_node/execution_layer/src/test_utils/mod.rs|pub fn push_preloaded_response(&self, response : serde_json :: Value)
+MockServer::set_engine_capabilities|fn|beacon_node/execution_layer/src/test_utils/mod.rs|pub fn set_engine_capabilities(&self, engine_capabilities : EngineCapabilities)
+MockServer::set_fcu_payload_status|fn|beacon_node/execution_layer/src/test_utils/mod.rs|pub fn set_fcu_payload_status(&self, block_hash : ExecutionBlockHash, status : PayloadStatusV1)
+MockServer::set_forkchoice_updated_response|fn|beacon_node/execution_layer/src/test_utils/mod.rs|pub fn set_forkchoice_updated_response(&self, status : PayloadStatusV1)
+MockServer::set_new_payload_error|fn|beacon_node/execution_layer/src/test_utils/mod.rs|pub fn set_new_payload_error(&self, block_hash : ExecutionBlockHash, error : String)
+MockServer::set_new_payload_response|fn|beacon_node/execution_layer/src/test_utils/mod.rs|pub fn set_new_payload_response(&self, response : StaticNewPayloadResponse)
+MockServer::set_new_payload_status|fn|beacon_node/execution_layer/src/test_utils/mod.rs|pub fn set_new_payload_status(&self, block_hash : ExecutionBlockHash, status : PayloadStatusV1)
+MockServer::set_payload_statuses|fn|beacon_node/execution_layer/src/test_utils/mod.rs|pub fn set_payload_statuses(&self, block_hash : ExecutionBlockHash, status : PayloadStatusV1)
+MockServer::set_syncing_response|fn|beacon_node/execution_layer/src/test_utils/mod.rs|pub fn set_syncing_response(&self, res : Result < bool , String >)
+MockServer::take_previous_request|fn|beacon_node/execution_layer/src/test_utils/mod.rs|pub fn take_previous_request(&self) -> Option < serde_json :: Value >
+MockServer::unit_testing|fn|beacon_node/execution_layer/src/test_utils/mod.rs|pub fn unit_testing() -> Self
+MockServer::url|fn|beacon_node/execution_layer/src/test_utils/mod.rs|pub fn url(&self) -> String
+NEW_PAYLOAD|const|beacon_node/execution_layer/src/metrics.rs|pub const NEW_PAYLOAD: &str = "new_payload";
+NewPayloadRequest|struct|beacon_node/execution_layer/src/engine_api/new_payload_request.rs|pub struct NewPayloadRequest<'block, E: EthSpec>
+NewPayloadRequest::block_hash|fn|beacon_node/execution_layer/src/engine_api/new_payload_request.rs|pub fn block_hash(&self) -> ExecutionBlockHash
+NewPayloadRequest::block_number|fn|beacon_node/execution_layer/src/engine_api/new_payload_request.rs|pub fn block_number(&self) -> u64
+NewPayloadRequest::execution_payload_ref|fn|beacon_node/execution_layer/src/engine_api/new_payload_request.rs|pub fn execution_payload_ref(&self) -> ExecutionPayloadRef < 'block , E >
+NewPayloadRequest::into_execution_payload|fn|beacon_node/execution_layer/src/engine_api/new_payload_request.rs|pub fn into_execution_payload(self) -> ExecutionPayload < E >
+NewPayloadRequest::parent_hash|fn|beacon_node/execution_layer/src/engine_api/new_payload_request.rs|pub fn parent_hash(&self) -> ExecutionBlockHash
+NewPayloadRequest::perform_optimistic_sync_verifications|fn|beacon_node/execution_layer/src/engine_api/new_payload_request.rs|pub fn perform_optimistic_sync_verifications(&self) -> Result < () , Error >
+NewPayloadRequest::verify_payload_block_hash|fn|beacon_node/execution_layer/src/engine_api/new_payload_request.rs|pub fn verify_payload_block_hash(&self) -> Result < () , Error >
+NewPayloadRequest::verify_versioned_hashes|fn|beacon_node/execution_layer/src/engine_api/new_payload_request.rs|pub fn verify_versioned_hashes(&self) -> Result < () , Error >
+Operation|enum|beacon_node/execution_layer/src/test_utils/mock_builder.rs|pub enum Operation
+POST_BLINDED_PAYLOAD_BUILDER|const|beacon_node/execution_layer/src/metrics.rs|pub const POST_BLINDED_PAYLOAD_BUILDER: &str = "post_blinded_payload_builder";
+PayloadAttributes|struct|beacon_node/execution_layer/src/engine_api.rs|pub struct PayloadAttributes
+PayloadAttributes::new|fn|beacon_node/execution_layer/src/engine_api.rs|pub fn new(timestamp : u64, prev_randao : Hash256, suggested_fee_recipient : Address, withdrawals : Option < Vec < Wi...
+PayloadCache|struct|beacon_node/execution_layer/src/payload_cache.rs|pub struct PayloadCache<E: EthSpec>
+PayloadCache::get|fn|beacon_node/execution_layer/src/payload_cache.rs|pub fn get(&self, hash : & Hash256) -> Option < FullPayloadContents < E > >
+PayloadCache::pop|fn|beacon_node/execution_layer/src/payload_cache.rs|pub fn pop(&self, root : & Hash256) -> Option < FullPayloadContents < E > >
+PayloadCache::put|fn|beacon_node/execution_layer/src/payload_cache.rs|pub fn put(&self, payload : FullPayloadContents < E >) -> Option < FullPayloadContents < E > >
+PayloadId|type|beacon_node/execution_layer/src/engine_api.rs|pub type PayloadId = [u8; 8];
+PayloadParameters|struct|beacon_node/execution_layer/src/lib.rs|pub struct PayloadParameters<'a>
+PayloadParametersCloned|struct|beacon_node/execution_layer/src/test_utils/mock_builder.rs|pub struct PayloadParametersCloned
+PayloadStatus|enum|beacon_node/execution_layer/src/payload_status.rs|pub enum PayloadStatus
+PayloadStatusV1|struct|beacon_node/execution_layer/src/engine_api.rs|pub struct PayloadStatusV1
+PayloadStatusV1Status|enum|beacon_node/execution_layer/src/engine_api.rs|pub enum PayloadStatusV1Status
+PoWBlock|struct|beacon_node/execution_layer/src/test_utils/execution_block_generator.rs|pub struct PoWBlock
+ProposeBlindedBlockResponse|struct|beacon_node/execution_layer/src/engine_api.rs|pub struct ProposeBlindedBlockResponse
+ProposeBlindedBlockResponseStatus|enum|beacon_node/execution_layer/src/engine_api.rs|pub enum ProposeBlindedBlockResponseStatus
+Proposer|struct|beacon_node/execution_layer/src/lib.rs|pub struct Proposer
+ProposerKey|struct|beacon_node/execution_layer/src/lib.rs|pub struct ProposerKey
+ProposerPreparationDataEntry|struct|beacon_node/execution_layer/src/lib.rs|pub struct ProposerPreparationDataEntry
+ProposerPreparationDataEntry::update|fn|beacon_node/execution_layer/src/lib.rs|pub fn update(&mut self, updated : Self) -> bool
+ProvenancedPayload|enum|beacon_node/execution_layer/src/lib.rs|pub enum ProvenancedPayload<P>
+RETURN_FULL_TRANSACTION_OBJECTS|const|beacon_node/execution_layer/src/engine_api/http.rs|pub const RETURN_FULL_TRANSACTION_OBJECTS: bool = false;
+RequestsError|enum|beacon_node/execution_layer/src/engine_api/json_structures.rs|pub enum RequestsError
+SUCCESS|const|beacon_node/execution_layer/src/metrics.rs|pub const SUCCESS: &str = "success";
+State::update|fn|beacon_node/execution_layer/src/engines.rs|pub fn update(&mut self, new_state : EngineStateInternal)
+State::watch|fn|beacon_node/execution_layer/src/engines.rs|pub fn watch(&self) -> WatchStream < EngineState >
+StaticNewPayloadResponse|struct|beacon_node/execution_layer/src/test_utils/mod.rs|pub struct StaticNewPayloadResponse
+SubmitBlindedBlockResponse|enum|beacon_node/execution_layer/src/lib.rs|pub enum SubmitBlindedBlockResponse<E: EthSpec>
+TransitionConfigurationV1|struct|beacon_node/execution_layer/src/engine_api/json_structures.rs|pub struct TransitionConfigurationV1
+TransparentJsonPayloadId|struct|beacon_node/execution_layer/src/engine_api/json_structures.rs|pub struct TransparentJsonPayloadId(#[serde(with = "serde_utils::bytes_8_hex")] pub PayloadId);
+UNKNOWN_PAYLOAD_ERROR_CODE|const|beacon_node/execution_layer/src/test_utils/handle_rpc.rs|pub const UNKNOWN_PAYLOAD_ERROR_CODE: i64 = -38001;
+auth|mod|beacon_node/execution_layer/src/engine_api.rs|pub mod auth
+beacon_tx_to_tx_envelope|fn|beacon_node/execution_layer/src/versioned_hashes.rs|pub fn beacon_tx_to_tx_envelope<N : Unsigned>(tx : & types :: Transaction < N >) -> Result < TxEnvelope , Error >
+calculate_execution_block_hash|fn|beacon_node/execution_layer/src/block_hash.rs|pub fn calculate_execution_block_hash<E : EthSpec>(payload : ExecutionPayloadRef < E >, parent_beacon_block_root : Op...
+deposit_log|mod|beacon_node/execution_layer/src/engine_api/http.rs|pub mod deposit_log
+deposit_methods|mod|beacon_node/execution_layer/src/engine_api/http.rs|pub mod deposit_methods
+engines|mod|beacon_node/execution_layer/src/lib.rs|pub mod engines
+expected_gas_limit|fn|beacon_node/execution_layer/src/lib.rs|pub fn expected_gas_limit(parent_gas_limit : u64, target_gas_limit : u64, spec : & ChainSpec) -> Option < u64 >
+expose_execution_layer_info|fn|beacon_node/execution_layer/src/metrics.rs|pub fn expose_execution_layer_info(els : & Vec < crate :: ClientVersionV1 >)
+extract_versioned_hashes_from_transactions|fn|beacon_node/execution_layer/src/versioned_hashes.rs|pub fn extract_versioned_hashes_from_transactions<E : EthSpec>(transactions : & types :: Transactions < E >) -> Resul...
+generate_blobs|fn|beacon_node/execution_layer/src/test_utils/execution_block_generator.rs|pub fn generate_blobs<E : EthSpec>(n_blobs : usize, fork_name : ForkName) -> Result < (BlobsBundle < E > , Transactio...
+generate_genesis_block|fn|beacon_node/execution_layer/src/test_utils/execution_block_generator.rs|pub fn generate_genesis_block(terminal_total_difficulty : Uint256, terminal_block_number : u64) -> Result < PoWBlock ...
+generate_genesis_header|fn|beacon_node/execution_layer/src/test_utils/execution_block_generator.rs|pub fn generate_genesis_header<E : EthSpec>(spec : & ChainSpec) -> Option < ExecutionPayloadHeader < E > >
+generate_pow_block|fn|beacon_node/execution_layer/src/test_utils/execution_block_generator.rs|pub fn generate_pow_block(terminal_total_difficulty : Uint256, terminal_block_number : u64, block_number : u64, paren...
+handle_rpc|fn|beacon_node/execution_layer/src/test_utils/handle_rpc.rs|pub async fn handle_rpc<E : EthSpec>(body : JsonValue, ctx : Arc < Context < E > >) -> Result < JsonValue , (String ,...
+http|mod|beacon_node/execution_layer/src/engine_api.rs|pub mod http
+json_structures|mod|beacon_node/execution_layer/src/engine_api.rs|pub mod json_structures
+keccak256|fn|beacon_node/execution_layer/src/keccak.rs|pub fn keccak256(bytes : & [u8]) -> Hash256
+load_test_blobs_bundle_v1|fn|beacon_node/execution_layer/src/test_utils/execution_block_generator.rs|pub fn load_test_blobs_bundle_v1<E : EthSpec>() -> Result < (KzgCommitment , KzgProof , Blob < E >) , String >
+load_test_blobs_bundle_v2|fn|beacon_node/execution_layer/src/test_utils/execution_block_generator.rs|pub fn load_test_blobs_bundle_v2<E : EthSpec>() -> Result < (KzgCommitment , KzgProofs < E > , Blob < E >) , String >
+mock_builder_extra_data|fn|beacon_node/execution_layer/src/test_utils/mock_builder.rs|pub fn mock_builder_extra_data<E : EthSpec>() -> VariableList < u8 , E :: MaxExtraDataBytes >
+mock_el_extra_data|fn|beacon_node/execution_layer/src/test_utils/execution_block_generator.rs|pub fn mock_el_extra_data<E : EthSpec>() -> VariableList < u8 , E :: MaxExtraDataBytes >
+payload_cache|mod|beacon_node/execution_layer/src/lib.rs|pub mod payload_cache
+process_payload_status|fn|beacon_node/execution_layer/src/payload_status.rs|pub fn process_payload_status(head_block_hash : ExecutionBlockHash, status : Result < PayloadStatusV1 , EngineError >...
+reset_execution_layer_info_gauge|fn|beacon_node/execution_layer/src/metrics.rs|pub fn reset_execution_layer_info_gauge()
+rlp_encode_block_header|fn|beacon_node/execution_layer/src/block_hash.rs|pub fn rlp_encode_block_header(header : & ExecutionBlockHeader) -> Vec < u8 >
+rlp_encode_withdrawal|fn|beacon_node/execution_layer/src/block_hash.rs|pub fn rlp_encode_withdrawal(withdrawal : & JsonWithdrawal) -> Vec < u8 >
+serde_logs_bloom|mod|beacon_node/execution_layer/src/engine_api/json_structures.rs|pub mod serde_logs_bloom
+serve|fn|beacon_node/execution_layer/src/test_utils/mod.rs|pub fn serve<E : EthSpec>(ctx : Arc < Context < E > >, shutdown : impl Future < Output = () > + Send + Sync + 'static...
+serve|fn|beacon_node/execution_layer/src/test_utils/mock_builder.rs|pub fn serve<E : EthSpec>(listen_addr : Ipv4Addr, listen_port : u16, builder : MockBuilder < E >) -> Result < (Socket...
+static_valid_tx|fn|beacon_node/execution_layer/src/test_utils/execution_block_generator.rs|pub fn static_valid_tx<E : EthSpec>() -> Result < Transaction < E :: MaxBytesPerTransaction > , String >
+strip_prefix|fn|beacon_node/execution_layer/src/engine_api/auth.rs|pub fn strip_prefix(s : & str) -> & str
+test_utils|mod|beacon_node/execution_layer/src/lib.rs|pub mod test_utils
+verify_versioned_hashes|fn|beacon_node/execution_layer/src/versioned_hashes.rs|pub fn verify_versioned_hashes<E : EthSpec>(execution_payload : ExecutionPayloadRef < E >, expected_versioned_hashes ...
+versioned_hashes|mod|beacon_node/execution_layer/src/lib.rs|pub mod versioned_hashes

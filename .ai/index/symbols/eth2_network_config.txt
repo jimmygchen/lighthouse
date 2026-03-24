@@ -1,0 +1,20 @@
+# rust-symbols symbols/eth2_network_config | 2026-03-24T06:27:26Z | 18 symbols
+# name|kind|path|signature
+BASE_CONFIG_FILE|const|common/eth2_network_config/src/lib.rs|pub const BASE_CONFIG_FILE: &str = "config.yaml";
+BOOT_ENR_FILE|const|common/eth2_network_config/src/lib.rs|pub const BOOT_ENR_FILE: &str = "bootstrap_nodes.yaml";
+DEFAULT_HARDCODED_NETWORK|const|common/eth2_network_config/src/lib.rs|pub const DEFAULT_HARDCODED_NETWORK: &str = "mainnet";
+DEPLOY_BLOCK_FILE|const|common/eth2_network_config/src/lib.rs|pub const DEPLOY_BLOCK_FILE: &str = "deposit_contract_block.txt";
+Eth2NetworkConfig|struct|common/eth2_network_config/src/lib.rs|pub struct Eth2NetworkConfig
+Eth2NetworkConfig::chain_spec|fn|common/eth2_network_config/src/lib.rs|pub fn chain_spec<E : EthSpec>(&self) -> Result < ChainSpec , String >
+Eth2NetworkConfig::constant|fn|common/eth2_network_config/src/lib.rs|pub fn constant(name : & str) -> Result < Option < Self > , String >
+Eth2NetworkConfig::eth_spec_id|fn|common/eth2_network_config/src/lib.rs|pub fn eth_spec_id(&self) -> Result < EthSpecId , String >
+Eth2NetworkConfig::force_write_to_file|fn|common/eth2_network_config/src/lib.rs|pub fn force_write_to_file(&self, base_dir : PathBuf) -> Result < () , String >
+Eth2NetworkConfig::genesis_state|fn|common/eth2_network_config/src/lib.rs|pub async fn genesis_state<E : EthSpec>(&self, genesis_state_url : Option < & str >, timeout : Duration) -> Result < ...
+Eth2NetworkConfig::genesis_state_is_known|fn|common/eth2_network_config/src/lib.rs|pub fn genesis_state_is_known(&self) -> bool
+Eth2NetworkConfig::genesis_state_root|fn|common/eth2_network_config/src/lib.rs|pub fn genesis_state_root<E : EthSpec>(&self) -> Result < Option < Hash256 > , String >
+Eth2NetworkConfig::genesis_time|fn|common/eth2_network_config/src/lib.rs|pub fn genesis_time<E : EthSpec>(&self) -> Result < Option < u64 > , String >
+Eth2NetworkConfig::genesis_validators_root|fn|common/eth2_network_config/src/lib.rs|pub fn genesis_validators_root<E : EthSpec>(&self) -> Result < Option < Hash256 > , String >
+Eth2NetworkConfig::load|fn|common/eth2_network_config/src/lib.rs|pub fn load(base_dir : PathBuf) -> Result < Self , String >
+Eth2NetworkConfig::write_to_file|fn|common/eth2_network_config/src/lib.rs|pub fn write_to_file(&self, base_dir : PathBuf, overwrite : bool) -> Result < () , String >
+GENESIS_STATE_FILE|const|common/eth2_network_config/src/lib.rs|pub const GENESIS_STATE_FILE: &str = "genesis.ssz";
+GenesisStateBytes|enum|common/eth2_network_config/src/lib.rs|pub enum GenesisStateBytes

@@ -1,0 +1,10 @@
+# rust-symbols symbols/system_health | 2026-03-24T06:27:26Z | 8 symbols
+# name|kind|path|signature
+NatState|struct|common/system_health/src/lib.rs|pub struct NatState
+NatState::is_anything_open|fn|common/system_health/src/lib.rs|pub fn is_anything_open(&self) -> bool
+SystemHealth|struct|common/system_health/src/lib.rs|pub struct SystemHealth
+SystemHealthBN|struct|common/system_health/src/lib.rs|pub struct SystemHealthBN
+SystemHealthVC|struct|common/system_health/src/lib.rs|pub struct SystemHealthVC
+observe_nat|fn|common/system_health/src/lib.rs|pub fn observe_nat() -> NatState
+observe_system_health_bn|fn|common/system_health/src/lib.rs|pub fn observe_system_health_bn<E : EthSpec>(sysinfo : Arc < RwLock < System > >, data_dir : PathBuf, app_uptime : u6...
+observe_system_health_vc|fn|common/system_health/src/lib.rs|pub fn observe_system_health_vc(sysinfo : Arc < RwLock < System > >, data_dir : PathBuf, app_uptime : u64) -> SystemH...

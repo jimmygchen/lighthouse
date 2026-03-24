@@ -1,0 +1,107 @@
+# rust-symbols symbols/validator_manager | 2026-03-24T06:27:26Z | 105 symbols
+# name|kind|path|signature
+BEACON_NODE_FLAG|const|validator_manager/src/create_validators.rs|pub const BEACON_NODE_FLAG: &str = "beacon-node";
+BEACON_URL_FLAG|const|validator_manager/src/exit_validators.rs|pub const BEACON_URL_FLAG: &str = "beacon-node";
+BEACON_URL_FLAG|const|validator_manager/src/list_validators.rs|pub const BEACON_URL_FLAG: &str = "beacon-node";
+BUILDER_BOOST_FACTOR|const|validator_manager/src/import_validators.rs|pub const BUILDER_BOOST_FACTOR: &str = "builder-boost-factor";
+BUILDER_BOOST_FACTOR_FLAG|const|validator_manager/src/create_validators.rs|pub const BUILDER_BOOST_FACTOR_FLAG: &str = "builder-boost-factor";
+BUILDER_BOOST_FACTOR_FLAG|const|validator_manager/src/move_validators.rs|pub const BUILDER_BOOST_FACTOR_FLAG: &str = "builder-boost-factor";
+BUILDER_PROPOSALS|const|validator_manager/src/import_validators.rs|pub const BUILDER_PROPOSALS: &str = "builder-proposals";
+BUILDER_PROPOSALS_FLAG|const|validator_manager/src/create_validators.rs|pub const BUILDER_PROPOSALS_FLAG: &str = "builder-proposals";
+BUILDER_PROPOSALS_FLAG|const|validator_manager/src/move_validators.rs|pub const BUILDER_PROPOSALS_FLAG: &str = "builder-proposals";
+CMD|const|validator_manager/src/import_validators.rs|pub const CMD: &str = "import";
+CMD|const|validator_manager/src/lib.rs|pub const CMD: &str = "validator_manager";
+CMD|const|validator_manager/src/exit_validators.rs|pub const CMD: &str = "exit";
+CMD|const|validator_manager/src/create_validators.rs|pub const CMD: &str = "create";
+CMD|const|validator_manager/src/list_validators.rs|pub const CMD: &str = "list";
+CMD|const|validator_manager/src/move_validators.rs|pub const CMD: &str = "move";
+CMD|const|validator_manager/src/delete_validators.rs|pub const CMD: &str = "delete";
+COUNT_FLAG|const|validator_manager/src/common.rs|pub const COUNT_FLAG: &str = "count";
+CreateConfig|struct|validator_manager/src/create_validators.rs|pub struct CreateConfig
+CreateSpec|struct|validator_manager/src/common.rs|pub struct CreateSpec
+DEPOSITS_FILENAME|const|validator_manager/src/create_validators.rs|pub const DEPOSITS_FILENAME: &str = "deposits.json";
+DEPOSIT_GWEI_FLAG|const|validator_manager/src/create_validators.rs|pub const DEPOSIT_GWEI_FLAG: &str = "deposit-gwei";
+DEST_VC_TOKEN_FLAG|const|validator_manager/src/move_validators.rs|pub const DEST_VC_TOKEN_FLAG: &str = "dest-vc-token";
+DEST_VC_URL_FLAG|const|validator_manager/src/move_validators.rs|pub const DEST_VC_URL_FLAG: &str = "dest-vc-url";
+DETECTED_DUPLICATE_MESSAGE|const|validator_manager/src/import_validators.rs|pub const DETECTED_DUPLICATE_MESSAGE: &str = "Duplicate validator detected!";
+DISABLE_DEPOSITS_FLAG|const|validator_manager/src/create_validators.rs|pub const DISABLE_DEPOSITS_FLAG: &str = "disable-deposits";
+DeleteConfig|struct|validator_manager/src/delete_validators.rs|pub struct DeleteConfig
+DeleteError|enum|validator_manager/src/delete_validators.rs|pub enum DeleteError
+DumpConfig|enum|validator_manager/src/lib.rs|pub enum DumpConfig
+DumpConfig::should_exit_early|fn|validator_manager/src/lib.rs|pub fn should_exit_early<T : Serialize>(&self, config : & T) -> Result < bool , String >
+ENABLED|const|validator_manager/src/import_validators.rs|pub const ENABLED: &str = "enabled";
+ETH1_WITHDRAWAL_ADDRESS_FLAG|const|validator_manager/src/create_validators.rs|pub const ETH1_WITHDRAWAL_ADDRESS_FLAG: &str = "eth1-withdrawal-address";
+EXIT_EPOCH_FLAG|const|validator_manager/src/exit_validators.rs|pub const EXIT_EPOCH_FLAG: &str = "exit-epoch";
+ExitConfig|struct|validator_manager/src/exit_validators.rs|pub struct ExitConfig
+FEE_RECIPIENT|const|validator_manager/src/import_validators.rs|pub const FEE_RECIPIENT: &str = "suggested-fee-recipient";
+FEE_RECIPIENT_FLAG|const|validator_manager/src/create_validators.rs|pub const FEE_RECIPIENT_FLAG: &str = "suggested-fee-recipient";
+FEE_RECIPIENT_FLAG|const|validator_manager/src/move_validators.rs|pub const FEE_RECIPIENT_FLAG: &str = "suggested-fee-recipient";
+FIRST_INDEX_FLAG|const|validator_manager/src/create_validators.rs|pub const FIRST_INDEX_FLAG: &str = "first-index";
+FORCE_BLS_WITHDRAWAL_CREDENTIALS|const|validator_manager/src/create_validators.rs|pub const FORCE_BLS_WITHDRAWAL_CREDENTIALS: &str = "force-bls-withdrawal-credentials";
+GAS_LIMIT|const|validator_manager/src/import_validators.rs|pub const GAS_LIMIT: &str = "gas-limit";
+GAS_LIMIT_FLAG|const|validator_manager/src/create_validators.rs|pub const GAS_LIMIT_FLAG: &str = "gas-limit";
+GAS_LIMIT_FLAG|const|validator_manager/src/move_validators.rs|pub const GAS_LIMIT_FLAG: &str = "gas-limit";
+IGNORE_DUPLICATES_FLAG|const|validator_manager/src/common.rs|pub const IGNORE_DUPLICATES_FLAG: &str = "ignore-duplicates";
+ImportConfig|struct|validator_manager/src/import_validators.rs|pub struct ImportConfig
+KEYSTORE_FILE_FLAG|const|validator_manager/src/import_validators.rs|pub const KEYSTORE_FILE_FLAG: &str = "keystore-file";
+ListConfig|struct|validator_manager/src/list_validators.rs|pub struct ListConfig
+MNEMONIC_FLAG|const|validator_manager/src/create_validators.rs|pub const MNEMONIC_FLAG: &str = "mnemonic-path";
+MOVE_DIR_NAME|const|validator_manager/src/move_validators.rs|pub const MOVE_DIR_NAME: &str = "lighthouse-validator-move";
+MoveConfig|struct|validator_manager/src/move_validators.rs|pub struct MoveConfig
+OUTPUT_PATH_FLAG|const|validator_manager/src/create_validators.rs|pub const OUTPUT_PATH_FLAG: &str = "output-path";
+PASSWORD|const|validator_manager/src/import_validators.rs|pub const PASSWORD: &str = "password";
+PREFER_BUILDER_PROPOSALS|const|validator_manager/src/import_validators.rs|pub const PREFER_BUILDER_PROPOSALS: &str = "prefer-builder-proposals";
+PREFER_BUILDER_PROPOSALS_FLAG|const|validator_manager/src/create_validators.rs|pub const PREFER_BUILDER_PROPOSALS_FLAG: &str = "prefer-builder-proposals";
+PREFER_BUILDER_PROPOSALS_FLAG|const|validator_manager/src/move_validators.rs|pub const PREFER_BUILDER_PROPOSALS_FLAG: &str = "prefer-builder-proposals";
+PRESIGN_FLAG|const|validator_manager/src/exit_validators.rs|pub const PRESIGN_FLAG: &str = "presign";
+PasswordSource|enum|validator_manager/src/move_validators.rs|pub enum PasswordSource
+SPECIFY_VOTING_KEYSTORE_PASSWORD_FLAG|const|validator_manager/src/create_validators.rs|pub const SPECIFY_VOTING_KEYSTORE_PASSWORD_FLAG: &str = "specify-voting-keystore-password";
+SRC_VC_TOKEN_FLAG|const|validator_manager/src/move_validators.rs|pub const SRC_VC_TOKEN_FLAG: &str = "src-vc-token";
+SRC_VC_URL_FLAG|const|validator_manager/src/move_validators.rs|pub const SRC_VC_URL_FLAG: &str = "src-vc-url";
+StandardDepositDataJson|struct|validator_manager/src/common.rs|pub struct StandardDepositDataJson
+StandardDepositDataJson::new|fn|validator_manager/src/common.rs|pub fn new(keypair : & Keypair, withdrawal_credentials : Hash256, amount : u64, spec : & ChainSpec) -> Result < Self ...
+UploadError|enum|validator_manager/src/common.rs|pub enum UploadError
+VALIDATORS_FILENAME|const|validator_manager/src/create_validators.rs|pub const VALIDATORS_FILENAME: &str = "validators.json";
+VALIDATORS_FILE_FLAG|const|validator_manager/src/import_validators.rs|pub const VALIDATORS_FILE_FLAG: &str = "validators-file";
+VALIDATORS_FLAG|const|validator_manager/src/move_validators.rs|pub const VALIDATORS_FLAG: &str = "validators";
+VALIDATOR_FLAG|const|validator_manager/src/exit_validators.rs|pub const VALIDATOR_FLAG: &str = "validators";
+VALIDATOR_FLAG|const|validator_manager/src/list_validators.rs|pub const VALIDATOR_FLAG: &str = "validators";
+VALIDATOR_FLAG|const|validator_manager/src/delete_validators.rs|pub const VALIDATOR_FLAG: &str = "validators";
+VALIDATOR_SPECIFICATION_FILE|const|validator_manager/src/move_validators.rs|pub const VALIDATOR_SPECIFICATION_FILE: &str = "validator-specification.json";
+VC_TOKEN_FLAG|const|validator_manager/src/import_validators.rs|pub const VC_TOKEN_FLAG: &str = "vc-token";
+VC_TOKEN_FLAG|const|validator_manager/src/exit_validators.rs|pub const VC_TOKEN_FLAG: &str = "vc-token";
+VC_TOKEN_FLAG|const|validator_manager/src/list_validators.rs|pub const VC_TOKEN_FLAG: &str = "vc-token";
+VC_TOKEN_FLAG|const|validator_manager/src/delete_validators.rs|pub const VC_TOKEN_FLAG: &str = "vc-token";
+VC_URL_FLAG|const|validator_manager/src/import_validators.rs|pub const VC_URL_FLAG: &str = "vc-url";
+VC_URL_FLAG|const|validator_manager/src/exit_validators.rs|pub const VC_URL_FLAG: &str = "vc-url";
+VC_URL_FLAG|const|validator_manager/src/list_validators.rs|pub const VC_URL_FLAG: &str = "vc-url";
+VC_URL_FLAG|const|validator_manager/src/delete_validators.rs|pub const VC_URL_FLAG: &str = "vc-url";
+ValidatorSpecification|struct|validator_manager/src/common.rs|pub struct ValidatorSpecification
+ValidatorSpecification::upload|fn|validator_manager/src/common.rs|pub async fn upload(self, http_client : & ValidatorClientHttpClient, ignore_duplicates : bool) -> Result < Status < I...
+Validators|enum|validator_manager/src/move_validators.rs|pub enum Validators
+cli_app|fn|validator_manager/src/import_validators.rs|pub fn cli_app() -> Command
+cli_app|fn|validator_manager/src/lib.rs|pub fn cli_app() -> Command
+cli_app|fn|validator_manager/src/exit_validators.rs|pub fn cli_app() -> Command
+cli_app|fn|validator_manager/src/create_validators.rs|pub fn cli_app() -> Command
+cli_app|fn|validator_manager/src/list_validators.rs|pub fn cli_app() -> Command
+cli_app|fn|validator_manager/src/move_validators.rs|pub fn cli_app() -> Command
+cli_app|fn|validator_manager/src/delete_validators.rs|pub fn cli_app() -> Command
+cli_run|fn|validator_manager/src/import_validators.rs|pub async fn cli_run(matches : & ArgMatches, dump_config : DumpConfig) -> Result < () , String >
+cli_run|fn|validator_manager/src/exit_validators.rs|pub async fn cli_run<E : EthSpec>(matches : & ArgMatches, dump_config : DumpConfig) -> Result < () , String >
+cli_run|fn|validator_manager/src/create_validators.rs|pub async fn cli_run<E : EthSpec>(matches : & ArgMatches, spec : & ChainSpec, dump_config : DumpConfig) -> Result < (...
+cli_run|fn|validator_manager/src/list_validators.rs|pub async fn cli_run<E : EthSpec>(matches : & ArgMatches, dump_config : DumpConfig) -> Result < () , String >
+cli_run|fn|validator_manager/src/move_validators.rs|pub async fn cli_run(matches : & ArgMatches, dump_config : DumpConfig) -> Result < () , String >
+cli_run|fn|validator_manager/src/delete_validators.rs|pub async fn cli_run(matches : & ArgMatches, dump_config : DumpConfig) -> Result < () , String >
+common|mod|validator_manager/src/lib.rs|pub mod common
+create_validators|mod|validator_manager/src/lib.rs|pub mod create_validators
+delete_validators|mod|validator_manager/src/lib.rs|pub mod delete_validators
+exit_validators|mod|validator_manager/src/lib.rs|pub mod exit_validators
+get_current_epoch|fn|validator_manager/src/exit_validators.rs|pub fn get_current_epoch<E : EthSpec>(genesis_time : u64, spec : & ChainSpec) -> Option < Epoch >
+import_validators|mod|validator_manager/src/lib.rs|pub mod import_validators
+list_validators|mod|validator_manager/src/lib.rs|pub mod list_validators
+move_validators|mod|validator_manager/src/lib.rs|pub mod move_validators
+run|fn|validator_manager/src/lib.rs|pub fn run<E : EthSpec>(matches : & ArgMatches, env : Environment < E >) -> Result < () , String >
+tests|mod|validator_manager/src/import_validators.rs|pub mod tests
+tests|mod|validator_manager/src/create_validators.rs|pub mod tests
+vc_http_client|fn|validator_manager/src/common.rs|pub async fn vc_http_client<P : AsRef < Path >>(url : SensitiveUrl, token_path : P) -> Result < (ValidatorClientHttpC...
+write_to_json_file|fn|validator_manager/src/common.rs|pub fn write_to_json_file<P : AsRef < Path >, S : Serialize>(path : P, contents : & S) -> Result < () , String >

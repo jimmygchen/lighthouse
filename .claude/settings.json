@@ -9,6 +9,15 @@
             "command": "echo '\n[Reminder] Run: cargo fmt --all && make lint-fix'"
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if echo \"$TOOL_INPUT\" | grep -qE '(cargo build|cargo check|cargo test|cargo clippy|make )'; then make index 2>/dev/null || true; fi"
+          }
+        ]
       }
     ]
   }

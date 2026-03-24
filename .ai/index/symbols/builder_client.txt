@@ -1,0 +1,19 @@
+# rust-symbols symbols/builder_client | 2026-03-24T06:27:26Z | 17 symbols
+# name|kind|path|signature
+BuilderHttpClient|struct|beacon_node/builder_client/src/lib.rs|pub struct BuilderHttpClient
+BuilderHttpClient::get_builder_header|fn|beacon_node/builder_client/src/lib.rs|pub async fn get_builder_header<E : EthSpec>(&self, slot : Slot, parent_hash : ExecutionBlockHash, pubkey : & PublicK...
+BuilderHttpClient::get_builder_status|fn|beacon_node/builder_client/src/lib.rs|pub async fn get_builder_status<E : EthSpec>(&self) -> Result < () , Error >
+BuilderHttpClient::get_user_agent|fn|beacon_node/builder_client/src/lib.rs|pub fn get_user_agent(&self) -> & str
+BuilderHttpClient::is_ssz_available|fn|beacon_node/builder_client/src/lib.rs|pub fn is_ssz_available(&self) -> bool
+BuilderHttpClient::new|fn|beacon_node/builder_client/src/lib.rs|pub fn new(server : SensitiveUrl, user_agent : Option < String >, builder_header_timeout : Option < Duration >, disab...
+BuilderHttpClient::post_builder_blinded_blocks_v1|fn|beacon_node/builder_client/src/lib.rs|pub async fn post_builder_blinded_blocks_v1<E : EthSpec>(&self, blinded_block : & SignedBlindedBeaconBlock < E >) -> ...
+BuilderHttpClient::post_builder_blinded_blocks_v1_ssz|fn|beacon_node/builder_client/src/lib.rs|pub async fn post_builder_blinded_blocks_v1_ssz<E : EthSpec>(&self, blinded_block : & SignedBlindedBeaconBlock < E >)...
+BuilderHttpClient::post_builder_blinded_blocks_v2|fn|beacon_node/builder_client/src/lib.rs|pub async fn post_builder_blinded_blocks_v2<E : EthSpec>(&self, blinded_block : & SignedBlindedBeaconBlock < E >) -> ...
+BuilderHttpClient::post_builder_blinded_blocks_v2_ssz|fn|beacon_node/builder_client/src/lib.rs|pub async fn post_builder_blinded_blocks_v2_ssz<E : EthSpec>(&self, blinded_block : & SignedBlindedBeaconBlock < E >)...
+BuilderHttpClient::post_builder_validators|fn|beacon_node/builder_client/src/lib.rs|pub async fn post_builder_validators(&self, validator : & [SignedValidatorRegistrationData]) -> Result < () , Error >
+DEFAULT_GET_HEADER_TIMEOUT_MILLIS|const|beacon_node/builder_client/src/lib.rs|pub const DEFAULT_GET_HEADER_TIMEOUT_MILLIS: u64 = 1000;
+DEFAULT_TIMEOUT_MILLIS|const|beacon_node/builder_client/src/lib.rs|pub const DEFAULT_TIMEOUT_MILLIS: u64 = 15000;
+DEFAULT_USER_AGENT|const|beacon_node/builder_client/src/lib.rs|pub const DEFAULT_USER_AGENT: &str = lighthouse_version::VERSION;
+JSON_ACCEPT_VALUE|const|beacon_node/builder_client/src/lib.rs|pub const JSON_ACCEPT_VALUE: &str = "application/json";
+PREFERENCE_ACCEPT_VALUE|const|beacon_node/builder_client/src/lib.rs|pub const PREFERENCE_ACCEPT_VALUE: &str = "application/octet-stream;q=1.0,application/json;q=0.9";
+Timeouts|struct|beacon_node/builder_client/src/lib.rs|pub struct Timeouts

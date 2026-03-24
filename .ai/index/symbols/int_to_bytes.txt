@@ -1,0 +1,11 @@
+# rust-symbols symbols/int_to_bytes | 2026-03-24T06:27:26Z | 9 symbols
+# name|kind|path|signature
+int_to_bytes1|fn|consensus/int_to_bytes/src/lib.rs|pub fn int_to_bytes1(int : u8) -> Vec < u8 >
+int_to_bytes2|fn|consensus/int_to_bytes/src/lib.rs|pub fn int_to_bytes2(int : u16) -> Vec < u8 >
+int_to_bytes3|fn|consensus/int_to_bytes/src/lib.rs|pub fn int_to_bytes3(int : u32) -> Option < Vec < u8 > >
+int_to_bytes32|fn|consensus/int_to_bytes/src/lib.rs|pub fn int_to_bytes32(int : u64) -> Vec < u8 >
+int_to_bytes4|fn|consensus/int_to_bytes/src/lib.rs|pub fn int_to_bytes4(int : u32) -> [u8 ; 4]
+int_to_bytes48|fn|consensus/int_to_bytes/src/lib.rs|pub fn int_to_bytes48(int : u64) -> Vec < u8 >
+int_to_bytes8|fn|consensus/int_to_bytes/src/lib.rs|pub fn int_to_bytes8(int : u64) -> Vec < u8 >
+int_to_bytes96|fn|consensus/int_to_bytes/src/lib.rs|pub fn int_to_bytes96(int : u64) -> Vec < u8 >
+int_to_fixed_bytes32|fn|consensus/int_to_bytes/src/lib.rs|pub fn int_to_fixed_bytes32(int : u64) -> [u8 ; 32]

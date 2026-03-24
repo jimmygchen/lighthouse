@@ -1,0 +1,99 @@
+# rust-symbols symbols/operation_pool | 2026-03-24T06:27:26Z | 97 symbols
+# name|kind|path|signature
+AttMaxCover|struct|beacon_node/operation_pool/src/attestation.rs|pub struct AttMaxCover<'a, E: EthSpec>
+AttMaxCover::new|fn|beacon_node/operation_pool/src/attestation.rs|pub fn new(att : CompactAttestationRef < 'a , E >, state : & BeaconState < E >, reward_cache : & 'a RewardCache, tota...
+AttMaxCover::new_for_altair_or_later|fn|beacon_node/operation_pool/src/attestation.rs|pub fn new_for_altair_or_later(att : CompactAttestationRef < 'a , E >, state : & BeaconState < E >, reward_cache : & ...
+AttMaxCover::new_for_base|fn|beacon_node/operation_pool/src/attestation.rs|pub fn new_for_base(att : CompactAttestationRef < 'a , E >, state : & BeaconState < E >, base_state : & BeaconStateBa...
+AttestationDataMap|struct|beacon_node/operation_pool/src/attestation_storage.rs|pub struct AttestationDataMap<E: EthSpec>
+AttestationDataMap::iter|fn|beacon_node/operation_pool/src/attestation_storage.rs|pub fn iter<'a>(&self, checkpoint_key : & 'a CheckpointKey) -> impl Iterator < Item = CompactAttestationRef < 'a , E ...
+AttestationDataMap::stats|fn|beacon_node/operation_pool/src/attestation_storage.rs|pub fn stats(&self) -> AttestationStats
+AttestationMap|struct|beacon_node/operation_pool/src/attestation_storage.rs|pub struct AttestationMap<E: EthSpec>
+AttestationMap::aggregate_across_committees|fn|beacon_node/operation_pool/src/attestation_storage.rs|pub fn aggregate_across_committees(&mut self, checkpoint_key : CheckpointKey)
+AttestationMap::compute_on_chain_aggregate|fn|beacon_node/operation_pool/src/attestation_storage.rs|pub fn compute_on_chain_aggregate(mut attestations_by_committee : BTreeMap < u64 , CompactIndexedAttestationElectra <...
+AttestationMap::get_attestations|fn|beacon_node/operation_pool/src/attestation_storage.rs|pub fn get_attestations<'a>(&self, checkpoint_key : & 'a CheckpointKey) -> impl Iterator < Item = CompactAttestationR...
+AttestationMap::insert|fn|beacon_node/operation_pool/src/attestation_storage.rs|pub fn insert(&mut self, attestation : Attestation < E >, attesting_indices : Vec < u64 >)
+AttestationMap::iter|fn|beacon_node/operation_pool/src/attestation_storage.rs|pub fn iter(&self) -> impl Iterator < Item = CompactAttestationRef < '_ , E > >
+AttestationMap::prune|fn|beacon_node/operation_pool/src/attestation_storage.rs|pub fn prune(&mut self, current_epoch : Epoch)
+AttestationMap::stats|fn|beacon_node/operation_pool/src/attestation_storage.rs|pub fn stats(&self) -> AttestationStats
+AttestationStats|struct|beacon_node/operation_pool/src/lib.rs|pub struct AttestationStats
+AttesterSlashingMaxCover|struct|beacon_node/operation_pool/src/attester_slashing.rs|pub struct AttesterSlashingMaxCover<'a, E: EthSpec>
+AttesterSlashingMaxCover::new|fn|beacon_node/operation_pool/src/attester_slashing.rs|pub fn new(slashing : AttesterSlashingRef < 'a , E >, proposer_slashing_indices : & HashSet < u64 >, state : & Beacon...
+BlsToExecutionChanges|struct|beacon_node/operation_pool/src/bls_to_execution_changes.rs|pub struct BlsToExecutionChanges<E: EthSpec>
+BlsToExecutionChanges::existing_change_equals|fn|beacon_node/operation_pool/src/bls_to_execution_changes.rs|pub fn existing_change_equals(&self, address_change : & SignedBlsToExecutionChange) -> Option < bool >
+BlsToExecutionChanges::insert|fn|beacon_node/operation_pool/src/bls_to_execution_changes.rs|pub fn insert(&mut self, verified_change : SigVerifiedOp < SignedBlsToExecutionChange , E >, received_pre_capella : R...
+BlsToExecutionChanges::iter_fifo|fn|beacon_node/operation_pool/src/bls_to_execution_changes.rs|pub fn iter_fifo(&self) -> impl Iterator < Item = & Arc < SigVerifiedOp < SignedBlsToExecutionChange , E > > >
+BlsToExecutionChanges::iter_lifo|fn|beacon_node/operation_pool/src/bls_to_execution_changes.rs|pub fn iter_lifo(&self) -> impl Iterator < Item = & Arc < SigVerifiedOp < SignedBlsToExecutionChange , E > > >
+BlsToExecutionChanges::iter_pre_capella_indices|fn|beacon_node/operation_pool/src/bls_to_execution_changes.rs|pub fn iter_pre_capella_indices(&self) -> impl Iterator < Item = & u64 >
+BlsToExecutionChanges::iter_received_pre_capella|fn|beacon_node/operation_pool/src/bls_to_execution_changes.rs|pub fn iter_received_pre_capella(&self) -> impl Iterator < Item = & Arc < SigVerifiedOp < SignedBlsToExecutionChange ...
+BlsToExecutionChanges::prune|fn|beacon_node/operation_pool/src/bls_to_execution_changes.rs|pub fn prune<Payload : AbstractExecPayload < E >>(&mut self, head_block : & SignedBeaconBlock < E , Payload >, head_s...
+BlsToExecutionChanges::register_indices_broadcasted_at_capella|fn|beacon_node/operation_pool/src/bls_to_execution_changes.rs|pub fn register_indices_broadcasted_at_capella(&mut self, broadcasted : & HashSet < u64 >)
+CheckpointKey|struct|beacon_node/operation_pool/src/attestation_storage.rs|pub struct CheckpointKey
+CheckpointKey::keys_for_state|fn|beacon_node/operation_pool/src/attestation_storage.rs|pub fn keys_for_state<E : EthSpec>(state : & BeaconState < E >) -> (Self , Self)
+CompactAttestationData|struct|beacon_node/operation_pool/src/attestation_storage.rs|pub struct CompactAttestationData
+CompactAttestationRef|struct|beacon_node/operation_pool/src/attestation_storage.rs|pub struct CompactAttestationRef<'a, E: EthSpec>
+CompactAttestationRef::attestation_data|fn|beacon_node/operation_pool/src/attestation_storage.rs|pub fn attestation_data(&self) -> AttestationData
+CompactAttestationRef::clone_as_attestation|fn|beacon_node/operation_pool/src/attestation_storage.rs|pub fn clone_as_attestation(&self) -> Attestation < E >
+CompactAttestationRef::get_committee_indices_map|fn|beacon_node/operation_pool/src/attestation_storage.rs|pub fn get_committee_indices_map(&self) -> HashSet < u64 >
+CompactIndexedAttestation|struct|beacon_node/operation_pool/src/attestation_storage.rs|pub struct CompactIndexedAttestation<E: EthSpec>
+CompactIndexedAttestation::aggregate|fn|beacon_node/operation_pool/src/attestation_storage.rs|pub fn aggregate(&mut self, other : & Self) -> bool
+CompactIndexedAttestation::should_aggregate|fn|beacon_node/operation_pool/src/attestation_storage.rs|pub fn should_aggregate(&self, other : & Self) -> bool
+CompactIndexedAttestationBase::aggregate|fn|beacon_node/operation_pool/src/attestation_storage.rs|pub fn aggregate(&mut self, other : & Self)
+CompactIndexedAttestationBase::should_aggregate|fn|beacon_node/operation_pool/src/attestation_storage.rs|pub fn should_aggregate(&self, other : & Self) -> bool
+CompactIndexedAttestationElectra::aggregate_same_committee|fn|beacon_node/operation_pool/src/attestation_storage.rs|pub fn aggregate_same_committee(&mut self, other : & Self) -> bool
+CompactIndexedAttestationElectra::aggregate_with_disjoint_committees|fn|beacon_node/operation_pool/src/attestation_storage.rs|pub fn aggregate_with_disjoint_committees(&mut self, other : & Self) -> Option < () >
+CompactIndexedAttestationElectra::committee_index|fn|beacon_node/operation_pool/src/attestation_storage.rs|pub fn committee_index(&self) -> Option < u64 >
+CompactIndexedAttestationElectra::get_committee_indices|fn|beacon_node/operation_pool/src/attestation_storage.rs|pub fn get_committee_indices(&self) -> Vec < u64 >
+CompactIndexedAttestationElectra::should_aggregate|fn|beacon_node/operation_pool/src/attestation_storage.rs|pub fn should_aggregate(&self, other : & Self) -> bool
+MaxCover|trait|beacon_node/operation_pool/src/max_cover.rs|pub trait MaxCover: Clone
+OpPoolError|enum|beacon_node/operation_pool/src/lib.rs|pub enum OpPoolError
+OperationPool|struct|beacon_node/operation_pool/src/lib.rs|pub struct OperationPool<E: EthSpec + Default>
+OperationPool::attestation_stats|fn|beacon_node/operation_pool/src/lib.rs|pub fn attestation_stats(&self) -> AttestationStats
+OperationPool::bls_to_execution_change_in_pool_equals|fn|beacon_node/operation_pool/src/lib.rs|pub fn bls_to_execution_change_in_pool_equals(&self, address_change : & SignedBlsToExecutionChange) -> Option < bool >
+OperationPool::get_all_attestations|fn|beacon_node/operation_pool/src/lib.rs|pub fn get_all_attestations(&self) -> Vec < Attestation < E > >
+OperationPool::get_all_attester_slashings|fn|beacon_node/operation_pool/src/lib.rs|pub fn get_all_attester_slashings(&self) -> Vec < AttesterSlashing < E > >
+OperationPool::get_all_bls_to_execution_changes|fn|beacon_node/operation_pool/src/lib.rs|pub fn get_all_bls_to_execution_changes(&self) -> Vec < SignedBlsToExecutionChange >
+OperationPool::get_all_proposer_slashings|fn|beacon_node/operation_pool/src/lib.rs|pub fn get_all_proposer_slashings(&self) -> Vec < ProposerSlashing >
+OperationPool::get_all_voluntary_exits|fn|beacon_node/operation_pool/src/lib.rs|pub fn get_all_voluntary_exits(&self) -> Vec < SignedVoluntaryExit >
+OperationPool::get_attestations|fn|beacon_node/operation_pool/src/lib.rs|pub fn get_attestations(&self, state : & BeaconState < E >, prev_epoch_validity_filter : impl for < 'a > FnMut (& Com...
+OperationPool::get_bls_to_execution_changes|fn|beacon_node/operation_pool/src/lib.rs|pub fn get_bls_to_execution_changes(&self, state : & BeaconState < E >, spec : & ChainSpec) -> Vec < SignedBlsToExecu...
+OperationPool::get_bls_to_execution_changes_received_pre_capella|fn|beacon_node/operation_pool/src/lib.rs|pub fn get_bls_to_execution_changes_received_pre_capella(&self, state : & BeaconState < E >, spec : & ChainSpec) -> V...
+OperationPool::get_filtered_attestations|fn|beacon_node/operation_pool/src/lib.rs|pub fn get_filtered_attestations<F>(&self, filter : F) -> Vec < Attestation < E > >
+OperationPool::get_slashings_and_exits|fn|beacon_node/operation_pool/src/lib.rs|pub fn get_slashings_and_exits(&self, state : & BeaconState < E >, spec : & ChainSpec) -> (Vec < ProposerSlashing > ,...
+OperationPool::get_sync_aggregate|fn|beacon_node/operation_pool/src/lib.rs|pub fn get_sync_aggregate(&self, state : & BeaconState < E >) -> Result < Option < SyncAggregate < E > > , OpPoolError >
+OperationPool::insert_attestation|fn|beacon_node/operation_pool/src/lib.rs|pub fn insert_attestation(&self, attestation : Attestation < E >, attesting_indices : Vec < u64 >) -> Result < () , A...
+OperationPool::insert_attester_slashing|fn|beacon_node/operation_pool/src/lib.rs|pub fn insert_attester_slashing(&self, verified_slashing : SigVerifiedOp < AttesterSlashing < E > , E >)
+OperationPool::insert_bls_to_execution_change|fn|beacon_node/operation_pool/src/lib.rs|pub fn insert_bls_to_execution_change(&self, verified_change : SigVerifiedOp < SignedBlsToExecutionChange , E >, rece...
+OperationPool::insert_proposer_slashing|fn|beacon_node/operation_pool/src/lib.rs|pub fn insert_proposer_slashing(&self, verified_proposer_slashing : SigVerifiedOp < ProposerSlashing , E >)
+OperationPool::insert_sync_contribution|fn|beacon_node/operation_pool/src/lib.rs|pub fn insert_sync_contribution(&self, contribution : SyncCommitteeContribution < E >) -> Result < () , OpPoolError >
+OperationPool::insert_voluntary_exit|fn|beacon_node/operation_pool/src/lib.rs|pub fn insert_voluntary_exit(&self, exit : SigVerifiedOp < SignedVoluntaryExit , E >)
+OperationPool::new|fn|beacon_node/operation_pool/src/lib.rs|pub fn new() -> Self
+OperationPool::num_attestations|fn|beacon_node/operation_pool/src/lib.rs|pub fn num_attestations(&self) -> usize
+OperationPool::num_attester_slashings|fn|beacon_node/operation_pool/src/lib.rs|pub fn num_attester_slashings(&self) -> usize
+OperationPool::num_proposer_slashings|fn|beacon_node/operation_pool/src/lib.rs|pub fn num_proposer_slashings(&self) -> usize
+OperationPool::num_sync_contributions|fn|beacon_node/operation_pool/src/lib.rs|pub fn num_sync_contributions(&self) -> usize
+OperationPool::num_voluntary_exits|fn|beacon_node/operation_pool/src/lib.rs|pub fn num_voluntary_exits(&self) -> usize
+OperationPool::prune_all|fn|beacon_node/operation_pool/src/lib.rs|pub fn prune_all<Payload : AbstractExecPayload < E >>(&self, head_block : & SignedBeaconBlock < E , Payload >, head_s...
+OperationPool::prune_attestations|fn|beacon_node/operation_pool/src/lib.rs|pub fn prune_attestations(&self, current_epoch : Epoch)
+OperationPool::prune_attester_slashings|fn|beacon_node/operation_pool/src/lib.rs|pub fn prune_attester_slashings(&self, finalized_state : & BeaconState < E >)
+OperationPool::prune_bls_to_execution_changes|fn|beacon_node/operation_pool/src/lib.rs|pub fn prune_bls_to_execution_changes<Payload : AbstractExecPayload < E >>(&self, head_block : & SignedBeaconBlock < ...
+OperationPool::prune_proposer_slashings|fn|beacon_node/operation_pool/src/lib.rs|pub fn prune_proposer_slashings(&self, finalized_state : & BeaconState < E >)
+OperationPool::prune_sync_contributions|fn|beacon_node/operation_pool/src/lib.rs|pub fn prune_sync_contributions(&self, current_slot : Slot)
+OperationPool::prune_voluntary_exits|fn|beacon_node/operation_pool/src/lib.rs|pub fn prune_voluntary_exits(&self, finalized_state : & BeaconState < E >, spec : & ChainSpec)
+OperationPool::register_indices_broadcasted_at_capella|fn|beacon_node/operation_pool/src/lib.rs|pub fn register_indices_broadcasted_at_capella(&self, broadcasted : & HashSet < u64 >)
+PROPOSER_REWARD_DENOMINATOR|const|beacon_node/operation_pool/src/attestation.rs|pub const PROPOSER_REWARD_DENOMINATOR: u64 =
+PersistedOperationPool|struct|beacon_node/operation_pool/src/persistence.rs|pub struct PersistedOperationPool<E: EthSpec>
+PersistedOperationPool::from_operation_pool|fn|beacon_node/operation_pool/src/persistence.rs|pub fn from_operation_pool(operation_pool : & OperationPool < E >) -> Self
+PersistedOperationPool::into_operation_pool|fn|beacon_node/operation_pool/src/persistence.rs|pub fn into_operation_pool(mut self) -> Result < OperationPool < E > , OpPoolError >
+ReceivedPreCapella|enum|beacon_node/operation_pool/src/bls_to_execution_changes.rs|pub enum ReceivedPreCapella
+RewardCache|struct|beacon_node/operation_pool/src/reward_cache.rs|pub struct RewardCache
+RewardCache::has_attested_in_epoch|fn|beacon_node/operation_pool/src/reward_cache.rs|pub fn has_attested_in_epoch(&self, validator_index : u64, epoch : Epoch) -> Result < bool , OpPoolError >
+RewardCache::update|fn|beacon_node/operation_pool/src/reward_cache.rs|pub fn update<E : EthSpec>(&mut self, state : & BeaconState < E >) -> Result < () , OpPoolError >
+SplitAttestation|struct|beacon_node/operation_pool/src/attestation_storage.rs|pub struct SplitAttestation<E: EthSpec>
+SplitAttestation::as_ref|fn|beacon_node/operation_pool/src/attestation_storage.rs|pub fn as_ref(&self) -> CompactAttestationRef < '_ , E >
+SplitAttestation::new|fn|beacon_node/operation_pool/src/attestation_storage.rs|pub fn new(attestation : Attestation < E >, attesting_indices : Vec < u64 >) -> Self
+SyncAggregateId|struct|beacon_node/operation_pool/src/sync_aggregate_id.rs|pub struct SyncAggregateId
+SyncAggregateId::new|fn|beacon_node/operation_pool/src/sync_aggregate_id.rs|pub fn new(slot : Slot, beacon_block_root : Hash256) -> Self
+attestation_storage|mod|beacon_node/operation_pool/src/lib.rs|pub mod attestation_storage
+earliest_attestation_validators|fn|beacon_node/operation_pool/src/attestation.rs|pub fn earliest_attestation_validators<E : EthSpec>(attestation : & CompactAttestationRef < E >, state : & BeaconStat...
+maximum_cover|fn|beacon_node/operation_pool/src/max_cover.rs|pub fn maximum_cover<I, T>(items_iter : I, limit : usize, label : & str) -> Vec < T >
+merge_solutions|fn|beacon_node/operation_pool/src/max_cover.rs|pub fn merge_solutions<I1, I2, T>(cover1 : I1, cover2 : I2, limit : usize) -> Vec < T :: Object >

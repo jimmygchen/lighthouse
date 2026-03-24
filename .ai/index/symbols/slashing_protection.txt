@@ -1,0 +1,100 @@
+# rust-symbols symbols/slashing_protection | 2026-03-24T06:27:26Z | 98 symbols
+# name|kind|path|signature
+CONNECTION_TIMEOUT|const|validator_client/slashing_protection/src/slashing_database.rs|pub const CONNECTION_TIMEOUT: Duration = Duration::from_secs(5);
+CONNECTION_TIMEOUT|const|validator_client/slashing_protection/src/slashing_database.rs|pub const CONNECTION_TIMEOUT: Duration = Duration::from_secs(1);
+CheckSlashability|enum|validator_client/slashing_protection/src/slashing_database.rs|pub enum CheckSlashability
+DEFAULT_DOMAIN|const|validator_client/slashing_protection/src/test_utils.rs|pub const DEFAULT_DOMAIN: Hash256 = Hash256::ZERO;
+DEFAULT_GENESIS_VALIDATORS_ROOT|const|validator_client/slashing_protection/src/test_utils.rs|pub const DEFAULT_GENESIS_VALIDATORS_ROOT: Hash256 = Hash256::ZERO;
+DEFAULT_VALIDATOR_INDEX|const|validator_client/slashing_protection/src/test_utils.rs|pub const DEFAULT_VALIDATOR_INDEX: usize = 0;
+InterchangeError|enum|validator_client/slashing_protection/src/slashing_database.rs|pub enum InterchangeError
+InterchangeImportOutcome|enum|validator_client/slashing_protection/src/slashing_database.rs|pub enum InterchangeImportOutcome
+InterchangeImportOutcome::failed|fn|validator_client/slashing_protection/src/slashing_database.rs|pub fn failed(&self) -> bool
+InvalidAttestation|enum|validator_client/slashing_protection/src/signed_attestation.rs|pub enum InvalidAttestation
+InvalidBlock|enum|validator_client/slashing_protection/src/signed_block.rs|pub enum InvalidBlock
+MultiTestCase|struct|validator_client/slashing_protection/src/interchange_test.rs|pub struct MultiTestCase
+MultiTestCase::gvr|fn|validator_client/slashing_protection/src/interchange_test.rs|pub fn gvr(mut self, genesis_validators_root : Hash256) -> Self
+MultiTestCase::new|fn|validator_client/slashing_protection/src/interchange_test.rs|pub fn new(name : & str, steps : Vec < TestCase >) -> Self
+MultiTestCase::run|fn|validator_client/slashing_protection/src/interchange_test.rs|pub fn run(&self, minify : bool)
+MultiTestCase::single|fn|validator_client/slashing_protection/src/interchange_test.rs|pub fn single(name : & str, test_case : TestCase) -> Self
+NotSafe|enum|validator_client/slashing_protection/src/lib.rs|pub enum NotSafe
+POOL_SIZE|const|validator_client/slashing_protection/src/slashing_database.rs|pub const POOL_SIZE: u32 = 1;
+SLASHING_PROTECTION_FILENAME|const|validator_client/slashing_protection/src/lib.rs|pub const SLASHING_PROTECTION_FILENAME: &str = "slashing_protection.sqlite";
+SUPPORTED_INTERCHANGE_FORMAT_VERSION|const|validator_client/slashing_protection/src/slashing_database.rs|pub const SUPPORTED_INTERCHANGE_FORMAT_VERSION: u64 = 5;
+Safe|enum|validator_client/slashing_protection/src/lib.rs|pub enum Safe
+SignedAttestation|struct|validator_client/slashing_protection/src/signed_attestation.rs|pub struct SignedAttestation
+SignedAttestation::from_attestation|fn|validator_client/slashing_protection/src/signed_attestation.rs|pub fn from_attestation(attestation : & AttestationData, domain : Hash256) -> Self
+SignedAttestation::from_row|fn|validator_client/slashing_protection/src/signed_attestation.rs|pub fn from_row(row : & rusqlite :: Row) -> rusqlite :: Result < Self >
+SignedAttestation::new|fn|validator_client/slashing_protection/src/signed_attestation.rs|pub fn new(source_epoch : Epoch, target_epoch : Epoch, signing_root : SigningRoot) -> Self
+SignedBlock|struct|validator_client/slashing_protection/src/signed_block.rs|pub struct SignedBlock
+SignedBlock::from_header|fn|validator_client/slashing_protection/src/signed_block.rs|pub fn from_header(header : & BeaconBlockHeader, domain : Hash256) -> Self
+SignedBlock::from_row|fn|validator_client/slashing_protection/src/signed_block.rs|pub fn from_row(row : & rusqlite :: Row) -> rusqlite :: Result < Self >
+SignedBlock::new|fn|validator_client/slashing_protection/src/signed_block.rs|pub fn new(slot : Slot, signing_root : SigningRoot) -> Self
+SigningRoot|struct|validator_client/slashing_protection/src/lib.rs|pub struct SigningRoot(Hash256);
+SlashingDatabase|struct|validator_client/slashing_protection/src/slashing_database.rs|pub struct SlashingDatabase
+SlashingDatabase::check_and_insert_attestation|fn|validator_client/slashing_protection/src/slashing_database.rs|pub fn check_and_insert_attestation(&self, validator_pubkey : & PublicKeyBytes, attestation : & AttestationData, doma...
+SlashingDatabase::check_and_insert_attestation_signing_root|fn|validator_client/slashing_protection/src/slashing_database.rs|pub fn check_and_insert_attestation_signing_root(&self, validator_pubkey : & PublicKeyBytes, att_source_epoch : Epoch...
+SlashingDatabase::check_and_insert_attestations|fn|validator_client/slashing_protection/src/slashing_database.rs|pub fn check_and_insert_attestations<'a>(&self, attestations : & 'a [(& 'a AttestationData , & 'a PublicKeyBytes , Ha...
+SlashingDatabase::check_and_insert_block_proposal|fn|validator_client/slashing_protection/src/slashing_database.rs|pub fn check_and_insert_block_proposal(&self, validator_pubkey : & PublicKeyBytes, block_header : & BeaconBlockHeader...
+SlashingDatabase::check_and_insert_block_signing_root|fn|validator_client/slashing_protection/src/slashing_database.rs|pub fn check_and_insert_block_signing_root(&self, validator_pubkey : & PublicKeyBytes, slot : Slot, signing_root : Si...
+SlashingDatabase::check_and_insert_block_signing_root_txn|fn|validator_client/slashing_protection/src/slashing_database.rs|pub fn check_and_insert_block_signing_root_txn(&self, validator_pubkey : & PublicKeyBytes, slot : Slot, signing_root ...
+SlashingDatabase::check_validator_registrations|fn|validator_client/slashing_protection/src/slashing_database.rs|pub fn check_validator_registrations<'a>(&self, mut public_keys : impl Iterator < Item = & 'a PublicKeyBytes >) -> Re...
+SlashingDatabase::create|fn|validator_client/slashing_protection/src/slashing_database.rs|pub fn create(path : & Path) -> Result < Self , NotSafe >
+SlashingDatabase::export_all_interchange_info|fn|validator_client/slashing_protection/src/slashing_database.rs|pub fn export_all_interchange_info(&self, genesis_validators_root : Hash256) -> Result < Interchange , InterchangeErr...
+SlashingDatabase::export_interchange_info|fn|validator_client/slashing_protection/src/slashing_database.rs|pub fn export_interchange_info(&self, genesis_validators_root : Hash256, selected_pubkeys : Option < & [PublicKeyByte...
+SlashingDatabase::export_interchange_info_in_txn|fn|validator_client/slashing_protection/src/slashing_database.rs|pub fn export_interchange_info_in_txn(&self, genesis_validators_root : Hash256, selected_pubkeys : Option < & [Public...
+SlashingDatabase::get_validator_id|fn|validator_client/slashing_protection/src/slashing_database.rs|pub fn get_validator_id(&self, public_key : & PublicKeyBytes) -> Result < i64 , NotSafe >
+SlashingDatabase::get_validator_id_ignoring_status|fn|validator_client/slashing_protection/src/slashing_database.rs|pub fn get_validator_id_ignoring_status(&self, txn : & Transaction, public_key : & PublicKeyBytes) -> Result < i64 , ...
+SlashingDatabase::get_validator_id_in_txn|fn|validator_client/slashing_protection/src/slashing_database.rs|pub fn get_validator_id_in_txn(&self, txn : & Transaction, public_key : & PublicKeyBytes) -> Result < i64 , NotSafe >
+SlashingDatabase::get_validator_id_with_status|fn|validator_client/slashing_protection/src/slashing_database.rs|pub fn get_validator_id_with_status(&self, txn : & Transaction, public_key : & PublicKeyBytes) -> Result < Option < (...
+SlashingDatabase::import_interchange_info|fn|validator_client/slashing_protection/src/slashing_database.rs|pub fn import_interchange_info(&self, interchange : Interchange, genesis_validators_root : Hash256) -> Result < Vec <...
+SlashingDatabase::import_interchange_record|fn|validator_client/slashing_protection/src/slashing_database.rs|pub fn import_interchange_record(&self, record : InterchangeData, txn : & Transaction) -> Result < ValidatorSummary ,...
+SlashingDatabase::list_all_registered_validators|fn|validator_client/slashing_protection/src/slashing_database.rs|pub fn list_all_registered_validators(&self, txn : & Transaction) -> Result < Vec < (i64 , PublicKeyBytes) > , Interc...
+SlashingDatabase::num_validator_rows|fn|validator_client/slashing_protection/src/slashing_database.rs|pub fn num_validator_rows(&self) -> Result < u32 , NotSafe >
+SlashingDatabase::open|fn|validator_client/slashing_protection/src/slashing_database.rs|pub fn open(path : & Path) -> Result < Self , NotSafe >
+SlashingDatabase::open_or_create|fn|validator_client/slashing_protection/src/slashing_database.rs|pub fn open_or_create(path : & Path) -> Result < Self , NotSafe >
+SlashingDatabase::preliminary_check_attestation|fn|validator_client/slashing_protection/src/slashing_database.rs|pub fn preliminary_check_attestation(&self, validator_pubkey : & PublicKeyBytes, attestation : & AttestationData, dom...
+SlashingDatabase::preliminary_check_attestation_signing_root|fn|validator_client/slashing_protection/src/slashing_database.rs|pub fn preliminary_check_attestation_signing_root(&self, validator_pubkey : & PublicKeyBytes, att_source_epoch : Epoc...
+SlashingDatabase::preliminary_check_block_proposal|fn|validator_client/slashing_protection/src/slashing_database.rs|pub fn preliminary_check_block_proposal(&self, validator_pubkey : & PublicKeyBytes, block_header : & BeaconBlockHeade...
+SlashingDatabase::preliminary_check_block_signing_root|fn|validator_client/slashing_protection/src/slashing_database.rs|pub fn preliminary_check_block_signing_root(&self, validator_pubkey : & PublicKeyBytes, slot : Slot, signing_root : S...
+SlashingDatabase::prune_all_signed_attestations|fn|validator_client/slashing_protection/src/slashing_database.rs|pub fn prune_all_signed_attestations<'a>(&self, mut public_keys : impl Iterator < Item = & 'a PublicKeyBytes >, new_m...
+SlashingDatabase::prune_all_signed_blocks|fn|validator_client/slashing_protection/src/slashing_database.rs|pub fn prune_all_signed_blocks<'a>(&self, mut public_keys : impl Iterator < Item = & 'a PublicKeyBytes >, new_min_slo...
+SlashingDatabase::register_validator|fn|validator_client/slashing_protection/src/slashing_database.rs|pub fn register_validator(&self, validator_pk : PublicKeyBytes) -> Result < () , NotSafe >
+SlashingDatabase::register_validators|fn|validator_client/slashing_protection/src/slashing_database.rs|pub fn register_validators<'a>(&self, public_keys : impl Iterator < Item = & 'a PublicKeyBytes >) -> Result < () , No...
+SlashingDatabase::register_validators_in_txn|fn|validator_client/slashing_protection/src/slashing_database.rs|pub fn register_validators_in_txn<'a>(&self, public_keys : impl Iterator < Item = & 'a PublicKeyBytes >, txn : & Tran...
+SlashingDatabase::test_transaction|fn|validator_client/slashing_protection/src/slashing_database.rs|pub fn test_transaction(&self) -> Result < () , NotSafe >
+SlashingDatabase::update_validator_status|fn|validator_client/slashing_protection/src/slashing_database.rs|pub fn update_validator_status(&self, txn : & Transaction, validator_id : i64, status : bool) -> Result < () , NotSafe >
+SlashingDatabase::validator_summary|fn|validator_client/slashing_protection/src/slashing_database.rs|pub fn validator_summary(&self, public_key : & PublicKeyBytes, txn : & Transaction) -> Result < ValidatorSummary , No...
+SlashingDatabase::with_transaction|fn|validator_client/slashing_protection/src/slashing_database.rs|pub fn with_transaction<T, U, F>(&self, f : F) -> Result < T , U >
+StreamTest|struct|validator_client/slashing_protection/src/test_utils.rs|pub struct StreamTest<T>
+StreamTest::run|fn|validator_client/slashing_protection/src/test_utils.rs|pub fn run(&self)
+StreamTest::run|fn|validator_client/slashing_protection/src/test_utils.rs|pub fn run(&self)
+StreamTest::run_batched|fn|validator_client/slashing_protection/src/test_utils.rs|pub fn run_batched(&self)
+StreamTest::run_solo|fn|validator_client/slashing_protection/src/test_utils.rs|pub fn run_solo(&self)
+Test|struct|validator_client/slashing_protection/src/test_utils.rs|pub struct Test<T>
+Test::expect_invalid_att|fn|validator_client/slashing_protection/src/test_utils.rs|pub fn expect_invalid_att(self, error : InvalidAttestation) -> Self
+Test::expect_invalid_block|fn|validator_client/slashing_protection/src/test_utils.rs|pub fn expect_invalid_block(self, error : InvalidBlock) -> Self
+Test::expect_result|fn|validator_client/slashing_protection/src/test_utils.rs|pub fn expect_result(mut self, result : Result < Safe , NotSafe >) -> Self
+Test::expect_same_data|fn|validator_client/slashing_protection/src/test_utils.rs|pub fn expect_same_data(self) -> Self
+Test::single|fn|validator_client/slashing_protection/src/test_utils.rs|pub fn single(data : T) -> Self
+Test::with_domain|fn|validator_client/slashing_protection/src/test_utils.rs|pub fn with_domain(mut self, domain : Hash256) -> Self
+Test::with_pubkey|fn|validator_client/slashing_protection/src/test_utils.rs|pub fn with_pubkey(pubkey : PublicKeyBytes, data : T) -> Self
+TestAttestation|struct|validator_client/slashing_protection/src/interchange_test.rs|pub struct TestAttestation
+TestBlock|struct|validator_client/slashing_protection/src/interchange_test.rs|pub struct TestBlock
+TestCase|struct|validator_client/slashing_protection/src/interchange_test.rs|pub struct TestCase
+TestCase::contains_slashable_data|fn|validator_client/slashing_protection/src/interchange_test.rs|pub fn contains_slashable_data(mut self) -> Self
+TestCase::new|fn|validator_client/slashing_protection/src/interchange_test.rs|pub fn new(interchange : Interchange) -> Self
+TestCase::should_fail|fn|validator_client/slashing_protection/src/interchange_test.rs|pub fn should_fail(mut self) -> Self
+TestCase::with_attestations|fn|validator_client/slashing_protection/src/interchange_test.rs|pub fn with_attestations(self, attestations : impl IntoIterator < Item = (usize , u64 , u64 , bool , bool) >) -> Self
+TestCase::with_blocks|fn|validator_client/slashing_protection/src/interchange_test.rs|pub fn with_blocks(self, blocks : impl IntoIterator < Item = (usize , u64 , bool , bool) >) -> Self
+TestCase::with_signing_root_attestations|fn|validator_client/slashing_protection/src/interchange_test.rs|pub fn with_signing_root_attestations(mut self, attestations : impl IntoIterator < Item = (usize , u64 , u64 , u64 , ...
+TestCase::with_signing_root_blocks|fn|validator_client/slashing_protection/src/interchange_test.rs|pub fn with_signing_root_blocks(mut self, blocks : impl IntoIterator < Item = (usize , u64 , u64 , bool , bool) >) ->...
+VALIDATORS_ENABLED_CID|const|validator_client/slashing_protection/src/slashing_database.rs|pub const VALIDATORS_ENABLED_CID: i64 = 2;
+ValidatorSummary|struct|validator_client/slashing_protection/src/slashing_database.rs|pub struct ValidatorSummary
+attestation_data_builder|fn|validator_client/slashing_protection/src/attestation_tests.rs|pub fn attestation_data_builder(source : u64, target : u64) -> AttestationData
+block|fn|validator_client/slashing_protection/src/block_tests.rs|pub fn block(slot : u64) -> BeaconBlockHeader
+build_checkpoint|fn|validator_client/slashing_protection/src/attestation_tests.rs|pub fn build_checkpoint(epoch_num : u64) -> Checkpoint
+check_minification_invariants|fn|validator_client/slashing_protection/src/interchange_test.rs|pub fn check_minification_invariants(interchange : & Interchange, minified : & Interchange)
+interchange|mod|validator_client/slashing_protection/src/lib.rs|pub mod interchange
+interchange_test|mod|validator_client/slashing_protection/src/lib.rs|pub mod interchange_test
+pubkey|fn|validator_client/slashing_protection/src/test_utils.rs|pub fn pubkey(index : usize) -> PublicKeyBytes
+test_utils|mod|validator_client/slashing_protection/src/lib.rs|pub mod test_utils

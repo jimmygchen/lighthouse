@@ -1,0 +1,94 @@
+# rust-symbols symbols/validator_http_api | 2026-03-24T06:27:26Z | 92 symbols
+# name|kind|path|signature
+ApiSecret|struct|validator_client/http_api/src/api_secret.rs|pub struct ApiSecret
+ApiSecret::api_token|fn|validator_client/http_api/src/api_secret.rs|pub fn api_token(&self) -> String
+ApiSecret::api_token_path|fn|validator_client/http_api/src/api_secret.rs|pub fn api_token_path(&self) -> PathBuf
+ApiSecret::authorization_header_filter|fn|validator_client/http_api/src/api_secret.rs|pub fn authorization_header_filter(&self) -> warp :: filters :: BoxedFilter < () >
+ApiSecret::create_or_open|fn|validator_client/http_api/src/api_secret.rs|pub fn create_or_open<P : AsRef < Path >>(pk_path : P) -> Result < Self , String >
+ApiTester|struct|validator_client/http_api/src/test_utils.rs|pub struct ApiTester
+ApiTester::assert_builder_boost_factor|fn|validator_client/http_api/src/tests.rs|pub async fn assert_builder_boost_factor(self, index : usize, builder_boost_factor : Option < u64 >) -> Self
+ApiTester::assert_builder_proposals|fn|validator_client/http_api/src/test_utils.rs|pub async fn assert_builder_proposals(self, index : usize, builder_proposals : bool) -> Self
+ApiTester::assert_builder_proposals|fn|validator_client/http_api/src/tests.rs|pub async fn assert_builder_proposals(self, index : usize, builder_proposals : bool) -> Self
+ApiTester::assert_default_builder_boost_factor|fn|validator_client/http_api/src/tests.rs|pub fn assert_default_builder_boost_factor(self, builder_boost_factor : Option < u64 >) -> Self
+ApiTester::assert_enabled_validators_count|fn|validator_client/http_api/src/test_utils.rs|pub fn assert_enabled_validators_count(self, count : usize) -> Self
+ApiTester::assert_enabled_validators_count|fn|validator_client/http_api/src/tests.rs|pub fn assert_enabled_validators_count(self, count : usize) -> Self
+ApiTester::assert_gas_limit|fn|validator_client/http_api/src/test_utils.rs|pub async fn assert_gas_limit(self, index : usize, gas_limit : u64) -> Self
+ApiTester::assert_gas_limit|fn|validator_client/http_api/src/tests.rs|pub async fn assert_gas_limit(self, index : usize, gas_limit : u64) -> Self
+ApiTester::assert_graffiti|fn|validator_client/http_api/src/tests.rs|pub async fn assert_graffiti(self, index : usize, graffiti : & str) -> Self
+ApiTester::assert_prefer_builder_proposals|fn|validator_client/http_api/src/tests.rs|pub async fn assert_prefer_builder_proposals(self, index : usize, prefer_builder_proposals : bool) -> Self
+ApiTester::assert_validator_derived_builder_boost_factor|fn|validator_client/http_api/src/tests.rs|pub async fn assert_validator_derived_builder_boost_factor(self, index : usize, builder_boost_factor : Option < u64 >...
+ApiTester::assert_validators_count|fn|validator_client/http_api/src/test_utils.rs|pub fn assert_validators_count(self, count : usize) -> Self
+ApiTester::assert_validators_count|fn|validator_client/http_api/src/tests.rs|pub fn assert_validators_count(self, count : usize) -> Self
+ApiTester::create_hd_validators|fn|validator_client/http_api/src/test_utils.rs|pub async fn create_hd_validators(self, s : HdValidatorScenario) -> Self
+ApiTester::create_hd_validators|fn|validator_client/http_api/src/tests.rs|pub async fn create_hd_validators(self, s : HdValidatorScenario) -> Self
+ApiTester::create_keystore_validators|fn|validator_client/http_api/src/test_utils.rs|pub async fn create_keystore_validators(self, s : KeystoreValidatorScenario) -> Self
+ApiTester::create_keystore_validators|fn|validator_client/http_api/src/tests.rs|pub async fn create_keystore_validators(self, s : KeystoreValidatorScenario) -> Self
+ApiTester::create_web3signer_validators|fn|validator_client/http_api/src/test_utils.rs|pub async fn create_web3signer_validators(self, s : Web3SignerValidatorScenario) -> Self
+ApiTester::create_web3signer_validators|fn|validator_client/http_api/src/tests.rs|pub async fn create_web3signer_validators(self, s : Web3SignerValidatorScenario) -> Self
+ApiTester::default_http_config|fn|validator_client/http_api/src/test_utils.rs|pub fn default_http_config() -> HttpConfig
+ApiTester::ensure_key_cache_consistency|fn|validator_client/http_api/src/test_utils.rs|pub async fn ensure_key_cache_consistency(&self)
+ApiTester::invalid_token_client|fn|validator_client/http_api/src/test_utils.rs|pub fn invalid_token_client(&self) -> ValidatorClientHttpClient
+ApiTester::invalid_token_client|fn|validator_client/http_api/src/tests.rs|pub fn invalid_token_client(&self) -> ValidatorClientHttpClient
+ApiTester::invalidate_api_token|fn|validator_client/http_api/src/test_utils.rs|pub fn invalidate_api_token(mut self) -> Self
+ApiTester::invalidate_api_token|fn|validator_client/http_api/src/tests.rs|pub fn invalidate_api_token(mut self) -> Self
+ApiTester::new|fn|validator_client/http_api/src/test_utils.rs|pub async fn new() -> Self
+ApiTester::new|fn|validator_client/http_api/src/tests.rs|pub async fn new() -> Self
+ApiTester::new_with_config|fn|validator_client/http_api/src/tests.rs|pub async fn new_with_config(config : ValidatorStoreConfig) -> Self
+ApiTester::new_with_http_config|fn|validator_client/http_api/src/test_utils.rs|pub async fn new_with_http_config(http_config : HttpConfig) -> Self
+ApiTester::new_with_options|fn|validator_client/http_api/src/test_utils.rs|pub async fn new_with_options(http_config : HttpConfig, slot_clock : TestingSlotClock, genesis_validators_root : Hash...
+ApiTester::set_builder_boost_factor|fn|validator_client/http_api/src/tests.rs|pub async fn set_builder_boost_factor(self, index : usize, builder_boost_factor : u64) -> Self
+ApiTester::set_builder_proposals|fn|validator_client/http_api/src/test_utils.rs|pub async fn set_builder_proposals(self, index : usize, builder_proposals : bool) -> Self
+ApiTester::set_builder_proposals|fn|validator_client/http_api/src/tests.rs|pub async fn set_builder_proposals(self, index : usize, builder_proposals : bool) -> Self
+ApiTester::set_gas_limit|fn|validator_client/http_api/src/test_utils.rs|pub async fn set_gas_limit(self, index : usize, gas_limit : u64) -> Self
+ApiTester::set_gas_limit|fn|validator_client/http_api/src/tests.rs|pub async fn set_gas_limit(self, index : usize, gas_limit : u64) -> Self
+ApiTester::set_graffiti|fn|validator_client/http_api/src/tests.rs|pub async fn set_graffiti(self, index : usize, graffiti : & str) -> Self
+ApiTester::set_prefer_builder_proposals|fn|validator_client/http_api/src/tests.rs|pub async fn set_prefer_builder_proposals(self, index : usize, prefer_builder_proposals : bool) -> Self
+ApiTester::set_validator_enabled|fn|validator_client/http_api/src/test_utils.rs|pub async fn set_validator_enabled(self, index : usize, enabled : bool) -> Self
+ApiTester::set_validator_enabled|fn|validator_client/http_api/src/tests.rs|pub async fn set_validator_enabled(self, index : usize, enabled : bool) -> Self
+ApiTester::test_delete_graffiti|fn|validator_client/http_api/src/tests.rs|pub async fn test_delete_graffiti(self, index : usize) -> Self
+ApiTester::test_get_graffiti|fn|validator_client/http_api/src/tests.rs|pub async fn test_get_graffiti(self, index : usize, expected_graffiti : & str) -> Self
+ApiTester::test_get_lighthouse_health|fn|validator_client/http_api/src/test_utils.rs|pub async fn test_get_lighthouse_health(self) -> Self
+ApiTester::test_get_lighthouse_health|fn|validator_client/http_api/src/test_utils.rs|pub async fn test_get_lighthouse_health(self) -> Self
+ApiTester::test_get_lighthouse_health|fn|validator_client/http_api/src/tests.rs|pub async fn test_get_lighthouse_health(self) -> Self
+ApiTester::test_get_lighthouse_health|fn|validator_client/http_api/src/tests.rs|pub async fn test_get_lighthouse_health(self) -> Self
+ApiTester::test_get_lighthouse_spec|fn|validator_client/http_api/src/test_utils.rs|pub async fn test_get_lighthouse_spec(self) -> Self
+ApiTester::test_get_lighthouse_spec|fn|validator_client/http_api/src/tests.rs|pub async fn test_get_lighthouse_spec(self) -> Self
+ApiTester::test_get_lighthouse_version|fn|validator_client/http_api/src/test_utils.rs|pub async fn test_get_lighthouse_version(self) -> Self
+ApiTester::test_get_lighthouse_version|fn|validator_client/http_api/src/tests.rs|pub async fn test_get_lighthouse_version(self) -> Self
+ApiTester::test_get_lighthouse_version_invalid|fn|validator_client/http_api/src/test_utils.rs|pub async fn test_get_lighthouse_version_invalid(self) -> Self
+ApiTester::test_get_lighthouse_version_invalid|fn|validator_client/http_api/src/tests.rs|pub async fn test_get_lighthouse_version_invalid(self) -> Self
+ApiTester::test_set_graffiti|fn|validator_client/http_api/src/tests.rs|pub async fn test_set_graffiti(self, index : usize, graffiti : & str) -> Self
+ApiTester::test_sign_voluntary_exits|fn|validator_client/http_api/src/tests.rs|pub async fn test_sign_voluntary_exits(self, index : usize, maybe_epoch : Option < Epoch >) -> Self
+ApiTester::test_with_invalid_auth|fn|validator_client/http_api/src/test_utils.rs|pub async fn test_with_invalid_auth<F, A, T>(self, func : F) -> Self
+ApiTester::test_with_invalid_auth|fn|validator_client/http_api/src/tests.rs|pub async fn test_with_invalid_auth<F, A, T>(self, func : F) -> Self
+ApiTester::vals_enabled|fn|validator_client/http_api/src/test_utils.rs|pub fn vals_enabled(&self) -> usize
+ApiTester::vals_enabled|fn|validator_client/http_api/src/tests.rs|pub fn vals_enabled(&self) -> usize
+ApiTester::vals_total|fn|validator_client/http_api/src/test_utils.rs|pub fn vals_total(&self) -> usize
+ApiTester::vals_total|fn|validator_client/http_api/src/tests.rs|pub fn vals_total(&self) -> usize
+Config|struct|validator_client/http_api/src/lib.rs|pub struct Config
+Context|struct|validator_client/http_api/src/lib.rs|pub struct Context<T: SlotClock, E>
+Error|enum|validator_client/http_api/src/lib.rs|pub enum Error
+HdValidatorScenario|struct|validator_client/http_api/src/test_utils.rs|pub struct HdValidatorScenario
+KeystoreValidatorScenario|struct|validator_client/http_api/src/test_utils.rs|pub struct KeystoreValidatorScenario
+PASSWORD_BYTES|const|validator_client/http_api/src/test_utils.rs|pub const PASSWORD_BYTES: &[u8] = &[42, 50, 37];
+PK_FILENAME|const|validator_client/http_api/src/api_secret.rs|pub const PK_FILENAME: &str = "api-token.txt";
+PK_LEN|const|validator_client/http_api/src/api_secret.rs|pub const PK_LEN: usize = 33;
+TEST_DEFAULT_FEE_RECIPIENT|const|validator_client/http_api/src/test_utils.rs|pub const TEST_DEFAULT_FEE_RECIPIENT: Address = Address::repeat_byte(42);
+TEST_DEFAULT_FEE_RECIPIENT|const|validator_client/http_api/src/tests.rs|pub const TEST_DEFAULT_FEE_RECIPIENT: Address = Address::repeat_byte(42);
+Web3SignerValidatorScenario|struct|validator_client/http_api/src/test_utils.rs|pub struct Web3SignerValidatorScenario
+create_signed_voluntary_exit|fn|validator_client/http_api/src/create_signed_voluntary_exit.rs|pub async fn create_signed_voluntary_exit<T : 'static + SlotClock + Clone, E : EthSpec>(pubkey : PublicKey, maybe_epo...
+create_validators_mnemonic|fn|validator_client/http_api/src/create_validator.rs|pub async fn create_validators_mnemonic<P : AsRef < Path >, T : 'static + SlotClock, E : EthSpec>(mnemonic_opt : Opti...
+create_validators_web3signer|fn|validator_client/http_api/src/create_validator.rs|pub async fn create_validators_web3signer<T : 'static + SlotClock, E : EthSpec>(validators : Vec < ValidatorDefinitio...
+delete|fn|validator_client/http_api/src/remotekeys.rs|pub fn delete<T : SlotClock + 'static, E : EthSpec>(request : DeleteRemotekeysRequest, validator_store : Arc < Lighth...
+delete|fn|validator_client/http_api/src/keystores.rs|pub fn delete<T : SlotClock + 'static, E : EthSpec>(request : DeleteKeystoresRequest, validator_store : Arc < Lightho...
+delete_graffiti|fn|validator_client/http_api/src/graffiti.rs|pub fn delete_graffiti<T : 'static + SlotClock + Clone, E : EthSpec>(validator_pubkey : PublicKey, validator_store : ...
+export|fn|validator_client/http_api/src/keystores.rs|pub fn export<T : SlotClock + 'static, E : EthSpec>(request : DeleteKeystoresRequest, validator_store : Arc < Lightho...
+get_graffiti|fn|validator_client/http_api/src/graffiti.rs|pub fn get_graffiti<T : 'static + SlotClock + Clone, E : EthSpec>(validator_pubkey : PublicKey, validator_store : Arc...
+get_voting_password_storage|fn|validator_client/http_api/src/create_validator.rs|pub fn get_voting_password_storage(secrets_dir : & Option < PathBuf >, voting_keystore : & Keystore, voting_password_...
+import|fn|validator_client/http_api/src/remotekeys.rs|pub fn import<T : SlotClock + 'static, E : EthSpec>(request : ImportRemotekeysRequest, validator_store : Arc < Lighth...
+import|fn|validator_client/http_api/src/keystores.rs|pub fn import<T : SlotClock + 'static, E : EthSpec>(request : ImportKeystoresRequest, validator_dir : PathBuf, secret...
+list|fn|validator_client/http_api/src/remotekeys.rs|pub fn list<T : SlotClock + 'static, E : EthSpec>(validator_store : Arc < LighthouseValidatorStore < T , E > >) -> Li...
+list|fn|validator_client/http_api/src/keystores.rs|pub fn list<T : SlotClock + 'static, E : EthSpec>(validator_store : Arc < LighthouseValidatorStore < T , E > >) -> Li...
+serve|fn|validator_client/http_api/src/lib.rs|pub fn serve<T : 'static + SlotClock + Clone, E : EthSpec>(ctx : Arc < Context < T , E > >, shutdown : impl Future < ...
+set_graffiti|fn|validator_client/http_api/src/graffiti.rs|pub fn set_graffiti<T : 'static + SlotClock + Clone, E : EthSpec>(validator_pubkey : PublicKey, graffiti : GraffitiSt...
+test_utils|mod|validator_client/http_api/src/lib.rs|pub mod test_utils

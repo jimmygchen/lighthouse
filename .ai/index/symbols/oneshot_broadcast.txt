@@ -1,0 +1,9 @@
+# rust-symbols symbols/oneshot_broadcast | 2026-03-24T06:27:26Z | 7 symbols
+# name|kind|path|signature
+Error|enum|common/oneshot_broadcast/src/lib.rs|pub enum Error
+Receiver|struct|common/oneshot_broadcast/src/lib.rs|pub struct Receiver<T: Clone>(Arc<MutexCondvar<T>>);
+Receiver::recv|fn|common/oneshot_broadcast/src/lib.rs|pub fn recv(self) -> Result < T , Error >
+Receiver::try_recv|fn|common/oneshot_broadcast/src/lib.rs|pub fn try_recv(&self) -> Result < Option < T > , Error >
+Sender|struct|common/oneshot_broadcast/src/lib.rs|pub struct Sender<T>(Arc<MutexCondvar<T>>);
+Sender::send|fn|common/oneshot_broadcast/src/lib.rs|pub fn send(self, item : T)
+oneshot|fn|common/oneshot_broadcast/src/lib.rs|pub fn oneshot<T : Clone>() -> (Sender < T > , Receiver < T >)

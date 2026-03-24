@@ -1,0 +1,26 @@
+# rust-symbols symbols/eth2_key_derivation | 2026-03-24T06:27:26Z | 24 symbols
+# name|kind|path|signature
+DerivedKey|struct|crypto/eth2_key_derivation/src/derived_key.rs|pub struct DerivedKey(ZeroizeHash);
+DerivedKey::child|fn|crypto/eth2_key_derivation/src/derived_key.rs|pub fn child(&self, index : u32) -> DerivedKey
+DerivedKey::from_seed|fn|crypto/eth2_key_derivation/src/derived_key.rs|pub fn from_seed(seed : & [u8]) -> Result < Self , Error >
+DerivedKey::secret|fn|crypto/eth2_key_derivation/src/derived_key.rs|pub fn secret(&self) -> & [u8]
+Error|enum|crypto/eth2_key_derivation/src/derived_key.rs|pub enum Error
+HASH_SIZE|const|crypto/eth2_key_derivation/src/derived_key.rs|pub const HASH_SIZE: usize = 32;
+LAMPORT_ARRAY_SIZE|const|crypto/eth2_key_derivation/src/derived_key.rs|pub const LAMPORT_ARRAY_SIZE: u8 = 255;
+LamportSecretKey|struct|crypto/eth2_key_derivation/src/lamport_secret_key.rs|pub struct LamportSecretKey(Vec<[u8; HASH_SIZE]>);
+LamportSecretKey::from_bytes|fn|crypto/eth2_key_derivation/src/lamport_secret_key.rs|pub fn from_bytes(bytes : & [u8]) -> Self
+LamportSecretKey::get_mut_chunk|fn|crypto/eth2_key_derivation/src/lamport_secret_key.rs|pub fn get_mut_chunk(&mut self, i : u8) -> & mut [u8]
+LamportSecretKey::iter_chunks|fn|crypto/eth2_key_derivation/src/lamport_secret_key.rs|pub fn iter_chunks(&self) -> impl Iterator < Item = & [u8 ; HASH_SIZE] >
+LamportSecretKey::zero|fn|crypto/eth2_key_derivation/src/lamport_secret_key.rs|pub fn zero() -> Self
+MOD_R_L|const|crypto/eth2_key_derivation/src/derived_key.rs|pub const MOD_R_L: usize = 48;
+PlainText|struct|crypto/eth2_key_derivation/src/plain_text.rs|pub struct PlainText(Vec<u8>);
+PlainText::as_bytes|fn|crypto/eth2_key_derivation/src/plain_text.rs|pub fn as_bytes(&self) -> & [u8]
+PlainText::as_mut_bytes|fn|crypto/eth2_key_derivation/src/plain_text.rs|pub fn as_mut_bytes(&mut self) -> & mut [u8]
+PlainText::is_empty|fn|crypto/eth2_key_derivation/src/plain_text.rs|pub fn is_empty(&self) -> bool
+PlainText::len|fn|crypto/eth2_key_derivation/src/plain_text.rs|pub fn len(&self) -> usize
+PlainText::zero|fn|crypto/eth2_key_derivation/src/plain_text.rs|pub fn zero(len : usize) -> Self
+R|const|crypto/eth2_key_derivation/src/derived_key.rs|pub const R: &str = "52435875175126190479447740508185965837690552500527637822603658699938581184513";
+SecretBytes|struct|crypto/eth2_key_derivation/src/secret_bytes.rs|pub struct SecretBytes(Vec<u8>);
+SecretBytes::as_bytes|fn|crypto/eth2_key_derivation/src/secret_bytes.rs|pub fn as_bytes(&self) -> & [u8]
+SecretBytes::as_mut_bytes|fn|crypto/eth2_key_derivation/src/secret_bytes.rs|pub fn as_mut_bytes(&mut self) -> & mut [u8]
+SecretBytes::zero|fn|crypto/eth2_key_derivation/src/secret_bytes.rs|pub fn zero(len : usize) -> Self

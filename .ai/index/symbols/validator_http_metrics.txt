@@ -1,0 +1,8 @@
+# rust-symbols symbols/validator_http_metrics | 2026-03-24T06:27:26Z | 6 symbols
+# name|kind|path|signature
+Config|struct|validator_client/http_metrics/src/lib.rs|pub struct Config
+Context|struct|validator_client/http_metrics/src/lib.rs|pub struct Context<E>
+Error|enum|validator_client/http_metrics/src/lib.rs|pub enum Error
+Shared|struct|validator_client/http_metrics/src/lib.rs|pub struct Shared<E>
+gather_prometheus_metrics|fn|validator_client/http_metrics/src/lib.rs|pub fn gather_prometheus_metrics<E : EthSpec>(ctx : & Context < E >) -> std :: result :: Result < String , String >
+serve|fn|validator_client/http_metrics/src/lib.rs|pub fn serve<E : EthSpec>(ctx : Arc < Context < E > >, shutdown : impl Future < Output = () > + Send + Sync + 'static...

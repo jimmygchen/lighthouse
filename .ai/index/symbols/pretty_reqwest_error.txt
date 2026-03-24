@@ -1,0 +1,4 @@
+# rust-symbols symbols/pretty_reqwest_error | 2026-03-24T06:27:26Z | 2 symbols
+# name|kind|path|signature
+PrettyReqwestError|struct|common/pretty_reqwest_error/src/lib.rs|pub struct PrettyReqwestError(reqwest::Error);
+PrettyReqwestError::inner|fn|common/pretty_reqwest_error/src/lib.rs|pub fn inner(&self) -> & reqwest :: Error

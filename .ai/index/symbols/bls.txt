@@ -1,0 +1,108 @@
+# rust-symbols symbols/bls | 2026-03-24T06:27:26Z | 106 symbols
+# name|kind|path|signature
+AggregatePublicKey|struct|crypto/bls/src/impls/fake_crypto.rs|pub struct AggregatePublicKey([u8; PUBLIC_KEY_BYTES_LEN]);
+AggregateSignature|struct|crypto/bls/src/impls/fake_crypto.rs|pub struct AggregateSignature([u8; SIGNATURE_BYTES_LEN]);
+BlstAggregatePublicKey|struct|crypto/bls/src/impls/blst.rs|pub struct BlstAggregatePublicKey(blst_core::AggregatePublicKey);
+BlstAggregateSignature|struct|crypto/bls/src/impls/blst.rs|pub struct BlstAggregateSignature(blst_core::AggregateSignature);
+DST|const|crypto/bls/src/impls/blst.rs|pub const DST: &[u8] = b"BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_";
+EMPTY_SIGNATURE_SERIALIZATION|const|crypto/bls/src/generic_aggregate_signature.rs|pub const EMPTY_SIGNATURE_SERIALIZATION: [u8; SIGNATURE_BYTES_LEN] = [0; SIGNATURE_BYTES_LEN];
+Error|enum|crypto/bls/src/lib.rs|pub enum Error
+GenericAggregatePublicKey|struct|crypto/bls/src/generic_aggregate_public_key.rs|pub struct GenericAggregatePublicKey<Pub, AggPub>
+GenericAggregatePublicKey::aggregate|fn|crypto/bls/src/generic_aggregate_public_key.rs|pub fn aggregate(pubkeys : & [GenericPublicKey < Pub >]) -> Result < Self , Error >
+GenericAggregatePublicKey::to_public_key|fn|crypto/bls/src/generic_aggregate_public_key.rs|pub fn to_public_key(&self) -> GenericPublicKey < Pub >
+GenericAggregateSignature|struct|crypto/bls/src/generic_aggregate_signature.rs|pub struct GenericAggregateSignature<Pub, AggPub, Sig, AggSig>
+GenericAggregateSignature::add_assign|fn|crypto/bls/src/generic_aggregate_signature.rs|pub fn add_assign(&mut self, other : & GenericSignature < Pub , Sig >)
+GenericAggregateSignature::add_assign_aggregate|fn|crypto/bls/src/generic_aggregate_signature.rs|pub fn add_assign_aggregate(&mut self, other : & Self)
+GenericAggregateSignature::aggregate_verify|fn|crypto/bls/src/generic_aggregate_signature.rs|pub fn aggregate_verify(&self, msgs : & [Hash256], pubkeys : & [& GenericPublicKey < Pub >]) -> bool
+GenericAggregateSignature::deserialize|fn|crypto/bls/src/generic_aggregate_signature.rs|pub fn deserialize(bytes : & [u8]) -> Result < Self , Error >
+GenericAggregateSignature::empty|fn|crypto/bls/src/generic_aggregate_signature.rs|pub fn empty() -> Self
+GenericAggregateSignature::eth_fast_aggregate_verify|fn|crypto/bls/src/generic_aggregate_signature.rs|pub fn eth_fast_aggregate_verify(&self, msg : Hash256, pubkeys : & [& GenericPublicKey < Pub >]) -> bool
+GenericAggregateSignature::fast_aggregate_verify|fn|crypto/bls/src/generic_aggregate_signature.rs|pub fn fast_aggregate_verify(&self, msg : Hash256, pubkeys : & [& GenericPublicKey < Pub >]) -> bool
+GenericAggregateSignature::infinity|fn|crypto/bls/src/generic_aggregate_signature.rs|pub fn infinity() -> Self
+GenericAggregateSignature::is_empty|fn|crypto/bls/src/generic_aggregate_signature.rs|pub fn is_empty(&self) -> bool
+GenericAggregateSignature::is_infinity|fn|crypto/bls/src/generic_aggregate_signature.rs|pub fn is_infinity(&self) -> bool
+GenericAggregateSignature::point|fn|crypto/bls/src/generic_aggregate_signature.rs|pub(crate) fn point(&self) -> Option < & AggSig >
+GenericAggregateSignature::serialize|fn|crypto/bls/src/generic_aggregate_signature.rs|pub fn serialize(&self) -> [u8 ; SIGNATURE_BYTES_LEN]
+GenericKeypair|struct|crypto/bls/src/generic_keypair.rs|pub struct GenericKeypair<Pub, Sec, Sig>
+GenericKeypair::from_components|fn|crypto/bls/src/generic_keypair.rs|pub fn from_components(pk : GenericPublicKey < Pub >, sk : GenericSecretKey < Sig , Pub , Sec >) -> Self
+GenericKeypair::random|fn|crypto/bls/src/generic_keypair.rs|pub fn random() -> Self
+GenericPublicKey|struct|crypto/bls/src/generic_public_key.rs|pub struct GenericPublicKey<Pub>
+GenericPublicKey::as_hex_string|fn|crypto/bls/src/generic_public_key.rs|pub fn as_hex_string(&self) -> String
+GenericPublicKey::compress|fn|crypto/bls/src/generic_public_key.rs|pub fn compress(&self) -> GenericPublicKeyBytes < Pub >
+GenericPublicKey::deserialize|fn|crypto/bls/src/generic_public_key.rs|pub fn deserialize(bytes : & [u8]) -> Result < Self , Error >
+GenericPublicKey::deserialize_uncompressed|fn|crypto/bls/src/generic_public_key.rs|pub fn deserialize_uncompressed(bytes : & [u8]) -> Result < Self , Error >
+GenericPublicKey::from_point|fn|crypto/bls/src/generic_public_key.rs|pub(crate) fn from_point(point : Pub) -> Self
+GenericPublicKey::point|fn|crypto/bls/src/generic_public_key.rs|pub(crate) fn point(&self) -> & Pub
+GenericPublicKey::serialize|fn|crypto/bls/src/generic_public_key.rs|pub fn serialize(&self) -> [u8 ; PUBLIC_KEY_BYTES_LEN]
+GenericPublicKey::serialize_uncompressed|fn|crypto/bls/src/generic_public_key.rs|pub fn serialize_uncompressed(&self) -> [u8 ; PUBLIC_KEY_UNCOMPRESSED_BYTES_LEN]
+GenericPublicKeyBytes|struct|crypto/bls/src/generic_public_key_bytes.rs|pub struct GenericPublicKeyBytes<Pub>
+GenericPublicKeyBytes::as_hex_string|fn|crypto/bls/src/generic_public_key_bytes.rs|pub fn as_hex_string(&self) -> String
+GenericPublicKeyBytes::as_serialized|fn|crypto/bls/src/generic_public_key_bytes.rs|pub fn as_serialized(&self) -> & [u8]
+GenericPublicKeyBytes::decompress|fn|crypto/bls/src/generic_public_key_bytes.rs|pub fn decompress(&self) -> Result < GenericPublicKey < Pub > , Error >
+GenericPublicKeyBytes::deserialize|fn|crypto/bls/src/generic_public_key_bytes.rs|pub fn deserialize(bytes : & [u8]) -> Result < Self , Error >
+GenericPublicKeyBytes::empty|fn|crypto/bls/src/generic_public_key_bytes.rs|pub fn empty() -> Self
+GenericPublicKeyBytes::serialize|fn|crypto/bls/src/generic_public_key_bytes.rs|pub fn serialize(&self) -> [u8 ; PUBLIC_KEY_BYTES_LEN]
+GenericSecretKey|struct|crypto/bls/src/generic_secret_key.rs|pub struct GenericSecretKey<Sig, Pub, Sec>
+GenericSecretKey::deserialize|fn|crypto/bls/src/generic_secret_key.rs|pub fn deserialize(bytes : & [u8]) -> Result < Self , Error >
+GenericSecretKey::from_point|fn|crypto/bls/src/generic_secret_key.rs|pub fn from_point(point : & Sec) -> Self
+GenericSecretKey::point|fn|crypto/bls/src/generic_secret_key.rs|pub fn point(&self) -> & Sec
+GenericSecretKey::public_key|fn|crypto/bls/src/generic_secret_key.rs|pub fn public_key(&self) -> GenericPublicKey < Pub >
+GenericSecretKey::random|fn|crypto/bls/src/generic_secret_key.rs|pub fn random() -> Self
+GenericSecretKey::serialize|fn|crypto/bls/src/generic_secret_key.rs|pub fn serialize(&self) -> ZeroizeHash
+GenericSecretKey::sign|fn|crypto/bls/src/generic_secret_key.rs|pub fn sign(&self, msg : Hash256) -> GenericSignature < Pub , Sig >
+GenericSignature|struct|crypto/bls/src/generic_signature.rs|pub struct GenericSignature<Pub, Sig>
+GenericSignature::deserialize|fn|crypto/bls/src/generic_signature.rs|pub fn deserialize(bytes : & [u8]) -> Result < Self , Error >
+GenericSignature::deserialize_uncompressed|fn|crypto/bls/src/generic_signature.rs|pub fn deserialize_uncompressed(bytes : & [u8]) -> Result < Self , Error >
+GenericSignature::empty|fn|crypto/bls/src/generic_signature.rs|pub fn empty() -> Self
+GenericSignature::from_point|fn|crypto/bls/src/generic_signature.rs|pub fn from_point(point : Sig, is_infinity : bool) -> Self
+GenericSignature::infinity|fn|crypto/bls/src/generic_signature.rs|pub fn infinity() -> Result < Self , Error >
+GenericSignature::is_empty|fn|crypto/bls/src/generic_signature.rs|pub fn is_empty(&self) -> bool
+GenericSignature::is_infinity|fn|crypto/bls/src/generic_signature.rs|pub fn is_infinity(&self) -> bool
+GenericSignature::point|fn|crypto/bls/src/generic_signature.rs|pub fn point(&self) -> Option < & Sig >
+GenericSignature::serialize|fn|crypto/bls/src/generic_signature.rs|pub fn serialize(&self) -> [u8 ; SIGNATURE_BYTES_LEN]
+GenericSignature::serialize_uncompressed|fn|crypto/bls/src/generic_signature.rs|pub fn serialize_uncompressed(&self) -> Option < [u8 ; SIGNATURE_UNCOMPRESSED_BYTES_LEN] >
+GenericSignature::verify|fn|crypto/bls/src/generic_signature.rs|pub fn verify(&self, pubkey : & GenericPublicKey < Pub >, msg : Hash256) -> bool
+GenericSignatureBytes|struct|crypto/bls/src/generic_signature_bytes.rs|pub struct GenericSignatureBytes<Pub, Sig>
+GenericSignatureBytes::decompress|fn|crypto/bls/src/generic_signature_bytes.rs|pub fn decompress(&self) -> Result < GenericSignature < Pub , Sig > , Error >
+GenericSignatureBytes::deserialize|fn|crypto/bls/src/generic_signature_bytes.rs|pub fn deserialize(bytes : & [u8]) -> Result < Self , Error >
+GenericSignatureBytes::empty|fn|crypto/bls/src/generic_signature_bytes.rs|pub fn empty() -> Self
+GenericSignatureBytes::serialize|fn|crypto/bls/src/generic_signature_bytes.rs|pub fn serialize(&self) -> [u8 ; SIGNATURE_BYTES_LEN]
+GenericSignatureSet|struct|crypto/bls/src/generic_signature_set.rs|pub struct GenericSignatureSet<'a, Pub, AggPub, Sig, AggSig>
+GenericSignatureSet::multiple_pubkeys|fn|crypto/bls/src/generic_signature_set.rs|pub fn multiple_pubkeys(signature : impl Into < WrappedSignature < 'a , Pub , AggPub , Sig , AggSig > >, signing_keys...
+GenericSignatureSet::single_pubkey|fn|crypto/bls/src/generic_signature_set.rs|pub fn single_pubkey(signature : impl Into < WrappedSignature < 'a , Pub , AggPub , Sig , AggSig > >, signing_key : C...
+GenericSignatureSet::verify|fn|crypto/bls/src/generic_signature_set.rs|pub fn verify(self) -> bool
+Hash256|type|crypto/bls/src/lib.rs|pub type Hash256 = fixed_bytes::Hash256;
+INFINITY_PUBLIC_KEY|const|crypto/bls/src/generic_public_key.rs|pub const INFINITY_PUBLIC_KEY: [u8; PUBLIC_KEY_BYTES_LEN] = [
+INFINITY_SIGNATURE|const|crypto/bls/src/generic_signature.rs|pub const INFINITY_SIGNATURE: [u8; SIGNATURE_BYTES_LEN] = [
+INFINITY_SIGNATURE_UNCOMPRESSED|const|crypto/bls/src/generic_signature.rs|pub const INFINITY_SIGNATURE_UNCOMPRESSED: [u8; SIGNATURE_UNCOMPRESSED_BYTES_LEN] = [
+NONE_SIGNATURE|const|crypto/bls/src/generic_signature.rs|pub const NONE_SIGNATURE: [u8; SIGNATURE_BYTES_LEN] = [0; SIGNATURE_BYTES_LEN];
+PUBLIC_KEY_BYTES_LEN|const|crypto/bls/src/generic_public_key.rs|pub const PUBLIC_KEY_BYTES_LEN: usize = 48;
+PUBLIC_KEY_UNCOMPRESSED_BYTES_LEN|const|crypto/bls/src/generic_public_key.rs|pub const PUBLIC_KEY_UNCOMPRESSED_BYTES_LEN: usize = 96;
+PublicKey|struct|crypto/bls/src/impls/fake_crypto.rs|pub struct PublicKey([u8; PUBLIC_KEY_BYTES_LEN]);
+RAND_BITS|const|crypto/bls/src/impls/blst.rs|pub const RAND_BITS: usize = 64;
+SECRET_KEY_BYTES_LEN|const|crypto/bls/src/generic_secret_key.rs|pub const SECRET_KEY_BYTES_LEN: usize = 32;
+SIGNATURE_BYTES_LEN|const|crypto/bls/src/generic_signature.rs|pub const SIGNATURE_BYTES_LEN: usize = 96;
+SIGNATURE_UNCOMPRESSED_BYTES_LEN|const|crypto/bls/src/generic_signature.rs|pub const SIGNATURE_UNCOMPRESSED_BYTES_LEN: usize = 192;
+SecretKey|struct|crypto/bls/src/impls/fake_crypto.rs|pub struct SecretKey([u8; SECRET_KEY_BYTES_LEN]);
+Signature|struct|crypto/bls/src/impls/fake_crypto.rs|pub struct Signature([u8; SIGNATURE_BYTES_LEN]);
+SignatureSet|type|crypto/bls/src/impls/blst.rs|pub type SignatureSet<'a> = crate::generic_signature_set::GenericSignatureSet<
+SignatureSet|type|crypto/bls/src/impls/fake_crypto.rs|pub type SignatureSet<'a> = crate::generic_signature_set::GenericSignatureSet<
+TAggregatePublicKey|trait|crypto/bls/src/generic_aggregate_public_key.rs|pub trait TAggregatePublicKey<Pub>: Sized + Clone
+TAggregateSignature|trait|crypto/bls/src/generic_aggregate_signature.rs|pub trait TAggregateSignature<Pub, AggPub, Sig>: Sized + Clone
+TPublicKey|trait|crypto/bls/src/generic_public_key.rs|pub trait TPublicKey: Sized + Clone
+TSecretKey|trait|crypto/bls/src/generic_secret_key.rs|pub trait TSecretKey<SignaturePoint, PublicKeyPoint>: Sized
+TSignature|trait|crypto/bls/src/generic_signature.rs|pub trait TSignature<GenericPublicKey>: Sized + Clone
+WrappedSignature|struct|crypto/bls/src/generic_signature_set.rs|pub struct WrappedSignature<'a, Pub, AggPub, Sig, AggSig>
+ZeroizeHash|struct|crypto/bls/src/zeroize_hash.rs|pub struct ZeroizeHash([u8; SECRET_KEY_BYTES_LEN]);
+ZeroizeHash::as_bytes|fn|crypto/bls/src/zeroize_hash.rs|pub fn as_bytes(&self) -> & [u8]
+ZeroizeHash::as_mut_bytes|fn|crypto/bls/src/zeroize_hash.rs|pub fn as_mut_bytes(&mut self) -> & mut [u8]
+ZeroizeHash::zero|fn|crypto/bls/src/zeroize_hash.rs|pub fn zero() -> Self
+blst|mod|crypto/bls/src/impls/mod.rs|pub mod blst
+fake_crypto|mod|crypto/bls/src/impls/mod.rs|pub mod fake_crypto
+generics|mod|crypto/bls/src/lib.rs|pub mod generics
+get_withdrawal_credentials|fn|crypto/bls/src/get_withdrawal_credentials.rs|pub fn get_withdrawal_credentials(pubkey : & PublicKey, prefix_byte : u8) -> Vec < u8 >
+impls|mod|crypto/bls/src/lib.rs|pub mod impls
+types|mod|crypto/bls/src/impls/blst.rs|pub mod types
+types|mod|crypto/bls/src/impls/fake_crypto.rs|pub mod types
+verify_signature_sets|fn|crypto/bls/src/impls/blst.rs|pub fn verify_signature_sets<'a>(signature_sets : impl ExactSizeIterator < Item = & 'a SignatureSet < 'a > >) -> bool
+verify_signature_sets|fn|crypto/bls/src/impls/fake_crypto.rs|pub fn verify_signature_sets<'a>(_signature_sets : impl ExactSizeIterator < Item = & 'a SignatureSet < 'a > >) -> bool

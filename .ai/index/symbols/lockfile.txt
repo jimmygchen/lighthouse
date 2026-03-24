@@ -1,0 +1,7 @@
+# rust-symbols symbols/lockfile | 2026-03-24T06:27:26Z | 5 symbols
+# name|kind|path|signature
+Lockfile|struct|common/lockfile/src/lib.rs|pub struct Lockfile
+Lockfile::file_existed|fn|common/lockfile/src/lib.rs|pub fn file_existed(&self) -> bool
+Lockfile::new|fn|common/lockfile/src/lib.rs|pub fn new(path : PathBuf) -> Result < Self , LockfileError >
+Lockfile::path|fn|common/lockfile/src/lib.rs|pub fn path(&self) -> & Path
+LockfileError|enum|common/lockfile/src/lib.rs|pub enum LockfileError

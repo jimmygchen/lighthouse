@@ -1,0 +1,8 @@
+# rust-symbols symbols/doppelganger_service | 2026-03-24T06:27:26Z | 6 symbols
+# name|kind|path|signature
+DEFAULT_REMAINING_DETECTION_EPOCHS|const|validator_client/doppelganger_service/src/lib.rs|pub const DEFAULT_REMAINING_DETECTION_EPOCHS: u64 = 1;
+DoppelgangerService|struct|validator_client/doppelganger_service/src/lib.rs|pub struct DoppelgangerService
+DoppelgangerService::register_new_validator|fn|validator_client/doppelganger_service/src/lib.rs|pub fn register_new_validator<T : SlotClock>(&self, validator : PublicKeyBytes, slot_clock : & T, slots_per_epoch : u...
+DoppelgangerService::start_update_service|fn|validator_client/doppelganger_service/src/lib.rs|pub fn start_update_service<E, T, V>(service : Arc < Self >, context : RuntimeContext < E >, validator_store : Arc < ...
+DoppelgangerService::validator_status|fn|validator_client/doppelganger_service/src/lib.rs|pub fn validator_status(&self, validator : PublicKeyBytes) -> DoppelgangerStatus
+DoppelgangerState|struct|validator_client/doppelganger_service/src/lib.rs|pub struct DoppelgangerState

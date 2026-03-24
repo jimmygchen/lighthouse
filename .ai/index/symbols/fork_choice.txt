@@ -1,0 +1,56 @@
+# rust-symbols symbols/fork_choice | 2026-03-24T06:27:26Z | 54 symbols
+# name|kind|path|signature
+AttestationFromBlock|enum|consensus/fork_choice/src/fork_choice.rs|pub enum AttestationFromBlock
+Error|enum|consensus/fork_choice/src/fork_choice.rs|pub enum Error<T>
+ForkChoice|struct|consensus/fork_choice/src/fork_choice.rs|pub struct ForkChoice<T, E>
+ForkChoice::cached_fork_choice_view|fn|consensus/fork_choice/src/fork_choice.rs|pub fn cached_fork_choice_view(&self) -> ForkChoiceView
+ForkChoice::contains_block|fn|consensus/fork_choice/src/fork_choice.rs|pub fn contains_block(&self, block_root : & Hash256) -> bool
+ForkChoice::fc_store|fn|consensus/fork_choice/src/fork_choice.rs|pub fn fc_store(&self) -> & T
+ForkChoice::finalized_checkpoint|fn|consensus/fork_choice/src/fork_choice.rs|pub fn finalized_checkpoint(&self) -> Checkpoint
+ForkChoice::from_anchor|fn|consensus/fork_choice/src/fork_choice.rs|pub fn from_anchor(fc_store : T, anchor_block_root : Hash256, anchor_block : & SignedBeaconBlock < E >, anchor_state ...
+ForkChoice::from_persisted|fn|consensus/fork_choice/src/fork_choice.rs|pub fn from_persisted(persisted : PersistedForkChoice, reset_payload_statuses : ResetPayloadStatuses, fc_store : T, s...
+ForkChoice::get_block|fn|consensus/fork_choice/src/fork_choice.rs|pub fn get_block(&self, block_root : & Hash256) -> Option < ProtoBlock >
+ForkChoice::get_block_execution_status|fn|consensus/fork_choice/src/fork_choice.rs|pub fn get_block_execution_status(&self, block_root : & Hash256) -> Option < ExecutionStatus >
+ForkChoice::get_block_weight|fn|consensus/fork_choice/src/fork_choice.rs|pub fn get_block_weight(&self, block_root : & Hash256) -> Option < u64 >
+ForkChoice::get_finalized_block|fn|consensus/fork_choice/src/fork_choice.rs|pub fn get_finalized_block(&self) -> Result < ProtoBlock , Error < T :: Error > >
+ForkChoice::get_forkchoice_update_parameters|fn|consensus/fork_choice/src/fork_choice.rs|pub fn get_forkchoice_update_parameters(&self) -> ForkchoiceUpdateParameters
+ForkChoice::get_head|fn|consensus/fork_choice/src/fork_choice.rs|pub fn get_head(&mut self, system_time_current_slot : Slot, spec : & ChainSpec) -> Result < Hash256 , Error < T :: Er...
+ForkChoice::get_justified_block|fn|consensus/fork_choice/src/fork_choice.rs|pub fn get_justified_block(&self) -> Result < ProtoBlock , Error < T :: Error > >
+ForkChoice::get_preliminary_proposer_head|fn|consensus/fork_choice/src/fork_choice.rs|pub fn get_preliminary_proposer_head(&self, canonical_head : Hash256, re_org_head_threshold : ReOrgThreshold, re_org_...
+ForkChoice::get_proposer_head|fn|consensus/fork_choice/src/fork_choice.rs|pub fn get_proposer_head(&self, current_slot : Slot, canonical_head : Hash256, re_org_head_threshold : ReOrgThreshold...
+ForkChoice::is_descendant|fn|consensus/fork_choice/src/fork_choice.rs|pub fn is_descendant(&self, ancestor_root : Hash256, descendant_root : Hash256) -> bool
+ForkChoice::is_finalized_checkpoint_or_descendant|fn|consensus/fork_choice/src/fork_choice.rs|pub fn is_finalized_checkpoint_or_descendant(&self, block_root : Hash256) -> bool
+ForkChoice::is_optimistic_or_invalid_block|fn|consensus/fork_choice/src/fork_choice.rs|pub fn is_optimistic_or_invalid_block(&self, block_root : & Hash256) -> Result < bool , Error < T :: Error > >
+ForkChoice::is_optimistic_or_invalid_block_no_fallback|fn|consensus/fork_choice/src/fork_choice.rs|pub fn is_optimistic_or_invalid_block_no_fallback(&self, block_root : & Hash256) -> Result < bool , Error < T :: Erro...
+ForkChoice::justified_checkpoint|fn|consensus/fork_choice/src/fork_choice.rs|pub fn justified_checkpoint(&self) -> Checkpoint
+ForkChoice::latest_message|fn|consensus/fork_choice/src/fork_choice.rs|pub fn latest_message(&self, validator_index : usize) -> Option < (Hash256 , Epoch) >
+ForkChoice::on_attestation|fn|consensus/fork_choice/src/fork_choice.rs|pub fn on_attestation(&mut self, system_time_current_slot : Slot, attestation : IndexedAttestationRef < E >, is_from_...
+ForkChoice::on_attester_slashing|fn|consensus/fork_choice/src/fork_choice.rs|pub fn on_attester_slashing(&mut self, slashing : AttesterSlashingRef < '_ , E >)
+ForkChoice::on_block|fn|consensus/fork_choice/src/fork_choice.rs|pub fn on_block<Payload : AbstractExecPayload < E >>(&mut self, system_time_current_slot : Slot, block : BeaconBlockR...
+ForkChoice::on_invalid_execution_payload|fn|consensus/fork_choice/src/fork_choice.rs|pub fn on_invalid_execution_payload(&mut self, op : & InvalidationOperation) -> Result < () , Error < T :: Error > >
+ForkChoice::on_valid_execution_payload|fn|consensus/fork_choice/src/fork_choice.rs|pub fn on_valid_execution_payload(&mut self, block_root : Hash256) -> Result < () , Error < T :: Error > >
+ForkChoice::proposer_boost_root|fn|consensus/fork_choice/src/fork_choice.rs|pub fn proposer_boost_root(&self) -> Hash256
+ForkChoice::proto_array|fn|consensus/fork_choice/src/fork_choice.rs|pub fn proto_array(&self) -> & ProtoArrayForkChoice
+ForkChoice::proto_array_from_persisted|fn|consensus/fork_choice/src/fork_choice.rs|pub fn proto_array_from_persisted(persisted_proto_array : proto_array :: core :: SszContainer, justified_balances : J...
+ForkChoice::proto_array_mut|fn|consensus/fork_choice/src/fork_choice.rs|pub fn proto_array_mut(&mut self) -> & mut ProtoArrayForkChoice
+ForkChoice::prune|fn|consensus/fork_choice/src/fork_choice.rs|pub fn prune(&mut self) -> Result < () , Error < T :: Error > >
+ForkChoice::queued_attestations|fn|consensus/fork_choice/src/fork_choice.rs|pub fn queued_attestations(&self) -> & [QueuedAttestation]
+ForkChoice::scrape_for_metrics|fn|consensus/fork_choice/src/fork_choice.rs|pub fn scrape_for_metrics(&self)
+ForkChoice::to_persisted|fn|consensus/fork_choice/src/fork_choice.rs|pub fn to_persisted(&self) -> PersistedForkChoice
+ForkChoice::unrealized_finalized_checkpoint|fn|consensus/fork_choice/src/fork_choice.rs|pub fn unrealized_finalized_checkpoint(&self) -> Checkpoint
+ForkChoice::unrealized_justified_checkpoint|fn|consensus/fork_choice/src/fork_choice.rs|pub fn unrealized_justified_checkpoint(&self) -> Checkpoint
+ForkChoice::update_time|fn|consensus/fork_choice/src/fork_choice.rs|pub fn update_time(&mut self, current_slot : Slot) -> Result < Slot , Error < T :: Error > >
+ForkChoiceStore|trait|consensus/fork_choice/src/fork_choice_store.rs|pub trait ForkChoiceStore<E: EthSpec>: Sized
+ForkChoiceView|struct|consensus/fork_choice/src/fork_choice.rs|pub struct ForkChoiceView
+ForkchoiceUpdateParameters|struct|consensus/fork_choice/src/fork_choice.rs|pub struct ForkchoiceUpdateParameters
+InvalidAttestation|enum|consensus/fork_choice/src/fork_choice.rs|pub enum InvalidAttestation
+InvalidBlock|enum|consensus/fork_choice/src/fork_choice.rs|pub enum InvalidBlock
+PayloadVerificationStatus|enum|consensus/fork_choice/src/fork_choice.rs|pub enum PayloadVerificationStatus
+PayloadVerificationStatus::is_optimistic|fn|consensus/fork_choice/src/fork_choice.rs|pub fn is_optimistic(&self) -> bool
+PersistedForkChoice|struct|consensus/fork_choice/src/fork_choice.rs|pub struct PersistedForkChoice
+PersistedForkChoice|type|consensus/fork_choice/src/fork_choice.rs|pub type PersistedForkChoice = PersistedForkChoiceV28;
+QueuedAttestation|struct|consensus/fork_choice/src/fork_choice.rs|pub struct QueuedAttestation
+ResetPayloadStatuses|enum|consensus/fork_choice/src/fork_choice.rs|pub enum ResetPayloadStatuses
+ResetPayloadStatuses::always_reset_conditionally|fn|consensus/fork_choice/src/fork_choice.rs|pub fn always_reset_conditionally(should_always_reset : bool) -> Self
+compute_slots_since_epoch_start|fn|consensus/fork_choice/src/fork_choice.rs|pub fn compute_slots_since_epoch_start<E : EthSpec>(slot : Slot) -> Slot
+scrape_for_metrics|fn|consensus/fork_choice/src/metrics.rs|pub fn scrape_for_metrics<T : ForkChoiceStore < E >, E : EthSpec>(fork_choice : & ForkChoice < T , E >)

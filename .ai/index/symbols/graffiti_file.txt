@@ -1,0 +1,8 @@
+# rust-symbols symbols/graffiti_file | 2026-03-24T06:27:26Z | 6 symbols
+# name|kind|path|signature
+Error|enum|validator_client/graffiti_file/src/lib.rs|pub enum Error
+GraffitiFile|struct|validator_client/graffiti_file/src/lib.rs|pub struct GraffitiFile
+GraffitiFile::load_graffiti|fn|validator_client/graffiti_file/src/lib.rs|pub fn load_graffiti(&mut self, public_key : & PublicKeyBytes) -> Result < Option < Graffiti > , Error >
+GraffitiFile::new|fn|validator_client/graffiti_file/src/lib.rs|pub fn new(graffiti_path : PathBuf) -> Self
+GraffitiFile::read_graffiti_file|fn|validator_client/graffiti_file/src/lib.rs|pub fn read_graffiti_file(&mut self) -> Result < () , Error >
+determine_graffiti|fn|validator_client/graffiti_file/src/lib.rs|pub fn determine_graffiti(validator_pubkey : & PublicKeyBytes, graffiti_file : Option < GraffitiFile >, validator_def...

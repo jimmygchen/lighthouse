@@ -1,0 +1,7 @@
+# rust-symbols symbols/http_metrics | 2026-03-24T06:27:26Z | 5 symbols
+# name|kind|path|signature
+Config|struct|beacon_node/http_metrics/src/lib.rs|pub struct Config
+Context|struct|beacon_node/http_metrics/src/lib.rs|pub struct Context<T: BeaconChainTypes>
+Error|enum|beacon_node/http_metrics/src/lib.rs|pub enum Error
+gather_prometheus_metrics|fn|beacon_node/http_metrics/src/metrics.rs|pub fn gather_prometheus_metrics<T : BeaconChainTypes>(ctx : & Context < T >) -> std :: result :: Result < String , S...
+serve|fn|beacon_node/http_metrics/src/lib.rs|pub fn serve<T : BeaconChainTypes>(ctx : Arc < Context < T > >, shutdown : impl Future < Output = () > + Send + Sync ...

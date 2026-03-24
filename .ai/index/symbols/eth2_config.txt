@@ -1,0 +1,14 @@
+# rust-symbols symbols/eth2_config | 2026-03-24T06:27:26Z | 12 symbols
+# name|kind|path|signature
+Eth2Config|struct|common/eth2_config/src/lib.rs|pub struct Eth2Config
+Eth2Config::gnosis|fn|common/eth2_config/src/lib.rs|pub fn gnosis() -> Self
+Eth2Config::mainnet|fn|common/eth2_config/src/lib.rs|pub fn mainnet() -> Self
+Eth2Config::minimal|fn|common/eth2_config/src/lib.rs|pub fn minimal() -> Self
+Eth2NetArchiveAndDirectory|struct|common/eth2_config/src/lib.rs|pub struct Eth2NetArchiveAndDirectory<'a>
+Eth2NetArchiveAndDirectory::dir|fn|common/eth2_config/src/lib.rs|pub fn dir(&self) -> PathBuf
+Eth2NetArchiveAndDirectory::genesis_state_archive|fn|common/eth2_config/src/lib.rs|pub fn genesis_state_archive(&self) -> PathBuf
+GENESIS_FILE_NAME|const|common/eth2_config/src/lib.rs|pub const GENESIS_FILE_NAME: &str = "genesis.ssz";
+GENESIS_ZIP_FILE_NAME|const|common/eth2_config/src/lib.rs|pub const GENESIS_ZIP_FILE_NAME: &str = "genesis.ssz.zip";
+GenesisStateSource|enum|common/eth2_config/src/lib.rs|pub enum GenesisStateSource
+HardcodedNet|struct|common/eth2_config/src/lib.rs|pub struct HardcodedNet
+PREDEFINED_NETWORKS_DIR|const|common/eth2_config/src/lib.rs|pub const PREDEFINED_NETWORKS_DIR: &str = predefined_networks_dir!();

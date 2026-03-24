@@ -1,0 +1,5 @@
+# rust-symbols symbols/lighthouse | 2026-03-24T06:27:26Z | 3 symbols
+# name|kind|path|signature
+LighthouseSubcommands|enum|lighthouse/src/cli.rs|pub enum LighthouseSubcommands
+expose_lighthouse_version|fn|lighthouse/src/metrics.rs|pub fn expose_lighthouse_version()
+expose_process_start_time|fn|lighthouse/src/metrics.rs|pub fn expose_process_start_time()

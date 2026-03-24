@@ -1,0 +1,54 @@
+# rust-symbols symbols/beacon_node_fallback | 2026-03-24T06:27:26Z | 52 symbols
+# name|kind|path|signature
+ApiTopic|enum|validator_client/beacon_node_fallback/src/lib.rs|pub enum ApiTopic
+ApiTopic::all|fn|validator_client/beacon_node_fallback/src/lib.rs|pub fn all() -> Vec < ApiTopic >
+BeaconHeadCache|struct|validator_client/beacon_node_fallback/src/beacon_head_monitor.rs|pub struct BeaconHeadCache
+BeaconHeadCache::get|fn|validator_client/beacon_node_fallback/src/beacon_head_monitor.rs|pub async fn get(&self, beacon_node_index : usize) -> Option < SseHead >
+BeaconHeadCache::insert|fn|validator_client/beacon_node_fallback/src/beacon_head_monitor.rs|pub async fn insert(&self, beacon_node_index : usize, head : SseHead)
+BeaconHeadCache::is_latest|fn|validator_client/beacon_node_fallback/src/beacon_head_monitor.rs|pub async fn is_latest(&self, head : & SseHead) -> bool
+BeaconHeadCache::new|fn|validator_client/beacon_node_fallback/src/beacon_head_monitor.rs|pub fn new() -> Self
+BeaconHeadCache::purge_cache|fn|validator_client/beacon_node_fallback/src/beacon_head_monitor.rs|pub async fn purge_cache(&self)
+BeaconNodeFallback|struct|validator_client/beacon_node_fallback/src/lib.rs|pub struct BeaconNodeFallback<T>
+BeaconNodeFallback::broadcast|fn|validator_client/beacon_node_fallback/src/lib.rs|pub async fn broadcast<F, O, Err, R>(&self, func : F) -> Result < () , Errors < Err > >
+BeaconNodeFallback::first_success|fn|validator_client/beacon_node_fallback/src/lib.rs|pub async fn first_success<F, O, Err, R>(&self, func : F) -> Result < O , Errors < Err > >
+BeaconNodeFallback::get_notifier_info|fn|validator_client/beacon_node_fallback/src/lib.rs|pub async fn get_notifier_info(&self) -> (Vec < CandidateInfo > , usize , usize)
+BeaconNodeFallback::measure_latency|fn|validator_client/beacon_node_fallback/src/lib.rs|pub async fn measure_latency(&self) -> Vec < LatencyMeasurement >
+BeaconNodeFallback::new|fn|validator_client/beacon_node_fallback/src/lib.rs|pub fn new(candidates : Vec < CandidateBeaconNode >, config : Config, broadcast_topics : Vec < ApiTopic >, spec : Arc...
+BeaconNodeFallback::num_available|fn|validator_client/beacon_node_fallback/src/lib.rs|pub async fn num_available(&self) -> usize
+BeaconNodeFallback::num_total|fn|validator_client/beacon_node_fallback/src/lib.rs|pub async fn num_total(&self) -> usize
+BeaconNodeFallback::request|fn|validator_client/beacon_node_fallback/src/lib.rs|pub async fn request<F, Err, R>(&self, topic : ApiTopic, func : F) -> Result < () , Errors < Err > >
+BeaconNodeFallback::run_on_candidate_index|fn|validator_client/beacon_node_fallback/src/lib.rs|pub async fn run_on_candidate_index<F, O, Err, R>(&self, candidate_index : usize, func : F) -> Result < O , Error < E...
+BeaconNodeFallback::set_head_send|fn|validator_client/beacon_node_fallback/src/lib.rs|pub fn set_head_send(&mut self, head_monitor_send : Arc < mpsc :: Sender < HeadEvent > >)
+BeaconNodeFallback::set_slot_clock|fn|validator_client/beacon_node_fallback/src/lib.rs|pub fn set_slot_clock(&mut self, slot_clock : T)
+BeaconNodeFallback::update_all_candidates|fn|validator_client/beacon_node_fallback/src/lib.rs|pub async fn update_all_candidates<E : EthSpec>(&self)
+BeaconNodeFallback::update_candidates_list|fn|validator_client/beacon_node_fallback/src/lib.rs|pub async fn update_candidates_list(&self, new_list : Vec < SensitiveUrl >, use_long_timeouts : bool) -> Result < Vec...
+BeaconNodeHealth|struct|validator_client/beacon_node_fallback/src/beacon_node_health.rs|pub struct BeaconNodeHealth
+BeaconNodeHealth::from_status|fn|validator_client/beacon_node_fallback/src/beacon_node_health.rs|pub fn from_status(user_index : usize, sync_distance : Slot, head : Slot, optimistic_status : IsOptimistic, execution...
+BeaconNodeHealth::get_health_tier|fn|validator_client/beacon_node_fallback/src/beacon_node_health.rs|pub fn get_health_tier(&self) -> BeaconNodeHealthTier
+BeaconNodeHealth::get_index|fn|validator_client/beacon_node_fallback/src/beacon_node_health.rs|pub fn get_index(&self) -> usize
+BeaconNodeHealthTier|struct|validator_client/beacon_node_fallback/src/beacon_node_health.rs|pub struct BeaconNodeHealthTier
+BeaconNodeHealthTier::new|fn|validator_client/beacon_node_fallback/src/beacon_node_health.rs|pub fn new(tier : HealthTier, sync_distance : SyncDistance, distance_tier : SyncDistanceTier) -> Self
+BeaconNodeSyncDistanceTiers|struct|validator_client/beacon_node_fallback/src/beacon_node_health.rs|pub struct BeaconNodeSyncDistanceTiers
+BeaconNodeSyncDistanceTiers::compute_distance_tier|fn|validator_client/beacon_node_fallback/src/beacon_node_health.rs|pub fn compute_distance_tier(&self, distance : SyncDistance) -> SyncDistanceTier
+BeaconNodeSyncDistanceTiers::from_vec|fn|validator_client/beacon_node_fallback/src/beacon_node_health.rs|pub fn from_vec(tiers : & [u64]) -> Result < Self , String >
+CandidateBeaconNode|struct|validator_client/beacon_node_fallback/src/lib.rs|pub struct CandidateBeaconNode
+CandidateBeaconNode::health|fn|validator_client/beacon_node_fallback/src/lib.rs|pub async fn health(&self) -> Result < BeaconNodeHealth , CandidateError >
+CandidateBeaconNode::new|fn|validator_client/beacon_node_fallback/src/lib.rs|pub fn new(beacon_node : BeaconNodeHttpClient, index : usize) -> Self
+CandidateBeaconNode::refresh_health|fn|validator_client/beacon_node_fallback/src/lib.rs|pub async fn refresh_health<E : EthSpec, T : SlotClock>(&self, distance_tiers : & BeaconNodeSyncDistanceTiers, slot_c...
+CandidateError|enum|validator_client/beacon_node_fallback/src/lib.rs|pub enum CandidateError
+CandidateInfo|struct|validator_client/beacon_node_fallback/src/lib.rs|pub struct CandidateInfo
+Config|struct|validator_client/beacon_node_fallback/src/lib.rs|pub struct Config
+Error|enum|validator_client/beacon_node_fallback/src/lib.rs|pub enum Error<T>
+Error::request_failure|fn|validator_client/beacon_node_fallback/src/lib.rs|pub fn request_failure(&self) -> Option < & T >
+Errors|struct|validator_client/beacon_node_fallback/src/lib.rs|pub struct Errors<T>(pub Vec<(String, Error<T>)>);
+Errors::num_errors|fn|validator_client/beacon_node_fallback/src/lib.rs|pub fn num_errors(&self) -> usize
+ExecutionEngineHealth|enum|validator_client/beacon_node_fallback/src/beacon_node_health.rs|pub enum ExecutionEngineHealth
+HeadEvent|struct|validator_client/beacon_node_fallback/src/beacon_head_monitor.rs|pub struct HeadEvent
+IsOptimistic|enum|validator_client/beacon_node_fallback/src/beacon_node_health.rs|pub enum IsOptimistic
+LatencyMeasurement|struct|validator_client/beacon_node_fallback/src/lib.rs|pub struct LatencyMeasurement
+SyncDistanceTier|enum|validator_client/beacon_node_fallback/src/beacon_node_health.rs|pub enum SyncDistanceTier
+beacon_head_monitor|mod|validator_client/beacon_node_fallback/src/lib.rs|pub mod beacon_head_monitor
+beacon_node_health|mod|validator_client/beacon_node_fallback/src/lib.rs|pub mod beacon_node_health
+check_node_health|fn|validator_client/beacon_node_fallback/src/beacon_node_health.rs|pub async fn check_node_health(beacon_node : & BeaconNodeHttpClient) -> Result < (Slot , bool , bool) , CandidateError >
+poll_head_event_from_beacon_nodes|fn|validator_client/beacon_node_fallback/src/beacon_head_monitor.rs|pub async fn poll_head_event_from_beacon_nodes<E : EthSpec, T : SlotClock + 'static>(beacon_nodes : Arc < BeaconNodeF...
+start_fallback_updater_service|fn|validator_client/beacon_node_fallback/src/lib.rs|pub fn start_fallback_updater_service<T : SlotClock + 'static, E : EthSpec>(executor : TaskExecutor, beacon_nodes : A...

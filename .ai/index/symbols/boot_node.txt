@@ -1,0 +1,10 @@
+# rust-symbols symbols/boot_node | 2026-03-24T06:27:26Z | 8 symbols
+# name|kind|path|signature
+BootNodeConfig|struct|boot_node/src/config.rs|pub struct BootNodeConfig<E: EthSpec>
+BootNodeConfig::new|fn|boot_node/src/config.rs|pub async fn new(matches : & ArgMatches, eth2_network_config : & Eth2NetworkConfig) -> Result < Self , String >
+BootNodeConfigSerialization|struct|boot_node/src/config.rs|pub struct BootNodeConfigSerialization
+BootNodeConfigSerialization::from_config_ref|fn|boot_node/src/config.rs|pub fn from_config_ref<E : EthSpec>(config : & BootNodeConfig < E >) -> Self
+cli_app|fn|boot_node/src/cli.rs|pub fn cli_app() -> Command
+config|mod|boot_node/src/lib.rs|pub mod config
+run|fn|boot_node/src/lib.rs|pub fn run(lh_matches : & ArgMatches, bn_matches : & ArgMatches, eth_spec_id : EthSpecId, eth2_network_config : & Eth...
+run|fn|boot_node/src/server.rs|pub async fn run<E : EthSpec>(lh_matches : & ArgMatches, bn_matches : & ArgMatches, eth2_network_config : & Eth2Netwo...

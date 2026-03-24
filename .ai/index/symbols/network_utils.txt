@@ -1,0 +1,31 @@
+# rust-symbols symbols/network_utils | 2026-03-24T06:27:26Z | 29 symbols
+# name|kind|path|signature
+CACHED_PORTS_TTL|const|common/network_utils/src/unused_port.rs|pub const CACHED_PORTS_TTL: Duration = Duration::from_secs(300);
+CombinedKeyExt|trait|common/network_utils/src/enr_ext.rs|pub trait CombinedKeyExt
+CombinedKeyPublicExt|trait|common/network_utils/src/enr_ext.rs|pub trait CombinedKeyPublicExt
+EnrExt|trait|common/network_utils/src/enr_ext.rs|pub trait EnrExt
+IpVersion|enum|common/network_utils/src/unused_port.rs|pub enum IpVersion
+ListenAddr|struct|common/network_utils/src/listen_addr.rs|pub struct ListenAddr<Ip>
+ListenAddr::discovery_socket_addr|fn|common/network_utils/src/listen_addr.rs|pub fn discovery_socket_addr(&self) -> SocketAddr
+ListenAddr::quic_socket_addr|fn|common/network_utils/src/listen_addr.rs|pub fn quic_socket_addr(&self) -> SocketAddr
+ListenAddr::tcp_socket_addr|fn|common/network_utils/src/listen_addr.rs|pub fn tcp_socket_addr(&self) -> SocketAddr
+ListenAddress|enum|common/network_utils/src/listen_addr.rs|pub enum ListenAddress
+ListenAddress::libp2p_addresses|fn|common/network_utils/src/listen_addr.rs|pub fn libp2p_addresses(&self) -> impl Iterator < Item = Multiaddr >
+ListenAddress::unused_v4_ports|fn|common/network_utils/src/listen_addr.rs|pub fn unused_v4_ports() -> Self
+ListenAddress::unused_v6_ports|fn|common/network_utils/src/listen_addr.rs|pub fn unused_v6_ports() -> Self
+ListenAddress::v4|fn|common/network_utils/src/listen_addr.rs|pub fn v4(&self) -> Option < & ListenAddr < Ipv4Addr > >
+ListenAddress::v6|fn|common/network_utils/src/listen_addr.rs|pub fn v6(&self) -> Option < & ListenAddr < Ipv6Addr > >
+QUIC6_ENR_KEY|const|common/network_utils/src/enr_ext.rs|pub const QUIC6_ENR_KEY: &str = "quic6";
+QUIC_ENR_KEY|const|common/network_utils/src/enr_ext.rs|pub const QUIC_ENR_KEY: &str = "quic";
+Transport|enum|common/network_utils/src/unused_port.rs|pub enum Transport
+discovery_metrics|mod|common/network_utils/src/lib.rs|pub mod discovery_metrics
+enr_ext|mod|common/network_utils/src/lib.rs|pub mod enr_ext
+listen_addr|mod|common/network_utils/src/lib.rs|pub mod listen_addr
+peer_id_to_node_id|fn|common/network_utils/src/enr_ext.rs|pub fn peer_id_to_node_id(peer_id : & PeerId) -> Result < discv5 :: enr :: NodeId , String >
+scrape_discovery_metrics|fn|common/network_utils/src/discovery_metrics.rs|pub fn scrape_discovery_metrics()
+unused_port|mod|common/network_utils/src/lib.rs|pub mod unused_port
+unused_tcp4_port|fn|common/network_utils/src/unused_port.rs|pub fn unused_tcp4_port() -> Result < u16 , String >
+unused_tcp6_port|fn|common/network_utils/src/unused_port.rs|pub fn unused_tcp6_port() -> Result < u16 , String >
+unused_udp4_port|fn|common/network_utils/src/unused_port.rs|pub fn unused_udp4_port() -> Result < u16 , String >
+unused_udp6_port|fn|common/network_utils/src/unused_port.rs|pub fn unused_udp6_port() -> Result < u16 , String >
+zero_port|fn|common/network_utils/src/unused_port.rs|pub fn zero_port(transport : Transport, ipv : IpVersion) -> Result < u16 , String >

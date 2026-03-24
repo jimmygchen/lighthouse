@@ -1,0 +1,14 @@
+# rust-symbols symbols/slot_clock | 2026-03-24T06:27:26Z | 12 symbols
+# name|kind|path|signature
+ManualSlotClock|struct|common/slot_clock/src/manual_slot_clock.rs|pub struct ManualSlotClock
+ManualSlotClock::advance_slot|fn|common/slot_clock/src/manual_slot_clock.rs|pub fn advance_slot(&self)
+ManualSlotClock::advance_time|fn|common/slot_clock/src/manual_slot_clock.rs|pub fn advance_time(&self, duration : Duration)
+ManualSlotClock::duration_to_next_epoch_from|fn|common/slot_clock/src/manual_slot_clock.rs|pub fn duration_to_next_epoch_from(&self, now : Duration, slots_per_epoch : u64) -> Option < Duration >
+ManualSlotClock::duration_to_next_slot_from|fn|common/slot_clock/src/manual_slot_clock.rs|pub fn duration_to_next_slot_from(&self, now : Duration) -> Option < Duration >
+ManualSlotClock::duration_to_slot|fn|common/slot_clock/src/manual_slot_clock.rs|pub fn duration_to_slot(&self, slot : Slot, now : Duration) -> Option < Duration >
+ManualSlotClock::genesis_duration|fn|common/slot_clock/src/manual_slot_clock.rs|pub fn genesis_duration(&self) -> & Duration
+ManualSlotClock::set_current_time|fn|common/slot_clock/src/manual_slot_clock.rs|pub fn set_current_time(&self, duration : Duration)
+ManualSlotClock::set_slot|fn|common/slot_clock/src/manual_slot_clock.rs|pub fn set_slot(&self, slot : u64)
+SlotClock|trait|common/slot_clock/src/lib.rs|pub trait SlotClock: Send + Sync + Sized + Clone
+SystemTimeSlotClock|struct|common/slot_clock/src/system_time_slot_clock.rs|pub struct SystemTimeSlotClock
+scrape_for_metrics|fn|common/slot_clock/src/metrics.rs|pub fn scrape_for_metrics<E : EthSpec, U : SlotClock>(clock : & U)

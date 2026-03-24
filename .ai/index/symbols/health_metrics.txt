@@ -1,0 +1,8 @@
+# rust-symbols symbols/health_metrics | 2026-03-24T06:27:26Z | 6 symbols
+# name|kind|path|signature
+Observe|trait|common/health_metrics/src/observe.rs|pub trait Observe: Sized
+metrics|mod|common/health_metrics/src/lib.rs|pub mod metrics
+observe|mod|common/health_metrics/src/lib.rs|pub mod observe
+scrape_health_metrics|fn|common/health_metrics/src/metrics.rs|pub fn scrape_health_metrics()
+scrape_process_health_metrics|fn|common/health_metrics/src/metrics.rs|pub fn scrape_process_health_metrics()
+scrape_system_health_metrics|fn|common/health_metrics/src/metrics.rs|pub fn scrape_system_health_metrics()

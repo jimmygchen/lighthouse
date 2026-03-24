@@ -1,0 +1,7 @@
+# rust-symbols symbols/lighthouse_version | 2026-03-24T06:27:26Z | 5 symbols
+# name|kind|path|signature
+COMMIT_PREFIX|const|common/lighthouse_version/src/lib.rs|pub const COMMIT_PREFIX: &str = env!("GIT_COMMIT_PREFIX");
+VERSION|const|common/lighthouse_version/src/lib.rs|pub const VERSION: &str = env!("GIT_VERSION");
+client_name|fn|common/lighthouse_version/src/lib.rs|pub fn client_name() -> & 'static str
+version|fn|common/lighthouse_version/src/lib.rs|pub fn version() -> & 'static str
+version_with_platform|fn|common/lighthouse_version/src/lib.rs|pub fn version_with_platform() -> String

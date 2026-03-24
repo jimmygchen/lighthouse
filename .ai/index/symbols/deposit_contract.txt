@@ -1,0 +1,11 @@
+# rust-symbols symbols/deposit_contract | 2026-03-24T06:27:26Z | 9 symbols
+# name|kind|path|signature
+ABI|const|common/deposit_contract/src/lib.rs|pub const ABI: &[u8] = include_bytes!(concat!(
+BYTECODE|const|common/deposit_contract/src/lib.rs|pub const BYTECODE: &[u8] = include_bytes!(concat!(
+CONTRACT_DEPLOY_GAS|const|common/deposit_contract/src/lib.rs|pub const CONTRACT_DEPLOY_GAS: usize = 4_000_000;
+DEPOSIT_DATA_LEN|const|common/deposit_contract/src/lib.rs|pub const DEPOSIT_DATA_LEN: usize = 420; // lol
+DEPOSIT_GAS|const|common/deposit_contract/src/lib.rs|pub const DEPOSIT_GAS: usize = 400_000;
+Error|enum|common/deposit_contract/src/lib.rs|pub enum Error
+decode_eth1_tx_data|fn|common/deposit_contract/src/lib.rs|pub fn decode_eth1_tx_data(bytes : & [u8], amount : u64) -> Result < (DepositData , Hash256) , Error >
+encode_eth1_tx_data|fn|common/deposit_contract/src/lib.rs|pub fn encode_eth1_tx_data(deposit_data : & DepositData) -> Result < Vec < u8 > , Error >
+testnet|mod|common/deposit_contract/src/lib.rs|pub mod testnet

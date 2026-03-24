@@ -1,0 +1,12 @@
+# rust-symbols symbols/lru_cache | 2026-03-24T06:27:26Z | 10 symbols
+# name|kind|path|signature
+LRUTimeCache|struct|common/lru_cache/src/time.rs|pub struct LRUTimeCache<Key>
+LRUTimeCache::contains|fn|common/lru_cache/src/time.rs|pub fn contains(&mut self, key : & Key) -> bool
+LRUTimeCache::insert|fn|common/lru_cache/src/time.rs|pub fn insert(&mut self, key : Key) -> bool
+LRUTimeCache::keys|fn|common/lru_cache/src/time.rs|pub fn keys(&mut self) -> impl Iterator < Item = & Key >
+LRUTimeCache::new|fn|common/lru_cache/src/time.rs|pub fn new(ttl : Duration) -> Self
+LRUTimeCache::raw_insert|fn|common/lru_cache/src/time.rs|pub fn raw_insert(&mut self, key : Key) -> bool
+LRUTimeCache::raw_remove|fn|common/lru_cache/src/time.rs|pub fn raw_remove(&mut self, key : & Key) -> bool
+LRUTimeCache::remove_expired|fn|common/lru_cache/src/time.rs|pub fn remove_expired(&mut self) -> Vec < Key >
+LRUTimeCache::shrink_to_fit|fn|common/lru_cache/src/time.rs|pub fn shrink_to_fit(&mut self)
+LRUTimeCache::update|fn|common/lru_cache/src/time.rs|pub fn update(&mut self)

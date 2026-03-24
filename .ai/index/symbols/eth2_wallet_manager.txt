@@ -1,0 +1,18 @@
+# rust-symbols symbols/eth2_wallet_manager | 2026-03-24T06:27:26Z | 16 symbols
+# name|kind|path|signature
+Error|enum|common/eth2_wallet_manager/src/filesystem.rs|pub enum Error
+Error|enum|common/eth2_wallet_manager/src/wallet_manager.rs|pub enum Error
+LOCK_FILE|const|common/eth2_wallet_manager/src/locked_wallet.rs|pub const LOCK_FILE: &str = ".lock";
+LockedWallet|struct|common/eth2_wallet_manager/src/locked_wallet.rs|pub struct LockedWallet
+LockedWallet::next_validator|fn|common/eth2_wallet_manager/src/locked_wallet.rs|pub fn next_validator(&mut self, wallet_password : & [u8], voting_keystore_password : & [u8], withdrawal_keystore_pas...
+LockedWallet::open|fn|common/eth2_wallet_manager/src/locked_wallet.rs|pub(crate) fn open<P : AsRef < Path >>(base_dir : P, uuid : & Uuid) -> Result < Self , Error >
+LockedWallet::wallet|fn|common/eth2_wallet_manager/src/locked_wallet.rs|pub fn wallet(&self) -> & Wallet
+WalletManager|struct|common/eth2_wallet_manager/src/wallet_manager.rs|pub struct WalletManager
+WalletManager::create_wallet|fn|common/eth2_wallet_manager/src/wallet_manager.rs|pub fn create_wallet(&self, name : String, _wallet_type : WalletType, mnemonic : & Mnemonic, password : & [u8]) -> Re...
+WalletManager::open|fn|common/eth2_wallet_manager/src/wallet_manager.rs|pub fn open<P : AsRef < Path >>(dir : P) -> Result < Self , Error >
+WalletManager::wallet_by_name|fn|common/eth2_wallet_manager/src/wallet_manager.rs|pub fn wallet_by_name(&self, name : & str) -> Result < LockedWallet , Error >
+WalletManager::wallets|fn|common/eth2_wallet_manager/src/wallet_manager.rs|pub fn wallets(&self) -> Result < HashMap < String , Uuid > , Error >
+WalletType|enum|common/eth2_wallet_manager/src/wallet_manager.rs|pub enum WalletType
+create|fn|common/eth2_wallet_manager/src/filesystem.rs|pub fn create<P : AsRef < Path >>(wallet_dir : P, wallet : & Wallet) -> Result < () , Error >
+read|fn|common/eth2_wallet_manager/src/filesystem.rs|pub fn read<P : AsRef < Path >>(wallet_dir : P, uuid : & Uuid) -> Result < Wallet , Error >
+update|fn|common/eth2_wallet_manager/src/filesystem.rs|pub fn update<P : AsRef < Path >>(wallet_dir : P, wallet : & Wallet) -> Result < () , Error >

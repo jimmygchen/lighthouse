@@ -1,0 +1,5 @@
+# rust-symbols symbols/filesystem | 2026-03-24T06:27:26Z | 3 symbols
+# name|kind|path|signature
+Error|enum|common/filesystem/src/lib.rs|pub enum Error
+create_with_600_perms|fn|common/filesystem/src/lib.rs|pub fn create_with_600_perms<P : AsRef < Path >>(path : P, bytes : & [u8]) -> Result < () , Error >
+restrict_file_permissions|fn|common/filesystem/src/lib.rs|pub fn restrict_file_permissions<P : AsRef < Path >>(path : P) -> Result < () , Error >

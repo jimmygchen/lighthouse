@@ -1,0 +1,25 @@
+# rust-symbols symbols/database_manager | 2026-03-24T06:27:26Z | 23 symbols
+# name|kind|path|signature
+Compact|struct|database_manager/src/cli.rs|pub struct Compact
+CompactConfig|struct|database_manager/src/lib.rs|pub struct CompactConfig
+DatabaseManager|struct|database_manager/src/cli.rs|pub struct DatabaseManager
+DatabaseManagerSubcommand|enum|database_manager/src/cli.rs|pub enum DatabaseManagerSubcommand
+Inspect|struct|database_manager/src/cli.rs|pub struct Inspect
+InspectConfig|struct|database_manager/src/lib.rs|pub struct InspectConfig
+InspectTarget|enum|database_manager/src/lib.rs|pub enum InspectTarget
+Migrate|struct|database_manager/src/cli.rs|pub struct Migrate
+MigrateConfig|struct|database_manager/src/lib.rs|pub struct MigrateConfig
+PruneBlobs|struct|database_manager/src/cli.rs|pub struct PruneBlobs {}
+PrunePayloads|struct|database_manager/src/cli.rs|pub struct PrunePayloads {}
+PruneStates|struct|database_manager/src/cli.rs|pub struct PruneStates
+PruneStatesConfig|struct|database_manager/src/lib.rs|pub struct PruneStatesConfig
+Version|struct|database_manager/src/cli.rs|pub struct Version {}
+cli|mod|database_manager/src/lib.rs|pub mod cli
+compact_db|fn|database_manager/src/lib.rs|pub fn compact_db<E : EthSpec>(compact_config : CompactConfig, client_config : ClientConfig) -> Result < () , Error >
+display_db_version|fn|database_manager/src/lib.rs|pub fn display_db_version<E : EthSpec>(client_config : ClientConfig, runtime_context : & RuntimeContext < E >) -> Res...
+inspect_db|fn|database_manager/src/lib.rs|pub fn inspect_db<E : EthSpec>(inspect_config : InspectConfig, client_config : ClientConfig) -> Result < () , String >
+migrate_db|fn|database_manager/src/lib.rs|pub fn migrate_db<E : EthSpec>(migrate_config : MigrateConfig, client_config : ClientConfig, runtime_context : & Runt...
+prune_blobs|fn|database_manager/src/lib.rs|pub fn prune_blobs<E : EthSpec>(client_config : ClientConfig, runtime_context : & RuntimeContext < E >) -> Result < (...
+prune_payloads|fn|database_manager/src/lib.rs|pub fn prune_payloads<E : EthSpec>(client_config : ClientConfig, runtime_context : & RuntimeContext < E >) -> Result ...
+prune_states|fn|database_manager/src/lib.rs|pub fn prune_states<E : EthSpec>(client_config : ClientConfig, prune_config : PruneStatesConfig, mut genesis_state : ...
+run|fn|database_manager/src/lib.rs|pub fn run<E : EthSpec>(cli_args : & ArgMatches, db_manager_config : & DatabaseManager, env : Environment < E >) -> R...

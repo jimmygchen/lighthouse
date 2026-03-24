@@ -1,0 +1,106 @@
+# rust-symbols symbols/validator_services | 2026-03-24T06:27:26Z | 104 symbols
+# name|kind|path|signature
+AggregatorDuties|struct|validator_client/validator_services/src/sync.rs|pub struct AggregatorDuties
+AttestationService|struct|validator_client/validator_services/src/attestation_service.rs|pub struct AttestationService<S, T>
+AttestationService::start_update_service|fn|validator_client/validator_services/src/attestation_service.rs|pub fn start_update_service(self, spec : & ChainSpec) -> Result < () , String >
+AttestationServiceBuilder|struct|validator_client/validator_services/src/attestation_service.rs|pub struct AttestationServiceBuilder<S: ValidatorStore, T: SlotClock + 'static>
+AttestationServiceBuilder::beacon_nodes|fn|validator_client/validator_services/src/attestation_service.rs|pub fn beacon_nodes(mut self, beacon_nodes : Arc < BeaconNodeFallback < T > >) -> Self
+AttestationServiceBuilder::build|fn|validator_client/validator_services/src/attestation_service.rs|pub fn build(self) -> Result < AttestationService < S , T > , String >
+AttestationServiceBuilder::chain_spec|fn|validator_client/validator_services/src/attestation_service.rs|pub fn chain_spec(mut self, chain_spec : Arc < ChainSpec >) -> Self
+AttestationServiceBuilder::disable|fn|validator_client/validator_services/src/attestation_service.rs|pub fn disable(mut self, disable : bool) -> Self
+AttestationServiceBuilder::duties_service|fn|validator_client/validator_services/src/attestation_service.rs|pub fn duties_service(mut self, service : Arc < DutiesService < S , T > >) -> Self
+AttestationServiceBuilder::executor|fn|validator_client/validator_services/src/attestation_service.rs|pub fn executor(mut self, executor : TaskExecutor) -> Self
+AttestationServiceBuilder::head_monitor_rx|fn|validator_client/validator_services/src/attestation_service.rs|pub fn head_monitor_rx(mut self, head_monitor_rx : Option < Mutex < mpsc :: Receiver < HeadEvent > > >) -> Self
+AttestationServiceBuilder::new|fn|validator_client/validator_services/src/attestation_service.rs|pub fn new() -> Self
+AttestationServiceBuilder::slot_clock|fn|validator_client/validator_services/src/attestation_service.rs|pub fn slot_clock(mut self, slot_clock : T) -> Self
+AttestationServiceBuilder::validator_store|fn|validator_client/validator_services/src/attestation_service.rs|pub fn validator_store(mut self, store : Arc < S >) -> Self
+BlockError|enum|validator_client/validator_services/src/block_service.rs|pub enum BlockError
+BlockService|struct|validator_client/validator_services/src/block_service.rs|pub struct BlockService<S, T>
+BlockService::start_update_service|fn|validator_client/validator_services/src/block_service.rs|pub fn start_update_service(self, mut notification_rx : mpsc :: Receiver < BlockServiceNotification >) -> Result < ()...
+BlockServiceBuilder|struct|validator_client/validator_services/src/block_service.rs|pub struct BlockServiceBuilder<S, T>
+BlockServiceBuilder::beacon_nodes|fn|validator_client/validator_services/src/block_service.rs|pub fn beacon_nodes(mut self, beacon_nodes : Arc < BeaconNodeFallback < T > >) -> Self
+BlockServiceBuilder::build|fn|validator_client/validator_services/src/block_service.rs|pub fn build(self) -> Result < BlockService < S , T > , String >
+BlockServiceBuilder::chain_spec|fn|validator_client/validator_services/src/block_service.rs|pub fn chain_spec(mut self, chain_spec : Arc < ChainSpec >) -> Self
+BlockServiceBuilder::executor|fn|validator_client/validator_services/src/block_service.rs|pub fn executor(mut self, executor : TaskExecutor) -> Self
+BlockServiceBuilder::graffiti|fn|validator_client/validator_services/src/block_service.rs|pub fn graffiti(mut self, graffiti : Option < Graffiti >) -> Self
+BlockServiceBuilder::graffiti_file|fn|validator_client/validator_services/src/block_service.rs|pub fn graffiti_file(mut self, graffiti_file : Option < GraffitiFile >) -> Self
+BlockServiceBuilder::graffiti_policy|fn|validator_client/validator_services/src/block_service.rs|pub fn graffiti_policy(mut self, graffiti_policy : Option < GraffitiPolicy >) -> Self
+BlockServiceBuilder::new|fn|validator_client/validator_services/src/block_service.rs|pub fn new() -> Self
+BlockServiceBuilder::proposer_nodes|fn|validator_client/validator_services/src/block_service.rs|pub fn proposer_nodes(mut self, proposer_nodes : Arc < BeaconNodeFallback < T > >) -> Self
+BlockServiceBuilder::slot_clock|fn|validator_client/validator_services/src/block_service.rs|pub fn slot_clock(mut self, slot_clock : T) -> Self
+BlockServiceBuilder::validator_store|fn|validator_client/validator_services/src/block_service.rs|pub fn validator_store(mut self, store : Arc < S >) -> Self
+BlockServiceNotification|struct|validator_client/validator_services/src/block_service.rs|pub struct BlockServiceNotification
+CommitteeDuties|struct|validator_client/validator_services/src/sync.rs|pub struct CommitteeDuties
+DutiesService|struct|validator_client/validator_services/src/duties_service.rs|pub struct DutiesService<S, T>
+DutiesService::attester_count|fn|validator_client/validator_services/src/duties_service.rs|pub fn attester_count(&self, epoch : Epoch) -> usize
+DutiesService::attesters|fn|validator_client/validator_services/src/duties_service.rs|pub fn attesters(&self, slot : Slot) -> Vec < DutyAndProof >
+DutiesService::block_proposers|fn|validator_client/validator_services/src/duties_service.rs|pub fn block_proposers(&self, slot : Slot) -> HashSet < PublicKeyBytes >
+DutiesService::doppelganger_detecting_count|fn|validator_client/validator_services/src/duties_service.rs|pub fn doppelganger_detecting_count(&self) -> usize
+DutiesService::per_validator_metrics|fn|validator_client/validator_services/src/duties_service.rs|pub fn per_validator_metrics(&self) -> bool
+DutiesService::proposer_count|fn|validator_client/validator_services/src/duties_service.rs|pub fn proposer_count(&self, epoch : Epoch) -> usize
+DutiesService::total_validator_count|fn|validator_client/validator_services/src/duties_service.rs|pub fn total_validator_count(&self) -> usize
+DutiesServiceBuilder|struct|validator_client/validator_services/src/duties_service.rs|pub struct DutiesServiceBuilder<S, T>
+DutiesServiceBuilder::attestation_selection_proof_config|fn|validator_client/validator_services/src/duties_service.rs|pub fn attestation_selection_proof_config(mut self, attestation_selection_proof_config : SelectionProofConfig) -> Self
+DutiesServiceBuilder::beacon_nodes|fn|validator_client/validator_services/src/duties_service.rs|pub fn beacon_nodes(mut self, beacon_nodes : Arc < BeaconNodeFallback < T > >) -> Self
+DutiesServiceBuilder::build|fn|validator_client/validator_services/src/duties_service.rs|pub fn build(self) -> Result < DutiesService < S , T > , String >
+DutiesServiceBuilder::disable_attesting|fn|validator_client/validator_services/src/duties_service.rs|pub fn disable_attesting(mut self, disable_attesting : bool) -> Self
+DutiesServiceBuilder::enable_high_validator_count_metrics|fn|validator_client/validator_services/src/duties_service.rs|pub fn enable_high_validator_count_metrics(mut self, enable_high_validator_count_metrics : bool) -> Self
+DutiesServiceBuilder::executor|fn|validator_client/validator_services/src/duties_service.rs|pub fn executor(mut self, executor : TaskExecutor) -> Self
+DutiesServiceBuilder::new|fn|validator_client/validator_services/src/duties_service.rs|pub fn new() -> Self
+DutiesServiceBuilder::slot_clock|fn|validator_client/validator_services/src/duties_service.rs|pub fn slot_clock(mut self, slot_clock : T) -> Self
+DutiesServiceBuilder::spec|fn|validator_client/validator_services/src/duties_service.rs|pub fn spec(mut self, spec : Arc < ChainSpec >) -> Self
+DutiesServiceBuilder::sync_selection_proof_config|fn|validator_client/validator_services/src/duties_service.rs|pub fn sync_selection_proof_config(mut self, sync_selection_proof_config : SelectionProofConfig) -> Self
+DutiesServiceBuilder::validator_store|fn|validator_client/validator_services/src/duties_service.rs|pub fn validator_store(mut self, validator_store : Arc < S >) -> Self
+DutyAndProof|struct|validator_client/validator_services/src/duties_service.rs|pub struct DutyAndProof
+DutyAndProof::new_without_selection_proof|fn|validator_client/validator_services/src/duties_service.rs|pub fn new_without_selection_proof(duty : AttesterData, current_slot : Slot) -> Self
+Error|enum|validator_client/validator_services/src/duties_service.rs|pub enum Error<T>
+Inner|struct|validator_client/validator_services/src/attestation_service.rs|pub struct Inner<S, T>
+Inner|struct|validator_client/validator_services/src/preparation_service.rs|pub struct Inner<S, T>
+Inner|struct|validator_client/validator_services/src/sync_committee_service.rs|pub struct Inner<S: ValidatorStore, T: SlotClock + 'static>
+Inner|struct|validator_client/validator_services/src/block_service.rs|pub struct Inner<S, T>
+PreparationService|struct|validator_client/validator_services/src/preparation_service.rs|pub struct PreparationService<S, T>
+PreparationService::start_proposer_prepare_service|fn|validator_client/validator_services/src/preparation_service.rs|pub fn start_proposer_prepare_service(self, spec : & ChainSpec) -> Result < () , String >
+PreparationService::start_update_service|fn|validator_client/validator_services/src/preparation_service.rs|pub fn start_update_service(self, spec : & ChainSpec) -> Result < () , String >
+PreparationService::start_validator_registration_service|fn|validator_client/validator_services/src/preparation_service.rs|pub fn start_validator_registration_service(self, spec : & ChainSpec) -> Result < () , String >
+PreparationServiceBuilder|struct|validator_client/validator_services/src/preparation_service.rs|pub struct PreparationServiceBuilder<S: ValidatorStore, T: SlotClock + 'static>
+PreparationServiceBuilder::beacon_nodes|fn|validator_client/validator_services/src/preparation_service.rs|pub fn beacon_nodes(mut self, beacon_nodes : Arc < BeaconNodeFallback < T > >) -> Self
+PreparationServiceBuilder::build|fn|validator_client/validator_services/src/preparation_service.rs|pub fn build(self) -> Result < PreparationService < S , T > , String >
+PreparationServiceBuilder::builder_registration_timestamp_override|fn|validator_client/validator_services/src/preparation_service.rs|pub fn builder_registration_timestamp_override(mut self, builder_registration_timestamp_override : Option < u64 >) ->...
+PreparationServiceBuilder::executor|fn|validator_client/validator_services/src/preparation_service.rs|pub fn executor(mut self, executor : TaskExecutor) -> Self
+PreparationServiceBuilder::new|fn|validator_client/validator_services/src/preparation_service.rs|pub fn new() -> Self
+PreparationServiceBuilder::slot_clock|fn|validator_client/validator_services/src/preparation_service.rs|pub fn slot_clock(mut self, slot_clock : T) -> Self
+PreparationServiceBuilder::validator_registration_batch_size|fn|validator_client/validator_services/src/preparation_service.rs|pub fn validator_registration_batch_size(mut self, validator_registration_batch_size : usize) -> Self
+PreparationServiceBuilder::validator_store|fn|validator_client/validator_services/src/preparation_service.rs|pub fn validator_store(mut self, store : Arc < S >) -> Self
+ProposerFallback|struct|validator_client/validator_services/src/block_service.rs|pub struct ProposerFallback<T>
+ProposerFallback::request_proposers_first|fn|validator_client/validator_services/src/block_service.rs|pub async fn request_proposers_first<F, Err, R>(&self, func : F) -> Result < () , Errors < Err > >
+ProposerFallback::request_proposers_last|fn|validator_client/validator_services/src/block_service.rs|pub async fn request_proposers_last<F, O, Err, R>(&self, func : F) -> Result < O , Errors < Err > >
+SLOT_DELAY_DENOMINATOR|const|validator_client/validator_services/src/latency_service.rs|pub const SLOT_DELAY_DENOMINATOR: u32 = 12;
+SLOT_DELAY_MULTIPLIER|const|validator_client/validator_services/src/latency_service.rs|pub const SLOT_DELAY_MULTIPLIER: u32 = 11;
+SUBSCRIPTION_LOOKAHEAD_EPOCHS|const|validator_client/validator_services/src/sync_committee_service.rs|pub const SUBSCRIPTION_LOOKAHEAD_EPOCHS: u64 = 4;
+SelectionProofConfig|struct|validator_client/validator_services/src/duties_service.rs|pub struct SelectionProofConfig
+SlotDuties|struct|validator_client/validator_services/src/sync.rs|pub struct SlotDuties
+SubscriptionSlots|struct|validator_client/validator_services/src/duties_service.rs|pub struct SubscriptionSlots
+SyncCommitteeService|struct|validator_client/validator_services/src/sync_committee_service.rs|pub struct SyncCommitteeService<S: ValidatorStore, T: SlotClock + 'static>
+SyncCommitteeService::new|fn|validator_client/validator_services/src/sync_committee_service.rs|pub fn new(duties_service : Arc < DutiesService < S , T > >, validator_store : Arc < S >, slot_clock : T, beacon_node...
+SyncCommitteeService::start_update_service|fn|validator_client/validator_services/src/sync_committee_service.rs|pub fn start_update_service(self, spec : & ChainSpec) -> Result < () , String >
+SyncDutiesMap|struct|validator_client/validator_services/src/sync.rs|pub struct SyncDutiesMap
+SyncDutiesMap::get_duties_for_slot|fn|validator_client/validator_services/src/sync.rs|pub fn get_duties_for_slot<E : EthSpec>(&self, wall_clock_slot : Slot, spec : & ChainSpec) -> Option < SlotDuties >
+SyncDutiesMap::new|fn|validator_client/validator_services/src/sync.rs|pub fn new(selection_proof_config : SelectionProofConfig) -> Self
+ValidatorDuties|struct|validator_client/validator_services/src/sync.rs|pub struct ValidatorDuties
+ValidatorRegistrationKey|struct|validator_client/validator_services/src/preparation_service.rs|pub struct ValidatorRegistrationKey
+attestation_service|mod|validator_client/validator_services/src/lib.rs|pub mod attestation_service
+block_service|mod|validator_client/validator_services/src/lib.rs|pub mod block_service
+duties_service|mod|validator_client/validator_services/src/lib.rs|pub mod duties_service
+fill_in_aggregation_proofs|fn|validator_client/validator_services/src/sync.rs|pub async fn fill_in_aggregation_proofs<S : ValidatorStore, T : SlotClock + 'static>(duties_service : Arc < DutiesSer...
+latency_service|mod|validator_client/validator_services/src/lib.rs|pub mod latency_service
+make_sync_selection_proof|fn|validator_client/validator_services/src/sync.rs|pub async fn make_sync_selection_proof<S : ValidatorStore, T : SlotClock>(duties_service : & Arc < DutiesService < S ...
+notifier_service|mod|validator_client/validator_services/src/lib.rs|pub mod notifier_service
+notify|fn|validator_client/validator_services/src/notifier_service.rs|pub async fn notify<S : ValidatorStore, T : SlotClock + 'static>(duties_service : & DutiesService < S , T >)
+poll_sync_committee_duties|fn|validator_client/validator_services/src/sync.rs|pub async fn poll_sync_committee_duties<S : ValidatorStore + 'static, T : SlotClock + 'static>(duties_service : & Arc...
+poll_sync_committee_duties_for_period|fn|validator_client/validator_services/src/sync.rs|pub async fn poll_sync_committee_duties_for_period<S : ValidatorStore, T : SlotClock + 'static>(duties_service : & Ar...
+preparation_service|mod|validator_client/validator_services/src/lib.rs|pub mod preparation_service
+spawn_notifier|fn|validator_client/validator_services/src/notifier_service.rs|pub fn spawn_notifier<S : ValidatorStore + 'static, T : SlotClock + 'static>(duties_service : Arc < DutiesService < S...
+start_latency_service|fn|validator_client/validator_services/src/latency_service.rs|pub fn start_latency_service<T : SlotClock + 'static>(executor : TaskExecutor, slot_clock : T, beacon_nodes : Arc < B...
+start_update_service|fn|validator_client/validator_services/src/duties_service.rs|pub fn start_update_service<S : ValidatorStore + 'static, T : SlotClock + 'static>(core_duties_service : Arc < Duties...
+sync|mod|validator_client/validator_services/src/lib.rs|pub mod sync
+sync_committee_service|mod|validator_client/validator_services/src/lib.rs|pub mod sync_committee_service

@@ -1,0 +1,3 @@
+# rust-symbols symbols/test_random_derive | 2026-03-24T06:27:26Z | 1 symbols
+# name|kind|path|signature
+test_random_derive|fn|common/test_random_derive/src/lib.rs|pub fn test_random_derive(input : TokenStream) -> TokenStream

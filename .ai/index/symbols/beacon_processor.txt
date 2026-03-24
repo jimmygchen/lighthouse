@@ -1,0 +1,71 @@
+# rust-symbols symbols/beacon_processor | 2026-03-24T06:27:26Z | 69 symbols
+# name|kind|path|signature
+ADDITIONAL_QUEUED_BLOCK_DELAY|const|beacon_node/beacon_processor/src/scheduler/work_reprocessing_queue.rs|pub const ADDITIONAL_QUEUED_BLOCK_DELAY: Duration = Duration::from_millis(5);
+AsyncFn|type|beacon_node/beacon_processor/src/lib.rs|pub type AsyncFn = Pin<Box<dyn Future<Output = ()> + Send + Sync>>;
+BACKFILL_SCHEDULE_IN_SLOT|const|beacon_node/beacon_processor/src/scheduler/work_reprocessing_queue.rs|pub const BACKFILL_SCHEDULE_IN_SLOT: [(u32, u32); 3] = [
+BeaconProcessor|struct|beacon_node/beacon_processor/src/lib.rs|pub struct BeaconProcessor<E: EthSpec>
+BeaconProcessor::spawn_manager|fn|beacon_node/beacon_processor/src/lib.rs|pub fn spawn_manager<S : SlotClock + 'static>(mut self, event_rx : mpsc :: Receiver < WorkEvent < E > >, work_journal...
+BeaconProcessorChannels|struct|beacon_node/beacon_processor/src/lib.rs|pub struct BeaconProcessorChannels<E: EthSpec>
+BeaconProcessorChannels::new|fn|beacon_node/beacon_processor/src/lib.rs|pub fn new(config : & BeaconProcessorConfig) -> Self
+BeaconProcessorConfig|struct|beacon_node/beacon_processor/src/lib.rs|pub struct BeaconProcessorConfig
+BeaconProcessorQueueLengths|struct|beacon_node/beacon_processor/src/scheduler/work_queue.rs|pub struct BeaconProcessorQueueLengths
+BeaconProcessorQueueLengths::from_state|fn|beacon_node/beacon_processor/src/scheduler/work_queue.rs|pub fn from_state<E : EthSpec>(state : & BeaconState < E >, spec : & ChainSpec) -> Result < Self , String >
+BeaconProcessorSend|struct|beacon_node/beacon_processor/src/lib.rs|pub struct BeaconProcessorSend<E: EthSpec>(pub mpsc::Sender<WorkEvent<E>>);
+BeaconProcessorSend::try_send|fn|beacon_node/beacon_processor/src/lib.rs|pub fn try_send(&self, message : WorkEvent < E >) -> Result < () , TrySendError < WorkEvent < E > > >
+BlockingFn|type|beacon_node/beacon_processor/src/lib.rs|pub type BlockingFn = Box<dyn FnOnce() + Send + Sync>;
+BlockingFnWithManualSendOnIdle|type|beacon_node/beacon_processor/src/lib.rs|pub type BlockingFnWithManualSendOnIdle = Box<dyn FnOnce(SendOnDrop) + Send + Sync>;
+BlockingOrAsync|enum|beacon_node/beacon_processor/src/lib.rs|pub enum BlockingOrAsync
+DuplicateCache|struct|beacon_node/beacon_processor/src/lib.rs|pub struct DuplicateCache
+DuplicateCache::check_and_insert|fn|beacon_node/beacon_processor/src/lib.rs|pub fn check_and_insert(&self, block_root : Hash256) -> Option < DuplicateCacheHandle >
+DuplicateCache::remove|fn|beacon_node/beacon_processor/src/lib.rs|pub fn remove(&self, block_root : & Hash256)
+DuplicateCacheHandle|struct|beacon_node/beacon_processor/src/lib.rs|pub struct DuplicateCacheHandle
+FifoQueue|struct|beacon_node/beacon_processor/src/scheduler/work_queue.rs|pub struct FifoQueue<T>
+FifoQueue::is_empty|fn|beacon_node/beacon_processor/src/scheduler/work_queue.rs|pub fn is_empty(&self) -> bool
+FifoQueue::len|fn|beacon_node/beacon_processor/src/scheduler/work_queue.rs|pub fn len(&self) -> usize
+FifoQueue::new|fn|beacon_node/beacon_processor/src/scheduler/work_queue.rs|pub fn new(max_length : usize) -> Self
+FifoQueue::pop|fn|beacon_node/beacon_processor/src/scheduler/work_queue.rs|pub fn pop(&mut self) -> Option < T >
+FifoQueue::push|fn|beacon_node/beacon_processor/src/scheduler/work_queue.rs|pub fn push(&mut self, item : T, item_desc : & str)
+GossipAggregatePackage|struct|beacon_node/beacon_processor/src/lib.rs|pub struct GossipAggregatePackage<E: EthSpec>
+GossipAttestationBatch|type|beacon_node/beacon_processor/src/lib.rs|pub type GossipAttestationBatch = Vec<GossipAttestationPackage<SingleAttestation>>;
+GossipAttestationPackage|struct|beacon_node/beacon_processor/src/lib.rs|pub struct GossipAttestationPackage<T>
+IgnoredRpcBlock|struct|beacon_node/beacon_processor/src/scheduler/work_reprocessing_queue.rs|pub struct IgnoredRpcBlock
+LifoQueue|struct|beacon_node/beacon_processor/src/scheduler/work_queue.rs|pub struct LifoQueue<T>
+LifoQueue::is_empty|fn|beacon_node/beacon_processor/src/scheduler/work_queue.rs|pub fn is_empty(&self) -> bool
+LifoQueue::is_full|fn|beacon_node/beacon_processor/src/scheduler/work_queue.rs|pub fn is_full(&self) -> bool
+LifoQueue::len|fn|beacon_node/beacon_processor/src/scheduler/work_queue.rs|pub fn len(&self) -> usize
+LifoQueue::new|fn|beacon_node/beacon_processor/src/scheduler/work_queue.rs|pub fn new(max_length : usize) -> Self
+LifoQueue::pop|fn|beacon_node/beacon_processor/src/scheduler/work_queue.rs|pub fn pop(&mut self) -> Option < T >
+LifoQueue::push|fn|beacon_node/beacon_processor/src/scheduler/work_queue.rs|pub fn push(&mut self, item : T)
+NOTHING_TO_DO|const|beacon_node/beacon_processor/src/lib.rs|pub const NOTHING_TO_DO: &str = "nothing_to_do";
+QUEUED_ATTESTATION_DELAY|const|beacon_node/beacon_processor/src/scheduler/work_reprocessing_queue.rs|pub const QUEUED_ATTESTATION_DELAY: Duration = Duration::from_secs(12);
+QUEUED_LIGHT_CLIENT_UPDATE_DELAY|const|beacon_node/beacon_processor/src/scheduler/work_reprocessing_queue.rs|pub const QUEUED_LIGHT_CLIENT_UPDATE_DELAY: Duration = Duration::from_secs(12);
+QUEUED_RECONSTRUCTION_DELAY|const|beacon_node/beacon_processor/src/scheduler/work_reprocessing_queue.rs|pub const QUEUED_RECONSTRUCTION_DELAY: Duration = Duration::from_millis(150);
+QUEUED_RPC_BLOCK_DELAY|const|beacon_node/beacon_processor/src/scheduler/work_reprocessing_queue.rs|pub const QUEUED_RPC_BLOCK_DELAY: Duration = Duration::from_secs(4);
+QUEUED_SAMPLING_REQUESTS_DELAY|const|beacon_node/beacon_processor/src/scheduler/work_reprocessing_queue.rs|pub const QUEUED_SAMPLING_REQUESTS_DELAY: Duration = Duration::from_secs(12);
+QueuedAggregate|struct|beacon_node/beacon_processor/src/scheduler/work_reprocessing_queue.rs|pub struct QueuedAggregate
+QueuedAggregate::beacon_block_root|fn|beacon_node/beacon_processor/src/scheduler/work_reprocessing_queue.rs|pub fn beacon_block_root(&self) -> & Hash256
+QueuedBackfillBatch|struct|beacon_node/beacon_processor/src/scheduler/work_reprocessing_queue.rs|pub struct QueuedBackfillBatch(pub BlockingFn);
+QueuedColumnReconstruction|struct|beacon_node/beacon_processor/src/scheduler/work_reprocessing_queue.rs|pub struct QueuedColumnReconstruction
+QueuedGossipBlock|struct|beacon_node/beacon_processor/src/scheduler/work_reprocessing_queue.rs|pub struct QueuedGossipBlock
+QueuedLightClientUpdate|struct|beacon_node/beacon_processor/src/scheduler/work_reprocessing_queue.rs|pub struct QueuedLightClientUpdate
+QueuedLightClientUpdateId|type|beacon_node/beacon_processor/src/scheduler/work_reprocessing_queue.rs|pub type QueuedLightClientUpdateId = usize;
+QueuedRpcBlock|struct|beacon_node/beacon_processor/src/scheduler/work_reprocessing_queue.rs|pub struct QueuedRpcBlock
+QueuedUnaggregate|struct|beacon_node/beacon_processor/src/scheduler/work_reprocessing_queue.rs|pub struct QueuedUnaggregate
+QueuedUnaggregate::beacon_block_root|fn|beacon_node/beacon_processor/src/scheduler/work_reprocessing_queue.rs|pub fn beacon_block_root(&self) -> & Hash256
+RECONSTRUCTION_DEADLINE|const|beacon_node/beacon_processor/src/scheduler/work_reprocessing_queue.rs|pub const RECONSTRUCTION_DEADLINE: (u64, u64) = (1, 4);
+ReadyWork|enum|beacon_node/beacon_processor/src/scheduler/work_reprocessing_queue.rs|pub enum ReadyWork
+ReprocessQueueMessage|enum|beacon_node/beacon_processor/src/scheduler/work_reprocessing_queue.rs|pub enum ReprocessQueueMessage
+SendOnDrop|struct|beacon_node/beacon_processor/src/lib.rs|pub struct SendOnDrop
+WORKER_FREED|const|beacon_node/beacon_processor/src/lib.rs|pub const WORKER_FREED: &str = "worker_freed";
+Work|enum|beacon_node/beacon_processor/src/lib.rs|pub enum Work<E: EthSpec>
+Work::str_id|fn|beacon_node/beacon_processor/src/lib.rs|pub fn str_id(&self) -> & 'static str
+WorkEvent|struct|beacon_node/beacon_processor/src/lib.rs|pub struct WorkEvent<E: EthSpec>
+WorkEvent::work_type|fn|beacon_node/beacon_processor/src/lib.rs|pub fn work_type(&self) -> WorkType
+WorkEvent::work_type_str|fn|beacon_node/beacon_processor/src/lib.rs|pub fn work_type_str(&self) -> & 'static str
+WorkQueues|struct|beacon_node/beacon_processor/src/scheduler/work_queue.rs|pub struct WorkQueues<E: EthSpec>
+WorkQueues::new|fn|beacon_node/beacon_processor/src/scheduler/work_queue.rs|pub fn new(queue_lengths : BeaconProcessorQueueLengths) -> Self
+WorkType|enum|beacon_node/beacon_processor/src/lib.rs|pub enum WorkType
+scheduler|mod|beacon_node/beacon_processor/src/lib.rs|pub mod scheduler
+spawn_reprocess_scheduler|fn|beacon_node/beacon_processor/src/scheduler/work_reprocessing_queue.rs|pub fn spawn_reprocess_scheduler<S : SlotClock + 'static>(ready_work_tx : Sender < ReadyWork >, work_reprocessing_rx ...
+work_queue|mod|beacon_node/beacon_processor/src/scheduler/mod.rs|pub mod work_queue
+work_reprocessing_queue|mod|beacon_node/beacon_processor/src/scheduler/mod.rs|pub mod work_reprocessing_queue

@@ -1,0 +1,100 @@
+# rust-symbols symbols/proto_array | 2026-03-24T06:27:26Z | 98 symbols
+# name|kind|path|signature
+Block|struct|consensus/proto_array/src/proto_array_fork_choice.rs|pub struct Block
+Block::proposer_shuffling_root_for_child_block|fn|consensus/proto_array/src/proto_array_fork_choice.rs|pub fn proposer_shuffling_root_for_child_block(&self, child_block_epoch : Epoch, spec : & ChainSpec) -> Hash256
+DEFAULT_PRUNE_THRESHOLD|const|consensus/proto_array/src/proto_array_fork_choice.rs|pub const DEFAULT_PRUNE_THRESHOLD: usize = 256;
+DisallowedReOrgOffsets|struct|consensus/proto_array/src/proto_array_fork_choice.rs|pub struct DisallowedReOrgOffsets
+DisallowedReOrgOffsets::new|fn|consensus/proto_array/src/proto_array_fork_choice.rs|pub fn new<E : EthSpec>(offsets : Vec < u64 >) -> Result < Self , Error >
+DoNotReOrg|enum|consensus/proto_array/src/proto_array_fork_choice.rs|pub enum DoNotReOrg
+ElasticList|struct|consensus/proto_array/src/proto_array_fork_choice.rs|pub struct ElasticList<T>(pub Vec<T>);
+ElasticList::get_mut|fn|consensus/proto_array/src/proto_array_fork_choice.rs|pub fn get_mut(&mut self, i : usize) -> & mut T
+ElasticList::iter_mut|fn|consensus/proto_array/src/proto_array_fork_choice.rs|pub fn iter_mut(&mut self) -> impl Iterator < Item = & mut T >
+Error|enum|consensus/proto_array/src/error.rs|pub enum Error
+ExecutionStatus|enum|consensus/proto_array/src/proto_array_fork_choice.rs|pub enum ExecutionStatus
+ExecutionStatus::block_hash|fn|consensus/proto_array/src/proto_array_fork_choice.rs|pub fn block_hash(&self) -> Option < ExecutionBlockHash >
+ExecutionStatus::irrelevant|fn|consensus/proto_array/src/proto_array_fork_choice.rs|pub fn irrelevant() -> Self
+ExecutionStatus::is_execution_enabled|fn|consensus/proto_array/src/proto_array_fork_choice.rs|pub fn is_execution_enabled(&self) -> bool
+ExecutionStatus::is_invalid|fn|consensus/proto_array/src/proto_array_fork_choice.rs|pub fn is_invalid(&self) -> bool
+ExecutionStatus::is_irrelevant|fn|consensus/proto_array/src/proto_array_fork_choice.rs|pub fn is_irrelevant(&self) -> bool
+ExecutionStatus::is_optimistic_or_invalid|fn|consensus/proto_array/src/proto_array_fork_choice.rs|pub fn is_optimistic_or_invalid(&self) -> bool
+ExecutionStatus::is_strictly_optimistic|fn|consensus/proto_array/src/proto_array_fork_choice.rs|pub fn is_strictly_optimistic(&self) -> bool
+ExecutionStatus::is_valid_and_post_bellatrix|fn|consensus/proto_array/src/proto_array_fork_choice.rs|pub fn is_valid_and_post_bellatrix(&self) -> bool
+ExecutionStatus::is_valid_or_irrelevant|fn|consensus/proto_array/src/proto_array_fork_choice.rs|pub fn is_valid_or_irrelevant(&self) -> bool
+ForkChoiceTestDefinition|struct|consensus/proto_array/src/fork_choice_test_definition.rs|pub struct ForkChoiceTestDefinition
+ForkChoiceTestDefinition::run|fn|consensus/proto_array/src/fork_choice_test_definition.rs|pub fn run(self)
+InvalidBestNodeInfo|struct|consensus/proto_array/src/error.rs|pub struct InvalidBestNodeInfo
+InvalidationOperation|enum|consensus/proto_array/src/proto_array.rs|pub enum InvalidationOperation
+InvalidationOperation::block_root|fn|consensus/proto_array/src/proto_array.rs|pub fn block_root(&self) -> Hash256
+InvalidationOperation::invalidate_block_root|fn|consensus/proto_array/src/proto_array.rs|pub fn invalidate_block_root(&self) -> bool
+InvalidationOperation::latest_valid_ancestor|fn|consensus/proto_array/src/proto_array.rs|pub fn latest_valid_ancestor(&self) -> Option < ExecutionBlockHash >
+Iter|struct|consensus/proto_array/src/proto_array.rs|pub struct Iter<'a>
+JustifiedBalances|struct|consensus/proto_array/src/justified_balances.rs|pub struct JustifiedBalances
+JustifiedBalances::from_effective_balances|fn|consensus/proto_array/src/justified_balances.rs|pub fn from_effective_balances(effective_balances : Vec < u64 >) -> Result < Self , ArithError >
+JustifiedBalances::from_justified_state|fn|consensus/proto_array/src/justified_balances.rs|pub fn from_justified_state<E : EthSpec>(state : & BeaconState < E >) -> Result < Self , ArithError >
+Operation|enum|consensus/proto_array/src/fork_choice_test_definition.rs|pub enum Operation
+ProposerBoost|struct|consensus/proto_array/src/proto_array.rs|pub struct ProposerBoost
+ProposerHeadError|enum|consensus/proto_array/src/proto_array_fork_choice.rs|pub enum ProposerHeadError<T>
+ProposerHeadError::convert_inner_error|fn|consensus/proto_array/src/proto_array_fork_choice.rs|pub fn convert_inner_error<T2>(self) -> ProposerHeadError < T2 >
+ProposerHeadError::map_inner_error|fn|consensus/proto_array/src/proto_array_fork_choice.rs|pub fn map_inner_error<T2>(self, f : impl FnOnce (T1) -> T2) -> ProposerHeadError < T2 >
+ProposerHeadInfo|struct|consensus/proto_array/src/proto_array_fork_choice.rs|pub struct ProposerHeadInfo
+ProtoArray|struct|consensus/proto_array/src/proto_array.rs|pub struct ProtoArray
+ProtoArray::apply_score_changes|fn|consensus/proto_array/src/proto_array.rs|pub fn apply_score_changes<E : EthSpec>(&mut self, mut deltas : Vec < i64 >, best_justified_checkpoint : Checkpoint, ...
+ProtoArray::execution_block_hash_to_beacon_block_root|fn|consensus/proto_array/src/proto_array.rs|pub fn execution_block_hash_to_beacon_block_root(&self, block_hash : & ExecutionBlockHash) -> Option < Hash256 >
+ProtoArray::find_head|fn|consensus/proto_array/src/proto_array.rs|pub fn find_head<E : EthSpec>(&self, justified_root : & Hash256, current_slot : Slot, best_justified_checkpoint : Che...
+ProtoArray::heads_descended_from_finalization|fn|consensus/proto_array/src/proto_array.rs|pub fn heads_descended_from_finalization<E : EthSpec>(&self, best_finalized_checkpoint : Checkpoint) -> Vec < & Proto...
+ProtoArray::is_descendant|fn|consensus/proto_array/src/proto_array.rs|pub fn is_descendant(&self, ancestor_root : Hash256, descendant_root : Hash256) -> bool
+ProtoArray::is_finalized_checkpoint_or_descendant|fn|consensus/proto_array/src/proto_array.rs|pub fn is_finalized_checkpoint_or_descendant<E : EthSpec>(&self, root : Hash256, best_finalized_checkpoint : Checkpoi...
+ProtoArray::iter_block_roots|fn|consensus/proto_array/src/proto_array.rs|pub fn iter_block_roots<'a>(&self, block_root : & Hash256) -> impl Iterator < Item = (Hash256 , Slot) > + 'a
+ProtoArray::iter_nodes|fn|consensus/proto_array/src/proto_array.rs|pub fn iter_nodes<'a>(&self, block_root : & Hash256) -> Iter < 'a >
+ProtoArray::maybe_prune|fn|consensus/proto_array/src/proto_array.rs|pub fn maybe_prune(&mut self, finalized_root : Hash256) -> Result < () , Error >
+ProtoArray::on_block|fn|consensus/proto_array/src/proto_array.rs|pub fn on_block<E : EthSpec>(&mut self, block : Block, current_slot : Slot, best_justified_checkpoint : Checkpoint, b...
+ProtoArray::propagate_execution_payload_invalidation|fn|consensus/proto_array/src/proto_array.rs|pub fn propagate_execution_payload_invalidation<E : EthSpec>(&mut self, op : & InvalidationOperation, best_finalized_...
+ProtoArray::propagate_execution_payload_validation|fn|consensus/proto_array/src/proto_array.rs|pub fn propagate_execution_payload_validation(&mut self, block_root : Hash256) -> Result < () , Error >
+ProtoArrayForkChoice|struct|consensus/proto_array/src/proto_array_fork_choice.rs|pub struct ProtoArrayForkChoice
+ProtoArrayForkChoice::as_bytes|fn|consensus/proto_array/src/proto_array_fork_choice.rs|pub fn as_bytes(&self, justified_checkpoint : Checkpoint, finalized_checkpoint : Checkpoint) -> Vec < u8 >
+ProtoArrayForkChoice::as_ssz_container|fn|consensus/proto_array/src/proto_array_fork_choice.rs|pub fn as_ssz_container(&self, justified_checkpoint : Checkpoint, finalized_checkpoint : Checkpoint) -> SszContainer
+ProtoArrayForkChoice::contains_block|fn|consensus/proto_array/src/proto_array_fork_choice.rs|pub fn contains_block(&self, block_root : & Hash256) -> bool
+ProtoArrayForkChoice::contains_invalid_payloads|fn|consensus/proto_array/src/proto_array_fork_choice.rs|pub fn contains_invalid_payloads(&mut self) -> bool
+ProtoArrayForkChoice::core_proto_array|fn|consensus/proto_array/src/proto_array_fork_choice.rs|pub fn core_proto_array(&self) -> & ProtoArray
+ProtoArrayForkChoice::core_proto_array_mut|fn|consensus/proto_array/src/proto_array_fork_choice.rs|pub fn core_proto_array_mut(&mut self) -> & mut ProtoArray
+ProtoArrayForkChoice::find_head|fn|consensus/proto_array/src/proto_array_fork_choice.rs|pub fn find_head<E : EthSpec>(&mut self, justified_checkpoint : Checkpoint, finalized_checkpoint : Checkpoint, justif...
+ProtoArrayForkChoice::from_bytes|fn|consensus/proto_array/src/proto_array_fork_choice.rs|pub fn from_bytes(bytes : & [u8], balances : JustifiedBalances) -> Result < Self , String >
+ProtoArrayForkChoice::from_container|fn|consensus/proto_array/src/proto_array_fork_choice.rs|pub fn from_container(container : SszContainer, balances : JustifiedBalances) -> Result < Self , String >
+ProtoArrayForkChoice::get_block|fn|consensus/proto_array/src/proto_array_fork_choice.rs|pub fn get_block(&self, block_root : & Hash256) -> Option < Block >
+ProtoArrayForkChoice::get_block_execution_status|fn|consensus/proto_array/src/proto_array_fork_choice.rs|pub fn get_block_execution_status(&self, block_root : & Hash256) -> Option < ExecutionStatus >
+ProtoArrayForkChoice::get_proposer_head|fn|consensus/proto_array/src/proto_array_fork_choice.rs|pub fn get_proposer_head<E : EthSpec>(&self, current_slot : Slot, canonical_head : Hash256, justified_balances : & Ju...
+ProtoArrayForkChoice::get_proposer_head_info|fn|consensus/proto_array/src/proto_array_fork_choice.rs|pub fn get_proposer_head_info<E : EthSpec>(&self, current_slot : Slot, canonical_head : Hash256, justified_balances :...
+ProtoArrayForkChoice::get_weight|fn|consensus/proto_array/src/proto_array_fork_choice.rs|pub fn get_weight(&self, block_root : & Hash256) -> Option < u64 >
+ProtoArrayForkChoice::heads_descended_from_finalization|fn|consensus/proto_array/src/proto_array_fork_choice.rs|pub fn heads_descended_from_finalization<E : EthSpec>(&self, best_finalized_checkpoint : Checkpoint) -> Vec < & Proto...
+ProtoArrayForkChoice::is_descendant|fn|consensus/proto_array/src/proto_array_fork_choice.rs|pub fn is_descendant(&self, ancestor_root : Hash256, descendant_root : Hash256) -> bool
+ProtoArrayForkChoice::is_empty|fn|consensus/proto_array/src/proto_array_fork_choice.rs|pub fn is_empty(&self) -> bool
+ProtoArrayForkChoice::is_finalized_checkpoint_or_descendant|fn|consensus/proto_array/src/proto_array_fork_choice.rs|pub fn is_finalized_checkpoint_or_descendant<E : EthSpec>(&self, descendant_root : Hash256, best_finalized_checkpoint...
+ProtoArrayForkChoice::iter_block_roots|fn|consensus/proto_array/src/proto_array_fork_choice.rs|pub fn iter_block_roots(&self, block_root : & Hash256) -> impl Iterator < Item = (Hash256 , Slot) > + '_
+ProtoArrayForkChoice::iter_nodes|fn|consensus/proto_array/src/proto_array_fork_choice.rs|pub fn iter_nodes(&self, block_root : & Hash256) -> Iter < '_ >
+ProtoArrayForkChoice::latest_message|fn|consensus/proto_array/src/proto_array_fork_choice.rs|pub fn latest_message(&self, validator_index : usize) -> Option < (Hash256 , Epoch) >
+ProtoArrayForkChoice::len|fn|consensus/proto_array/src/proto_array_fork_choice.rs|pub fn len(&self) -> usize
+ProtoArrayForkChoice::maybe_prune|fn|consensus/proto_array/src/proto_array_fork_choice.rs|pub fn maybe_prune(&mut self, finalized_root : Hash256) -> Result < () , String >
+ProtoArrayForkChoice::new|fn|consensus/proto_array/src/proto_array_fork_choice.rs|pub fn new<E : EthSpec>(current_slot : Slot, finalized_block_slot : Slot, finalized_block_state_root : Hash256, justi...
+ProtoArrayForkChoice::process_attestation|fn|consensus/proto_array/src/proto_array_fork_choice.rs|pub fn process_attestation(&mut self, validator_index : usize, block_root : Hash256, target_epoch : Epoch) -> Result ...
+ProtoArrayForkChoice::process_block|fn|consensus/proto_array/src/proto_array_fork_choice.rs|pub fn process_block<E : EthSpec>(&mut self, block : Block, current_slot : Slot, justified_checkpoint : Checkpoint, f...
+ProtoArrayForkChoice::process_execution_payload_invalidation|fn|consensus/proto_array/src/proto_array_fork_choice.rs|pub fn process_execution_payload_invalidation<E : EthSpec>(&mut self, op : & InvalidationOperation, finalized_checkpo...
+ProtoArrayForkChoice::process_execution_payload_validation|fn|consensus/proto_array/src/proto_array_fork_choice.rs|pub fn process_execution_payload_validation(&mut self, block_root : Hash256) -> Result < () , String >
+ProtoArrayForkChoice::set_all_blocks_to_optimistic|fn|consensus/proto_array/src/proto_array_fork_choice.rs|pub fn set_all_blocks_to_optimistic<E : EthSpec>(&mut self, spec : & ChainSpec) -> Result < () , String >
+ProtoArrayForkChoice::set_prune_threshold|fn|consensus/proto_array/src/proto_array_fork_choice.rs|pub fn set_prune_threshold(&mut self, prune_threshold : usize)
+ProtoNode|type|consensus/proto_array/src/proto_array.rs|pub type ProtoNode = ProtoNodeV17;
+ProtoNode|struct|consensus/proto_array/src/proto_array.rs|pub struct ProtoNode
+ReOrgThreshold|struct|consensus/proto_array/src/proto_array_fork_choice.rs|pub struct ReOrgThreshold(pub u64);
+SszContainer|type|consensus/proto_array/src/ssz_container.rs|pub type SszContainer = SszContainerV28;
+SszContainer|struct|consensus/proto_array/src/ssz_container.rs|pub struct SszContainer
+SszContainer::from_proto_array|fn|consensus/proto_array/src/ssz_container.rs|pub fn from_proto_array(from : & ProtoArrayForkChoice, justified_checkpoint : Checkpoint, finalized_checkpoint : Chec...
+VoteTracker|struct|consensus/proto_array/src/proto_array_fork_choice.rs|pub struct VoteTracker
+calculate_committee_fraction|fn|consensus/proto_array/src/proto_array.rs|pub fn calculate_committee_fraction<E : EthSpec>(justified_balances : & JustifiedBalances, proposer_score_boost : u64...
+core|mod|consensus/proto_array/src/lib.rs|pub mod core
+fork_choice_test_definition|mod|consensus/proto_array/src/lib.rs|pub mod fork_choice_test_definition
+get_execution_status_test_definition_01|fn|consensus/proto_array/src/fork_choice_test_definition/execution_status.rs|pub fn get_execution_status_test_definition_01() -> ForkChoiceTestDefinition
+get_execution_status_test_definition_02|fn|consensus/proto_array/src/fork_choice_test_definition/execution_status.rs|pub fn get_execution_status_test_definition_02() -> ForkChoiceTestDefinition
+get_execution_status_test_definition_03|fn|consensus/proto_array/src/fork_choice_test_definition/execution_status.rs|pub fn get_execution_status_test_definition_03() -> ForkChoiceTestDefinition
+get_ffg_case_01_test_definition|fn|consensus/proto_array/src/fork_choice_test_definition/ffg_updates.rs|pub fn get_ffg_case_01_test_definition() -> ForkChoiceTestDefinition
+get_ffg_case_02_test_definition|fn|consensus/proto_array/src/fork_choice_test_definition/ffg_updates.rs|pub fn get_ffg_case_02_test_definition() -> ForkChoiceTestDefinition
+get_no_votes_test_definition|fn|consensus/proto_array/src/fork_choice_test_definition/no_votes.rs|pub fn get_no_votes_test_definition() -> ForkChoiceTestDefinition
+get_votes_test_definition|fn|consensus/proto_array/src/fork_choice_test_definition/votes.rs|pub fn get_votes_test_definition() -> ForkChoiceTestDefinition

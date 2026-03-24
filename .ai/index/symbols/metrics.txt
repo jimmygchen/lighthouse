@@ -1,0 +1,43 @@
+# rust-symbols symbols/metrics | 2026-03-24T06:27:26Z | 41 symbols
+# name|kind|path|signature
+TryExt|trait|common/metrics/src/lib.rs|pub trait TryExt
+dec_gauge|fn|common/metrics/src/lib.rs|pub fn dec_gauge(gauge : & Result < IntGauge >)
+dec_gauge_vec|fn|common/metrics/src/lib.rs|pub fn dec_gauge_vec(int_gauge_vec : & Result < IntGaugeVec >, name : & [& str])
+decimal_buckets|fn|common/metrics/src/lib.rs|pub fn decimal_buckets(min_power : i32, max_power : i32) -> Result < Vec < f64 > >
+gather|fn|common/metrics/src/lib.rs|pub fn gather() -> Vec < prometheus :: proto :: MetricFamily >
+get_gauge|fn|common/metrics/src/lib.rs|pub fn get_gauge<P : Atomic>(gauge_vec : & Result < GenericGaugeVec < P > >, name : & [& str]) -> Option < GenericGau...
+get_histogram|fn|common/metrics/src/lib.rs|pub fn get_histogram(histogram_vec : & Result < HistogramVec >, name : & [& str]) -> Option < Histogram >
+get_int_counter|fn|common/metrics/src/lib.rs|pub fn get_int_counter(int_counter_vec : & Result < IntCounterVec >, name : & [& str]) -> Option < IntCounter >
+get_int_gauge|fn|common/metrics/src/lib.rs|pub fn get_int_gauge(int_gauge_vec : & Result < IntGaugeVec >, name : & [& str]) -> Option < IntGauge >
+inc_counter|fn|common/metrics/src/lib.rs|pub fn inc_counter(counter : & Result < IntCounter >)
+inc_counter_by|fn|common/metrics/src/lib.rs|pub fn inc_counter_by(counter : & Result < IntCounter >, value : u64)
+inc_counter_vec|fn|common/metrics/src/lib.rs|pub fn inc_counter_vec(int_counter_vec : & Result < IntCounterVec >, name : & [& str])
+inc_counter_vec_by|fn|common/metrics/src/lib.rs|pub fn inc_counter_vec_by(int_counter_vec : & Result < IntCounterVec >, name : & [& str], amount : u64)
+inc_gauge|fn|common/metrics/src/lib.rs|pub fn inc_gauge(gauge : & Result < IntGauge >)
+inc_gauge_vec|fn|common/metrics/src/lib.rs|pub fn inc_gauge_vec(int_gauge_vec : & Result < IntGaugeVec >, name : & [& str])
+maybe_set_float_gauge|fn|common/metrics/src/lib.rs|pub fn maybe_set_float_gauge(gauge : & Result < Gauge >, value_opt : Option < f64 >)
+maybe_set_gauge|fn|common/metrics/src/lib.rs|pub fn maybe_set_gauge(gauge : & Result < IntGauge >, value_opt : Option < i64 >)
+observe|fn|common/metrics/src/lib.rs|pub fn observe(histogram : & Result < Histogram >, value : f64)
+observe_duration|fn|common/metrics/src/lib.rs|pub fn observe_duration(histogram : & Result < Histogram >, duration : Duration)
+observe_timer_vec|fn|common/metrics/src/lib.rs|pub fn observe_timer_vec(vec : & Result < HistogramVec >, name : & [& str], duration : Duration)
+observe_vec|fn|common/metrics/src/lib.rs|pub fn observe_vec(vec : & Result < HistogramVec >, name : & [& str], value : f64)
+set_float_gauge|fn|common/metrics/src/lib.rs|pub fn set_float_gauge(gauge : & Result < Gauge >, value : f64)
+set_float_gauge_vec|fn|common/metrics/src/lib.rs|pub fn set_float_gauge_vec(gauge_vec : & Result < GaugeVec >, name : & [& str], value : f64)
+set_gauge|fn|common/metrics/src/lib.rs|pub fn set_gauge(gauge : & Result < IntGauge >, value : i64)
+set_gauge_entry|fn|common/metrics/src/lib.rs|pub fn set_gauge_entry<P : Atomic>(gauge_vec : & Result < GenericGaugeVec < P > >, name : & [& str], value : P :: T)
+set_gauge_vec|fn|common/metrics/src/lib.rs|pub fn set_gauge_vec(int_gauge_vec : & Result < IntGaugeVec >, name : & [& str], value : i64)
+set_int_gauge|fn|common/metrics/src/lib.rs|pub fn set_int_gauge(int_gauge_vec : & Result < IntGaugeVec >, name : & [& str], value : i64) -> bool
+start_timer|fn|common/metrics/src/lib.rs|pub fn start_timer(histogram : & Result < Histogram >) -> Option < HistogramTimer >
+start_timer_vec|fn|common/metrics/src/lib.rs|pub fn start_timer_vec(vec : & Result < HistogramVec >, name : & [& str]) -> Option < HistogramTimer >
+stop_timer|fn|common/metrics/src/lib.rs|pub fn stop_timer(timer : Option < HistogramTimer >)
+stop_timer_with_duration|fn|common/metrics/src/lib.rs|pub fn stop_timer_with_duration(timer : Option < HistogramTimer >) -> Duration
+try_create_float_gauge|fn|common/metrics/src/lib.rs|pub fn try_create_float_gauge(name : & str, help : & str) -> Result < Gauge >
+try_create_float_gauge_vec|fn|common/metrics/src/lib.rs|pub fn try_create_float_gauge_vec(name : & str, help : & str, label_names : & [& str]) -> Result < GaugeVec >
+try_create_histogram|fn|common/metrics/src/lib.rs|pub fn try_create_histogram(name : & str, help : & str) -> Result < Histogram >
+try_create_histogram_vec|fn|common/metrics/src/lib.rs|pub fn try_create_histogram_vec(name : & str, help : & str, label_names : & [& str]) -> Result < HistogramVec >
+try_create_histogram_vec_with_buckets|fn|common/metrics/src/lib.rs|pub fn try_create_histogram_vec_with_buckets(name : & str, help : & str, buckets : Result < Vec < f64 > >, label_name...
+try_create_histogram_with_buckets|fn|common/metrics/src/lib.rs|pub fn try_create_histogram_with_buckets(name : & str, help : & str, buckets : Result < Vec < f64 > >) -> Result < Hi...
+try_create_int_counter|fn|common/metrics/src/lib.rs|pub fn try_create_int_counter(name : & str, help : & str) -> Result < IntCounter >
+try_create_int_counter_vec|fn|common/metrics/src/lib.rs|pub fn try_create_int_counter_vec(name : & str, help : & str, label_names : & [& str]) -> Result < IntCounterVec >
+try_create_int_gauge|fn|common/metrics/src/lib.rs|pub fn try_create_int_gauge(name : & str, help : & str) -> Result < IntGauge >
+try_create_int_gauge_vec|fn|common/metrics/src/lib.rs|pub fn try_create_int_gauge_vec(name : & str, help : & str, label_names : & [& str]) -> Result < IntGaugeVec >

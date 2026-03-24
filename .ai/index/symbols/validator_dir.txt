@@ -1,0 +1,40 @@
+# rust-symbols symbols/validator_dir | 2026-03-24T06:27:26Z | 38 symbols
+# name|kind|path|signature
+Builder|struct|common/validator_dir/src/builder.rs|pub struct Builder<'a>
+Builder::build|fn|common/validator_dir/src/builder.rs|pub fn build(self) -> Result < ValidatorDir , Error >
+Builder::create_eth1_tx_data|fn|common/validator_dir/src/builder.rs|pub fn create_eth1_tx_data(mut self, deposit_amount : u64, spec : & 'a ChainSpec) -> Self
+Builder::get_dir_path|fn|common/validator_dir/src/builder.rs|pub fn get_dir_path(base_validators_dir : & Path, voting_keystore : & Keystore) -> PathBuf
+Builder::insecure_voting_keypair|fn|common/validator_dir/src/insecure_keys.rs|pub fn insecure_voting_keypair(mut self, deterministic_key_index : usize) -> Result < Self , BuilderError >
+Builder::new|fn|common/validator_dir/src/builder.rs|pub fn new(base_validators_dir : PathBuf) -> Self
+Builder::password_dir|fn|common/validator_dir/src/builder.rs|pub fn password_dir<P : Into < PathBuf >>(mut self, password_dir : P) -> Self
+Builder::password_dir_opt|fn|common/validator_dir/src/builder.rs|pub fn password_dir_opt(mut self, password_dir_opt : Option < PathBuf >) -> Self
+Builder::random_voting_keystore|fn|common/validator_dir/src/builder.rs|pub fn random_voting_keystore(mut self) -> Result < Self , Error >
+Builder::random_withdrawal_keystore|fn|common/validator_dir/src/builder.rs|pub fn random_withdrawal_keystore(mut self) -> Result < Self , Error >
+Builder::store_withdrawal_keystore|fn|common/validator_dir/src/builder.rs|pub fn store_withdrawal_keystore(mut self, should_store : bool) -> Self
+Builder::voting_keystore|fn|common/validator_dir/src/builder.rs|pub fn voting_keystore(mut self, keystore : Keystore, password : & [u8]) -> Self
+Builder::withdrawal_keystore|fn|common/validator_dir/src/builder.rs|pub fn withdrawal_keystore(mut self, keystore : Keystore, password : & [u8]) -> Self
+ETH1_DEPOSIT_AMOUNT_FILE|const|common/validator_dir/src/builder.rs|pub const ETH1_DEPOSIT_AMOUNT_FILE: &str = "eth1-deposit-gwei.txt";
+ETH1_DEPOSIT_DATA_FILE|const|common/validator_dir/src/builder.rs|pub const ETH1_DEPOSIT_DATA_FILE: &str = "eth1-deposit-data.rlp";
+ETH1_DEPOSIT_TX_HASH_FILE|const|common/validator_dir/src/validator_dir.rs|pub const ETH1_DEPOSIT_TX_HASH_FILE: &str = "eth1-deposit-tx-hash.txt";
+Error|enum|common/validator_dir/src/validator_dir.rs|pub enum Error
+Error|enum|common/validator_dir/src/builder.rs|pub enum Error
+Eth1DepositData|struct|common/validator_dir/src/validator_dir.rs|pub struct Eth1DepositData
+INSECURE_PASSWORD|const|common/validator_dir/src/insecure_keys.rs|pub const INSECURE_PASSWORD: &[u8] = &[50; 51];
+VOTING_KEYSTORE_FILE|const|common/validator_dir/src/builder.rs|pub const VOTING_KEYSTORE_FILE: &str = "voting-keystore.json";
+ValidatorDir|struct|common/validator_dir/src/validator_dir.rs|pub struct ValidatorDir
+ValidatorDir::dir|fn|common/validator_dir/src/validator_dir.rs|pub fn dir(&self) -> & Path
+ValidatorDir::eth1_deposit_data|fn|common/validator_dir/src/validator_dir.rs|pub fn eth1_deposit_data(&self) -> Result < Option < Eth1DepositData > , Error >
+ValidatorDir::eth1_deposit_tx_hash_exists|fn|common/validator_dir/src/validator_dir.rs|pub fn eth1_deposit_tx_hash_exists(&self) -> bool
+ValidatorDir::open|fn|common/validator_dir/src/validator_dir.rs|pub fn open<P : AsRef < Path >>(dir : P) -> Result < Self , Error >
+ValidatorDir::save_eth1_deposit_tx_hash|fn|common/validator_dir/src/validator_dir.rs|pub fn save_eth1_deposit_tx_hash(&mut self, tx_hash : & str) -> Result < () , Error >
+ValidatorDir::voting_keypair|fn|common/validator_dir/src/validator_dir.rs|pub fn voting_keypair<P : AsRef < Path >>(&self, password_dir : P) -> Result < Keypair , Error >
+ValidatorDir::voting_keystore_path|fn|common/validator_dir/src/validator_dir.rs|pub fn voting_keystore_path(&self) -> PathBuf
+ValidatorDir::withdrawal_keypair|fn|common/validator_dir/src/validator_dir.rs|pub fn withdrawal_keypair<P : AsRef < Path >>(&self, password_dir : P) -> Result < Keypair , Error >
+WITHDRAWAL_KEYSTORE_FILE|const|common/validator_dir/src/builder.rs|pub const WITHDRAWAL_KEYSTORE_FILE: &str = "withdrawal-keystore.json";
+build_deterministic_validator_dirs|fn|common/validator_dir/src/insecure_keys.rs|pub fn build_deterministic_validator_dirs(validators_dir : PathBuf, password_dir : PathBuf, indices : & [usize]) -> R...
+generate_deterministic_keystore|fn|common/validator_dir/src/insecure_keys.rs|pub fn generate_deterministic_keystore(i : usize) -> Result < (Keystore , PlainText) , String >
+insecure_keys|mod|common/validator_dir/src/lib.rs|pub mod insecure_keys
+keystore_password_path|fn|common/validator_dir/src/builder.rs|pub fn keystore_password_path<P : AsRef < Path >>(password_dir : P, keystore : & Keystore) -> PathBuf
+unlock_keypair|fn|common/validator_dir/src/validator_dir.rs|pub fn unlock_keypair<P : AsRef < Path >>(keystore_path : & Path, password_dir : P) -> Result < Keypair , Error >
+unlock_keypair_from_password_path|fn|common/validator_dir/src/validator_dir.rs|pub fn unlock_keypair_from_password_path(keystore_path : & Path, password_path : & Path) -> Result < Keypair , Error >
+write_password_to_file|fn|common/validator_dir/src/builder.rs|pub fn write_password_to_file<P : AsRef < Path >>(path : P, bytes : & [u8]) -> Result < () , Error >

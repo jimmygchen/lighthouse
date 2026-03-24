@@ -1,0 +1,9 @@
+# rust-symbols symbols/malloc_utils | 2026-03-24T06:27:26Z | 7 symbols
+# name|kind|path|signature
+configure_glibc_malloc|fn|common/malloc_utils/src/glibc.rs|pub fn configure_glibc_malloc() -> Result < () , String >
+glibc|mod|common/malloc_utils/src/lib.rs|pub mod glibc
+jemalloc|mod|common/malloc_utils/src/lib.rs|pub mod jemalloc
+page_size|fn|common/malloc_utils/src/jemalloc.rs|pub fn page_size() -> Result < usize , Error >
+scrape_jemalloc_metrics|fn|common/malloc_utils/src/jemalloc.rs|pub fn scrape_jemalloc_metrics()
+scrape_jemalloc_metrics_fallible|fn|common/malloc_utils/src/jemalloc.rs|pub fn scrape_jemalloc_metrics_fallible() -> Result < () , Error >
+scrape_mallinfo_metrics|fn|common/malloc_utils/src/glibc.rs|pub fn scrape_mallinfo_metrics()

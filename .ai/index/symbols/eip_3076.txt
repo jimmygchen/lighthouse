@@ -1,0 +1,15 @@
+# rust-symbols symbols/eip_3076 | 2026-03-24T06:27:26Z | 13 symbols
+# name|kind|path|signature
+Error|enum|common/eip_3076/src/lib.rs|pub enum Error
+Interchange|struct|common/eip_3076/src/lib.rs|pub struct Interchange
+Interchange::equiv|fn|common/eip_3076/src/lib.rs|pub fn equiv(&self, other : & Self) -> bool
+Interchange::from_json_reader|fn|common/eip_3076/src/lib.rs|pub fn from_json_reader(mut reader : impl std :: io :: Read) -> Result < Self , io :: Error >
+Interchange::from_json_str|fn|common/eip_3076/src/lib.rs|pub fn from_json_str(json : & str) -> Result < Self , serde_json :: Error >
+Interchange::is_empty|fn|common/eip_3076/src/lib.rs|pub fn is_empty(&self) -> bool
+Interchange::len|fn|common/eip_3076/src/lib.rs|pub fn len(&self) -> usize
+Interchange::minify|fn|common/eip_3076/src/lib.rs|pub fn minify(&self) -> Result < Self , Error >
+Interchange::write_to|fn|common/eip_3076/src/lib.rs|pub fn write_to(&self, writer : impl std :: io :: Write) -> Result < () , serde_json :: Error >
+InterchangeData|struct|common/eip_3076/src/lib.rs|pub struct InterchangeData
+InterchangeMetadata|struct|common/eip_3076/src/lib.rs|pub struct InterchangeMetadata
+SignedAttestation|struct|common/eip_3076/src/lib.rs|pub struct SignedAttestation
+SignedBlock|struct|common/eip_3076/src/lib.rs|pub struct SignedBlock

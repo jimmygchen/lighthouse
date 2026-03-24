@@ -1,0 +1,4 @@
+# rust-symbols symbols/swap_or_not_shuffle | 2026-03-24T06:27:26Z | 2 symbols
+# name|kind|path|signature
+compute_shuffled_index|fn|consensus/swap_or_not_shuffle/src/compute_shuffled_index.rs|pub fn compute_shuffled_index(index : usize, list_size : usize, seed : & [u8], shuffle_round_count : u8) -> Option < ...
+shuffle_list|fn|consensus/swap_or_not_shuffle/src/shuffle_list.rs|pub fn shuffle_list(mut input : Vec < usize >, rounds : u8, seed : & [u8], forwards : bool) -> Option < Vec < usize > >

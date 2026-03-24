@@ -1,0 +1,3 @@
+# rust-symbols symbols/web3signer_tests | 2026-03-24T06:27:26Z | 1 symbols
+# name|kind|path|signature
+download_binary|fn|testing/web3signer_tests/src/get_web3signer.rs|pub async fn download_binary(dest_dir : PathBuf)

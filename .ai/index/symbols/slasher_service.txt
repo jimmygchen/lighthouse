@@ -1,0 +1,5 @@
+# rust-symbols symbols/slasher_service | 2026-03-24T06:27:26Z | 3 symbols
+# name|kind|path|signature
+SlasherService|struct|slasher/service/src/service.rs|pub struct SlasherService<T: BeaconChainTypes>
+SlasherService::new|fn|slasher/service/src/service.rs|pub fn new(beacon_chain : Arc < BeaconChain < T > >, network_sender : UnboundedSender < NetworkMessage < T :: EthSpec...
+SlasherService::run|fn|slasher/service/src/service.rs|pub fn run(&self, executor : & TaskExecutor) -> Result < () , String >

@@ -1,0 +1,52 @@
+# rust-symbols symbols/client | 2026-03-24T06:27:26Z | 50 symbols
+# name|kind|path|signature
+Client|struct|beacon_node/client/src/lib.rs|pub struct Client<T: BeaconChainTypes>
+Client::beacon_chain|fn|beacon_node/client/src/lib.rs|pub fn beacon_chain(&self) -> Option < Arc < BeaconChain < T > > >
+Client::enr|fn|beacon_node/client/src/lib.rs|pub fn enr(&self) -> Option < Enr >
+Client::http_api_listen_addr|fn|beacon_node/client/src/lib.rs|pub fn http_api_listen_addr(&self) -> Option < SocketAddr >
+Client::http_metrics_listen_addr|fn|beacon_node/client/src/lib.rs|pub fn http_metrics_listen_addr(&self) -> Option < SocketAddr >
+Client::libp2p_listen_addresses|fn|beacon_node/client/src/lib.rs|pub fn libp2p_listen_addresses(&self) -> Option < Vec < Multiaddr > >
+ClientBuilder|struct|beacon_node/client/src/builder.rs|pub struct ClientBuilder<T: BeaconChainTypes>
+ClientBuilder::beacon_chain_builder|fn|beacon_node/client/src/builder.rs|pub async fn beacon_chain_builder(mut self, client_genesis : ClientGenesis, config : ClientConfig, node_id : [u8 ; 32...
+ClientBuilder::beacon_processor|fn|beacon_node/client/src/builder.rs|pub fn beacon_processor(mut self, config : BeaconProcessorConfig) -> Self
+ClientBuilder::build|fn|beacon_node/client/src/builder.rs|pub fn build(mut self) -> Result < Client < Witness < TSlotClock , E , THotStore , TColdStore > > , String >
+ClientBuilder::build_beacon_chain|fn|beacon_node/client/src/builder.rs|pub fn build_beacon_chain(mut self) -> Result < Self , String >
+ClientBuilder::chain_spec|fn|beacon_node/client/src/builder.rs|pub fn chain_spec(mut self, spec : Arc < ChainSpec >) -> Self
+ClientBuilder::disk_store|fn|beacon_node/client/src/builder.rs|pub fn disk_store(mut self, hot_path : & Path, cold_path : & Path, blobs_path : & Path, config : StoreConfig) -> Resu...
+ClientBuilder::http_api_config|fn|beacon_node/client/src/builder.rs|pub fn http_api_config(mut self, config : http_api :: Config) -> Self
+ClientBuilder::http_metrics_config|fn|beacon_node/client/src/builder.rs|pub fn http_metrics_config(mut self, config : http_metrics :: Config) -> Self
+ClientBuilder::monitoring_client|fn|beacon_node/client/src/builder.rs|pub fn monitoring_client(self, config : & monitoring_api :: Config) -> Result < Self , String >
+ClientBuilder::network|fn|beacon_node/client/src/builder.rs|pub async fn network(mut self, config : Arc < NetworkConfig >, local_keypair : Keypair) -> Result < Self , String >
+ClientBuilder::new|fn|beacon_node/client/src/builder.rs|pub fn new(eth_spec_instance : E) -> Self
+ClientBuilder::notifier|fn|beacon_node/client/src/builder.rs|pub fn notifier(self) -> Result < Self , String >
+ClientBuilder::runtime_context|fn|beacon_node/client/src/builder.rs|pub fn runtime_context(mut self, context : RuntimeContext < E >) -> Self
+ClientBuilder::slasher|fn|beacon_node/client/src/builder.rs|pub fn slasher(mut self, slasher : Arc < Slasher < E > >) -> Self
+ClientBuilder::start_slasher_service|fn|beacon_node/client/src/builder.rs|pub fn start_slasher_service(&self) -> Result < () , String >
+ClientBuilder::system_time_slot_clock|fn|beacon_node/client/src/builder.rs|pub fn system_time_slot_clock(mut self) -> Result < Self , String >
+ClientGenesis|enum|beacon_node/client/src/config.rs|pub enum ClientGenesis
+Config|struct|beacon_node/client/src/config.rs|pub struct Config
+Config::create_blobs_db_path|fn|beacon_node/client/src/config.rs|pub fn create_blobs_db_path(&self) -> Result < PathBuf , String >
+Config::create_data_dir|fn|beacon_node/client/src/config.rs|pub fn create_data_dir(&self) -> Result < PathBuf , String >
+Config::create_db_path|fn|beacon_node/client/src/config.rs|pub fn create_db_path(&self) -> Result < PathBuf , String >
+Config::create_freezer_db_path|fn|beacon_node/client/src/config.rs|pub fn create_freezer_db_path(&self) -> Result < PathBuf , String >
+Config::data_dir|fn|beacon_node/client/src/config.rs|pub fn data_dir(&self) -> & PathBuf
+Config::get_blobs_db_path|fn|beacon_node/client/src/config.rs|pub fn get_blobs_db_path(&self) -> PathBuf
+Config::get_data_dir|fn|beacon_node/client/src/config.rs|pub fn get_data_dir(&self) -> PathBuf
+Config::get_db_path|fn|beacon_node/client/src/config.rs|pub fn get_db_path(&self) -> PathBuf
+Config::get_existing_legacy_data_dir|fn|beacon_node/client/src/config.rs|pub fn get_existing_legacy_data_dir(&self) -> Option < PathBuf >
+Config::get_freezer_db_path|fn|beacon_node/client/src/config.rs|pub fn get_freezer_db_path(&self) -> PathBuf
+Config::set_data_dir|fn|beacon_node/client/src/config.rs|pub fn set_data_dir(&mut self, data_dir : PathBuf)
+ENGINE_CAPABILITIES_REFRESH_INTERVAL|const|beacon_node/client/src/notifier.rs|pub const ENGINE_CAPABILITIES_REFRESH_INTERVAL: u64 = 300;
+ETH1_GENESIS_UPDATE_INTERVAL_MILLIS|const|beacon_node/client/src/builder.rs|pub const ETH1_GENESIS_UPDATE_INTERVAL_MILLIS: u64 = 7_000;
+FORK_READINESS_PREPARATION_SECONDS|const|beacon_node/client/src/notifier.rs|pub const FORK_READINESS_PREPARATION_SECONDS: u64 = SECONDS_IN_A_WEEK * 2;
+LIGHT_CLIENT_SERVER_CHANNEL_CAPACITY|const|beacon_node/client/src/compute_light_client_updates.rs|pub(crate) const LIGHT_CLIENT_SERVER_CHANNEL_CAPACITY: usize = 32;
+Speedo|struct|beacon_node/client/src/notifier.rs|pub struct Speedo(Vec<(Slot, Instant)>);
+Speedo::clear|fn|beacon_node/client/src/notifier.rs|pub fn clear(&mut self)
+Speedo::estimated_time_till_slot|fn|beacon_node/client/src/notifier.rs|pub fn estimated_time_till_slot(&self, target_slot : Slot) -> Option < f64 >
+Speedo::observe|fn|beacon_node/client/src/notifier.rs|pub fn observe(&mut self, slot : Slot, instant : Instant)
+Speedo::slots_per_second|fn|beacon_node/client/src/notifier.rs|pub fn slots_per_second(&self) -> Option < f64 >
+WARN_PEER_COUNT|const|beacon_node/client/src/notifier.rs|pub const WARN_PEER_COUNT: usize = 1;
+builder|mod|beacon_node/client/src/lib.rs|pub mod builder
+compute_light_client_updates|fn|beacon_node/client/src/compute_light_client_updates.rs|pub async fn compute_light_client_updates<T : BeaconChainTypes>(chain : & BeaconChain < T >, mut light_client_server_...
+config|mod|beacon_node/client/src/lib.rs|pub mod config
+spawn_notifier|fn|beacon_node/client/src/notifier.rs|pub fn spawn_notifier<T : BeaconChainTypes>(executor : task_executor :: TaskExecutor, beacon_chain : Arc < BeaconChai...

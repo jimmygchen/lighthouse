@@ -1,0 +1,239 @@
+# rust-symbols symbols/slasher | 2026-03-24T06:27:26Z | 237 symbols
+# name|kind|path|signature
+AttestationBatch|struct|slasher/src/attestation_queue.rs|pub struct AttestationBatch<E: EthSpec>
+AttestationBatch::group_by_validator_chunk_index|fn|slasher/src/attestation_queue.rs|pub fn group_by_validator_chunk_index(self, config : & Config) -> GroupedAttestations < E >
+AttestationBatch::queue|fn|slasher/src/attestation_queue.rs|pub fn queue(&mut self, indexed_record : Arc < IndexedAttesterRecord < E > >)
+AttestationQueue|struct|slasher/src/attestation_queue.rs|pub struct AttestationQueue<E: EthSpec>
+AttestationQueue::dequeue|fn|slasher/src/attestation_queue.rs|pub fn dequeue(&self) -> SimpleBatch < E >
+AttestationQueue::is_empty|fn|slasher/src/attestation_queue.rs|pub fn is_empty(&self) -> bool
+AttestationQueue::len|fn|slasher/src/attestation_queue.rs|pub fn len(&self) -> usize
+AttestationQueue::queue|fn|slasher/src/attestation_queue.rs|pub fn queue(&self, attestation : IndexedAttestation < E >)
+AttestationQueue::requeue|fn|slasher/src/attestation_queue.rs|pub fn requeue(&self, batch : SimpleBatch < E >)
+AttestationStats|struct|slasher/src/batch_stats.rs|pub struct AttestationStats
+AttesterKey|struct|slasher/src/database.rs|pub struct AttesterKey
+AttesterKey::new|fn|slasher/src/database.rs|pub fn new(validator_index : u64, target_epoch : Epoch, config : & Config) -> Self
+AttesterRecord|struct|slasher/src/attester_record.rs|pub struct AttesterRecord
+AttesterSlashingStatus|enum|slasher/src/lib.rs|pub enum AttesterSlashingStatus<E: EthSpec>
+AttesterSlashingStatus::into_slashing|fn|slasher/src/lib.rs|pub fn into_slashing(self, new_attestation : & IndexedAttestation < E >) -> Option < AttesterSlashing < E > >
+BatchStats|struct|slasher/src/batch_stats.rs|pub struct BatchStats
+BlockQueue|struct|slasher/src/block_queue.rs|pub struct BlockQueue
+BlockQueue::dequeue|fn|slasher/src/block_queue.rs|pub fn dequeue(&self) -> HashSet < SignedBeaconBlockHeader >
+BlockQueue::is_empty|fn|slasher/src/block_queue.rs|pub fn is_empty(&self) -> bool
+BlockQueue::len|fn|slasher/src/block_queue.rs|pub fn len(&self) -> usize
+BlockQueue::queue|fn|slasher/src/block_queue.rs|pub fn queue(&self, block_header : SignedBeaconBlockHeader)
+BlockStats|struct|slasher/src/batch_stats.rs|pub struct BlockStats
+CURRENT_SCHEMA_VERSION|const|slasher/src/database.rs|pub const CURRENT_SCHEMA_VERSION: u64 = 3;
+Chunk|struct|slasher/src/array.rs|pub struct Chunk
+Chunk::epoch_distance|fn|slasher/src/array.rs|pub fn epoch_distance(epoch : Epoch, base_epoch : Epoch) -> Result < u16 , Error >
+Chunk::get_target|fn|slasher/src/array.rs|pub fn get_target(&self, validator_index : u64, epoch : Epoch, config : & Config) -> Result < Epoch , Error >
+Chunk::set_raw_distance|fn|slasher/src/array.rs|pub fn set_raw_distance(&mut self, validator_index : u64, epoch : Epoch, target_distance : u16, config : & Config) ->...
+Chunk::set_target|fn|slasher/src/array.rs|pub fn set_target(&mut self, validator_index : u64, epoch : Epoch, target_epoch : Epoch, config : & Config) -> Result...
+CompactAttesterRecord|struct|slasher/src/attester_record.rs|pub struct CompactAttesterRecord
+CompactAttesterRecord::as_bytes|fn|slasher/src/attester_record.rs|pub fn as_bytes(&self) -> & [u8]
+CompactAttesterRecord::is_null|fn|slasher/src/attester_record.rs|pub fn is_null(&self) -> bool
+CompactAttesterRecord::new|fn|slasher/src/attester_record.rs|pub fn new(indexed_attestation_id : IndexedAttestationId) -> Self
+CompactAttesterRecord::null|fn|slasher/src/attester_record.rs|pub fn null() -> Self
+CompactAttesterRecord::parse|fn|slasher/src/attester_record.rs|pub fn parse(bytes : Cow < [u8] >) -> Result < Self , Error >
+Config|struct|slasher/src/config.rs|pub struct Config
+Config::attesting_validators_in_chunk|fn|slasher/src/config.rs|pub fn attesting_validators_in_chunk<'a, E : EthSpec>(&self, attestation : & 'a IndexedAttestation < E >, validator_c...
+Config::cell_index|fn|slasher/src/config.rs|pub fn cell_index(&self, validator_offset : usize, chunk_offset : usize) -> usize
+Config::chunk_index|fn|slasher/src/config.rs|pub fn chunk_index(&self, epoch : Epoch) -> usize
+Config::chunk_offset|fn|slasher/src/config.rs|pub fn chunk_offset(&self, epoch : Epoch) -> usize
+Config::disk_config|fn|slasher/src/config.rs|pub fn disk_config(&self) -> DiskConfig
+Config::disk_key|fn|slasher/src/config.rs|pub fn disk_key(&self, validator_chunk_index : usize, chunk_index : usize) -> usize
+Config::new|fn|slasher/src/config.rs|pub fn new(database_path : PathBuf) -> Self
+Config::override_backend|fn|slasher/src/config.rs|pub fn override_backend(&mut self) -> DatabaseBackendOverride
+Config::validate|fn|slasher/src/config.rs|pub fn validate(&self) -> Result < () , Error >
+Config::validator_chunk_index|fn|slasher/src/config.rs|pub fn validator_chunk_index(&self, validator_index : u64) -> usize
+Config::validator_indices_in_chunk|fn|slasher/src/config.rs|pub fn validator_indices_in_chunk(&self, validator_chunk_index : usize) -> impl Iterator < Item = u64 >
+Config::validator_offset|fn|slasher/src/config.rs|pub fn validator_offset(&self, validator_index : u64) -> usize
+CurrentEpochKey|struct|slasher/src/database.rs|pub struct CurrentEpochKey
+CurrentEpochKey::new|fn|slasher/src/database.rs|pub fn new(validator_index : u64) -> Self
+Cursor|enum|slasher/src/database/interface.rs|pub enum Cursor<'env>
+Cursor|struct|slasher/src/database/lmdb_impl.rs|pub struct Cursor<'env>
+Cursor|struct|slasher/src/database/redb_impl.rs|pub struct Cursor<'env>
+Cursor|struct|slasher/src/database/mdbx_impl.rs|pub struct Cursor<'env>
+Cursor::delete_current|fn|slasher/src/database/interface.rs|pub fn delete_current(&mut self) -> Result < () , Error >
+Cursor::delete_current|fn|slasher/src/database/lmdb_impl.rs|pub fn delete_current(&mut self) -> Result < () , Error >
+Cursor::delete_current|fn|slasher/src/database/redb_impl.rs|pub fn delete_current(&self) -> Result < () , Error >
+Cursor::delete_current|fn|slasher/src/database/mdbx_impl.rs|pub fn delete_current(&mut self) -> Result < () , Error >
+Cursor::delete_while|fn|slasher/src/database/interface.rs|pub fn delete_while(&mut self, f : impl Fn (& [u8]) -> Result < bool , Error >) -> Result < Vec < Cow < '_ , [u8] > >...
+Cursor::delete_while|fn|slasher/src/database/lmdb_impl.rs|pub fn delete_while(&mut self, f : impl Fn (& [u8]) -> Result < bool , Error >) -> Result < Vec < Cow < '_ , [u8] > >...
+Cursor::delete_while|fn|slasher/src/database/redb_impl.rs|pub fn delete_while(&self, f : impl Fn (& [u8]) -> Result < bool , Error >) -> Result < Vec < Cow < '_ , [u8] > > , E...
+Cursor::delete_while|fn|slasher/src/database/mdbx_impl.rs|pub fn delete_while(&mut self, f : impl Fn (& [u8]) -> Result < bool , Error >) -> Result < Vec < Cow < '_ , [u8] > >...
+Cursor::first_key|fn|slasher/src/database/interface.rs|pub fn first_key(&mut self) -> Result < Option < Key < '_ > > , Error >
+Cursor::first_key|fn|slasher/src/database/lmdb_impl.rs|pub fn first_key(&mut self) -> Result < Option < Key < '_ > > , Error >
+Cursor::first_key|fn|slasher/src/database/redb_impl.rs|pub fn first_key(&mut self) -> Result < Option < Key < '_ > > , Error >
+Cursor::first_key|fn|slasher/src/database/mdbx_impl.rs|pub fn first_key(&mut self) -> Result < Option < Cow < 'env , [u8] > > , Error >
+Cursor::get_current|fn|slasher/src/database/lmdb_impl.rs|pub fn get_current(&mut self) -> Result < Option < (Key < 'env > , Value < 'env >) > , Error >
+Cursor::get_current|fn|slasher/src/database/redb_impl.rs|pub fn get_current(&self) -> Result < Option < (Key < 'env > , Value < 'env >) > , Error >
+Cursor::get_current|fn|slasher/src/database/mdbx_impl.rs|pub fn get_current(&mut self) -> Result < Option < (Key < 'env > , Value < 'env >) > , Error >
+Cursor::last_key|fn|slasher/src/database/interface.rs|pub fn last_key(&mut self) -> Result < Option < Key < '_ > > , Error >
+Cursor::last_key|fn|slasher/src/database/lmdb_impl.rs|pub fn last_key(&mut self) -> Result < Option < Key < 'env > > , Error >
+Cursor::last_key|fn|slasher/src/database/redb_impl.rs|pub fn last_key(&mut self) -> Result < Option < Key < 'env > > , Error >
+Cursor::last_key|fn|slasher/src/database/mdbx_impl.rs|pub fn last_key(&mut self) -> Result < Option < Cow < 'env , [u8] > > , Error >
+Cursor::next_key|fn|slasher/src/database/interface.rs|pub fn next_key(&mut self) -> Result < Option < Key < '_ > > , Error >
+Cursor::next_key|fn|slasher/src/database/lmdb_impl.rs|pub fn next_key(&mut self) -> Result < Option < Key < 'env > > , Error >
+Cursor::next_key|fn|slasher/src/database/redb_impl.rs|pub fn next_key(&mut self) -> Result < Option < Key < 'env > > , Error >
+Cursor::next_key|fn|slasher/src/database/mdbx_impl.rs|pub fn next_key(&mut self) -> Result < Option < Cow < 'env , [u8] > > , Error >
+Cursor::put|fn|slasher/src/database/interface.rs|pub fn put<K : AsRef < [u8] >, V : AsRef < [u8] >>(&mut self, key : K, value : V) -> Result < () , Error >
+Cursor::put|fn|slasher/src/database/lmdb_impl.rs|pub fn put<K : AsRef < [u8] >, V : AsRef < [u8] >>(&mut self, key : K, value : V) -> Result < () , Error >
+Cursor::put|fn|slasher/src/database/redb_impl.rs|pub fn put<K : AsRef < [u8] >, V : AsRef < [u8] >>(&mut self, key : K, value : V) -> Result < () , Error >
+Cursor::put|fn|slasher/src/database/mdbx_impl.rs|pub fn put<K : AsRef < [u8] >, V : AsRef < [u8] >>(&mut self, key : K, value : V) -> Result < () , Error >
+DEFAULT_ATTESTATION_ROOT_CACHE_SIZE|const|slasher/src/config.rs|pub const DEFAULT_ATTESTATION_ROOT_CACHE_SIZE: NonZeroUsize = new_non_zero_usize(100_000);
+DEFAULT_BACKEND|const|slasher/src/config.rs|pub const DEFAULT_BACKEND: DatabaseBackend = DatabaseBackend::Mdbx;
+DEFAULT_BACKEND|const|slasher/src/config.rs|pub const DEFAULT_BACKEND: DatabaseBackend = DatabaseBackend::Lmdb;
+DEFAULT_BACKEND|const|slasher/src/config.rs|pub const DEFAULT_BACKEND: DatabaseBackend = DatabaseBackend::Redb;
+DEFAULT_BACKEND|const|slasher/src/config.rs|pub const DEFAULT_BACKEND: DatabaseBackend = DatabaseBackend::Disabled;
+DEFAULT_BROADCAST|const|slasher/src/config.rs|pub const DEFAULT_BROADCAST: bool = false;
+DEFAULT_CHUNK_SIZE|const|slasher/src/config.rs|pub const DEFAULT_CHUNK_SIZE: usize = 16;
+DEFAULT_HISTORY_LENGTH|const|slasher/src/config.rs|pub const DEFAULT_HISTORY_LENGTH: usize = 4096;
+DEFAULT_MAX_DB_SIZE|const|slasher/src/config.rs|pub const DEFAULT_MAX_DB_SIZE: usize = 512 * 1024; // 512 GiB
+DEFAULT_SLOT_OFFSET|const|slasher/src/config.rs|pub const DEFAULT_SLOT_OFFSET: f64 = 10.5;
+DEFAULT_UPDATE_PERIOD|const|slasher/src/config.rs|pub const DEFAULT_UPDATE_PERIOD: u64 = 12;
+DEFAULT_VALIDATOR_CHUNK_SIZE|const|slasher/src/config.rs|pub const DEFAULT_VALIDATOR_CHUNK_SIZE: usize = 256;
+Database|enum|slasher/src/database/interface.rs|pub enum Database<'env>
+Database|struct|slasher/src/database/lmdb_impl.rs|pub struct Database<'env>
+Database|struct|slasher/src/database/redb_impl.rs|pub struct Database<'env>
+Database|struct|slasher/src/database/mdbx_impl.rs|pub struct Database<'env>
+DatabaseBackend|enum|slasher/src/config.rs|pub enum DatabaseBackend
+DatabaseBackendOverride|enum|slasher/src/config.rs|pub enum DatabaseBackendOverride
+DiskConfig|struct|slasher/src/config.rs|pub struct DiskConfig
+E|type|slasher/src/test_utils.rs|pub type E = MainnetEthSpec;
+Environment|enum|slasher/src/database/interface.rs|pub enum Environment
+Environment|struct|slasher/src/database/lmdb_impl.rs|pub struct Environment
+Environment|struct|slasher/src/database/redb_impl.rs|pub struct Environment
+Environment|struct|slasher/src/database/mdbx_impl.rs|pub struct Environment
+Environment::begin_rw_txn|fn|slasher/src/database/interface.rs|pub fn begin_rw_txn(&self) -> Result < RwTransaction < '_ > , Error >
+Environment::begin_rw_txn|fn|slasher/src/database/lmdb_impl.rs|pub fn begin_rw_txn(&self) -> Result < RwTransaction < '_ > , Error >
+Environment::begin_rw_txn|fn|slasher/src/database/redb_impl.rs|pub fn begin_rw_txn(&self) -> Result < RwTransaction < '_ > , Error >
+Environment::begin_rw_txn|fn|slasher/src/database/mdbx_impl.rs|pub fn begin_rw_txn(&self) -> Result < RwTransaction < '_ > , Error >
+Environment::create_databases|fn|slasher/src/database/interface.rs|pub fn create_databases(&self) -> Result < OpenDatabases < '_ > , Error >
+Environment::create_databases|fn|slasher/src/database/lmdb_impl.rs|pub fn create_databases(&self) -> Result < OpenDatabases < '_ > , Error >
+Environment::create_databases|fn|slasher/src/database/redb_impl.rs|pub fn create_databases(&self) -> Result < OpenDatabases < '_ > , Error >
+Environment::create_databases|fn|slasher/src/database/mdbx_impl.rs|pub fn create_databases(&self) -> Result < OpenDatabases < '_ > , Error >
+Environment::create_table|fn|slasher/src/database/redb_impl.rs|pub fn create_table<'env>(&self, table_name : & 'env str) -> Result < crate :: Database < 'env > , Error >
+Environment::filenames|fn|slasher/src/database/interface.rs|pub fn filenames(&self, config : & Config) -> Vec < PathBuf >
+Environment::filenames|fn|slasher/src/database/lmdb_impl.rs|pub fn filenames(&self, config : & Config) -> Vec < PathBuf >
+Environment::filenames|fn|slasher/src/database/redb_impl.rs|pub fn filenames(&self, config : & Config) -> Vec < PathBuf >
+Environment::filenames|fn|slasher/src/database/mdbx_impl.rs|pub fn filenames(&self, config : & Config) -> Vec < PathBuf >
+Environment::new|fn|slasher/src/database/interface.rs|pub fn new(config : & Config) -> Result < Environment , Error >
+Environment::new|fn|slasher/src/database/lmdb_impl.rs|pub fn new(config : & Config) -> Result < Environment , Error >
+Environment::new|fn|slasher/src/database/redb_impl.rs|pub fn new(config : & Config) -> Result < Environment , Error >
+Environment::new|fn|slasher/src/database/mdbx_impl.rs|pub fn new(config : & Config) -> Result < Environment , Error >
+Error|enum|slasher/src/error.rs|pub enum Error
+GroupedAttestations|struct|slasher/src/attestation_queue.rs|pub struct GroupedAttestations<E: EthSpec>
+IndexedAttestationId|struct|slasher/src/database.rs|pub struct IndexedAttestationId
+IndexedAttestationId::as_u64|fn|slasher/src/database.rs|pub fn as_u64(&self) -> u64
+IndexedAttestationId::is_null|fn|slasher/src/database.rs|pub fn is_null(&self) -> bool
+IndexedAttestationId::new|fn|slasher/src/database.rs|pub fn new(id : u64) -> Self
+IndexedAttestationId::null|fn|slasher/src/database.rs|pub fn null() -> Self
+IndexedAttestationId::parse|fn|slasher/src/database.rs|pub fn parse(data : Cow < [u8] >) -> Result < u64 , Error >
+IndexedAttestationIdKey|struct|slasher/src/database.rs|pub struct IndexedAttestationIdKey
+IndexedAttestationIdKey::new|fn|slasher/src/database.rs|pub fn new(target_epoch : Epoch, indexed_attestation_root : Hash256) -> Self
+IndexedAttestationIdKey::parse|fn|slasher/src/database.rs|pub fn parse(data : Cow < [u8] >) -> Result < (Epoch , Hash256) , Error >
+IndexedAttestationOnDisk|struct|slasher/src/database.rs|pub struct IndexedAttestationOnDisk
+IndexedAttesterRecord|struct|slasher/src/attester_record.rs|pub struct IndexedAttesterRecord<E: EthSpec>
+IndexedAttesterRecord::get_id|fn|slasher/src/attester_record.rs|pub fn get_id(&self) -> u64
+IndexedAttesterRecord::new|fn|slasher/src/attester_record.rs|pub fn new(indexed : IndexedAttestation < E >, record : AttesterRecord) -> Arc < Self >
+IndexedAttesterRecord::set_id|fn|slasher/src/attester_record.rs|pub fn set_id(&self, id : u64)
+Key|type|slasher/src/database/interface.rs|pub type Key<'a> = Cow<'a, [u8]>;
+MAX_DISTANCE|const|slasher/src/array.rs|pub const MAX_DISTANCE: u16 = u16::MAX;
+MAX_HISTORY_LENGTH|const|slasher/src/config.rs|pub const MAX_HISTORY_LENGTH: usize = 1 << 16;
+MDBX_DATA_FILENAME|const|slasher/src/config.rs|pub const MDBX_DATA_FILENAME: &str = "mdbx.dat";
+MDBX_GROWTH_STEP|const|slasher/src/database/mdbx_impl.rs|pub const MDBX_GROWTH_STEP: isize = 256 * (1 << 20); // 256 MiB
+MEGABYTE|const|slasher/src/config.rs|pub const MEGABYTE: usize = 1 << 20;
+MaxTargetChunk|struct|slasher/src/array.rs|pub struct MaxTargetChunk
+MinTargetChunk|struct|slasher/src/array.rs|pub struct MinTargetChunk
+OpenDatabases|struct|slasher/src/database/interface.rs|pub struct OpenDatabases<'env>
+ProposerKey|struct|slasher/src/database.rs|pub struct ProposerKey
+ProposerKey::new|fn|slasher/src/database.rs|pub fn new(validator_index : u64, slot : Slot) -> Self
+ProposerKey::parse|fn|slasher/src/database.rs|pub fn parse(data : Cow < [u8] >) -> Result < (Slot , u64) , Error >
+ProposerSlashingStatus|enum|slasher/src/lib.rs|pub enum ProposerSlashingStatus
+REDB_DATA_FILENAME|const|slasher/src/config.rs|pub const REDB_DATA_FILENAME: &str = "slasher.redb";
+RwTransaction|enum|slasher/src/database/interface.rs|pub enum RwTransaction<'env>
+RwTransaction|struct|slasher/src/database/lmdb_impl.rs|pub struct RwTransaction<'env>
+RwTransaction|struct|slasher/src/database/redb_impl.rs|pub struct RwTransaction<'env>
+RwTransaction|struct|slasher/src/database/mdbx_impl.rs|pub struct RwTransaction<'env>
+RwTransaction::commit|fn|slasher/src/database/interface.rs|pub fn commit(self) -> Result < () , Error >
+RwTransaction::commit|fn|slasher/src/database/lmdb_impl.rs|pub fn commit(self) -> Result < () , Error >
+RwTransaction::commit|fn|slasher/src/database/redb_impl.rs|pub fn commit(self) -> Result < () , Error >
+RwTransaction::commit|fn|slasher/src/database/mdbx_impl.rs|pub fn commit(self) -> Result < () , Error >
+RwTransaction::create_db|fn|slasher/src/database/mdbx_impl.rs|pub fn create_db(&self, name : & 'static str) -> Result < () , Error >
+RwTransaction::cursor|fn|slasher/src/database/interface.rs|pub fn cursor<'a>(&mut self, db : & 'a Database) -> Result < Cursor < 'a > , Error >
+RwTransaction::cursor|fn|slasher/src/database/lmdb_impl.rs|pub fn cursor<'a>(&mut self, db : & Database) -> Result < Cursor < 'a > , Error >
+RwTransaction::cursor|fn|slasher/src/database/redb_impl.rs|pub fn cursor<'a>(&mut self, db : & 'a Database) -> Result < Cursor < 'a > , Error >
+RwTransaction::cursor|fn|slasher/src/database/mdbx_impl.rs|pub fn cursor<'a>(&self, db : & Database) -> Result < Cursor < 'a > , Error >
+RwTransaction::del|fn|slasher/src/database/interface.rs|pub fn del<K : AsRef < [u8] >>(&mut self, db : & Database, key : K) -> Result < () , Error >
+RwTransaction::del|fn|slasher/src/database/lmdb_impl.rs|pub fn del<K : AsRef < [u8] >>(&mut self, db : & Database, key : K) -> Result < () , Error >
+RwTransaction::del|fn|slasher/src/database/redb_impl.rs|pub fn del<K : AsRef < [u8] >>(&mut self, db : & Database, key : K) -> Result < () , Error >
+RwTransaction::del|fn|slasher/src/database/mdbx_impl.rs|pub fn del<K : AsRef < [u8] >>(&self, db : & Database, key : K) -> Result < () , Error >
+RwTransaction::get|fn|slasher/src/database/interface.rs|pub fn get<K : AsRef < [u8] > + ? Sized>(&self, db : & 'env Database, key : & K) -> Result < Option < Cow < 'env , [u...
+RwTransaction::get|fn|slasher/src/database/lmdb_impl.rs|pub fn get<K : AsRef < [u8] > + ? Sized>(&self, db : & 'env Database, key : & K) -> Result < Option < Cow < 'env , [u...
+RwTransaction::get|fn|slasher/src/database/redb_impl.rs|pub fn get<K : AsRef < [u8] > + ? Sized>(&self, db : & 'env Database, key : & K) -> Result < Option < Cow < 'env , [u...
+RwTransaction::get|fn|slasher/src/database/mdbx_impl.rs|pub fn get<K : AsRef < [u8] > + ? Sized>(&self, db : & 'env Database, key : & K) -> Result < Option < Cow < 'env , [u...
+RwTransaction::open_db|fn|slasher/src/database/mdbx_impl.rs|pub fn open_db(&self, name : & 'static str) -> Result < Database < '_ > , Error >
+RwTransaction::put|fn|slasher/src/database/interface.rs|pub fn put<K : AsRef < [u8] >, V : AsRef < [u8] >>(&mut self, db : & Database, key : K, value : V) -> Result < () , E...
+RwTransaction::put|fn|slasher/src/database/lmdb_impl.rs|pub fn put<K : AsRef < [u8] >, V : AsRef < [u8] >>(&mut self, db : & Database, key : K, value : V) -> Result < () , E...
+RwTransaction::put|fn|slasher/src/database/redb_impl.rs|pub fn put<K : AsRef < [u8] >, V : AsRef < [u8] >>(&mut self, db : & Database, key : K, value : V) -> Result < () , E...
+RwTransaction::put|fn|slasher/src/database/mdbx_impl.rs|pub fn put<K : AsRef < [u8] >, V : AsRef < [u8] >>(&self, db : & Database, key : K, value : V) -> Result < () , Error >
+SimpleBatch|type|slasher/src/attestation_queue.rs|pub type SimpleBatch<E> = Vec<Arc<IndexedAttesterRecord<E>>>;
+Slasher|struct|slasher/src/slasher.rs|pub struct Slasher<E: EthSpec>
+Slasher::accept_attestation|fn|slasher/src/slasher.rs|pub fn accept_attestation(&self, attestation : IndexedAttestation < E >)
+Slasher::accept_block_header|fn|slasher/src/slasher.rs|pub fn accept_block_header(&self, block_header : SignedBeaconBlockHeader)
+Slasher::config|fn|slasher/src/slasher.rs|pub fn config(&self) -> & Config
+Slasher::from_config_and_db|fn|slasher/src/slasher.rs|pub fn from_config_and_db(config : Arc < Config >, db : SlasherDB < E >) -> Result < Self , Error >
+Slasher::get_attester_slashings|fn|slasher/src/slasher.rs|pub fn get_attester_slashings(&self) -> HashSet < AttesterSlashing < E > >
+Slasher::get_proposer_slashings|fn|slasher/src/slasher.rs|pub fn get_proposer_slashings(&self) -> HashSet < ProposerSlashing >
+Slasher::into_reset_db|fn|slasher/src/slasher.rs|pub fn into_reset_db(self) -> Result < SlasherDB < E > , Error >
+Slasher::open|fn|slasher/src/slasher.rs|pub fn open(config : Config, spec : Arc < ChainSpec >) -> Result < Self , Error >
+Slasher::process_attestations|fn|slasher/src/slasher.rs|pub fn process_attestations(&self, current_epoch : Epoch, txn : & mut RwTransaction < '_ >) -> Result < AttestationSt...
+Slasher::process_blocks|fn|slasher/src/slasher.rs|pub fn process_blocks(&self, txn : & mut RwTransaction < '_ >) -> Result < BlockStats , Error >
+Slasher::process_queued|fn|slasher/src/slasher.rs|pub fn process_queued(&self, current_epoch : Epoch) -> Result < BatchStats , Error >
+Slasher::prune_database|fn|slasher/src/slasher.rs|pub fn prune_database(&self, current_epoch : Epoch) -> Result < () , Error >
+SlasherDB|struct|slasher/src/database.rs|pub struct SlasherDB<E: EthSpec>
+SlasherDB::attestation_root_cache_size|fn|slasher/src/database.rs|pub fn attestation_root_cache_size(&self) -> usize
+SlasherDB::begin_rw_txn|fn|slasher/src/database.rs|pub fn begin_rw_txn(&self) -> Result < RwTransaction < '_ > , Error >
+SlasherDB::cache_attestation_data_root|fn|slasher/src/database.rs|pub fn cache_attestation_data_root(&self, indexed_attestation_id : IndexedAttestationId, attestation_data_root : Hash...
+SlasherDB::check_and_update_attester_record|fn|slasher/src/database.rs|pub fn check_and_update_attester_record(&self, txn : & mut RwTransaction < '_ >, validator_index : u64, attestation :...
+SlasherDB::check_or_insert_block_proposal|fn|slasher/src/database.rs|pub fn check_or_insert_block_proposal(&self, txn : & mut RwTransaction < '_ >, block_header : SignedBeaconBlockHeader...
+SlasherDB::get_attestation_for_validator|fn|slasher/src/database.rs|pub fn get_attestation_for_validator(&self, txn : & mut RwTransaction < '_ >, validator_index : u64, target_epoch : E...
+SlasherDB::get_attester_max_target|fn|slasher/src/database.rs|pub fn get_attester_max_target(&self, validator_index : u64, txn : & mut RwTransaction < '_ >) -> Result < Option < E...
+SlasherDB::get_attester_record|fn|slasher/src/database.rs|pub fn get_attester_record(&self, txn : & mut RwTransaction < '_ >, validator_index : u64, target : Epoch, prev_max_t...
+SlasherDB::get_block_proposal|fn|slasher/src/database.rs|pub fn get_block_proposal(&self, txn : & mut RwTransaction < '_ >, proposer_index : u64, slot : Slot) -> Result < Opt...
+SlasherDB::get_config|fn|slasher/src/database.rs|pub fn get_config(&self) -> & Config
+SlasherDB::get_current_epoch_for_validator|fn|slasher/src/database.rs|pub fn get_current_epoch_for_validator(&self, validator_index : u64, txn : & mut RwTransaction < '_ >) -> Result < Op...
+SlasherDB::get_indexed_attestation|fn|slasher/src/database.rs|pub fn get_indexed_attestation(&self, txn : & mut RwTransaction < '_ >, indexed_attestation_id : IndexedAttestationId...
+SlasherDB::load_config|fn|slasher/src/database.rs|pub fn load_config<T : DeserializeOwned>(&self, txn : & mut RwTransaction < '_ >) -> Result < Option < T > , Error >
+SlasherDB::load_schema_version|fn|slasher/src/database.rs|pub fn load_schema_version(&self, txn : & mut RwTransaction < '_ >) -> Result < Option < u64 > , Error >
+SlasherDB::migrate|fn|slasher/src/migrate.rs|pub fn migrate(self) -> Result < Self , Error >
+SlasherDB::open|fn|slasher/src/database.rs|pub fn open(config : Arc < Config >, spec : Arc < ChainSpec >) -> Result < Self , Error >
+SlasherDB::prune|fn|slasher/src/database.rs|pub fn prune(&self, current_epoch : Epoch) -> Result < () , Error >
+SlasherDB::reset|fn|slasher/src/database.rs|pub fn reset(&self) -> Result < () , Error >
+SlasherDB::store_config|fn|slasher/src/database.rs|pub fn store_config(&self, config : & Config, txn : & mut RwTransaction < '_ >) -> Result < () , Error >
+SlasherDB::store_indexed_attestation|fn|slasher/src/database.rs|pub fn store_indexed_attestation(&self, txn : & mut RwTransaction < '_ >, indexed_attestation_hash : Hash256, indexed...
+SlasherDB::store_schema_version|fn|slasher/src/database.rs|pub fn store_schema_version(&self, txn : & mut RwTransaction < '_ >) -> Result < () , Error >
+SlasherDB::try_prune|fn|slasher/src/database.rs|pub fn try_prune(&self, current_epoch : Epoch, txn : & mut RwTransaction < '_ >) -> Result < () , Error >
+SlasherDB::update_attester_max_target|fn|slasher/src/database.rs|pub fn update_attester_max_target(&self, validator_index : u64, previous_max_target : Option < Epoch >, max_target : ...
+SlasherDB::update_config|fn|slasher/src/database.rs|pub fn update_config(&mut self, config : Arc < Config >)
+SlasherDB::update_current_epoch_for_validator|fn|slasher/src/database.rs|pub fn update_current_epoch_for_validator(&self, validator_index : u64, current_epoch : Epoch, txn : & mut RwTransact...
+TargetArrayChunk|trait|slasher/src/array.rs|pub trait TargetArrayChunk: Sized + serde::Serialize + serde::de::DeserializeOwned
+TxnOptional|trait|slasher/src/database/lmdb_impl.rs|pub trait TxnOptional<T, E>
+Value|type|slasher/src/database/interface.rs|pub type Value<'a> = Cow<'a, [u8]>;
+apply_attestation_for_validator|fn|slasher/src/array.rs|pub fn apply_attestation_for_validator<E : EthSpec, T : TargetArrayChunk>(db : & SlasherDB < E >, txn : & mut RwTrans...
+att_slashing|fn|slasher/src/test_utils.rs|pub fn att_slashing(attestation_1 : & IndexedAttestation < E >, attestation_2 : & IndexedAttestation < E >) -> Attest...
+block|fn|slasher/src/test_utils.rs|pub fn block(slot : u64, proposer_index : u64, block_root : u64) -> SignedBeaconBlockHeader
+chain_spec|fn|slasher/src/test_utils.rs|pub fn chain_spec() -> Arc < ChainSpec >
+config|mod|slasher/src/lib.rs|pub mod config
+epoch_update_for_validator|fn|slasher/src/array.rs|pub fn epoch_update_for_validator<E : EthSpec, T : TargetArrayChunk>(db : & SlasherDB < E >, txn : & mut RwTransactio...
+get_chunk_for_update|fn|slasher/src/array.rs|pub fn get_chunk_for_update<'a, E : EthSpec, T : TargetArrayChunk>(db : & SlasherDB < E >, txn : & mut RwTransaction ...
+hashset_intersection|fn|slasher/src/test_utils.rs|pub fn hashset_intersection(attestation_1_indices : & [u64], attestation_2_indices : & [u64]) -> HashSet < u64 >
+indexed_att|fn|slasher/src/test_utils.rs|pub fn indexed_att(attesting_indices : impl AsRef < [u64] >, source_epoch : u64, target_epoch : u64, target_root : u6...
+indexed_att_electra|fn|slasher/src/test_utils.rs|pub fn indexed_att_electra(attesting_indices : impl AsRef < [u64] >, source_epoch : u64, target_epoch : u64, target_r...
+interface|mod|slasher/src/database.rs|pub mod interface
+metrics|mod|slasher/src/lib.rs|pub mod metrics
+slashed_validators_from_attestations|fn|slasher/src/test_utils.rs|pub fn slashed_validators_from_attestations(attestations : & [IndexedAttestation < E >]) -> HashSet < u64 >
+slashed_validators_from_slashings|fn|slasher/src/test_utils.rs|pub fn slashed_validators_from_slashings(slashings : & HashSet < AttesterSlashing < E > >) -> HashSet < u64 >
+test_utils|mod|slasher/src/lib.rs|pub mod test_utils
+update|fn|slasher/src/array.rs|pub fn update<E : EthSpec>(db : & SlasherDB < E >, txn : & mut RwTransaction < '_ >, validator_chunk_index : usize, b...
+update_array|fn|slasher/src/array.rs|pub fn update_array<E : EthSpec, T : TargetArrayChunk>(db : & SlasherDB < E >, txn : & mut RwTransaction < '_ >, vali...

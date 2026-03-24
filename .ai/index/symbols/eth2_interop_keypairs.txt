@@ -1,0 +1,8 @@
+# rust-symbols symbols/eth2_interop_keypairs | 2026-03-24T06:27:26Z | 6 symbols
+# name|kind|path|signature
+HASH_BYTES|const|common/eth2_interop_keypairs/src/lib.rs|pub const HASH_BYTES: usize = 32;
+PRIVATE_KEY_BYTES|const|common/eth2_interop_keypairs/src/lib.rs|pub const PRIVATE_KEY_BYTES: usize = 32;
+PUBLIC_KEY_BYTES|const|common/eth2_interop_keypairs/src/lib.rs|pub const PUBLIC_KEY_BYTES: usize = 48;
+be_private_key|fn|common/eth2_interop_keypairs/src/lib.rs|pub fn be_private_key(validator_index : usize) -> [u8 ; PRIVATE_KEY_BYTES]
+keypair|fn|common/eth2_interop_keypairs/src/lib.rs|pub fn keypair(validator_index : usize) -> Keypair
+keypairs_from_yaml_file|fn|common/eth2_interop_keypairs/src/lib.rs|pub fn keypairs_from_yaml_file(path : PathBuf) -> Result < Vec < Keypair > , String >

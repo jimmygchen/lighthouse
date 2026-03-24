@@ -1,0 +1,8 @@
+# rust-symbols symbols/state_transition_vectors | 2026-03-24T06:27:26Z | 6 symbols
+# name|kind|path|signature
+BASE_VECTOR_DIR|const|testing/state_transition_vectors/src/main.rs|pub const BASE_VECTOR_DIR: &str = "vectors";
+SLOT_OFFSET|const|testing/state_transition_vectors/src/main.rs|pub const SLOT_OFFSET: u64 = 1;
+STATE_EPOCH|const|testing/state_transition_vectors/src/exit.rs|pub const STATE_EPOCH: Epoch = Epoch::new(256);
+TestVector|struct|testing/state_transition_vectors/src/main.rs|pub struct TestVector
+VALIDATOR_COUNT|const|testing/state_transition_vectors/src/main.rs|pub const VALIDATOR_COUNT: usize = 64;
+VALIDATOR_INDEX|const|testing/state_transition_vectors/src/exit.rs|pub const VALIDATOR_INDEX: u64 = 0;

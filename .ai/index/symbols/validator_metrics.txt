@@ -1,0 +1,34 @@
+# rust-symbols symbols/validator_metrics | 2026-03-24T06:27:26Z | 32 symbols
+# name|kind|path|signature
+AGGREGATES|const|validator_client/validator_metrics/src/lib.rs|pub const AGGREGATES: &str = "aggregates";
+AGGREGATES_HTTP_GET|const|validator_client/validator_metrics/src/lib.rs|pub const AGGREGATES_HTTP_GET: &str = "aggregates_http_get";
+AGGREGATES_HTTP_POST|const|validator_client/validator_metrics/src/lib.rs|pub const AGGREGATES_HTTP_POST: &str = "aggregates_http_post";
+ATTESTATIONS|const|validator_client/validator_metrics/src/lib.rs|pub const ATTESTATIONS: &str = "attestations";
+ATTESTATIONS_HTTP_GET|const|validator_client/validator_metrics/src/lib.rs|pub const ATTESTATIONS_HTTP_GET: &str = "attestations_http_get";
+ATTESTATIONS_HTTP_POST|const|validator_client/validator_metrics/src/lib.rs|pub const ATTESTATIONS_HTTP_POST: &str = "attestations_http_post";
+ATTESTATION_SELECTION_PROOFS|const|validator_client/validator_metrics/src/lib.rs|pub const ATTESTATION_SELECTION_PROOFS: &str = "attestation_selection_proofs";
+ATTESTER_DUTIES_HTTP_POST|const|validator_client/validator_metrics/src/lib.rs|pub const ATTESTER_DUTIES_HTTP_POST: &str = "attester_duties_http_post";
+BEACON_BLOCK|const|validator_client/validator_metrics/src/lib.rs|pub const BEACON_BLOCK: &str = "beacon_block";
+BEACON_BLOCK_HTTP_GET|const|validator_client/validator_metrics/src/lib.rs|pub const BEACON_BLOCK_HTTP_GET: &str = "beacon_block_http_get";
+BEACON_BLOCK_HTTP_POST|const|validator_client/validator_metrics/src/lib.rs|pub const BEACON_BLOCK_HTTP_POST: &str = "beacon_block_http_post";
+BLINDED_BEACON_BLOCK_HTTP_POST|const|validator_client/validator_metrics/src/lib.rs|pub const BLINDED_BEACON_BLOCK_HTTP_POST: &str = "blinded_beacon_block_http_post";
+CURRENT_EPOCH|const|validator_client/validator_metrics/src/lib.rs|pub const CURRENT_EPOCH: &str = "current_epoch";
+FULL_UPDATE|const|validator_client/validator_metrics/src/lib.rs|pub const FULL_UPDATE: &str = "full_update";
+LOCAL_KEYSTORE|const|validator_client/validator_metrics/src/lib.rs|pub const LOCAL_KEYSTORE: &str = "local_keystore";
+NEXT_EPOCH|const|validator_client/validator_metrics/src/lib.rs|pub const NEXT_EPOCH: &str = "next_epoch";
+PROPOSER_DUTIES_HTTP_GET|const|validator_client/validator_metrics/src/lib.rs|pub const PROPOSER_DUTIES_HTTP_GET: &str = "proposer_duties_http_get";
+SAME_DATA|const|validator_client/validator_metrics/src/lib.rs|pub const SAME_DATA: &str = "same_data";
+SLASHABLE|const|validator_client/validator_metrics/src/lib.rs|pub const SLASHABLE: &str = "slashable";
+SUBSCRIPTIONS|const|validator_client/validator_metrics/src/lib.rs|pub const SUBSCRIPTIONS: &str = "subscriptions";
+SUBSCRIPTIONS_HTTP_POST|const|validator_client/validator_metrics/src/lib.rs|pub const SUBSCRIPTIONS_HTTP_POST: &str = "subscriptions_http_post";
+SUCCESS|const|validator_client/validator_metrics/src/lib.rs|pub const SUCCESS: &str = "success";
+UNREGISTERED|const|validator_client/validator_metrics/src/lib.rs|pub const UNREGISTERED: &str = "unregistered";
+UPDATE_ATTESTERS_CURRENT_EPOCH|const|validator_client/validator_metrics/src/lib.rs|pub const UPDATE_ATTESTERS_CURRENT_EPOCH: &str = "update_attesters_current_epoch";
+UPDATE_ATTESTERS_FETCH|const|validator_client/validator_metrics/src/lib.rs|pub const UPDATE_ATTESTERS_FETCH: &str = "update_attesters_fetch";
+UPDATE_ATTESTERS_NEXT_EPOCH|const|validator_client/validator_metrics/src/lib.rs|pub const UPDATE_ATTESTERS_NEXT_EPOCH: &str = "update_attesters_next_epoch";
+UPDATE_ATTESTERS_STORE|const|validator_client/validator_metrics/src/lib.rs|pub const UPDATE_ATTESTERS_STORE: &str = "update_attesters_store";
+UPDATE_INDICES|const|validator_client/validator_metrics/src/lib.rs|pub const UPDATE_INDICES: &str = "update_indices";
+UPDATE_PROPOSERS|const|validator_client/validator_metrics/src/lib.rs|pub const UPDATE_PROPOSERS: &str = "update_proposers";
+VALIDATOR_DUTIES_SYNC_HTTP_POST|const|validator_client/validator_metrics/src/lib.rs|pub const VALIDATOR_DUTIES_SYNC_HTTP_POST: &str = "validator_duties_sync_http_post";
+VALIDATOR_ID_HTTP_GET|const|validator_client/validator_metrics/src/lib.rs|pub const VALIDATOR_ID_HTTP_GET: &str = "validator_id_http_get";
+WEB3SIGNER|const|validator_client/validator_metrics/src/lib.rs|pub const WEB3SIGNER: &str = "web3signer";

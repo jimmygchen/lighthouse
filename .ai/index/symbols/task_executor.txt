@@ -1,0 +1,25 @@
+# rust-symbols symbols/task_executor | 2026-03-24T06:27:26Z | 23 symbols
+# name|kind|path|signature
+HandleProvider|enum|common/task_executor/src/lib.rs|pub enum HandleProvider
+HandleProvider::handle|fn|common/task_executor/src/lib.rs|pub fn handle(&self) -> Option < Handle >
+RayonPoolProvider|struct|common/task_executor/src/rayon_pool_provider.rs|pub struct RayonPoolProvider
+RayonPoolProvider::get_thread_pool|fn|common/task_executor/src/rayon_pool_provider.rs|pub fn get_thread_pool(&self, rayon_pool_type : RayonPoolType) -> Arc < ThreadPool >
+RayonPoolType|enum|common/task_executor/src/rayon_pool_provider.rs|pub enum RayonPoolType
+ShutdownReason|enum|common/task_executor/src/lib.rs|pub enum ShutdownReason
+ShutdownReason::message|fn|common/task_executor/src/lib.rs|pub fn message(&self) -> & 'static str
+TaskExecutor|struct|common/task_executor/src/lib.rs|pub struct TaskExecutor
+TaskExecutor::block_on_dangerous|fn|common/task_executor/src/lib.rs|pub fn block_on_dangerous<F : Future>(&self, future : F, name : & 'static str) -> Option < F :: Output >
+TaskExecutor::exit|fn|common/task_executor/src/lib.rs|pub fn exit(&self) -> impl Future < Output = () > + 'static
+TaskExecutor::handle|fn|common/task_executor/src/lib.rs|pub fn handle(&self) -> Option < Handle >
+TaskExecutor::new|fn|common/task_executor/src/lib.rs|pub fn new<T : Into < HandleProvider >>(handle : T, exit : async_channel :: Receiver < () >, signal_tx : Sender < Shu...
+TaskExecutor::shutdown_sender|fn|common/task_executor/src/lib.rs|pub fn shutdown_sender(&self) -> Sender < ShutdownReason >
+TaskExecutor::spawn|fn|common/task_executor/src/lib.rs|pub fn spawn(&self, task : impl Future < Output = () > + Send + 'static, name : & 'static str)
+TaskExecutor::spawn_blocking|fn|common/task_executor/src/lib.rs|pub fn spawn_blocking<F>(&self, task : F, name : & 'static str)
+TaskExecutor::spawn_blocking_handle|fn|common/task_executor/src/lib.rs|pub fn spawn_blocking_handle<F, R>(&self, task : F, name : & 'static str) -> Option < impl Future < Output = Result <...
+TaskExecutor::spawn_blocking_with_rayon|fn|common/task_executor/src/lib.rs|pub fn spawn_blocking_with_rayon<F>(self, task : F, rayon_pool_type : RayonPoolType, name : & 'static str)
+TaskExecutor::spawn_blocking_with_rayon_async|fn|common/task_executor/src/lib.rs|pub async fn spawn_blocking_with_rayon_async<F, R>(&self, rayon_pool_type : RayonPoolType, task : F) -> Result < R , ...
+TaskExecutor::spawn_handle|fn|common/task_executor/src/lib.rs|pub fn spawn_handle<R : Send + 'static>(&self, task : impl Future < Output = R > + Send + 'static, name : & 'static s...
+TaskExecutor::spawn_ignoring_error|fn|common/task_executor/src/lib.rs|pub fn spawn_ignoring_error(&self, task : impl Future < Output = Result < () , () > > + Send + 'static, name : & 'sta...
+TaskExecutor::spawn_without_exit|fn|common/task_executor/src/lib.rs|pub fn spawn_without_exit(&self, task : impl Future < Output = () > + Send + 'static, name : & 'static str)
+TestRuntime|struct|common/task_executor/src/test_utils.rs|pub struct TestRuntime
+test_utils|mod|common/task_executor/src/lib.rs|pub mod test_utils

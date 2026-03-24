@@ -1,0 +1,15 @@
+# rust-symbols symbols/node_test_rig | 2026-03-24T06:27:26Z | 13 symbols
+# name|kind|path|signature
+LocalBeaconNode|struct|testing/node_test_rig/src/lib.rs|pub struct LocalBeaconNode<E: EthSpec>
+LocalBeaconNode::production|fn|testing/node_test_rig/src/lib.rs|pub async fn production(context : RuntimeContext < E >, mut client_config : ClientConfig) -> Result < Self , String >
+LocalBeaconNode::remote_node|fn|testing/node_test_rig/src/lib.rs|pub fn remote_node(&self) -> Result < BeaconNodeHttpClient , String >
+LocalExecutionNode|struct|testing/node_test_rig/src/lib.rs|pub struct LocalExecutionNode<E: EthSpec>
+LocalExecutionNode::new|fn|testing/node_test_rig/src/lib.rs|pub fn new(context : RuntimeContext < E >, config : MockExecutionConfig) -> Self
+LocalValidatorClient|struct|testing/node_test_rig/src/lib.rs|pub struct LocalValidatorClient<E: EthSpec>
+LocalValidatorClient::production|fn|testing/node_test_rig/src/lib.rs|pub async fn production(context : RuntimeContext < E >, config : ValidatorConfig) -> Result < Self , String >
+LocalValidatorClient::production_with_insecure_keypairs|fn|testing/node_test_rig/src/lib.rs|pub async fn production_with_insecure_keypairs(context : RuntimeContext < E >, config : ValidatorConfig, files : Vali...
+ValidatorFiles|struct|testing/node_test_rig/src/lib.rs|pub struct ValidatorFiles
+ValidatorFiles::new|fn|testing/node_test_rig/src/lib.rs|pub fn new() -> Result < Self , String >
+ValidatorFiles::with_keystores|fn|testing/node_test_rig/src/lib.rs|pub fn with_keystores(keypair_indices : & [usize]) -> Result < Self , String >
+testing_client_config|fn|testing/node_test_rig/src/lib.rs|pub fn testing_client_config() -> ClientConfig
+testing_validator_config|fn|testing/node_test_rig/src/lib.rs|pub fn testing_validator_config() -> ValidatorConfig

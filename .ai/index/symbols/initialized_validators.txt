@@ -1,0 +1,69 @@
+# rust-symbols symbols/initialized_validators | 2026-03-24T06:27:26Z | 67 symbols
+# name|kind|path|signature
+CACHE_FILENAME|const|validator_client/initialized_validators/src/key_cache.rs|pub const CACHE_FILENAME: &str = "validator_key_cache.json";
+Config|struct|validator_client/initialized_validators/src/lib.rs|pub struct Config
+DEFAULT_WEB3SIGNER_KEEP_ALIVE|const|validator_client/initialized_validators/src/lib.rs|pub const DEFAULT_WEB3SIGNER_KEEP_ALIVE: Option<Duration> = Some(Duration::from_secs(20));
+Error|enum|validator_client/initialized_validators/src/lib.rs|pub enum Error
+Error|enum|validator_client/initialized_validators/src/key_cache.rs|pub enum Error
+InitializedValidator|struct|validator_client/initialized_validators/src/lib.rs|pub struct InitializedValidator
+InitializedValidator::get_builder_boost_factor|fn|validator_client/initialized_validators/src/lib.rs|pub fn get_builder_boost_factor(&self) -> Option < u64 >
+InitializedValidator::get_builder_proposals|fn|validator_client/initialized_validators/src/lib.rs|pub fn get_builder_proposals(&self) -> Option < bool >
+InitializedValidator::get_gas_limit|fn|validator_client/initialized_validators/src/lib.rs|pub fn get_gas_limit(&self) -> Option < u64 >
+InitializedValidator::get_graffiti|fn|validator_client/initialized_validators/src/lib.rs|pub fn get_graffiti(&self) -> Option < Graffiti >
+InitializedValidator::get_index|fn|validator_client/initialized_validators/src/lib.rs|pub fn get_index(&self) -> Option < u64 >
+InitializedValidator::get_prefer_builder_proposals|fn|validator_client/initialized_validators/src/lib.rs|pub fn get_prefer_builder_proposals(&self) -> Option < bool >
+InitializedValidator::get_suggested_fee_recipient|fn|validator_client/initialized_validators/src/lib.rs|pub fn get_suggested_fee_recipient(&self) -> Option < Address >
+InitializedValidator::keystore_lockfile|fn|validator_client/initialized_validators/src/lib.rs|pub fn keystore_lockfile(&self) -> Option < MappedMutexGuard < '_ , Lockfile > >
+InitializedValidator::voting_public_key|fn|validator_client/initialized_validators/src/lib.rs|pub fn voting_public_key(&self) -> & PublicKey
+InitializedValidators|struct|validator_client/initialized_validators/src/lib.rs|pub struct InitializedValidators
+InitializedValidators::add_definition|fn|validator_client/initialized_validators/src/lib.rs|pub async fn add_definition(&mut self, def : ValidatorDefinition) -> Result < () , Error >
+InitializedValidators::add_definition_replace_disabled|fn|validator_client/initialized_validators/src/lib.rs|pub async fn add_definition_replace_disabled(&mut self, def : ValidatorDefinition) -> Result < () , Error >
+InitializedValidators::as_mut_slice_testing_only|fn|validator_client/initialized_validators/src/lib.rs|pub fn as_mut_slice_testing_only(&mut self) -> & mut [ValidatorDefinition]
+InitializedValidators::builder_boost_factor|fn|validator_client/initialized_validators/src/lib.rs|pub fn builder_boost_factor(&self, public_key : & PublicKeyBytes) -> Option < u64 >
+InitializedValidators::builder_proposals|fn|validator_client/initialized_validators/src/lib.rs|pub fn builder_proposals(&self, public_key : & PublicKeyBytes) -> Option < bool >
+InitializedValidators::decrypt_key_cache|fn|validator_client/initialized_validators/src/lib.rs|pub async fn decrypt_key_cache(&self, mut cache : KeyCache, key_stores : & mut HashMap < PathBuf , Keystore >, on_fai...
+InitializedValidators::delete_definition_and_keystore|fn|validator_client/initialized_validators/src/lib.rs|pub async fn delete_definition_and_keystore(&mut self, pubkey : & PublicKey, is_local_keystore : bool) -> Result < Op...
+InitializedValidators::delete_graffiti|fn|validator_client/initialized_validators/src/lib.rs|pub fn delete_graffiti(&mut self, voting_public_key : & PublicKey) -> Result < () , Error >
+InitializedValidators::delete_passwords_from_validator_definitions|fn|validator_client/initialized_validators/src/lib.rs|pub fn delete_passwords_from_validator_definitions(&mut self) -> Result < HashMap < PublicKey , Zeroizing < String > ...
+InitializedValidators::delete_validator_fee_recipient|fn|validator_client/initialized_validators/src/lib.rs|pub fn delete_validator_fee_recipient(&mut self, voting_public_key : & PublicKey) -> Result < () , Error >
+InitializedValidators::delete_validator_gas_limit|fn|validator_client/initialized_validators/src/lib.rs|pub fn delete_validator_gas_limit(&mut self, voting_public_key : & PublicKey) -> Result < () , Error >
+InitializedValidators::from_definitions|fn|validator_client/initialized_validators/src/lib.rs|pub async fn from_definitions(definitions : ValidatorDefinitions, validators_dir : PathBuf, config : Config) -> Resul...
+InitializedValidators::gas_limit|fn|validator_client/initialized_validators/src/lib.rs|pub fn gas_limit(&self, public_key : & PublicKeyBytes) -> Option < u64 >
+InitializedValidators::get_all_validators_graffiti|fn|validator_client/initialized_validators/src/lib.rs|pub fn get_all_validators_graffiti(&self) -> HashMap < & PublicKeyBytes , Option < Graffiti > >
+InitializedValidators::get_index|fn|validator_client/initialized_validators/src/lib.rs|pub fn get_index(&self, pubkey : & PublicKeyBytes) -> Option < u64 >
+InitializedValidators::graffiti|fn|validator_client/initialized_validators/src/lib.rs|pub fn graffiti(&self, public_key : & PublicKeyBytes) -> Option < Graffiti >
+InitializedValidators::is_enabled|fn|validator_client/initialized_validators/src/lib.rs|pub fn is_enabled(&self, voting_public_key : & PublicKey) -> Option < bool >
+InitializedValidators::iter_voting_pubkeys|fn|validator_client/initialized_validators/src/lib.rs|pub fn iter_voting_pubkeys(&self) -> impl Iterator < Item = & PublicKeyBytes >
+InitializedValidators::num_enabled|fn|validator_client/initialized_validators/src/lib.rs|pub fn num_enabled(&self) -> usize
+InitializedValidators::num_total|fn|validator_client/initialized_validators/src/lib.rs|pub fn num_total(&self) -> usize
+InitializedValidators::prefer_builder_proposals|fn|validator_client/initialized_validators/src/lib.rs|pub fn prefer_builder_proposals(&self, public_key : & PublicKeyBytes) -> Option < bool >
+InitializedValidators::set_graffiti|fn|validator_client/initialized_validators/src/lib.rs|pub fn set_graffiti(&mut self, voting_public_key : & PublicKey, graffiti : GraffitiString) -> Result < () , Error >
+InitializedValidators::set_index|fn|validator_client/initialized_validators/src/lib.rs|pub fn set_index(&mut self, pubkey : & PublicKeyBytes, index : u64)
+InitializedValidators::set_validator_definition_fields|fn|validator_client/initialized_validators/src/lib.rs|pub async fn set_validator_definition_fields(&mut self, voting_public_key : & PublicKey, enabled : Option < bool >, g...
+InitializedValidators::set_validator_fee_recipient|fn|validator_client/initialized_validators/src/lib.rs|pub fn set_validator_fee_recipient(&mut self, voting_public_key : & PublicKey, fee_recipient : Address) -> Result < (...
+InitializedValidators::set_validator_gas_limit|fn|validator_client/initialized_validators/src/lib.rs|pub fn set_validator_gas_limit(&mut self, voting_public_key : & PublicKey, gas_limit : u64) -> Result < () , Error >
+InitializedValidators::signing_method|fn|validator_client/initialized_validators/src/lib.rs|pub fn signing_method(&self, voting_public_key : & PublicKeyBytes) -> Option < Arc < SigningMethod > >
+InitializedValidators::suggested_fee_recipient|fn|validator_client/initialized_validators/src/lib.rs|pub fn suggested_fee_recipient(&self, public_key : & PublicKeyBytes) -> Option < Address >
+InitializedValidators::update_validators|fn|validator_client/initialized_validators/src/lib.rs|pub async fn update_validators(&mut self) -> Result < () , Error >
+InitializedValidators::validator|fn|validator_client/initialized_validators/src/lib.rs|pub fn validator(&self, public_key : & PublicKeyBytes) -> Option < & InitializedValidator >
+InitializedValidators::validator_definitions|fn|validator_client/initialized_validators/src/lib.rs|pub fn validator_definitions(&self) -> & [ValidatorDefinition]
+KeyCache|struct|validator_client/initialized_validators/src/key_cache.rs|pub struct KeyCache
+KeyCache::add|fn|validator_client/initialized_validators/src/key_cache.rs|pub fn add(&mut self, keypair : Keypair, uuid : & Uuid, password : PlainText)
+KeyCache::cache_file_path|fn|validator_client/initialized_validators/src/key_cache.rs|pub fn cache_file_path<P : AsRef < Path >>(validators_dir : P) -> PathBuf
+KeyCache::decrypt|fn|validator_client/initialized_validators/src/key_cache.rs|pub fn decrypt(&mut self, passwords : Vec < PlainText >, public_keys : Vec < PublicKey >) -> Result < & HashMap < Uui...
+KeyCache::get|fn|validator_client/initialized_validators/src/key_cache.rs|pub fn get(&self, uuid : & Uuid) -> Option < Keypair >
+KeyCache::init_crypto|fn|validator_client/initialized_validators/src/key_cache.rs|pub fn init_crypto() -> Crypto
+KeyCache::is_modified|fn|validator_client/initialized_validators/src/key_cache.rs|pub fn is_modified(&self) -> bool
+KeyCache::new|fn|validator_client/initialized_validators/src/key_cache.rs|pub fn new() -> Self
+KeyCache::open|fn|validator_client/initialized_validators/src/key_cache.rs|pub fn open<P : AsRef < Path >>(validators_dir : P) -> Result < Self , Error >
+KeyCache::open_or_create|fn|validator_client/initialized_validators/src/key_cache.rs|pub fn open_or_create<P : AsRef < Path >>(validators_dir : P) -> Result < Self , Error >
+KeyCache::remove|fn|validator_client/initialized_validators/src/key_cache.rs|pub fn remove(&mut self, uuid : & Uuid)
+KeyCache::save|fn|validator_client/initialized_validators/src/key_cache.rs|pub fn save<P : AsRef < Path >>(&mut self, validators_dir : P) -> Result < bool , Error >
+KeyCache::uuids|fn|validator_client/initialized_validators/src/key_cache.rs|pub fn uuids(&self) -> & Vec < Uuid >
+KeystoreAndPassword|struct|validator_client/initialized_validators/src/lib.rs|pub struct KeystoreAndPassword
+OnDecryptFailure|enum|validator_client/initialized_validators/src/lib.rs|pub enum OnDecryptFailure
+State|enum|validator_client/initialized_validators/src/key_cache.rs|pub enum State
+TEMP_CACHE_FILENAME|const|validator_client/initialized_validators/src/key_cache.rs|pub const TEMP_CACHE_FILENAME: &str = ".validator_key_cache.json.tmp";
+key_cache|mod|validator_client/initialized_validators/src/lib.rs|pub mod key_cache
+load_pem_certificate|fn|validator_client/initialized_validators/src/lib.rs|pub fn load_pem_certificate<P : AsRef < Path >>(pem_path : P) -> Result < Certificate , Error >
+load_pkcs12_identity|fn|validator_client/initialized_validators/src/lib.rs|pub fn load_pkcs12_identity<P : AsRef < Path >>(pkcs12_path : P, password : & str) -> Result < Identity , Error >

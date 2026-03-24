@@ -1,0 +1,17 @@
+# rust-symbols symbols/merkle_proof | 2026-03-24T06:27:26Z | 15 symbols
+# name|kind|path|signature
+InvalidSnapshot|enum|consensus/merkle_proof/src/lib.rs|pub enum InvalidSnapshot
+MerkleTree|enum|consensus/merkle_proof/src/lib.rs|pub enum MerkleTree
+MerkleTree::create|fn|consensus/merkle_proof/src/lib.rs|pub fn create(leaves : & [H256], depth : usize) -> Self
+MerkleTree::finalize_deposits|fn|consensus/merkle_proof/src/lib.rs|pub fn finalize_deposits(&mut self, deposits_to_finalize : usize, level : usize) -> Result < () , MerkleTreeError >
+MerkleTree::from_finalized_snapshot|fn|consensus/merkle_proof/src/lib.rs|pub fn from_finalized_snapshot(finalized_branch : & [H256], deposit_count : usize, level : usize) -> Result < Self , ...
+MerkleTree::generate_proof|fn|consensus/merkle_proof/src/lib.rs|pub fn generate_proof(&self, index : usize, depth : usize) -> Result < (H256 , Vec < H256 >) , MerkleTreeError >
+MerkleTree::get_finalized_hashes|fn|consensus/merkle_proof/src/lib.rs|pub fn get_finalized_hashes(&self) -> Vec < H256 >
+MerkleTree::hash|fn|consensus/merkle_proof/src/lib.rs|pub fn hash(&self) -> H256
+MerkleTree::is_leaf|fn|consensus/merkle_proof/src/lib.rs|pub fn is_leaf(&self) -> bool
+MerkleTree::left_and_right_branches|fn|consensus/merkle_proof/src/lib.rs|pub fn left_and_right_branches(&self) -> Option < (& Self , & Self) >
+MerkleTree::print_node|fn|consensus/merkle_proof/src/lib.rs|pub fn print_node(&self, mut space : u32)
+MerkleTree::push_leaf|fn|consensus/merkle_proof/src/lib.rs|pub fn push_leaf(&mut self, elem : H256, depth : usize) -> Result < () , MerkleTreeError >
+MerkleTreeError|enum|consensus/merkle_proof/src/lib.rs|pub enum MerkleTreeError
+merkle_root_from_branch|fn|consensus/merkle_proof/src/lib.rs|pub fn merkle_root_from_branch(leaf : H256, branch : & [H256], depth : usize, index : usize) -> H256
+verify_merkle_proof|fn|consensus/merkle_proof/src/lib.rs|pub fn verify_merkle_proof(leaf : H256, branch : & [H256], depth : usize, index : usize, root : H256) -> bool

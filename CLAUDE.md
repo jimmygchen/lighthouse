@@ -27,6 +27,26 @@ make lint                                 # Run Clippy
 cargo fmt --all && make lint-fix          # Format and fix
 ```
 
+## Code Index
+
+A pre-built symbol index is available in `.ai/index/`.
+**Before using Grep or Glob to explore the codebase**, check the index first:
+
+- Find a type: `grep "^MyStruct" .ai/index/symbols.txt`
+- Find a method: `grep "^MyStruct::my_method" .ai/index/symbols.txt`
+- Find all methods on a type: `grep "^MyStruct::" .ai/index/symbols.txt`
+- Find which crate owns something: `grep "my_crate" .ai/index/crates.txt`
+- Browse a crate's symbols: `grep "." .ai/index/symbols/my_crate.txt`
+
+Each line returns: `name|kind|path|signature` — grep the source file for the signature to find the exact line.
+
+Regenerate with `make index` (requires [rust-symbols](https://github.com/jimmygchen/rust-symbols): `cargo install --git https://github.com/jimmygchen/rust-symbols`).
+
+**Rules:**
+- Always use anchored grep patterns (`^TypeName`) to avoid broad matches
+- NEVER read symbols.txt with the Read tool — it's too large. Always grep it.
+- After finding a symbol, read the actual source file for context.
+
 ## Before You Start
 
 Read the relevant guide for your task:

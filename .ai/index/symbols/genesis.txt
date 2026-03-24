@@ -1,0 +1,16 @@
+# rust-symbols symbols/genesis | 2026-03-24T06:27:26Z | 14 symbols
+# name|kind|path|signature
+DEFAULT_ETH1_BLOCK_HASH|const|beacon_node/genesis/src/interop.rs|pub const DEFAULT_ETH1_BLOCK_HASH: &[u8] = &[0x42; 32];
+InteropGenesisBuilder|struct|beacon_node/genesis/src/interop.rs|pub struct InteropGenesisBuilder<E: EthSpec>
+InteropGenesisBuilder::build_genesis_state|fn|beacon_node/genesis/src/interop.rs|pub fn build_genesis_state(self, keypairs : & [Keypair], genesis_time : u64, eth1_block_hash : Hash256, spec : & Chai...
+InteropGenesisBuilder::new|fn|beacon_node/genesis/src/interop.rs|pub fn new() -> Self
+InteropGenesisBuilder::set_alternating_eth1_withdrawal_credentials|fn|beacon_node/genesis/src/interop.rs|pub fn set_alternating_eth1_withdrawal_credentials(self) -> Self
+InteropGenesisBuilder::set_execution_payload_header|fn|beacon_node/genesis/src/interop.rs|pub fn set_execution_payload_header(self, execution_payload_header : ExecutionPayloadHeader < E >) -> Self
+InteropGenesisBuilder::set_initial_balance_fn|fn|beacon_node/genesis/src/interop.rs|pub fn set_initial_balance_fn(mut self, initial_balance_fn : Box < dyn Fn (usize) -> u64 >) -> Self
+InteropGenesisBuilder::set_opt_execution_payload_header|fn|beacon_node/genesis/src/interop.rs|pub fn set_opt_execution_payload_header(mut self, execution_payload_header : Option < ExecutionPayloadHeader < E > >)...
+InteropGenesisBuilder::set_withdrawal_credentials_fn|fn|beacon_node/genesis/src/interop.rs|pub fn set_withdrawal_credentials_fn(mut self, withdrawal_credentials_fn : WithdrawalCredentialsFn) -> Self
+WithdrawalCredentialsFn|type|beacon_node/genesis/src/interop.rs|pub type WithdrawalCredentialsFn =
+bls_withdrawal_credentials|fn|beacon_node/genesis/src/interop.rs|pub fn bls_withdrawal_credentials(pubkey : & PublicKey, spec : & ChainSpec) -> Hash256
+genesis_deposits|fn|beacon_node/genesis/src/common.rs|pub fn genesis_deposits(deposit_data : Vec < DepositData >, spec : & ChainSpec) -> Result < Vec < Deposit > , String >
+interop_genesis_state|fn|beacon_node/genesis/src/interop.rs|pub fn interop_genesis_state<E : EthSpec>(keypairs : & [Keypair], genesis_time : u64, eth1_block_hash : Hash256, exec...
+interop_genesis_state_with_eth1|fn|beacon_node/genesis/src/interop.rs|pub fn interop_genesis_state_with_eth1<E : EthSpec>(keypairs : & [Keypair], genesis_time : u64, eth1_block_hash : Has...

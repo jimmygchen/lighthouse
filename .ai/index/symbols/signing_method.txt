@@ -1,0 +1,19 @@
+# rust-symbols symbols/signing_method | 2026-03-24T06:27:26Z | 17 symbols
+# name|kind|path|signature
+Error|enum|validator_client/signing_method/src/lib.rs|pub enum Error
+ForkInfo|struct|validator_client/signing_method/src/web3signer.rs|pub struct ForkInfo
+ForkName|enum|validator_client/signing_method/src/web3signer.rs|pub enum ForkName
+MessageType|enum|validator_client/signing_method/src/web3signer.rs|pub enum MessageType
+SignableMessage|enum|validator_client/signing_method/src/lib.rs|pub enum SignableMessage<'a, E: EthSpec, Payload: AbstractExecPayload<E> = FullPayload<E>>
+SignableMessage::signing_root|fn|validator_client/signing_method/src/lib.rs|pub fn signing_root(&self, domain : Hash256) -> Hash256
+SigningContext|struct|validator_client/signing_method/src/lib.rs|pub struct SigningContext
+SigningContext::domain_hash|fn|validator_client/signing_method/src/lib.rs|pub fn domain_hash(&self, spec : & ChainSpec) -> Hash256
+SigningMethod|enum|validator_client/signing_method/src/lib.rs|pub enum SigningMethod
+SigningMethod::get_signature|fn|validator_client/signing_method/src/lib.rs|pub async fn get_signature<E : EthSpec, Payload : AbstractExecPayload < E >>(&self, signable_message : SignableMessag...
+SigningMethod::get_signature_from_root|fn|validator_client/signing_method/src/lib.rs|pub async fn get_signature_from_root<E : EthSpec, Payload : AbstractExecPayload < E >>(&self, signable_message : Sign...
+SigningMethod::requires_local_slashing_protection|fn|validator_client/signing_method/src/lib.rs|pub fn requires_local_slashing_protection(&self, enable_web3signer_slashing_protection : bool) -> bool
+SigningRequest|struct|validator_client/signing_method/src/web3signer.rs|pub struct SigningRequest<'a, E: EthSpec, Payload: AbstractExecPayload<E>>
+SigningResponse|struct|validator_client/signing_method/src/web3signer.rs|pub struct SigningResponse
+Web3SignerObject|enum|validator_client/signing_method/src/web3signer.rs|pub enum Web3SignerObject<'a, E: EthSpec, Payload: AbstractExecPayload<E>>
+Web3SignerObject::beacon_block|fn|validator_client/signing_method/src/web3signer.rs|pub fn beacon_block(block : & 'a BeaconBlock < E , Payload >) -> Result < Self , Error >
+Web3SignerObject::message_type|fn|validator_client/signing_method/src/web3signer.rs|pub fn message_type(&self) -> MessageType

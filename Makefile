@@ -362,6 +362,12 @@ clean:
 	make -C $(EF_TESTS) clean
 	make -C $(STATE_TRANSITION_VECTORS) clean
 
+# Regenerates the .ai/index/ symbol index for LLM code agents.
+# Requires rust-symbols: cargo install --git https://github.com/jimmygchen/rust-symbols
+index:
+	@which rust-symbols > /dev/null 2>&1 || (echo "rust-symbols not found. Install with:\n  cargo install --git https://github.com/jimmygchen/rust-symbols" && exit 1)
+	rust-symbols . --output .ai/index --skip-statics
+
 # Installs git hooks from .githooks/ directory
 install-hooks:
 	@ln -sf ../../.githooks/pre-commit .git/hooks/pre-commit

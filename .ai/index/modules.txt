@@ -1,0 +1,748 @@
+# rust-symbols modules | 2026-03-24T06:27:26Z
+# crate|module_path|file|pub_count|kinds|doc
+account_manager|common|account_manager/src/common.rs|2|1const,1fn|
+account_manager||account_manager/src/lib.rs|9|5const,2fn,2mod|
+account_manager|validator::create|account_manager/src/validator/create.rs|11|8const,3fn|
+account_manager|validator::exit|account_manager/src/validator/exit.rs|13|11const,2fn|
+account_manager|validator::import|account_manager/src/validator/import.rs|8|6const,2fn|
+account_manager|validator::list|account_manager/src/validator/list.rs|3|1const,2fn|
+account_manager|validator|account_manager/src/validator/mod.rs|10|1const,2fn,7mod|
+account_manager|validator::modify|account_manager/src/validator/modify.rs|7|5const,2fn|
+account_manager|validator::recover|account_manager/src/validator/recover.rs|5|3const,2fn|
+account_manager|validator::slashing_protection|account_manager/src/validator/slashing_protection.rs|8|6const,2fn|
+account_manager|wallet::create|account_manager/src/wallet/create.rs|14|10const,4fn|
+account_manager|wallet::list|account_manager/src/wallet/list.rs|3|1const,2fn|
+account_manager|wallet|account_manager/src/wallet/mod.rs|6|1const,2fn,3mod|
+account_manager|wallet::recover|account_manager/src/wallet/recover.rs|4|2const,2fn|
+account_utils||common/account_utils/src/lib.rs|19|3const,15fn,1mod|Provides functions that are used for key/account management across multiple crates in the
+account_utils|validator_definitions|common/account_utils/src/validator_definitions.rs|23|2const,3enum,15fn,3struct|Provides a file format for defining validators that should be initialized by this validator.
+beacon_chain|attestation_rewards|beacon_node/beacon_chain/src/attestation_rewards.rs|1|1fn|
+beacon_chain|attestation_simulator|beacon_node/beacon_chain/src/attestation_simulator.rs|2|2fn|
+beacon_chain|attestation_verification|beacon_node/beacon_chain/src/attestation_verification.rs|28|2enum,23fn,2struct,1trait|Provides verification for the following attestations:
+beacon_chain|attestation_verification::batch|beacon_node/beacon_chain/src/attestation_verification/batch.rs|2|2fn|These two `batch_...` functions provide verification of batches of attestations. They provide
+beacon_chain|beacon_block_reward|beacon_node/beacon_chain/src/beacon_block_reward.rs|1|1fn|
+beacon_chain|beacon_block_streamer|beacon_node/beacon_chain/src/beacon_block_streamer.rs|20|2enum,17fn,1struct|
+beacon_chain|beacon_chain|beacon_node/beacon_chain/src/beacon_chain.rs|172|5const,9enum,149fn,4struct,1trait,4type|
+beacon_chain|beacon_fork_choice_store|beacon_node/beacon_chain/src/beacon_fork_choice_store.rs|14|1enum,6fn,4struct,3type|Defines the `BeaconForkChoiceStore` which provides the persistent storage for the `ForkChoice`
+beacon_chain|beacon_proposer_cache|beacon_node/beacon_chain/src/beacon_proposer_cache.rs|13|1const,9fn,3struct|The `BeaconProposer` cache stores the proposer indices for some epoch.
+beacon_chain|beacon_snapshot|beacon_node/beacon_chain/src/beacon_snapshot.rs|5|3fn,2struct|
+beacon_chain|bellatrix_readiness|beacon_node/beacon_chain/src/bellatrix_readiness.rs|2|1enum,1fn|Provides tools for checking genesis execution payload consistency.
+beacon_chain|blob_verification|beacon_node/beacon_chain/src/blob_verification.rs|33|1enum,29fn,3struct|
+beacon_chain|block_production::gloas|beacon_node/beacon_chain/src/block_production/gloas.rs|9|2const,3fn,2struct,2type|
+beacon_chain|block_production|beacon_node/beacon_chain/src/block_production/mod.rs|1|1fn|
+beacon_chain|block_times_cache|beacon_node/beacon_chain/src/block_times_cache.rs|17|12fn,5struct|This module provides the `BlockTimesCache' which contains information regarding block timings.
+beacon_chain|block_verification|beacon_node/beacon_chain/src/block_verification.rs|35|4enum,23fn,4struct,3trait,1type|Provides `SignedBeaconBlock` verification logic.
+beacon_chain|block_verification_types|beacon_node/beacon_chain/src/block_verification_types.rs|22|2enum,16fn,3struct,1trait|
+beacon_chain|builder|beacon_node/beacon_chain/src/builder.rs|31|29fn,2struct|
+beacon_chain|canonical_head|beacon_node/beacon_chain/src/canonical_head.rs|36|33fn,3struct|This module provides all functionality for finding the canonical head, updating all necessary
+beacon_chain|chain_config|beacon_node/beacon_chain/src/chain_config.rs|10|8const,1fn,1struct|
+beacon_chain|custody_context|beacon_node/beacon_chain/src/custody_context.rs|21|1const,1enum,16fn,3struct|
+beacon_chain|data_availability_checker|beacon_node/beacon_chain/src/data_availability_checker.rs|51|4enum,43fn,3struct,1type|
+beacon_chain|data_availability_checker::error|beacon_node/beacon_chain/src/data_availability_checker/error.rs|3|2enum,1fn|
+beacon_chain|data_availability_checker::overflow_lru_cache|beacon_node/beacon_chain/src/data_availability_checker/overflow_lru_cache.rs|35|2enum,31fn,2struct|
+beacon_chain|data_column_verification|beacon_node/beacon_chain/src/data_column_verification.rs|39|1enum,33fn,4struct,1type|
+beacon_chain|early_attester_cache|beacon_node/beacon_chain/src/early_attester_cache.rs|15|12fn,3struct|
+beacon_chain|envelope_times_cache|beacon_node/beacon_chain/src/envelope_times_cache.rs|11|7fn,4struct|This module provides the `EnvelopeTimesCache` which contains information regarding payload
+beacon_chain|errors|beacon_node/beacon_chain/src/errors.rs|2|2enum|
+beacon_chain|events|beacon_node/beacon_chain/src/events.rs|38|37fn,1struct|
+beacon_chain|execution_payload|beacon_node/beacon_chain/src/execution_payload.rs|10|1enum,6fn,1struct,2type|This module contains various functions for producing and verifying `ExecutionPayloads`.
+beacon_chain|fetch_blobs::fetch_blobs_beacon_adapter|beacon_node/beacon_chain/src/fetch_blobs/fetch_blobs_beacon_adapter.rs|13|12fn,1struct|
+beacon_chain|fetch_blobs|beacon_node/beacon_chain/src/fetch_blobs/mod.rs|3|2enum,1fn|This module implements an optimisation to fetch blobs via JSON-RPC from the EL.
+beacon_chain|fork_choice_signal|beacon_node/beacon_chain/src/fork_choice_signal.rs|7|1enum,4fn,2struct|Concurrency helpers for synchronising block proposal with fork choice.
+beacon_chain|graffiti_calculator|beacon_node/beacon_chain/src/graffiti_calculator.rs|8|2enum,5fn,1struct|
+beacon_chain|historical_blocks|beacon_node/beacon_chain/src/historical_blocks.rs|2|1enum,1fn|
+beacon_chain|historical_data_columns|beacon_node/beacon_chain/src/historical_data_columns.rs|2|1enum,1fn|
+beacon_chain|invariants|beacon_node/beacon_chain/src/invariants.rs|1|1fn|Beacon chain database invariant checks.
+beacon_chain|kzg_utils|beacon_node/beacon_chain/src/kzg_utils.rs|13|13fn|
+beacon_chain||beacon_node/beacon_chain/src/lib.rs|47|47mod|
+beacon_chain|light_client_finality_update_verification|beacon_node/beacon_chain/src/light_client_finality_update_verification.rs|3|1enum,1fn,1struct|
+beacon_chain|light_client_optimistic_update_verification|beacon_node/beacon_chain/src/light_client_optimistic_update_verification.rs|3|1enum,1fn,1struct|
+beacon_chain|light_client_server_cache|beacon_node/beacon_chain/src/light_client_server_cache.rs|14|13fn,1struct|
+beacon_chain|metrics|beacon_node/beacon_chain/src/metrics.rs|7|6const,1fn|
+beacon_chain|migrate|beacon_node/beacon_chain/src/migrate.rs|20|1const,3enum,11fn,5struct|
+beacon_chain|naive_aggregation_pool|beacon_node/beacon_chain/src/naive_aggregation_pool.rs|16|2enum,9fn,4struct,1trait|
+beacon_chain|observed_aggregates|beacon_node/beacon_chain/src/observed_aggregates.rs|16|2enum,7fn,2struct,3trait,2type|Provides an `ObservedAggregates` struct which allows us to reject aggregated attestations or
+beacon_chain|observed_attesters|beacon_node/beacon_chain/src/observed_attesters.rs|28|1const,1enum,14fn,7struct,1trait,4type|Provides two structs that help us filter out attestation gossip from validators that have
+beacon_chain|observed_block_producers|beacon_node/beacon_chain/src/observed_block_producers.rs|11|2enum,7fn,2struct|Provides the `ObservedBlockProducers` struct which allows for rejecting gossip blocks from
+beacon_chain|observed_data_sidecars|beacon_node/beacon_chain/src/observed_data_sidecars.rs|17|2enum,10fn,3struct,2trait|Provides the `ObservedBlobSidecars` struct which allows for rejecting `BlobSidecar`s
+beacon_chain|observed_operations|beacon_node/beacon_chain/src/observed_operations.rs|8|1const,1enum,4fn,1struct,1trait|
+beacon_chain|observed_slashable|beacon_node/beacon_chain/src/observed_slashable.rs|5|3fn,2struct|Provides the `ObservedSlashable` struct which tracks slashable messages seen in
+beacon_chain|payload_envelope_verification::execution_pending_envelope|beacon_node/beacon_chain/src/payload_envelope_verification/execution_pending_envelope.rs|2|1fn,1struct|
+beacon_chain|payload_envelope_verification::gossip_verified_envelope|beacon_node/beacon_chain/src/payload_envelope_verification/gossip_verified_envelope.rs|7|5fn,2struct|
+beacon_chain|payload_envelope_verification::import|beacon_node/beacon_chain/src/payload_envelope_verification/import.rs|2|2fn|
+beacon_chain|payload_envelope_verification|beacon_node/beacon_chain/src/payload_envelope_verification/mod.rs|15|3enum,5fn,3mod,4struct|The incremental processing steps (e.g., signatures verified but not the state transition) is
+beacon_chain|payload_envelope_verification::payload_notifier|beacon_node/beacon_chain/src/payload_envelope_verification/payload_notifier.rs|3|2fn,1struct|
+beacon_chain|pending_payload_envelopes|beacon_node/beacon_chain/src/pending_payload_envelopes.rs|10|1const,8fn,1struct|Provides the `PendingPayloadEnvelopes` cache for storing execution payload envelopes
+beacon_chain|persisted_beacon_chain|beacon_node/beacon_chain/src/persisted_beacon_chain.rs|1|1struct|
+beacon_chain|persisted_custody|beacon_node/beacon_chain/src/persisted_custody.rs|4|1const,2fn,1struct|
+beacon_chain|persisted_fork_choice|beacon_node/beacon_chain/src/persisted_fork_choice.rs|5|3fn,1struct,1type|
+beacon_chain|pre_finalization_cache|beacon_node/beacon_chain/src/pre_finalization_cache.rs|6|5fn,1struct|
+beacon_chain|proposer_prep_service|beacon_node/beacon_chain/src/proposer_prep_service.rs|1|1fn|
+beacon_chain|schema_change|beacon_node/beacon_chain/src/schema_change.rs|1|1fn|Utilities for managing database schema changes.
+beacon_chain|schema_change::migration_schema_v23|beacon_node/beacon_chain/src/schema_change/migration_schema_v23.rs|5|1const,2fn,2struct|
+beacon_chain|schema_change::migration_schema_v24|beacon_node/beacon_chain/src/schema_change/migration_schema_v24.rs|10|1const,7fn,2struct|
+beacon_chain|schema_change::migration_schema_v25|beacon_node/beacon_chain/src/schema_change/migration_schema_v25.rs|3|1const,2fn|
+beacon_chain|schema_change::migration_schema_v26|beacon_node/beacon_chain/src/schema_change/migration_schema_v26.rs|4|2fn,2struct|
+beacon_chain|schema_change::migration_schema_v27|beacon_node/beacon_chain/src/schema_change/migration_schema_v27.rs|2|2fn|
+beacon_chain|schema_change::migration_schema_v28|beacon_node/beacon_chain/src/schema_change/migration_schema_v28.rs|2|2fn|
+beacon_chain|shuffling_cache|beacon_node/beacon_chain/src/shuffling_cache.rs|15|1const,1enum,10fn,2struct,1trait|
+beacon_chain|single_attestation|beacon_node/beacon_chain/src/single_attestation.rs|1|1fn|
+beacon_chain|state_advance_timer|beacon_node/beacon_chain/src/state_advance_timer.rs|4|4fn|Provides a timer which runs in the tail-end of each slot and maybe advances the state of the
+beacon_chain|summaries_dag|beacon_node/beacon_chain/src/summaries_dag.rs|16|1enum,12fn,3struct|
+beacon_chain|sync_committee_rewards|beacon_node/beacon_chain/src/sync_committee_rewards.rs|1|1fn|
+beacon_chain|sync_committee_verification|beacon_node/beacon_chain/src/sync_committee_verification.rs|16|1enum,12fn,3struct|Provides verification for the following sync committee messages:
+beacon_chain|test_utils|beacon_node/beacon_chain/src/test_utils.rs|150|4const,6enum,127fn,3struct,10type|
+beacon_chain|validator_monitor|beacon_node/beacon_chain/src/validator_monitor.rs|69|5const,1enum,58fn,5struct|Provides detailed logging and metrics for a set of registered validators.
+beacon_chain|validator_pubkey_cache|beacon_node/beacon_chain/src/validator_pubkey_cache.rs|13|11fn,2struct|
+beacon_node|cli|beacon_node/src/cli.rs|1|1fn|
+beacon_node|config|beacon_node/src/config.rs|5|5fn|
+beacon_node||beacon_node/src/lib.rs|5|3fn,1struct,1type|
+beacon_node_fallback|beacon_head_monitor|validator_client/beacon_node_fallback/src/beacon_head_monitor.rs|8|6fn,2struct|
+beacon_node_fallback|beacon_node_health|validator_client/beacon_node_fallback/src/beacon_node_health.rs|13|3enum,7fn,3struct|
+beacon_node_fallback||validator_client/beacon_node_fallback/src/lib.rs|31|3enum,20fn,2mod,6struct|Allows for a list of `BeaconNodeHttpClient` to appear as a single entity which will exhibits
+beacon_processor||beacon_node/beacon_processor/src/lib.rs|28|2const,3enum,8fn,1mod,10struct,4type|Provides the `BeaconProcessor`, a multi-threaded processor for messages received on the network
+beacon_processor|scheduler|beacon_node/beacon_processor/src/scheduler/mod.rs|2|2mod|
+beacon_processor|scheduler::work_queue|beacon_node/beacon_processor/src/scheduler/work_queue.rs|17|13fn,4struct|
+beacon_processor|scheduler::work_reprocessing_queue|beacon_node/beacon_processor/src/scheduler/work_reprocessing_queue.rs|22|8const,2enum,3fn,8struct,1type|Provides a mechanism which queues work for later processing.
+bls|generic_aggregate_public_key|crypto/bls/src/generic_aggregate_public_key.rs|4|2fn,1struct,1trait|
+bls|generic_aggregate_signature|crypto/bls/src/generic_aggregate_signature.rs|15|1const,12fn,1struct,1trait|
+bls|generic_keypair|crypto/bls/src/generic_keypair.rs|3|2fn,1struct|
+bls|generic_public_key|crypto/bls/src/generic_public_key.rs|13|3const,8fn,1struct,1trait|
+bls|generic_public_key_bytes|crypto/bls/src/generic_public_key_bytes.rs|7|6fn,1struct|
+bls|generic_secret_key|crypto/bls/src/generic_secret_key.rs|10|1const,7fn,1struct,1trait|
+bls|generic_signature|crypto/bls/src/generic_signature.rs|18|5const,11fn,1struct,1trait|
+bls|generic_signature_bytes|crypto/bls/src/generic_signature_bytes.rs|5|4fn,1struct|
+bls|generic_signature_set|crypto/bls/src/generic_signature_set.rs|5|3fn,2struct|
+bls|get_withdrawal_credentials|crypto/bls/src/get_withdrawal_credentials.rs|1|1fn|
+bls|impls::blst|crypto/bls/src/impls/blst.rs|7|2const,1fn,1mod,2struct,1type|
+bls|impls::fake_crypto|crypto/bls/src/impls/fake_crypto.rs|8|1fn,1mod,5struct,1type|
+bls|impls|crypto/bls/src/impls/mod.rs|2|2mod|
+bls||crypto/bls/src/lib.rs|4|1enum,2mod,1type|This library provides a wrapper around several BLS implementations to provide
+bls|zeroize_hash|crypto/bls/src/zeroize_hash.rs|4|3fn,1struct|
+boot_node|cli|boot_node/src/cli.rs|1|1fn|Simple logic for spawning a Lighthouse BootNode.
+boot_node|config|boot_node/src/config.rs|4|2fn,2struct|
+boot_node||boot_node/src/lib.rs|2|1fn,1mod|Creates a simple DISCV5 server which can be used to bootstrap an Eth2 network.
+boot_node|server|boot_node/src/server.rs|1|1fn|The main bootnode server execution.
+builder_client||beacon_node/builder_client/src/lib.rs|17|5const,10fn,2struct|
+clap_utils|flags|common/clap_utils/src/flags.rs|1|1const|CLI flags used across the Lighthouse code base can be located here.
+clap_utils||common/clap_utils/src/lib.rs|14|2const,11fn,1mod|A helper library for parsing values from `clap::ArgMatches`.
+client|builder|beacon_node/client/src/builder.rs|18|1const,16fn,1struct|
+client|compute_light_client_updates|beacon_node/client/src/compute_light_client_updates.rs|2|1const,1fn|
+client|config|beacon_node/client/src/config.rs|13|1enum,11fn,1struct|
+client||beacon_node/client/src/lib.rs|8|5fn,2mod,1struct|
+client|notifier|beacon_node/client/src/notifier.rs|9|3const,5fn,1struct|
+database_manager|cli|database_manager/src/cli.rs|9|1enum,8struct|
+database_manager||database_manager/src/lib.rs|14|1enum,8fn,1mod,4struct|
+deposit_contract||common/deposit_contract/src/lib.rs|9|5const,1enum,2fn,1mod|
+directory||common/directory/src/lib.rs|12|8const,4fn|
+doppelganger_service||validator_client/doppelganger_service/src/lib.rs|6|1const,3fn,2struct|The "Doppelganger" service is an **imperfect** mechanism to try and prevent the validator client
+ef_tests|bls_setting|testing/ef_tests/src/bls_setting.rs|2|1enum,1fn|
+ef_tests|case_result|testing/ef_tests/src/case_result.rs|6|1const,4fn,1struct|
+ef_tests|cases|testing/ef_tests/src/cases.rs|7|1enum,3fn,1struct,2trait|
+ef_tests|cases::bls_aggregate_sigs|testing/ef_tests/src/cases/bls_aggregate_sigs.rs|1|1struct|
+ef_tests|cases::bls_aggregate_verify|testing/ef_tests/src/cases/bls_aggregate_verify.rs|2|2struct|
+ef_tests|cases::bls_batch_verify|testing/ef_tests/src/cases/bls_batch_verify.rs|2|2struct|
+ef_tests|cases::bls_eth_aggregate_pubkeys|testing/ef_tests/src/cases/bls_eth_aggregate_pubkeys.rs|1|1struct|
+ef_tests|cases::bls_eth_fast_aggregate_verify|testing/ef_tests/src/cases/bls_eth_fast_aggregate_verify.rs|2|2struct|
+ef_tests|cases::bls_fast_aggregate_verify|testing/ef_tests/src/cases/bls_fast_aggregate_verify.rs|2|2struct|
+ef_tests|cases::bls_sign_msg|testing/ef_tests/src/cases/bls_sign_msg.rs|2|2struct|
+ef_tests|cases::bls_verify_msg|testing/ef_tests/src/cases/bls_verify_msg.rs|2|2struct|
+ef_tests|cases::common|testing/ef_tests/src/cases/common.rs|1|1trait|
+ef_tests|cases::compute_columns_for_custody_groups|testing/ef_tests/src/cases/compute_columns_for_custody_groups.rs|1|1struct|
+ef_tests|cases::epoch_processing|testing/ef_tests/src/cases/epoch_processing.rs|21|20struct,1trait|
+ef_tests|cases::fork|testing/ef_tests/src/cases/fork.rs|2|2struct|
+ef_tests|cases::fork_choice|testing/ef_tests/src/cases/fork_choice.rs|28|1const,1enum,18fn,8struct|
+ef_tests|cases::genesis_initialization|testing/ef_tests/src/cases/genesis_initialization.rs|1|1struct|
+ef_tests|cases::genesis_validity|testing/ef_tests/src/cases/genesis_validity.rs|2|2struct|
+ef_tests|cases::get_custody_groups|testing/ef_tests/src/cases/get_custody_groups.rs|1|1struct|
+ef_tests|cases::kzg_blob_to_kzg_commitment|testing/ef_tests/src/cases/kzg_blob_to_kzg_commitment.rs|2|2struct|
+ef_tests|cases::kzg_compute_blob_kzg_proof|testing/ef_tests/src/cases/kzg_compute_blob_kzg_proof.rs|2|2struct|
+ef_tests|cases::kzg_compute_cells|testing/ef_tests/src/cases/kzg_compute_cells.rs|2|2struct|
+ef_tests|cases::kzg_compute_cells_and_kzg_proofs|testing/ef_tests/src/cases/kzg_compute_cells_and_kzg_proofs.rs|2|2struct|
+ef_tests|cases::kzg_compute_kzg_proof|testing/ef_tests/src/cases/kzg_compute_kzg_proof.rs|3|1fn,2struct|
+ef_tests|cases::kzg_recover_cells_and_kzg_proofs|testing/ef_tests/src/cases/kzg_recover_cells_and_kzg_proofs.rs|2|2struct|
+ef_tests|cases::kzg_verify_blob_kzg_proof|testing/ef_tests/src/cases/kzg_verify_blob_kzg_proof.rs|8|6fn,2struct|
+ef_tests|cases::kzg_verify_blob_kzg_proof_batch|testing/ef_tests/src/cases/kzg_verify_blob_kzg_proof_batch.rs|2|2struct|
+ef_tests|cases::kzg_verify_cell_kzg_proof_batch|testing/ef_tests/src/cases/kzg_verify_cell_kzg_proof_batch.rs|2|2struct|
+ef_tests|cases::kzg_verify_kzg_proof|testing/ef_tests/src/cases/kzg_verify_kzg_proof.rs|2|2struct|
+ef_tests|cases::light_client_verify_is_better_update|testing/ef_tests/src/cases/light_client_verify_is_better_update.rs|2|2struct|
+ef_tests|cases::merkle_proof_validity|testing/ef_tests/src/cases/merkle_proof_validity.rs|7|2enum,5struct|
+ef_tests|cases::operations|testing/ef_tests/src/cases/operations.rs|4|3struct,1trait|
+ef_tests|cases::rewards|testing/ef_tests/src/cases/rewards.rs|5|5struct|
+ef_tests|cases::sanity_blocks|testing/ef_tests/src/cases/sanity_blocks.rs|2|2struct|
+ef_tests|cases::sanity_slots|testing/ef_tests/src/cases/sanity_slots.rs|2|2struct|
+ef_tests|cases::shuffling|testing/ef_tests/src/cases/shuffling.rs|1|1struct|
+ef_tests|cases::ssz_generic|testing/ef_tests/src/cases/ssz_generic.rs|1|1struct|
+ef_tests|cases::ssz_static|testing/ef_tests/src/cases/ssz_static.rs|5|2fn,3struct|
+ef_tests|cases::transition|testing/ef_tests/src/cases/transition.rs|2|2struct|
+ef_tests|decode|testing/ef_tests/src/decode.rs|10|10fn|
+ef_tests|error|testing/ef_tests/src/error.rs|4|1enum,3fn|
+ef_tests|handler|testing/ef_tests/src/handler.rs|61|21fn,39struct,1trait|
+ef_tests||testing/ef_tests/src/lib.rs|1|1fn|
+ef_tests|results|testing/ef_tests/src/results.rs|3|3fn|
+ef_tests|type_name|testing/ef_tests/src/type_name.rs|1|1trait|Mapping from types to canonical string identifiers used in testing.
+eip_3076||common/eip_3076/src/lib.rs|13|1enum,7fn,5struct|
+environment||lighthouse/environment/src/lib.rs|23|1const,17fn,1mod,4struct|This crate aims to provide a common set of tools that can be used to create a "environment" to
+environment|tracing_common|lighthouse/environment/src/tracing_common.rs|2|2fn|
+eth2|beacon_response|common/eth2/src/beacon_response.rs|13|1enum,7fn,4struct,1type|
+eth2|error|common/eth2/src/error.rs|9|2enum,4fn,3struct|Centralized error handling for eth2 API clients
+eth2||common/eth2/src/lib.rs|155|11const,136fn,6mod,2struct|This crate provides two major things:
+eth2|lighthouse|common/eth2/src/lighthouse.rs|19|12fn,1mod,6struct|This module contains endpoints that are non-standard and only available on Lighthouse servers.
+eth2|lighthouse::attestation_performance|common/eth2/src/lighthouse/attestation_performance.rs|4|1fn,3struct|
+eth2|lighthouse::block_packing_efficiency|common/eth2/src/lighthouse/block_packing_efficiency.rs|4|4struct|
+eth2|lighthouse::custody|common/eth2/src/lighthouse/custody.rs|1|1struct|
+eth2|lighthouse::sync_state|common/eth2/src/lighthouse/sync_state.rs|7|3enum,4fn|
+eth2|lighthouse_vc::http_client|common/eth2/src/lighthouse_vc/http_client.rs|38|1enum,36fn,1struct|
+eth2|lighthouse_vc|common/eth2/src/lighthouse_vc/mod.rs|3|3mod|
+eth2|lighthouse_vc::std_types|common/eth2/src/lighthouse_vc/std_types.rs|26|4enum,2fn,20struct|
+eth2|lighthouse_vc::types|common/eth2/src/lighthouse_vc/types.rs|16|16struct|
+eth2|mixin|common/eth2/src/mixin.rs|3|3trait|
+eth2|types|common/eth2/src/types.rs|136|17enum,23fn,2mod,89struct,5type|This module exposes a superset of the `types` crate. It adds additional types that are only
+eth2_config||common/eth2_config/src/lib.rs|12|3const,1enum,5fn,3struct|This crate primarily exists to serve the `common/eth2_network_configs` crate, by providing the
+eth2_interop_keypairs||common/eth2_interop_keypairs/src/lib.rs|6|3const,3fn|Produces the "deterministic" validator private keys used for inter-operability testing for
+eth2_key_derivation|derived_key|crypto/eth2_key_derivation/src/derived_key.rs|9|4const,1enum,3fn,1struct|
+eth2_key_derivation|lamport_secret_key|crypto/eth2_key_derivation/src/lamport_secret_key.rs|5|4fn,1struct|
+eth2_key_derivation|plain_text|crypto/eth2_key_derivation/src/plain_text.rs|6|5fn,1struct|
+eth2_key_derivation|secret_bytes|crypto/eth2_key_derivation/src/secret_bytes.rs|4|3fn,1struct|
+eth2_keystore|derived_key|crypto/eth2_keystore/src/derived_key.rs|4|3fn,1struct|
+eth2_keystore|json_keystore::checksum_module|crypto/eth2_keystore/src/json_keystore/checksum_module.rs|5|1enum,1fn,3struct|Defines the JSON representation of the "checksum" module.
+eth2_keystore|json_keystore::cipher_module|crypto/eth2_keystore/src/json_keystore/cipher_module.rs|5|2enum,1fn,2struct|Defines the JSON representation of the "cipher" module.
+eth2_keystore|json_keystore::hex_bytes|crypto/eth2_keystore/src/json_keystore/hex_bytes.rs|4|3fn,1struct|
+eth2_keystore|json_keystore::kdf_module|crypto/eth2_keystore/src/json_keystore/kdf_module.rs|10|3enum,3fn,4struct|Defines the JSON representation of the "kdf" module.
+eth2_keystore|json_keystore|crypto/eth2_keystore/src/json_keystore/mod.rs|4|1enum,1fn,2struct|This module intends to separate the JSON representation of the keystore from the actual crypto
+eth2_keystore|keystore|crypto/eth2_keystore/src/keystore.rs|29|5const,1enum,21fn,2struct|Provides a JSON keystore for a BLS keypair, as specified by
+eth2_keystore||crypto/eth2_keystore/src/lib.rs|1|1mod|Provides a JSON keystore for a BLS keypair, as specified by
+eth2_network_config||common/eth2_network_config/src/lib.rs|18|5const,1enum,11fn,1struct|Provides the `Eth2NetworkConfig` struct which defines the configuration of an eth2 network or
+eth2_wallet|json_wallet|crypto/eth2_wallet/src/json_wallet/mod.rs|4|2enum,1fn,1struct|
+eth2_wallet||crypto/eth2_wallet/src/lib.rs|1|1mod|
+eth2_wallet|validator_path|crypto/eth2_wallet/src/validator_path.rs|6|2const,1enum,2fn,1struct|
+eth2_wallet|wallet|crypto/eth2_wallet/src/wallet.rs|20|1enum,16fn,3struct|
+eth2_wallet_manager|filesystem|common/eth2_wallet_manager/src/filesystem.rs|4|1enum,3fn|Provides some CRUD functions for wallets on the filesystem.
+eth2_wallet_manager|locked_wallet|common/eth2_wallet_manager/src/locked_wallet.rs|5|1const,3fn,1struct|
+eth2_wallet_manager|wallet_manager|common/eth2_wallet_manager/src/wallet_manager.rs|7|2enum,4fn,1struct|
+execution_engine_integration|build_utils|testing/execution_engine_integration/src/build_utils.rs|7|7fn|
+execution_engine_integration|execution_engine|testing/execution_engine_integration/src/execution_engine.rs|10|4const,4fn,1struct,1trait|
+execution_engine_integration|genesis_json|testing/execution_engine_integration/src/genesis_json.rs|2|2fn|
+execution_engine_integration|geth|testing/execution_engine_integration/src/geth.rs|4|3fn,1struct|
+execution_engine_integration|nethermind|testing/execution_engine_integration/src/nethermind.rs|2|1fn,1struct|
+execution_engine_integration|test_rig|testing/execution_engine_integration/src/test_rig.rs|6|5fn,1struct|
+execution_engine_integration|transactions|testing/execution_engine_integration/src/transactions.rs|4|1const,1enum,2fn|
+execution_layer|block_hash|beacon_node/execution_layer/src/block_hash.rs|3|3fn|
+execution_layer|engine_api|beacon_node/execution_layer/src/engine_api.rs|30|1const,6enum,9fn,3mod,10struct,1type|
+execution_layer|engine_api::auth|beacon_node/execution_layer/src/engine_api/auth.rs|14|1const,1enum,9fn,3struct|
+execution_layer|engine_api::http|beacon_node/execution_layer/src/engine_api/http.rs|76|35const,37fn,2mod,2struct|Contains an implementation of `EngineAPI` using the JSON-RPC API via HTTP.
+execution_layer|engine_api::json_structures|beacon_node/execution_layer/src/engine_api/json_structures.rs|23|2enum,1mod,19struct,1type|
+execution_layer|engine_api::new_payload_request|beacon_node/execution_layer/src/engine_api/new_payload_request.rs|9|8fn,1struct|
+execution_layer|engines|beacon_node/execution_layer/src/engines.rs|17|2enum,13fn,2struct|Provides generic behaviour for multiple execution engines, specifically fallback behaviour.
+execution_layer|keccak|beacon_node/execution_layer/src/keccak.rs|2|1fn,1struct|
+execution_layer||beacon_node/execution_layer/src/lib.rs|65|2const,7enum,44fn,4mod,8struct|This crate provides an abstraction over one or more *execution engines*. An execution engine
+execution_layer|metrics|beacon_node/execution_layer/src/metrics.rs|15|13const,2fn|
+execution_layer|payload_cache|beacon_node/execution_layer/src/payload_cache.rs|5|1const,3fn,1struct|
+execution_layer|payload_status|beacon_node/execution_layer/src/payload_status.rs|2|1enum,1fn|
+execution_layer|test_utils::execution_block_generator|beacon_node/execution_layer/src/test_utils/execution_block_generator.rs|45|1const,1enum,41fn,2struct|
+execution_layer|test_utils::handle_rpc|beacon_node/execution_layer/src/test_utils/handle_rpc.rs|5|4const,1fn|
+execution_layer|test_utils::hook|beacon_node/execution_layer/src/test_utils/hook.rs|3|2fn,1struct|
+execution_layer|test_utils::mock_builder|beacon_node/execution_layer/src/test_utils/mock_builder.rs|19|3const,1enum,12fn,2struct,1trait|
+execution_layer|test_utils::mock_execution_layer|beacon_node/execution_layer/src/test_utils/mock_execution_layer.rs|5|4fn,1struct|
+execution_layer|test_utils|beacon_node/execution_layer/src/test_utils/mod.rs|48|4const,1enum,38fn,5struct|Provides a mock execution engine HTTP JSON-RPC API for use in testing.
+execution_layer|versioned_hashes|beacon_node/execution_layer/src/versioned_hashes.rs|4|1enum,3fn|
+filesystem||common/filesystem/src/lib.rs|3|1enum,2fn|
+fixed_bytes||consensus/fixed_bytes/src/lib.rs|6|2trait,4type|
+fork_choice|fork_choice|consensus/fork_choice/src/fork_choice.rs|52|6enum,40fn,5struct,1type|
+fork_choice|fork_choice_store|consensus/fork_choice/src/fork_choice_store.rs|1|1trait|
+fork_choice|metrics|consensus/fork_choice/src/metrics.rs|1|1fn|
+genesis|common|beacon_node/genesis/src/common.rs|1|1fn|
+genesis|interop|beacon_node/genesis/src/interop.rs|13|1const,10fn,1struct,1type|
+graffiti_file||validator_client/graffiti_file/src/lib.rs|6|1enum,4fn,1struct|
+health_metrics||common/health_metrics/src/lib.rs|2|2mod|
+health_metrics|metrics|common/health_metrics/src/metrics.rs|3|3fn|
+health_metrics|observe|common/health_metrics/src/observe.rs|1|1trait|
+http_api|aggregate_attestation|beacon_node/http_api/src/aggregate_attestation.rs|1|1fn|
+http_api|attestation_performance|beacon_node/http_api/src/attestation_performance.rs|1|1fn|
+http_api|attester_duties|beacon_node/http_api/src/attester_duties.rs|1|1fn|Contains the handler for the `GET validator/duties/attester/{epoch}` endpoint.
+http_api|beacon::execution_payload_envelope|beacon_node/http_api/src/beacon/execution_payload_envelope.rs|3|3fn|
+http_api|beacon|beacon_node/http_api/src/beacon/mod.rs|3|3mod|
+http_api|beacon::pool|beacon_node/http_api/src/beacon/pool.rs|14|11fn,3type|
+http_api|beacon::states|beacon_node/http_api/src/beacon/states.rs|16|16fn|
+http_api|block_id|beacon_node/http_api/src/block_id.rs|10|9fn,1struct|
+http_api|block_packing_efficiency|beacon_node/http_api/src/block_packing_efficiency.rs|1|1fn|
+http_api|build_block_contents|beacon_node/http_api/src/build_block_contents.rs|1|1fn|
+http_api|builder_states|beacon_node/http_api/src/builder_states.rs|1|1fn|
+http_api|custody|beacon_node/http_api/src/custody.rs|1|1fn|
+http_api|database|beacon_node/http_api/src/database.rs|3|2fn,1struct|
+http_api||beacon_node/http_api/src/lib.rs|9|1enum,3fn,1mod,3struct,1type|This crate contains a HTTP server which serves the endpoints listed here:
+http_api|light_client|beacon_node/http_api/src/light_client.rs|3|3fn|
+http_api|peer|beacon_node/http_api/src/peer.rs|1|1struct|
+http_api|produce_block|beacon_node/http_api/src/produce_block.rs|8|8fn|
+http_api|proposer_duties|beacon_node/http_api/src/proposer_duties.rs|2|2fn|Contains the handler for the `GET validator/duties/proposer/{epoch}` endpoint.
+http_api|publish_attestations|beacon_node/http_api/src/publish_attestations.rs|2|1enum,1fn|Import attestations and publish them to the network.
+http_api|publish_blocks|beacon_node/http_api/src/publish_blocks.rs|9|1enum,7fn,1type|
+http_api|standard_block_rewards|beacon_node/http_api/src/standard_block_rewards.rs|1|1fn|
+http_api|state_id|beacon_node/http_api/src/state_id.rs|9|8fn,1struct|
+http_api|sync_committee_rewards|beacon_node/http_api/src/sync_committee_rewards.rs|2|2fn|
+http_api|sync_committees|beacon_node/http_api/src/sync_committees.rs|4|4fn|Handlers for sync committee endpoints.
+http_api|task_spawner|beacon_node/http_api/src/task_spawner.rs|9|1enum,7fn,1struct|
+http_api|test_utils|beacon_node/http_api/src/test_utils.rs|11|4const,5fn,2struct|
+http_api|ui|beacon_node/http_api/src/ui.rs|11|3fn,8struct|
+http_api|utils|beacon_node/http_api/src/utils.rs|13|4fn,9type|
+http_api|validator::execution_payload_envelope|beacon_node/http_api/src/validator/execution_payload_envelope.rs|1|1fn|
+http_api|validator|beacon_node/http_api/src/validator/mod.rs|17|16fn,1mod|
+http_api|validator_inclusion|beacon_node/http_api/src/validator_inclusion.rs|2|2fn|
+http_api|validators|beacon_node/http_api/src/validators.rs|3|3fn|
+http_api|version|beacon_node/http_api/src/version.rs|13|3const,1enum,9fn|
+http_metrics||beacon_node/http_metrics/src/lib.rs|4|1enum,1fn,2struct|This crate provides a HTTP server that is solely dedicated to serving the `/metrics` endpoint.
+http_metrics|metrics|beacon_node/http_metrics/src/metrics.rs|1|1fn|
+initialized_validators|key_cache|validator_client/initialized_validators/src/key_cache.rs|17|2const,2enum,12fn,1struct|
+initialized_validators||validator_client/initialized_validators/src/lib.rs|50|1const,2enum,42fn,1mod,4struct|Provides management of "initialized" validators.
+int_to_bytes||consensus/int_to_bytes/src/lib.rs|9|9fn|
+kzg|kzg_commitment|crypto/kzg/src/kzg_commitment.rs|4|1const,2fn,1struct|
+kzg|kzg_proof|crypto/kzg/src/kzg_proof.rs|2|1fn,1struct|
+kzg||crypto/kzg/src/lib.rs|18|1const,1enum,12fn,1mod,1struct,2type|
+kzg|trusted_setup|crypto/kzg/src/trusted_setup.rs|8|1const,6fn,1struct|
+lcli|block_root|lcli/src/block_root.rs|1|1fn|# Block Root
+lcli|check_deposit_data|lcli/src/check_deposit_data.rs|1|1fn|
+lcli|generate_bootnode_enr|lcli/src/generate_bootnode_enr.rs|1|1fn|
+lcli|http_sync|lcli/src/http_sync.rs|2|2fn|
+lcli|indexed_attestations|lcli/src/indexed_attestations.rs|1|1fn|
+lcli|mnemonic_validators|lcli/src/mnemonic_validators.rs|2|2fn|
+lcli|mock_el|lcli/src/mock_el.rs|1|1fn|
+lcli|parse_ssz|lcli/src/parse_ssz.rs|1|1fn|
+lcli|skip_slots|lcli/src/skip_slots.rs|1|1fn|# Skip-Slots
+lcli|state_root|lcli/src/state_root.rs|1|1fn|
+lcli|transition_blocks|lcli/src/transition_blocks.rs|2|2fn|# Transition Blocks
+lighthouse|cli|lighthouse/src/cli.rs|1|1enum|
+lighthouse|metrics|lighthouse/src/metrics.rs|2|2fn|
+lighthouse_network|config|beacon_node/lighthouse_network/src/config.rs|16|5const,8fn,3struct|
+lighthouse_network|discovery::enr|beacon_node/lighthouse_network/src/discovery/enr.rs|11|5const,5fn,1trait|Helper functions and an extension trait for Ethereum 2 ENRs.
+lighthouse_network|discovery|beacon_node/lighthouse_network/src/discovery/mod.rs|25|2const,19fn,1mod,3struct|The discovery sub-behaviour of Lighthouse.
+lighthouse_network|discovery::subnet_predicate|beacon_node/lighthouse_network/src/discovery/subnet_predicate.rs|1|1fn|The subnet predicate used for searching for a particular subnet.
+lighthouse_network||beacon_node/lighthouse_network/src/lib.rs|7|6mod,1struct|
+lighthouse_network|peer_manager::config|beacon_node/lighthouse_network/src/peer_manager/config.rs|5|4const,1struct|
+lighthouse_network|peer_manager|beacon_node/lighthouse_network/src/peer_manager/mod.rs|30|8const,1enum,18fn,2mod,1struct|Implementation of Lighthouse's peer management system.
+lighthouse_network|peer_manager::peerdb|beacon_node/lighthouse_network/src/peer_manager/peerdb.rs|64|1const,3enum,54fn,4mod,2struct|
+lighthouse_network|peer_manager::peerdb::client|beacon_node/lighthouse_network/src/peer_manager/peerdb/client.rs|3|1enum,1fn,1struct|Known Ethereum 2.0 clients and their fingerprints.
+lighthouse_network|peer_manager::peerdb::peer_info|beacon_node/lighthouse_network/src/peer_manager/peerdb/peer_info.rs|58|2enum,55fn,1struct|
+lighthouse_network|peer_manager::peerdb::score|beacon_node/lighthouse_network/src/peer_manager/peerdb/score.rs|18|1const,4enum,12fn,1struct|This contains the scoring logic for peers.
+lighthouse_network|peer_manager::peerdb::sync_status|beacon_node/lighthouse_network/src/peer_manager/peerdb/sync_status.rs|8|1enum,6fn,1struct|Handles individual sync status for peers.
+lighthouse_network|rpc::codec|beacon_node/lighthouse_network/src/rpc/codec.rs|4|2fn,2struct|
+lighthouse_network|rpc::config|beacon_node/lighthouse_network/src/rpc/config.rs|17|14const,3struct|
+lighthouse_network|rpc::handler|beacon_node/lighthouse_network/src/rpc/handler.rs|7|3enum,2fn,2struct|
+lighthouse_network|rpc::methods|beacon_node/lighthouse_network/src/rpc/methods.rs|53|1const,5enum,32fn,14struct,1type|Available RPC methods types and ids.
+lighthouse_network|rpc|beacon_node/lighthouse_network/src/rpc/mod.rs|16|2enum,7fn,3mod,3struct,1trait|The Ethereum 2.0 Wire Protocol
+lighthouse_network|rpc::outbound|beacon_node/lighthouse_network/src/rpc/outbound.rs|2|1struct,1type|
+lighthouse_network|rpc::protocol|beacon_node/lighthouse_network/src/rpc/protocol.rs|28|5enum,18fn,3struct,2type|
+lighthouse_network|rpc::rate_limiter|beacon_node/lighthouse_network/src/rpc/rate_limiter.rs|18|1enum,12fn,4struct,1trait|
+lighthouse_network|rpc::response_limiter|beacon_node/lighthouse_network/src/rpc/response_limiter.rs|6|4fn,2struct|
+lighthouse_network|rpc::self_limiter|beacon_node/lighthouse_network/src/rpc/self_limiter.rs|8|1enum,6fn,1struct|
+lighthouse_network|service::api_types|beacon_node/lighthouse_network/src/service/api_types.rs|18|7enum,10struct,1type|
+lighthouse_network|service::gossip_cache|beacon_node/lighthouse_network/src/service/gossip_cache.rs|22|20fn,2struct|
+lighthouse_network|service::gossipsub_scoring_parameters|beacon_node/lighthouse_network/src/service/gossipsub_scoring_parameters.rs|7|1const,5fn,1struct|
+lighthouse_network|service|beacon_node/lighthouse_network/src/service/mod.rs|49|1const,1enum,40fn,3mod,2struct,2type|
+lighthouse_network|service::utils|beacon_node/lighthouse_network/src/service/utils.rs|9|2const,6fn,1struct|
+lighthouse_network|types::globals|beacon_node/lighthouse_network/src/types/globals.rs|23|22fn,1struct|A collection of variables that are accessible outside of the network thread itself.
+lighthouse_network|types|beacon_node/lighthouse_network/src/types/mod.rs|3|3type|
+lighthouse_network|types::pubsub|beacon_node/lighthouse_network/src/types/pubsub.rs|7|1enum,5fn,1struct|Handles the encoding and decoding of pubsub messages.
+lighthouse_network|types::subnet|beacon_node/lighthouse_network/src/types/subnet.rs|2|1enum,1struct|
+lighthouse_network|types::topics|beacon_node/lighthouse_network/src/types/topics.rs|33|19const,2enum,10fn,2struct|
+lighthouse_validator_store||validator_client/lighthouse_validator_store/src/lib.rs|20|1const,16fn,2struct,1type|
+lighthouse_version||common/lighthouse_version/src/lib.rs|5|2const,3fn|
+lockfile||common/lockfile/src/lib.rs|5|1enum,3fn,1struct|
+logging||common/logging/src/lib.rs|6|1const,2fn,2mod,1struct|
+logging|sse_logging_components|common/logging/src/sse_logging_components.rs|2|1fn,1struct|This module provides an implementation of `tracing_subscriber::layer::Layer` that optionally writ...
+logging|tracing_libp2p_discv5_logging_layer|common/logging/src/tracing_libp2p_discv5_logging_layer.rs|2|1fn,1struct|
+logging|tracing_logging_layer|common/logging/src/tracing_logging_layer.rs|3|1fn,2struct|
+logging|tracing_metrics_layer|common/logging/src/tracing_metrics_layer.rs|1|1struct|Exposes [`MetricsLayer`]: A tracing layer that registers metrics of logging events.
+logging|utils|common/logging/src/utils.rs|2|2fn|
+lru_cache|time|common/lru_cache/src/time.rs|10|9fn,1struct|This implements a time-based LRU cache for fast checking of duplicates
+malloc_utils|glibc|common/malloc_utils/src/glibc.rs|2|2fn|Contains functions for tuning and controlling "The GNU Allocator", included in the `glibc`
+malloc_utils|jemalloc|common/malloc_utils/src/jemalloc.rs|3|3fn|Set the allocator to `jemalloc`.
+malloc_utils||common/malloc_utils/src/lib.rs|2|2mod|Provides utilities for configuring the system allocator.
+merkle_proof||consensus/merkle_proof/src/lib.rs|15|3enum,12fn|
+metrics||common/metrics/src/lib.rs|41|40fn,1trait|A wrapper around the `prometheus` crate that provides a global metrics registry
+monitoring_api|gather|common/monitoring_api/src/gather.rs|5|1enum,3fn,1struct|
+monitoring_api||common/monitoring_api/src/lib.rs|12|2const,1enum,7fn,2struct|
+monitoring_api|types|common/monitoring_api/src/types.rs|12|2const,2enum,1fn,7struct|
+network||beacon_node/network/src/lib.rs|1|1mod|
+network|metrics|beacon_node/network/src/metrics.rs|8|1enum,7fn|
+network|nat|beacon_node/network/src/nat.rs|1|1fn|This houses various NAT hole punching strategies.
+network|network_beacon_processor::gossip_methods|beacon_node/network/src/network_beacon_processor/gossip_methods.rs|24|24fn|
+network|network_beacon_processor|beacon_node/network/src/network_beacon_processor/mod.rs|41|1const,1enum,36fn,1struct,2type|
+network|network_beacon_processor::rpc_methods|beacon_node/network/src/network_beacon_processor/rpc_methods.rs|14|14fn|
+network|network_beacon_processor::sync_methods|beacon_node/network/src/network_beacon_processor/sync_methods.rs|10|1enum,9fn|
+network|network_beacon_processor::tests|beacon_node/network/src/network_beacon_processor/tests.rs|33|33fn|
+network|persisted_dht|beacon_node/network/src/persisted_dht.rs|5|1const,3fn,1struct|
+network|router|beacon_node/network/src/router.rs|15|1enum,12fn,2struct|This module handles incoming network messages.
+network|service|beacon_node/network/src/service.rs|10|2enum,5fn,3struct|
+network|status|beacon_node/network/src/status.rs|2|1fn,1trait|
+network|subnet_service|beacon_node/network/src/subnet_service/mod.rs|12|1const,2enum,7fn,2struct|This service keeps track of which shard subnet the beacon node should be subscribed to at any
+network|subnet_service::tests|beacon_node/network/src/subnet_service/tests/mod.rs|3|2fn,1struct|
+network|sync::backfill_sync|beacon_node/network/src/sync/backfill_sync/mod.rs|15|1const,3enum,10fn,1struct|This module contains the logic for Lighthouse's backfill sync.
+network|sync::batch|beacon_node/network/src/sync/batch.rs|30|5enum,20fn,3struct,1trait,1type|
+network|sync::block_lookups::common|beacon_node/network/src/sync/block_lookups/common.rs|2|1enum,1trait|
+network|sync::block_lookups|beacon_node/network/src/sync/block_lookups/mod.rs|29|2const,1enum,20fn,2mod,3struct,1type|Implements block lookup sync.
+network|sync::block_lookups::parent_chain|beacon_node/network/src/sync/block_lookups/parent_chain.rs|6|4fn,2struct|
+network|sync::block_lookups::single_block_lookup|beacon_node/network/src/sync/block_lookups/single_block_lookup.rs|47|4enum,37fn,6struct|
+network|sync::block_sidecar_coupling|beacon_node/network/src/sync/block_sidecar_coupling.rs|11|2enum,8fn,1struct|
+network|sync::custody_backfill_sync|beacon_node/network/src/sync/custody_backfill_sync/mod.rs|14|1const,1enum,10fn,2struct|
+network|sync::manager|beacon_node/network/src/sync/manager.rs|20|1const,5enum,13fn,1struct|The `SyncManager` facilities the block syncing logic of lighthouse. The current networking
+network|sync|beacon_node/network/src/sync/mod.rs|1|1mod|Syncing for lighthouse.
+network|sync::network_context|beacon_node/network/src/sync/network_context.rs|57|1const,7enum,43fn,1mod,2struct,3type|Provides network functionality for the Syncing thread. This fundamentally wraps a network
+network|sync::network_context::custody|beacon_node/network/src/sync/network_context/custody.rs|6|1enum,3fn,1struct,1type|
+network|sync::network_context::requests|beacon_node/network/src/sync/network_context/requests.rs|9|1enum,6fn,1struct,1trait|
+network|sync::network_context::requests::blobs_by_range|beacon_node/network/src/sync/network_context/requests/blobs_by_range.rs|2|1fn,1struct|
+network|sync::network_context::requests::blobs_by_root|beacon_node/network/src/sync/network_context/requests/blobs_by_root.rs|4|2fn,2struct|
+network|sync::network_context::requests::blocks_by_range|beacon_node/network/src/sync/network_context/requests/blocks_by_range.rs|2|1fn,1struct|
+network|sync::network_context::requests::blocks_by_root|beacon_node/network/src/sync/network_context/requests/blocks_by_root.rs|4|2fn,2struct|
+network|sync::network_context::requests::data_columns_by_range|beacon_node/network/src/sync/network_context/requests/data_columns_by_range.rs|2|1fn,1struct|
+network|sync::network_context::requests::data_columns_by_root|beacon_node/network/src/sync/network_context/requests/data_columns_by_root.rs|4|2fn,2struct|
+network|sync::peer_sync_info|beacon_node/network/src/sync/peer_sync_info.rs|3|1enum,2fn|
+network|sync::range_data_column_batch_request|beacon_node/network/src/sync/range_data_column_batch_request.rs|4|3fn,1struct|
+network|sync::range_sync::chain|beacon_node/network/src/sync/range_sync/chain.rs|29|1const,3enum,20fn,3struct,2type|
+network|sync::range_sync::chain_collection|beacon_node/network/src/sync/range_sync/chain_collection.rs|14|1enum,10fn,2struct,1type|This provides the logic for the finalized and head chains.
+network|sync::range_sync::range|beacon_node/network/src/sync/range_sync/range.rs|12|11fn,1struct|This contains the logic for the long range (batch) sync strategy.
+network|sync::range_sync::sync_type|beacon_node/network/src/sync/range_sync/sync_type.rs|3|1enum,2fn|Contains logic about identifying which Sync to perform given PeerSyncInfo of ourselves and
+network|sync::tests::lookups|beacon_node/network/src/sync/tests/lookups.rs|19|17fn,2struct|
+network|sync::tests|beacon_node/network/src/sync/tests/mod.rs|3|2const,1fn|
+network|sync::tests::range|beacon_node/network/src/sync/tests/range.rs|1|1enum|
+network_utils|discovery_metrics|common/network_utils/src/discovery_metrics.rs|1|1fn|
+network_utils|enr_ext|common/network_utils/src/enr_ext.rs|6|2const,1fn,3trait|ENR extension trait to support libp2p integration.
+network_utils||common/network_utils/src/lib.rs|4|4mod|
+network_utils|listen_addr|common/network_utils/src/listen_addr.rs|10|1enum,8fn,1struct|
+network_utils|unused_port|common/network_utils/src/unused_port.rs|8|1const,2enum,5fn|
+node_test_rig||testing/node_test_rig/src/lib.rs|13|9fn,4struct|Provides easy ways to run a beacon node or validator client in-process.
+oneshot_broadcast||common/oneshot_broadcast/src/lib.rs|7|1enum,4fn,2struct|Provides a single-sender, multiple receiver one-shot channel where any message sent will be
+operation_pool|attestation|beacon_node/operation_pool/src/attestation.rs|6|1const,4fn,1struct|
+operation_pool|attestation_storage|beacon_node/operation_pool/src/attestation_storage.rs|31|24fn,7struct|
+operation_pool|attester_slashing|beacon_node/operation_pool/src/attester_slashing.rs|2|1fn,1struct|
+operation_pool|bls_to_execution_changes|beacon_node/operation_pool/src/bls_to_execution_changes.rs|10|1enum,8fn,1struct|
+operation_pool||beacon_node/operation_pool/src/lib.rs|37|1enum,33fn,1mod,2struct|
+operation_pool|max_cover|beacon_node/operation_pool/src/max_cover.rs|3|2fn,1trait|
+operation_pool|persistence|beacon_node/operation_pool/src/persistence.rs|3|2fn,1struct|
+operation_pool|reward_cache|beacon_node/operation_pool/src/reward_cache.rs|3|2fn,1struct|
+operation_pool|sync_aggregate_id|beacon_node/operation_pool/src/sync_aggregate_id.rs|2|1fn,1struct|
+pretty_reqwest_error||common/pretty_reqwest_error/src/lib.rs|2|1fn,1struct|
+proto_array|error|consensus/proto_array/src/error.rs|2|1enum,1struct|
+proto_array|fork_choice_test_definition|consensus/proto_array/src/fork_choice_test_definition.rs|3|1enum,1fn,1struct|
+proto_array|fork_choice_test_definition::execution_status|consensus/proto_array/src/fork_choice_test_definition/execution_status.rs|3|3fn|
+proto_array|fork_choice_test_definition::ffg_updates|consensus/proto_array/src/fork_choice_test_definition/ffg_updates.rs|2|2fn|
+proto_array|fork_choice_test_definition::no_votes|consensus/proto_array/src/fork_choice_test_definition/no_votes.rs|1|1fn|
+proto_array|fork_choice_test_definition::votes|consensus/proto_array/src/fork_choice_test_definition/votes.rs|1|1fn|
+proto_array|justified_balances|consensus/proto_array/src/justified_balances.rs|3|2fn,1struct|
+proto_array||consensus/proto_array/src/lib.rs|2|2mod|
+proto_array|proto_array|consensus/proto_array/src/proto_array.rs|22|1enum,16fn,4struct,1type|
+proto_array|proto_array_fork_choice|consensus/proto_array/src/proto_array_fork_choice.rs|56|1const,3enum,45fn,7struct|
+proto_array|ssz_container|consensus/proto_array/src/ssz_container.rs|3|1fn,1struct,1type|
+signing_method||validator_client/signing_method/src/lib.rs|9|3enum,5fn,1struct|Provides methods for obtaining validator signatures, including:
+signing_method|web3signer|validator_client/signing_method/src/web3signer.rs|8|3enum,2fn,3struct|Contains the types required to make JSON requests to Web3Signer servers.
+simulator|basic_sim|testing/simulator/src/basic_sim.rs|1|1fn|
+simulator|checks|testing/simulator/src/checks.rs|15|15fn|
+simulator|cli|testing/simulator/src/cli.rs|1|1fn|
+simulator|fallback_sim|testing/simulator/src/fallback_sim.rs|1|1fn|
+simulator|local_network|testing/simulator/src/local_network.rs|16|2const,11fn,3struct|
+simulator|main|testing/simulator/src/main.rs|1|1type|This crate provides various simulations that create both beacon nodes and validator clients,
+simulator|retry|testing/simulator/src/retry.rs|1|1fn|
+slasher|array|slasher/src/array.rs|14|1const,9fn,3struct,1trait|
+slasher|attestation_queue|slasher/src/attestation_queue.rs|11|7fn,3struct,1type|
+slasher|attester_record|slasher/src/attester_record.rs|11|8fn,3struct|
+slasher|batch_stats|slasher/src/batch_stats.rs|3|3struct|
+slasher|block_queue|slasher/src/block_queue.rs|5|4fn,1struct|
+slasher|config|slasher/src/config.rs|32|16const,2enum,12fn,2struct|
+slasher|database|slasher/src/database.rs|44|1const,35fn,1mod,7struct|
+slasher|database::interface|slasher/src/database/interface.rs|22|4enum,15fn,1struct,2type|
+slasher|database::lmdb_impl|slasher/src/database/lmdb_impl.rs|21|16fn,4struct,1trait|
+slasher|database::mdbx_impl|slasher/src/database/mdbx_impl.rs|23|1const,18fn,4struct|
+slasher|database::redb_impl|slasher/src/database/redb_impl.rs|21|17fn,4struct|
+slasher|error|slasher/src/error.rs|1|1enum|
+slasher||slasher/src/lib.rs|6|2enum,1fn,3mod|
+slasher|migrate|slasher/src/migrate.rs|1|1fn|
+slasher|slasher|slasher/src/slasher.rs|13|12fn,1struct|
+slasher|test_utils|slasher/src/test_utils.rs|9|8fn,1type|
+slasher_service|service|slasher/service/src/service.rs|3|2fn,1struct|
+slashing_protection|attestation_tests|validator_client/slashing_protection/src/attestation_tests.rs|2|2fn|
+slashing_protection|block_tests|validator_client/slashing_protection/src/block_tests.rs|1|1fn|
+slashing_protection|interchange_test|validator_client/slashing_protection/src/interchange_test.rs|16|12fn,4struct|
+slashing_protection||validator_client/slashing_protection/src/lib.rs|7|1const,2enum,3mod,1struct|
+slashing_protection|signed_attestation|validator_client/slashing_protection/src/signed_attestation.rs|5|1enum,3fn,1struct|
+slashing_protection|signed_block|validator_client/slashing_protection/src/signed_block.rs|5|1enum,3fn,1struct|
+slashing_protection|slashing_database|validator_client/slashing_protection/src/slashing_database.rs|45|5const,3enum,35fn,2struct|
+slashing_protection|test_utils|validator_client/slashing_protection/src/test_utils.rs|17|3const,12fn,2struct|
+slot_clock||common/slot_clock/src/lib.rs|1|1trait|
+slot_clock|manual_slot_clock|common/slot_clock/src/manual_slot_clock.rs|9|8fn,1struct|
+slot_clock|metrics|common/slot_clock/src/metrics.rs|1|1fn|
+slot_clock|system_time_slot_clock|common/slot_clock/src/system_time_slot_clock.rs|1|1struct|
+state_processing|all_caches|consensus/state_processing/src/all_caches.rs|1|1trait|
+state_processing|block_replayer|consensus/state_processing/src/block_replayer.rs|21|1enum,14fn,1struct,5type|
+state_processing|common::altair|consensus/state_processing/src/common/altair.rs|4|3fn,1struct|
+state_processing|common::base|consensus/state_processing/src/common/base.rs|4|3fn,1struct|
+state_processing|common::deposit_data_tree|consensus/state_processing/src/common/deposit_data_tree.rs|9|8fn,1struct|
+state_processing|common::get_attestation_participation|consensus/state_processing/src/common/get_attestation_participation.rs|1|1fn|
+state_processing|common::get_attesting_indices|consensus/state_processing/src/common/get_attesting_indices.rs|3|1fn,2mod|
+state_processing|common::get_payload_attesting_indices|consensus/state_processing/src/common/get_payload_attesting_indices.rs|2|2fn|
+state_processing|common::initiate_validator_exit|consensus/state_processing/src/common/initiate_validator_exit.rs|1|1fn|
+state_processing|common|consensus/state_processing/src/common/mod.rs|7|4fn,3mod|
+state_processing|common::slash_validator|consensus/state_processing/src/common/slash_validator.rs|1|1fn|
+state_processing|common::update_progressive_balances_cache|consensus/state_processing/src/common/update_progressive_balances_cache.rs|5|5fn|
+state_processing|consensus_context|consensus/state_processing/src/consensus_context.rs|12|1enum,10fn,1struct|
+state_processing|envelope_processing|consensus/state_processing/src/envelope_processing.rs|4|2enum,2fn|
+state_processing|epoch_cache|consensus/state_processing/src/epoch_cache.rs|7|6fn,1struct|
+state_processing|genesis|consensus/state_processing/src/genesis.rs|4|4fn|
+state_processing||consensus/state_processing/src/lib.rs|13|13mod|
+state_processing|per_block_processing|consensus/state_processing/src/per_block_processing.rs|27|3enum,15fn,9mod|
+state_processing|per_block_processing::altair|consensus/state_processing/src/per_block_processing/altair.rs|1|1mod|
+state_processing|per_block_processing::altair::sync_committee|consensus/state_processing/src/per_block_processing/altair/sync_committee.rs|2|2fn|
+state_processing|per_block_processing::block_signature_verifier|consensus/state_processing/src/per_block_processing/block_signature_verifier.rs|21|1enum,17fn,2struct,1type|
+state_processing|per_block_processing::builder|consensus/state_processing/src/per_block_processing/builder.rs|3|3fn|
+state_processing|per_block_processing::deneb|consensus/state_processing/src/per_block_processing/deneb.rs|1|1fn|
+state_processing|per_block_processing::errors|consensus/state_processing/src/per_block_processing/errors.rs|24|14enum,1fn,1trait,8type|
+state_processing|per_block_processing::is_valid_indexed_attestation|consensus/state_processing/src/per_block_processing/is_valid_indexed_attestation.rs|1|1fn|
+state_processing|per_block_processing::is_valid_indexed_payload_attestation|consensus/state_processing/src/per_block_processing/is_valid_indexed_payload_attestation.rs|1|1fn|
+state_processing|per_block_processing::process_operations|consensus/state_processing/src/per_block_processing/process_operations.rs|20|17fn,3mod|
+state_processing|per_block_processing::signature_sets|consensus/state_processing/src/per_block_processing/signature_sets.rs|23|1enum,21fn,1type|A `SignatureSet` is an abstraction over the components of a signature. A `SignatureSet` may be
+state_processing|per_block_processing::tests|consensus/state_processing/src/per_block_processing/tests.rs|6|6const|
+state_processing|per_block_processing::verify_attestation|consensus/state_processing/src/per_block_processing/verify_attestation.rs|2|2fn|
+state_processing|per_block_processing::verify_attester_slashing|consensus/state_processing/src/per_block_processing/verify_attester_slashing.rs|3|3fn|
+state_processing|per_block_processing::verify_bls_to_execution_change|consensus/state_processing/src/per_block_processing/verify_bls_to_execution_change.rs|1|1fn|
+state_processing|per_block_processing::verify_deposit|consensus/state_processing/src/per_block_processing/verify_deposit.rs|3|3fn|
+state_processing|per_block_processing::verify_exit|consensus/state_processing/src/per_block_processing/verify_exit.rs|1|1fn|
+state_processing|per_block_processing::verify_payload_attestation|consensus/state_processing/src/per_block_processing/verify_payload_attestation.rs|1|1fn|
+state_processing|per_block_processing::verify_proposer_slashing|consensus/state_processing/src/per_block_processing/verify_proposer_slashing.rs|1|1fn|
+state_processing|per_block_processing::withdrawals|consensus/state_processing/src/per_block_processing/withdrawals.rs|9|7fn,2mod|
+state_processing|per_epoch_processing|consensus/state_processing/src/per_epoch_processing.rs|18|3fn,14mod,1struct|
+state_processing|per_epoch_processing::altair|consensus/state_processing/src/per_epoch_processing/altair.rs|6|1fn,5mod|
+state_processing|per_epoch_processing::altair::inactivity_updates|consensus/state_processing/src/per_epoch_processing/altair/inactivity_updates.rs|1|1fn|
+state_processing|per_epoch_processing::altair::justification_and_finalization|consensus/state_processing/src/per_epoch_processing/altair/justification_and_finalization.rs|1|1fn|
+state_processing|per_epoch_processing::altair::participation_flag_updates|consensus/state_processing/src/per_epoch_processing/altair/participation_flag_updates.rs|1|1fn|
+state_processing|per_epoch_processing::altair::rewards_and_penalties|consensus/state_processing/src/per_epoch_processing/altair/rewards_and_penalties.rs|2|2fn|
+state_processing|per_epoch_processing::altair::sync_committee_updates|consensus/state_processing/src/per_epoch_processing/altair/sync_committee_updates.rs|1|1fn|
+state_processing|per_epoch_processing::base|consensus/state_processing/src/per_epoch_processing/base.rs|5|1fn,4mod|
+state_processing|per_epoch_processing::base::justification_and_finalization|consensus/state_processing/src/per_epoch_processing/base/justification_and_finalization.rs|1|1fn|
+state_processing|per_epoch_processing::base::participation_record_updates|consensus/state_processing/src/per_epoch_processing/base/participation_record_updates.rs|1|1fn|
+state_processing|per_epoch_processing::base::rewards_and_penalties|consensus/state_processing/src/per_epoch_processing/base/rewards_and_penalties.rs|9|1enum,7fn,1struct|
+state_processing|per_epoch_processing::base::validator_statuses|consensus/state_processing/src/per_epoch_processing/base/validator_statuses.rs|9|5fn,4struct|
+state_processing|per_epoch_processing::capella::historical_summaries_update|consensus/state_processing/src/per_epoch_processing/capella/historical_summaries_update.rs|1|1fn|
+state_processing|per_epoch_processing::effective_balance_updates|consensus/state_processing/src/per_epoch_processing/effective_balance_updates.rs|2|2fn|
+state_processing|per_epoch_processing::epoch_processing_summary|consensus/state_processing/src/per_epoch_processing/epoch_processing_summary.rs|20|1enum,18fn,1struct|
+state_processing|per_epoch_processing::errors|consensus/state_processing/src/per_epoch_processing/errors.rs|2|2enum|
+state_processing|per_epoch_processing::historical_roots_update|consensus/state_processing/src/per_epoch_processing/historical_roots_update.rs|1|1fn|
+state_processing|per_epoch_processing::justification_and_finalization_state|consensus/state_processing/src/per_epoch_processing/justification_and_finalization_state.rs|14|13fn,1struct|
+state_processing|per_epoch_processing::registry_updates|consensus/state_processing/src/per_epoch_processing/registry_updates.rs|2|2fn|
+state_processing|per_epoch_processing::resets|consensus/state_processing/src/per_epoch_processing/resets.rs|3|3fn|
+state_processing|per_epoch_processing::single_pass|consensus/state_processing/src/per_epoch_processing/single_pass.rs|7|5fn,2struct|
+state_processing|per_epoch_processing::slashings|consensus/state_processing/src/per_epoch_processing/slashings.rs|2|2fn|
+state_processing|per_epoch_processing::weigh_justification_and_finalization|consensus/state_processing/src/per_epoch_processing/weigh_justification_and_finalization.rs|1|1fn|
+state_processing|per_slot_processing|consensus/state_processing/src/per_slot_processing.rs|2|1enum,1fn|
+state_processing|state_advance|consensus/state_processing/src/state_advance.rs|3|1enum,2fn|This module contains functions for advancing a `BeaconState` forward some number of slots
+state_processing|upgrade|consensus/state_processing/src/upgrade.rs|7|7mod|
+state_processing|upgrade::altair|consensus/state_processing/src/upgrade/altair.rs|2|2fn|
+state_processing|upgrade::bellatrix|consensus/state_processing/src/upgrade/bellatrix.rs|1|1fn|
+state_processing|upgrade::capella|consensus/state_processing/src/upgrade/capella.rs|1|1fn|
+state_processing|upgrade::deneb|consensus/state_processing/src/upgrade/deneb.rs|1|1fn|
+state_processing|upgrade::electra|consensus/state_processing/src/upgrade/electra.rs|2|2fn|
+state_processing|upgrade::fulu|consensus/state_processing/src/upgrade/fulu.rs|2|2fn|
+state_processing|upgrade::gloas|consensus/state_processing/src/upgrade/gloas.rs|2|2fn|
+state_processing|verify_operation|consensus/state_processing/src/verify_operation.rs|9|4fn,2struct,3trait|
+state_transition_vectors|exit|testing/state_transition_vectors/src/exit.rs|2|2const|
+state_transition_vectors|main|testing/state_transition_vectors/src/main.rs|4|3const,1struct|
+store|blob_sidecar_list_from_root|beacon_node/store/src/blob_sidecar_list_from_root.rs|4|1enum,3fn|
+store|config|beacon_node/store/src/config.rs|25|14const,2enum,7fn,2struct|
+store|database|beacon_node/store/src/database.rs|3|3mod|
+store|database::interface|beacon_node/store/src/database/interface.rs|4|1enum,2fn,1struct|
+store|database::leveldb_impl|beacon_node/store/src/database/leveldb_impl.rs|21|20fn,1struct|
+store|database::redb_impl|beacon_node/store/src/database/redb_impl.rs|20|1const,18fn,1struct|
+store|errors|beacon_node/store/src/errors.rs|5|1enum,1fn,1struct,1trait,1type|
+store|forwards_iter|beacon_node/store/src/forwards_iter.rs|8|1enum,3fn,2struct,2type|
+store|hdiff|beacon_node/store/src/hdiff.rs|43|2enum,33fn,8struct|Hierarchical diff implementation.
+store|historic_state_cache|beacon_node/store/src/historic_state_cache.rs|9|7fn,2struct|
+store|hot_cold_store|beacon_node/store/src/hot_cold_store.rs|150|3enum,139fn,8struct|
+store|impls|beacon_node/store/src/impls.rs|1|1mod|
+store|invariants|beacon_node/store/src/invariants.rs|8|1enum,5fn,2struct|Database invariant checks for the hot and cold databases.
+store|iter|beacon_node/store/src/iter.rs|17|11fn,5struct,1trait|
+store||beacon_node/store/src/lib.rs|31|4enum,7fn,13mod,4trait,3type|Storage functionality for Lighthouse.
+store|memory_store|beacon_node/store/src/memory_store.rs|2|1fn,1struct|
+store|metadata|beacon_node/store/src/metadata.rs|23|11const,6fn,6struct|
+store|metrics|beacon_node/store/src/metrics.rs|3|2const,1fn|
+store|reconstruct|beacon_node/store/src/reconstruct.rs|1|1fn|Implementation of historic state reconstruction (given complete block history).
+store|state_cache|beacon_node/store/src/state_cache.rs|29|1enum,23fn,5struct|
+swap_or_not_shuffle|compute_shuffled_index|consensus/swap_or_not_shuffle/src/compute_shuffled_index.rs|1|1fn|
+swap_or_not_shuffle|shuffle_list|consensus/swap_or_not_shuffle/src/shuffle_list.rs|1|1fn|
+system_health||common/system_health/src/lib.rs|8|4fn,4struct|
+task_executor||common/task_executor/src/lib.rs|19|2enum,15fn,1mod,1struct|
+task_executor|rayon_pool_provider|common/task_executor/src/rayon_pool_provider.rs|3|1enum,1fn,1struct|
+task_executor|test_utils|common/task_executor/src/test_utils.rs|1|1struct|
+test_random_derive||common/test_random_derive/src/lib.rs|1|1fn|
+timer||beacon_node/timer/src/lib.rs|1|1fn|A timer service for the beacon node.
+tracing_samplers||common/tracing_samplers/src/lib.rs|2|1fn,1struct|OpenTelemetry samplers for filtering traces.
+types|attestation::aggregate_and_proof|consensus/types/src/attestation/aggregate_and_proof.rs|6|5fn,1struct|
+types|attestation::attestation|consensus/types/src/attestation/attestation.rs|36|3enum,31fn,2struct|
+types|attestation::attestation_data|consensus/types/src/attestation/attestation_data.rs|1|1struct|
+types|attestation::attestation_duty|consensus/types/src/attestation/attestation_duty.rs|1|1struct|
+types|attestation::beacon_committee|consensus/types/src/attestation/beacon_committee.rs|3|1fn,2struct|
+types|attestation::checkpoint|consensus/types/src/attestation/checkpoint.rs|1|1struct|
+types|attestation::indexed_attestation|consensus/types/src/attestation/indexed_attestation.rs|17|16fn,1struct|
+types|attestation::indexed_payload_attestation|consensus/types/src/attestation/indexed_payload_attestation.rs|2|1fn,1struct|
+types|attestation|consensus/types/src/attestation/mod.rs|1|1type|
+types|attestation::participation_flags|consensus/types/src/attestation/participation_flags.rs|4|3fn,1struct|
+types|attestation::payload_attestation|consensus/types/src/attestation/payload_attestation.rs|1|1struct|
+types|attestation::payload_attestation_data|consensus/types/src/attestation/payload_attestation_data.rs|1|1struct|
+types|attestation::payload_attestation_message|consensus/types/src/attestation/payload_attestation_message.rs|1|1struct|
+types|attestation::pending_attestation|consensus/types/src/attestation/pending_attestation.rs|1|1struct|
+types|attestation::ptc|consensus/types/src/attestation/ptc.rs|1|1struct|
+types|attestation::selection_proof|consensus/types/src/attestation/selection_proof.rs|6|5fn,1struct|
+types|attestation::shuffling_id|consensus/types/src/attestation/shuffling_id.rs|3|2fn,1struct|
+types|attestation::signed_aggregate_and_proof|consensus/types/src/attestation/signed_aggregate_and_proof.rs|5|4fn,1struct|
+types|attestation::subnet_id|consensus/types/src/attestation/subnet_id.rs|7|6fn,1struct|Identifies each shard by an integer identifier.
+types|block::beacon_block|consensus/types/src/block/beacon_block.rs|28|1enum,24fn,1struct,1trait,1type|
+types|block::beacon_block_body|consensus/types/src/block/beacon_block_body.rs|26|2const,23fn,1struct|
+types|block::beacon_block_header|consensus/types/src/block/beacon_block_header.rs|4|3fn,1struct|
+types|block::signed_beacon_block|consensus/types/src/block/signed_beacon_block.rs|33|28fn,2mod,2struct,1type|
+types|block::signed_beacon_block_header|consensus/types/src/block/signed_beacon_block_header.rs|2|1fn,1struct|
+types|builder::builder|consensus/types/src/builder/builder.rs|3|1fn,1struct,1type|
+types|builder::builder_bid|consensus/types/src/builder/builder_bid.rs|6|4fn,2struct|
+types|builder::builder_pending_payment|consensus/types/src/builder/builder_pending_payment.rs|1|1struct|
+types|builder::builder_pending_withdrawal|consensus/types/src/builder/builder_pending_withdrawal.rs|1|1struct|
+types|builder::proposer_preferences|consensus/types/src/builder/proposer_preferences.rs|3|1fn,2struct|
+types|consolidation::consolidation_request|consensus/types/src/consolidation/consolidation_request.rs|2|1fn,1struct|
+types|consolidation::pending_consolidation|consensus/types/src/consolidation/pending_consolidation.rs|1|1struct|
+types|core::application_domain|consensus/types/src/core/application_domain.rs|3|1const,1enum,1fn|
+types|core::chain_spec|consensus/types/src/core/chain_spec.rs|74|1enum,69fn,4struct|
+types|core::config_and_preset|consensus/types/src/core/config_and_preset.rs|3|2fn,1struct|
+types|core::consts|consensus/types/src/core/consts.rs|4|4mod|
+types|core::enr_fork_id|consensus/types/src/core/enr_fork_id.rs|1|1struct|
+types|core::eth_spec|consensus/types/src/core/eth_spec.rs|6|1const,1enum,3struct,1trait|
+types|core::execution_block_hash|consensus/types/src/core/execution_block_hash.rs|5|4fn,1struct|
+types|core::graffiti|consensus/types/src/core/graffiti.rs|6|1const,2fn,1mod,2struct|
+types|core|consensus/types/src/core/mod.rs|7|1mod,6type|
+types|core::non_zero_usize|consensus/types/src/core/non_zero_usize.rs|1|1fn|
+types|core::preset|consensus/types/src/core/preset.rs|16|8fn,8struct|
+types|core::relative_epoch|consensus/types/src/core/relative_epoch.rs|5|2enum,3fn|
+types|core::signing_data|consensus/types/src/core/signing_data.rs|2|1struct,1trait|
+types|core::slot_data|consensus/types/src/core/slot_data.rs|1|1trait|
+types|core::slot_epoch|consensus/types/src/core/slot_epoch.rs|14|11fn,3struct|The `Slot` and `Epoch` types are defined as new types over u64 to enforce type-safety between
+types|data::blob_sidecar|consensus/types/src/data/blob_sidecar.rs|19|1enum,13fn,2struct,3type|
+types|data::data_column_custody_group|consensus/types/src/data/data_column_custody_group.rs|7|1enum,5fn,1type|
+types|data::data_column_sidecar|consensus/types/src/data/data_column_sidecar.rs|20|1enum,13fn,2struct,4type|
+types|data::data_column_subnet_id|consensus/types/src/data/data_column_subnet_id.rs|4|3fn,1struct|Identifies each data column subnet by an integer identifier.
+types|data|consensus/types/src/data/mod.rs|1|1type|
+types|deposit::deposit|consensus/types/src/deposit/deposit.rs|2|1const,1struct|
+types|deposit::deposit_data|consensus/types/src/deposit/deposit_data.rs|3|2fn,1struct|
+types|deposit::deposit_message|consensus/types/src/deposit/deposit_message.rs|1|1struct|
+types|deposit::deposit_request|consensus/types/src/deposit/deposit_request.rs|2|1fn,1struct|
+types|deposit::deposit_tree_snapshot|consensus/types/src/deposit/deposit_tree_snapshot.rs|4|2fn,2struct|
+types|deposit::pending_deposit|consensus/types/src/deposit/pending_deposit.rs|1|1struct|
+types|execution::bls_to_execution_change|consensus/types/src/execution/bls_to_execution_change.rs|2|1fn,1struct|
+types|execution::eth1_data|consensus/types/src/execution/eth1_data.rs|1|1struct|
+types|execution::execution_block_header|consensus/types/src/execution/execution_block_header.rs|3|1fn,2struct|
+types|execution::execution_payload|consensus/types/src/execution/execution_payload.rs|6|3fn,1struct,2type|
+types|execution::execution_payload_bid|consensus/types/src/execution/execution_payload_bid.rs|1|1struct|
+types|execution::execution_payload_envelope|consensus/types/src/execution/execution_payload_envelope.rs|1|1struct|
+types|execution::execution_payload_header|consensus/types/src/execution/execution_payload_header.rs|11|10fn,1struct|
+types|execution::execution_requests|consensus/types/src/execution/execution_requests.rs|9|1enum,4fn,1struct,3type|
+types|execution::payload|consensus/types/src/execution/payload.rs|11|2enum,3fn,2struct,4trait|
+types|execution::signed_bls_to_execution_change|consensus/types/src/execution/signed_bls_to_execution_change.rs|1|1struct|
+types|execution::signed_execution_payload_bid|consensus/types/src/execution/signed_execution_payload_bid.rs|2|1fn,1struct|
+types|execution::signed_execution_payload_envelope|consensus/types/src/execution/signed_execution_payload_envelope.rs|7|6fn,1struct|
+types|execution::state_payload_status|consensus/types/src/execution/state_payload_status.rs|1|1enum|
+types|exit::signed_voluntary_exit|consensus/types/src/exit/signed_voluntary_exit.rs|1|1struct|
+types|exit::voluntary_exit|consensus/types/src/exit/voluntary_exit.rs|3|2fn,1struct|
+types|fork::fork|consensus/types/src/fork/fork.rs|2|1fn,1struct|
+types|fork::fork_context|consensus/types/src/fork/fork_context.rs|14|12fn,2struct|
+types|fork::fork_data|consensus/types/src/fork/fork_data.rs|1|1struct|
+types|fork::fork_name|consensus/types/src/fork/fork_name.rs|17|1enum,15fn,1struct|
+types|fork::fork_version_decode|consensus/types/src/fork/fork_version_decode.rs|1|1trait|
+types|fork|consensus/types/src/fork/mod.rs|1|1type|
+types|kzg_ext|consensus/types/src/kzg_ext/mod.rs|4|1fn,1mod,2type|
+types||consensus/types/src/lib.rs|19|19mod|Ethereum Consensus types
+types|light_client::consts|consensus/types/src/light_client/consts.rs|15|15const|
+types|light_client::error|consensus/types/src/light_client/error.rs|1|1enum|
+types|light_client::light_client_bootstrap|consensus/types/src/light_client/light_client_bootstrap.rs|7|6fn,1struct|
+types|light_client::light_client_finality_update|consensus/types/src/light_client/light_client_finality_update.rs|9|8fn,1struct|
+types|light_client::light_client_header|consensus/types/src/light_client/light_client_header.rs|10|9fn,1struct|
+types|light_client::light_client_optimistic_update|consensus/types/src/light_client/light_client_optimistic_update.rs|9|8fn,1struct|
+types|light_client::light_client_update|consensus/types/src/light_client/light_client_update.rs|18|10fn,1struct,7type|
+types|light_client|consensus/types/src/light_client/mod.rs|1|1mod|
+types|slashing::attester_slashing|consensus/types/src/slashing/attester_slashing.rs|8|2enum,5fn,1struct|
+types|slashing::proposer_slashing|consensus/types/src/slashing/proposer_slashing.rs|2|1fn,1struct|
+types|state::activation_queue|consensus/types/src/state/activation_queue.rs|3|2fn,1struct|
+types|state::balance|consensus/types/src/state/balance.rs|5|4fn,1struct|
+types|state::beacon_state|consensus/types/src/state/beacon_state.rs|137|2const,1enum,130fn,2struct,2type|
+types|state::committee_cache|consensus/types/src/state/committee_cache.rs|16|15fn,1struct|
+types|state::epoch_cache|consensus/types/src/state/epoch_cache.rs|8|1enum,5fn,2struct|
+types|state::exit_cache|consensus/types/src/state/exit_cache.rs|6|5fn,1struct|
+types|state::historical_batch|consensus/types/src/state/historical_batch.rs|1|1struct|
+types|state::historical_summary|consensus/types/src/state/historical_summary.rs|2|1fn,1struct|
+types|state::iter|consensus/types/src/state/iter.rs|2|1fn,1struct|
+types|state::progressive_balances_cache|consensus/types/src/state/progressive_balances_cache.rs|24|22fn,2struct|
+types|state::pubkey_cache|consensus/types/src/state/pubkey_cache.rs|4|3fn,1struct|
+types|state::slashings_cache|consensus/types/src/state/slashings_cache.rs|7|6fn,1struct|
+types|sync_committee::contribution_and_proof|consensus/types/src/sync_committee/contribution_and_proof.rs|2|1fn,1struct|
+types|sync_committee::signed_contribution_and_proof|consensus/types/src/sync_committee/signed_contribution_and_proof.rs|2|1fn,1struct|
+types|sync_committee::sync_aggregate|consensus/types/src/sync_committee/sync_aggregate.rs|6|1enum,4fn,1struct|
+types|sync_committee::sync_aggregator_selection_data|consensus/types/src/sync_committee/sync_aggregator_selection_data.rs|1|1struct|
+types|sync_committee::sync_committee|consensus/types/src/sync_committee/sync_committee.rs|6|1enum,4fn,1struct|
+types|sync_committee::sync_committee_contribution|consensus/types/src/sync_committee/sync_committee_contribution.rs|6|1enum,3fn,2struct|
+types|sync_committee::sync_committee_message|consensus/types/src/sync_committee/sync_committee_message.rs|2|1fn,1struct|
+types|sync_committee::sync_committee_subscription|consensus/types/src/sync_committee/sync_committee_subscription.rs|1|1struct|
+types|sync_committee::sync_duty|consensus/types/src/sync_committee/sync_duty.rs|4|3fn,1struct|
+types|sync_committee::sync_selection_proof|consensus/types/src/sync_committee/sync_selection_proof.rs|6|5fn,1struct|
+types|sync_committee::sync_subnet_id|consensus/types/src/sync_committee/sync_subnet_id.rs|4|3fn,1struct|Identifies each sync committee subnet by an integer identifier.
+types|test_utils::generate_deterministic_keypairs|consensus/types/src/test_utils/generate_deterministic_keypairs.rs|3|3fn|
+types|test_utils::generate_random_block_and_blobs|consensus/types/src/test_utils/generate_random_block_and_blobs.rs|2|2fn|
+types|test_utils|consensus/types/src/test_utils/mod.rs|2|2fn|
+types|test_utils::test_random::test_random|consensus/types/src/test_utils/test_random/test_random.rs|2|1fn,1trait|
+types|validator::proposer_preparation_data|consensus/types/src/validator/proposer_preparation_data.rs|1|1struct|
+types|validator::validator|consensus/types/src/validator/validator.rs|21|20fn,1struct|
+types|validator::validator_registration_data|consensus/types/src/validator/validator_registration_data.rs|3|1fn,2struct|
+types|validator::validator_subscription|consensus/types/src/validator/validator_subscription.rs|1|1struct|
+types|withdrawal::expected_withdrawals|consensus/types/src/withdrawal/expected_withdrawals.rs|1|1struct|
+types|withdrawal::pending_partial_withdrawal|consensus/types/src/withdrawal/pending_partial_withdrawal.rs|1|1struct|
+types|withdrawal::withdrawal|consensus/types/src/withdrawal/withdrawal.rs|2|1struct,1type|
+types|withdrawal::withdrawal_credentials|consensus/types/src/withdrawal/withdrawal_credentials.rs|3|2fn,1struct|
+types|withdrawal::withdrawal_request|consensus/types/src/withdrawal/withdrawal_request.rs|2|1fn,1struct|
+validator_client|check_synced|validator_client/src/check_synced.rs|1|1fn|
+validator_client|cli|validator_client/src/cli.rs|1|1struct|
+validator_client|config|validator_client/src/config.rs|3|1const,1fn,1struct|
+validator_client||validator_client/src/lib.rs|9|2const,4fn,2mod,1struct|
+validator_dir|builder|common/validator_dir/src/builder.rs|19|4const,1enum,13fn,1struct|
+validator_dir|insecure_keys|common/validator_dir/src/insecure_keys.rs|4|1const,3fn|These features exist to allow for generating deterministic, well-known, unsafe keys for use in
+validator_dir||common/validator_dir/src/lib.rs|1|1mod|Provides:
+validator_dir|validator_dir|common/validator_dir/src/validator_dir.rs|14|1const,1enum,10fn,2struct|
+validator_http_api|api_secret|validator_client/http_api/src/api_secret.rs|7|2const,4fn,1struct|
+validator_http_api|create_signed_voluntary_exit|validator_client/http_api/src/create_signed_voluntary_exit.rs|1|1fn|
+validator_http_api|create_validator|validator_client/http_api/src/create_validator.rs|3|3fn|
+validator_http_api|graffiti|validator_client/http_api/src/graffiti.rs|3|3fn|
+validator_http_api|keystores|validator_client/http_api/src/keystores.rs|4|4fn|Implementation of the standard keystore management API.
+validator_http_api||validator_client/http_api/src/lib.rs|5|1enum,1fn,1mod,2struct|
+validator_http_api|remotekeys|validator_client/http_api/src/remotekeys.rs|3|3fn|Implementation of the standard remotekey management API.
+validator_http_api|test_utils|validator_client/http_api/src/test_utils.rs|31|2const,25fn,4struct|
+validator_http_api|tests|validator_client/http_api/src/tests.rs|35|1const,34fn|
+validator_http_metrics||validator_client/http_metrics/src/lib.rs|6|1enum,2fn,3struct|This crate provides a HTTP server that is solely dedicated to serving the `/metrics` endpoint.
+validator_manager|common|validator_manager/src/common.rs|10|2const,1enum,4fn,3struct|
+validator_manager|create_validators|validator_manager/src/create_validators.rs|21|17const,2fn,1mod,1struct|
+validator_manager|delete_validators|validator_manager/src/delete_validators.rs|8|4const,1enum,2fn,1struct|
+validator_manager|exit_validators|validator_manager/src/exit_validators.rs|11|7const,3fn,1struct|
+validator_manager|import_validators|validator_manager/src/import_validators.rs|17|13const,2fn,1mod,1struct|
+validator_manager||validator_manager/src/lib.rs|12|1const,1enum,3fn,7mod|
+validator_manager|list_validators|validator_manager/src/list_validators.rs|8|5const,2fn,1struct|
+validator_manager|move_validators|validator_manager/src/move_validators.rs|18|13const,2enum,2fn,1struct|
+validator_metrics||validator_client/validator_metrics/src/lib.rs|32|32const|
+validator_services|attestation_service|validator_client/validator_services/src/attestation_service.rs|14|11fn,3struct|
+validator_services|block_service|validator_client/validator_services/src/block_service.rs|20|1enum,14fn,5struct|
+validator_services|duties_service|validator_client/validator_services/src/duties_service.rs|26|1enum,20fn,5struct|The `DutiesService` contains the attester/proposer duties for all local validators.
+validator_services|latency_service|validator_client/validator_services/src/latency_service.rs|3|2const,1fn|
+validator_services||validator_client/validator_services/src/lib.rs|8|8mod|
+validator_services|notifier_service|validator_client/validator_services/src/notifier_service.rs|2|2fn|
+validator_services|preparation_service|validator_client/validator_services/src/preparation_service.rs|15|11fn,4struct|
+validator_services|sync|validator_client/validator_services/src/sync.rs|11|6fn,5struct|
+validator_services|sync_committee_service|validator_client/validator_services/src/sync_committee_service.rs|5|1const,2fn,2struct|
+validator_test_rig||testing/validator_test_rig/src/lib.rs|1|1mod|
+validator_test_rig|mock_beacon_node|testing/validator_test_rig/src/mock_beacon_node.rs|8|7fn,1struct|
+warp_utils|cors|common/warp_utils/src/cors.rs|1|1fn|
+warp_utils|json|common/warp_utils/src/json.rs|2|2fn|
+warp_utils||common/warp_utils/src/lib.rs|7|7mod|This crate contains functions that are common across multiple `warp` HTTP servers in the
+warp_utils|query|common/warp_utils/src/query.rs|1|1fn|
+warp_utils|reject|common/warp_utils/src/reject.rs|30|16fn,14struct|
+warp_utils|status_code|common/warp_utils/src/status_code.rs|1|1fn|
+warp_utils|task|common/warp_utils/src/task.rs|3|3fn|
+warp_utils|uor|common/warp_utils/src/uor.rs|1|1trait|
+web3signer_tests|get_web3signer|testing/web3signer_tests/src/get_web3signer.rs|1|1fn|This build script downloads the latest Web3Signer release and places it in the `OUT_DIR` so it
+workspace_members||common/workspace_members/src/lib.rs|1|1fn|

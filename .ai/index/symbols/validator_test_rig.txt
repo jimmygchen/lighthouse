@@ -1,0 +1,11 @@
+# rust-symbols symbols/validator_test_rig | 2026-03-24T06:27:26Z | 9 symbols
+# name|kind|path|signature
+MockBeaconNode|struct|testing/validator_test_rig/src/mock_beacon_node.rs|pub struct MockBeaconNode<E: EthSpec>
+MockBeaconNode::mock_config_spec|fn|testing/validator_test_rig/src/mock_beacon_node.rs|pub fn mock_config_spec(&mut self, spec : & ChainSpec)
+MockBeaconNode::mock_get_node_syncing|fn|testing/validator_test_rig/src/mock_beacon_node.rs|pub fn mock_get_node_syncing(&mut self, response : SyncingData)
+MockBeaconNode::mock_offline_node|fn|testing/validator_test_rig/src/mock_beacon_node.rs|pub fn mock_offline_node(&mut self) -> Mock
+MockBeaconNode::mock_online_node|fn|testing/validator_test_rig/src/mock_beacon_node.rs|pub fn mock_online_node(&mut self) -> Mock
+MockBeaconNode::mock_post_beacon_blinded_blocks_v2_ssz|fn|testing/validator_test_rig/src/mock_beacon_node.rs|pub fn mock_post_beacon_blinded_blocks_v2_ssz(&mut self, delay : Duration) -> Mock
+MockBeaconNode::new|fn|testing/validator_test_rig/src/mock_beacon_node.rs|pub async fn new() -> Self
+MockBeaconNode::reset_mocks|fn|testing/validator_test_rig/src/mock_beacon_node.rs|pub fn reset_mocks(&mut self)
+mock_beacon_node|mod|testing/validator_test_rig/src/lib.rs|pub mod mock_beacon_node

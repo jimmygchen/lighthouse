@@ -1,0 +1,31 @@
+# rust-symbols symbols/monitoring_api | 2026-03-24T06:27:26Z | 29 symbols
+# name|kind|path|signature
+BeaconProcessMetrics|struct|common/monitoring_api/src/types.rs|pub struct BeaconProcessMetrics
+CLIENT_NAME|const|common/monitoring_api/src/types.rs|pub const CLIENT_NAME: &str = "lighthouse";
+Config|struct|common/monitoring_api/src/lib.rs|pub struct Config
+DEFAULT_UPDATE_DURATION|const|common/monitoring_api/src/lib.rs|pub const DEFAULT_UPDATE_DURATION: u64 = 60;
+Error|enum|common/monitoring_api/src/lib.rs|pub enum Error
+ErrorMessage|struct|common/monitoring_api/src/types.rs|pub struct ErrorMessage
+JsonMetric|struct|common/monitoring_api/src/gather.rs|pub struct JsonMetric
+JsonType|enum|common/monitoring_api/src/gather.rs|pub enum JsonType
+Metadata|struct|common/monitoring_api/src/types.rs|pub struct Metadata
+Metadata::new|fn|common/monitoring_api/src/types.rs|pub fn new(process : ProcessType) -> Self
+MonitoringHttpClient|struct|common/monitoring_api/src/lib.rs|pub struct MonitoringHttpClient
+MonitoringHttpClient::auto_update|fn|common/monitoring_api/src/lib.rs|pub fn auto_update(self, executor : TaskExecutor, processes : Vec < ProcessType >)
+MonitoringHttpClient::get_beacon_metrics|fn|common/monitoring_api/src/lib.rs|pub fn get_beacon_metrics(&self) -> Result < MonitoringMetrics , Error >
+MonitoringHttpClient::get_metrics|fn|common/monitoring_api/src/lib.rs|pub async fn get_metrics(&self, process_type : & ProcessType) -> Result < MonitoringMetrics , Error >
+MonitoringHttpClient::get_system_metrics|fn|common/monitoring_api/src/lib.rs|pub fn get_system_metrics(&self) -> Result < MonitoringMetrics , Error >
+MonitoringHttpClient::get_validator_metrics|fn|common/monitoring_api/src/lib.rs|pub fn get_validator_metrics(&self) -> Result < MonitoringMetrics , Error >
+MonitoringHttpClient::new|fn|common/monitoring_api/src/lib.rs|pub fn new(config : & Config) -> Result < Self , String >
+MonitoringHttpClient::send_metrics|fn|common/monitoring_api/src/lib.rs|pub async fn send_metrics(&self, processes : & [ProcessType]) -> Result < () , Error >
+MonitoringMetrics|struct|common/monitoring_api/src/types.rs|pub struct MonitoringMetrics
+Process|enum|common/monitoring_api/src/types.rs|pub enum Process
+ProcessMetrics|struct|common/monitoring_api/src/types.rs|pub struct ProcessMetrics
+ProcessType|enum|common/monitoring_api/src/types.rs|pub enum ProcessType
+SystemMetrics|struct|common/monitoring_api/src/types.rs|pub struct SystemMetrics
+TIMEOUT_DURATION|const|common/monitoring_api/src/lib.rs|pub const TIMEOUT_DURATION: u64 = 5;
+VERSION|const|common/monitoring_api/src/types.rs|pub const VERSION: u64 = 1;
+ValidatorProcessMetrics|struct|common/monitoring_api/src/types.rs|pub struct ValidatorProcessMetrics
+gather_beacon_metrics|fn|common/monitoring_api/src/gather.rs|pub fn gather_beacon_metrics(db_path : & Path, freezer_db_path : & Path) -> Result < BeaconProcessMetrics , String >
+gather_metrics|fn|common/monitoring_api/src/gather.rs|pub fn gather_metrics(metrics_map : & HashMap < String , JsonMetric >) -> Option < serde_json :: Value >
+gather_validator_metrics|fn|common/monitoring_api/src/gather.rs|pub fn gather_validator_metrics() -> Result < ValidatorProcessMetrics , String >

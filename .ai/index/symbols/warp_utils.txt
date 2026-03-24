@@ -1,0 +1,48 @@
+# rust-symbols symbols/warp_utils | 2026-03-24T06:27:26Z | 46 symbols
+# name|kind|path|signature
+ArithError|struct|common/warp_utils/src/reject.rs|pub struct ArithError(pub safe_arith::ArithError);
+BeaconStateError|struct|common/warp_utils/src/reject.rs|pub struct BeaconStateError(pub types::BeaconStateError);
+BroadcastWithoutImport|struct|common/warp_utils/src/reject.rs|pub struct BroadcastWithoutImport(pub String);
+CustomBadRequest|struct|common/warp_utils/src/reject.rs|pub struct CustomBadRequest(pub String);
+CustomDeserializeError|struct|common/warp_utils/src/reject.rs|pub struct CustomDeserializeError(pub String);
+CustomNotFound|struct|common/warp_utils/src/reject.rs|pub struct CustomNotFound(pub String);
+CustomServerError|struct|common/warp_utils/src/reject.rs|pub struct CustomServerError(pub String);
+IndexedBadRequestErrors|struct|common/warp_utils/src/reject.rs|pub struct IndexedBadRequestErrors
+InvalidAuthorization|struct|common/warp_utils/src/reject.rs|pub struct InvalidAuthorization(pub String);
+NotSynced|struct|common/warp_utils/src/reject.rs|pub struct NotSynced(pub String);
+ObjectInvalid|struct|common/warp_utils/src/reject.rs|pub struct ObjectInvalid(pub String);
+ServerSentEventError|struct|common/warp_utils/src/reject.rs|pub struct ServerSentEventError(pub String);
+UnhandledError|struct|common/warp_utils/src/reject.rs|pub struct UnhandledError(pub Box<dyn Debug + Send + Sync + 'static>);
+UnifyingOrFilter|trait|common/warp_utils/src/uor.rs|pub trait UnifyingOrFilter: Filter<Error = Rejection> + Sized + Send + Sync + 'static
+UnsupportedMediaType|struct|common/warp_utils/src/reject.rs|pub struct UnsupportedMediaType(pub String);
+arith_error|fn|common/warp_utils/src/reject.rs|pub fn arith_error(e : safe_arith :: ArithError) -> warp :: reject :: Rejection
+beacon_state_error|fn|common/warp_utils/src/reject.rs|pub fn beacon_state_error(e : types :: BeaconStateError) -> warp :: reject :: Rejection
+blocking_json_task|fn|common/warp_utils/src/task.rs|pub async fn blocking_json_task<F, T>(func : F) -> Response
+blocking_response_task|fn|common/warp_utils/src/task.rs|pub async fn blocking_response_task<F, T>(func : F) -> Result < Response , warp :: Rejection >
+blocking_task|fn|common/warp_utils/src/task.rs|pub async fn blocking_task<F, T>(func : F) -> Result < T , warp :: Rejection >
+broadcast_without_import|fn|common/warp_utils/src/reject.rs|pub fn broadcast_without_import(msg : String) -> warp :: reject :: Rejection
+convert|fn|common/warp_utils/src/status_code.rs|pub fn convert(code : StatusCode) -> Result < warp :: http :: StatusCode , Rejection >
+convert_rejection|fn|common/warp_utils/src/reject.rs|pub async fn convert_rejection<T : Reply>(res : Result < T , warp :: Rejection >) -> Response
+cors|mod|common/warp_utils/src/lib.rs|pub mod cors
+custom_bad_request|fn|common/warp_utils/src/reject.rs|pub fn custom_bad_request(msg : String) -> warp :: reject :: Rejection
+custom_deserialize_error|fn|common/warp_utils/src/reject.rs|pub fn custom_deserialize_error(msg : String) -> warp :: reject :: Rejection
+custom_not_found|fn|common/warp_utils/src/reject.rs|pub fn custom_not_found(msg : String) -> warp :: reject :: Rejection
+custom_server_error|fn|common/warp_utils/src/reject.rs|pub fn custom_server_error(msg : String) -> warp :: reject :: Rejection
+handle_rejection|fn|common/warp_utils/src/reject.rs|pub async fn handle_rejection(err : warp :: Rejection) -> Result < impl warp :: Reply , Infallible >
+indexed_bad_request|fn|common/warp_utils/src/reject.rs|pub fn indexed_bad_request(message : String, failures : Vec < Failure >) -> warp :: reject :: Rejection
+invalid_auth|fn|common/warp_utils/src/reject.rs|pub fn invalid_auth(msg : String) -> warp :: reject :: Rejection
+json|mod|common/warp_utils/src/lib.rs|pub mod json
+json|fn|common/warp_utils/src/json.rs|pub fn json<T : DeserializeOwned + Send>() -> impl Filter < Extract = (T ,) , Error = Rejection > + Copy
+json_no_body|fn|common/warp_utils/src/json.rs|pub fn json_no_body<T : DeserializeOwned + Default + Send>() -> impl Filter < Extract = (T ,) , Error = Rejection > +...
+multi_key_query|fn|common/warp_utils/src/query.rs|pub fn multi_key_query<'de, T : Deserialize < 'de >>() -> impl warp :: Filter < Extract = (Result < T , warp :: Rejec...
+not_synced|fn|common/warp_utils/src/reject.rs|pub fn not_synced(msg : String) -> warp :: reject :: Rejection
+object_invalid|fn|common/warp_utils/src/reject.rs|pub fn object_invalid(msg : String) -> warp :: reject :: Rejection
+query|mod|common/warp_utils/src/lib.rs|pub mod query
+reject|mod|common/warp_utils/src/lib.rs|pub mod reject
+server_sent_event_error|fn|common/warp_utils/src/reject.rs|pub fn server_sent_event_error(s : String) -> ServerSentEventError
+set_builder_origins|fn|common/warp_utils/src/cors.rs|pub fn set_builder_origins(builder : Builder, allow_origin : Option < & str >, default_origin : (IpAddr , u16)) -> Re...
+status_code|mod|common/warp_utils/src/lib.rs|pub mod status_code
+task|mod|common/warp_utils/src/lib.rs|pub mod task
+unhandled_error|fn|common/warp_utils/src/reject.rs|pub fn unhandled_error<D : Debug + Send + Sync + 'static>(e : D) -> warp :: reject :: Rejection
+unsupported_media_type|fn|common/warp_utils/src/reject.rs|pub fn unsupported_media_type(msg : String) -> warp :: reject :: Rejection
+uor|mod|common/warp_utils/src/lib.rs|pub mod uor

@@ -1,0 +1,34 @@
+# rust-symbols symbols/kzg | 2026-03-24T06:27:26Z | 32 symbols
+# name|kind|path|signature
+BYTES_PER_PROOF|const|crypto/kzg/src/lib.rs|pub const BYTES_PER_PROOF: usize = 48;
+CellsAndKzgProofs|type|crypto/kzg/src/lib.rs|pub type CellsAndKzgProofs = ([Cell; CELLS_PER_EXT_BLOB], [KzgProof; CELLS_PER_EXT_BLOB]);
+Error|enum|crypto/kzg/src/lib.rs|pub enum Error
+Kzg|struct|crypto/kzg/src/lib.rs|pub struct Kzg
+Kzg::blob_to_kzg_commitment|fn|crypto/kzg/src/lib.rs|pub fn blob_to_kzg_commitment(&self, blob : KzgBlobRef < '_ >) -> Result < KzgCommitment , Error >
+Kzg::compute_blob_kzg_proof|fn|crypto/kzg/src/lib.rs|pub fn compute_blob_kzg_proof(&self, blob : KzgBlobRef < '_ >, kzg_commitment : KzgCommitment) -> Result < KzgProof ,...
+Kzg::compute_cells|fn|crypto/kzg/src/lib.rs|pub fn compute_cells(&self, blob : KzgBlobRef < '_ >) -> Result < [Cell ; CELLS_PER_EXT_BLOB] , Error >
+Kzg::compute_cells_and_proofs|fn|crypto/kzg/src/lib.rs|pub fn compute_cells_and_proofs(&self, blob : KzgBlobRef < '_ >) -> Result < CellsAndKzgProofs , Error >
+Kzg::compute_kzg_proof|fn|crypto/kzg/src/lib.rs|pub fn compute_kzg_proof(&self, blob : KzgBlobRef < '_ >, z : & Bytes32) -> Result < (KzgProof , Bytes32) , Error >
+Kzg::new_from_trusted_setup|fn|crypto/kzg/src/lib.rs|pub fn new_from_trusted_setup(trusted_setup : & [u8]) -> Result < Self , Error >
+Kzg::new_from_trusted_setup_no_precomp|fn|crypto/kzg/src/lib.rs|pub fn new_from_trusted_setup_no_precomp(trusted_setup : & [u8]) -> Result < Self , Error >
+Kzg::recover_cells_and_compute_kzg_proofs|fn|crypto/kzg/src/lib.rs|pub fn recover_cells_and_compute_kzg_proofs(&self, cell_ids : & [u64], cells : & [CellRef < '_ >]) -> Result < CellsA...
+Kzg::verify_blob_kzg_proof|fn|crypto/kzg/src/lib.rs|pub fn verify_blob_kzg_proof(&self, blob : KzgBlobRef < '_ >, kzg_commitment : KzgCommitment, kzg_proof : KzgProof) -...
+Kzg::verify_blob_kzg_proof_batch|fn|crypto/kzg/src/lib.rs|pub fn verify_blob_kzg_proof_batch(&self, blobs : & [KzgBlobRef < '_ >], kzg_commitments : & [KzgCommitment], kzg_pro...
+Kzg::verify_cell_proof_batch|fn|crypto/kzg/src/lib.rs|pub fn verify_cell_proof_batch(&self, cells : & [CellRef < '_ >], kzg_proofs : & [Bytes48], indices : Vec < CellIndex...
+Kzg::verify_kzg_proof|fn|crypto/kzg/src/lib.rs|pub fn verify_kzg_proof(&self, kzg_commitment : KzgCommitment, z : & Bytes32, y : & Bytes32, kzg_proof : KzgProof) ->...
+KzgBlobRef|type|crypto/kzg/src/lib.rs|pub type KzgBlobRef<'a> = &'a [u8; BYTES_PER_BLOB];
+KzgCommitment|struct|crypto/kzg/src/kzg_commitment.rs|pub struct KzgCommitment(pub [u8; BYTES_PER_COMMITMENT]);
+KzgCommitment::calculate_versioned_hash|fn|crypto/kzg/src/kzg_commitment.rs|pub fn calculate_versioned_hash(&self) -> Hash256
+KzgCommitment::empty_for_testing|fn|crypto/kzg/src/kzg_commitment.rs|pub fn empty_for_testing() -> Self
+KzgProof|struct|crypto/kzg/src/kzg_proof.rs|pub struct KzgProof(pub [u8; BYTES_PER_PROOF]);
+KzgProof::empty|fn|crypto/kzg/src/kzg_proof.rs|pub fn empty() -> Self
+TRUSTED_SETUP_BYTES|const|crypto/kzg/src/trusted_setup.rs|pub const TRUSTED_SETUP_BYTES: &[u8] = include_bytes!("../trusted_setup.json");
+TrustedSetup|struct|crypto/kzg/src/trusted_setup.rs|pub struct TrustedSetup
+TrustedSetup::g1_lagrange|fn|crypto/kzg/src/trusted_setup.rs|pub fn g1_lagrange(&self) -> Vec < u8 >
+TrustedSetup::g1_len|fn|crypto/kzg/src/trusted_setup.rs|pub fn g1_len(&self) -> usize
+TrustedSetup::g1_monomial|fn|crypto/kzg/src/trusted_setup.rs|pub fn g1_monomial(&self) -> Vec < u8 >
+TrustedSetup::g2_monomial|fn|crypto/kzg/src/trusted_setup.rs|pub fn g2_monomial(&self) -> Vec < u8 >
+VERSIONED_HASH_VERSION_KZG|const|crypto/kzg/src/kzg_commitment.rs|pub const VERSIONED_HASH_VERSION_KZG: u8 = 0x01;
+get_trusted_setup|fn|crypto/kzg/src/trusted_setup.rs|pub fn get_trusted_setup() -> Vec < u8 >
+load_trusted_setup|fn|crypto/kzg/src/trusted_setup.rs|pub(crate) fn load_trusted_setup(trusted_setup : & [u8]) -> Result < PeerDASTrustedSetup , Error >
+trusted_setup|mod|crypto/kzg/src/lib.rs|pub mod trusted_setup

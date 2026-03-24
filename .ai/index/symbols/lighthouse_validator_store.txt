@@ -1,0 +1,22 @@
+# rust-symbols symbols/lighthouse_validator_store | 2026-03-24T06:27:26Z | 20 symbols
+# name|kind|path|signature
+Config|struct|validator_client/lighthouse_validator_store/src/lib.rs|pub struct Config
+DEFAULT_GAS_LIMIT|const|validator_client/lighthouse_validator_store/src/lib.rs|pub const DEFAULT_GAS_LIMIT: u64 = 60_000_000;
+Error|type|validator_client/lighthouse_validator_store/src/lib.rs|pub type Error = ValidatorStoreError<SigningError>;
+LighthouseValidatorStore|struct|validator_client/lighthouse_validator_store/src/lib.rs|pub struct LighthouseValidatorStore<T, E>
+LighthouseValidatorStore::add_validator|fn|validator_client/lighthouse_validator_store/src/lib.rs|pub async fn add_validator(&self, validator_def : ValidatorDefinition) -> Result < ValidatorDefinition , String >
+LighthouseValidatorStore::add_validator_keystore|fn|validator_client/lighthouse_validator_store/src/lib.rs|pub async fn add_validator_keystore<P : AsRef < Path >>(&self, voting_keystore_path : P, password_storage : PasswordS...
+LighthouseValidatorStore::doppelganger_protection_enabled|fn|validator_client/lighthouse_validator_store/src/lib.rs|pub fn doppelganger_protection_enabled(&self) -> bool
+LighthouseValidatorStore::doppelganger_statuses|fn|validator_client/lighthouse_validator_store/src/lib.rs|pub fn doppelganger_statuses(&self) -> Vec < DoppelgangerStatus >
+LighthouseValidatorStore::export_slashing_protection_for_keys|fn|validator_client/lighthouse_validator_store/src/lib.rs|pub fn export_slashing_protection_for_keys(&self, pubkeys : & [PublicKeyBytes]) -> Result < Interchange , Interchange...
+LighthouseValidatorStore::get_builder_boost_factor_testing_only|fn|validator_client/lighthouse_validator_store/src/lib.rs|pub fn get_builder_boost_factor_testing_only(&self, validator_pubkey : & PublicKeyBytes) -> Option < u64 >
+LighthouseValidatorStore::get_builder_proposals_testing_only|fn|validator_client/lighthouse_validator_store/src/lib.rs|pub fn get_builder_proposals_testing_only(&self, validator_pubkey : & PublicKeyBytes) -> bool
+LighthouseValidatorStore::get_fee_recipient_defaulting|fn|validator_client/lighthouse_validator_store/src/lib.rs|pub fn get_fee_recipient_defaulting(&self, fee_recipient : Option < Address >) -> Option < Address >
+LighthouseValidatorStore::get_gas_limit|fn|validator_client/lighthouse_validator_store/src/lib.rs|pub fn get_gas_limit(&self, validator_pubkey : & PublicKeyBytes) -> u64
+LighthouseValidatorStore::get_prefer_builder_proposals_testing_only|fn|validator_client/lighthouse_validator_store/src/lib.rs|pub fn get_prefer_builder_proposals_testing_only(&self, validator_pubkey : & PublicKeyBytes) -> bool
+LighthouseValidatorStore::has_validator|fn|validator_client/lighthouse_validator_store/src/lib.rs|pub fn has_validator(&self, voting_public_key : & PublicKeyBytes) -> bool
+LighthouseValidatorStore::import_slashing_protection|fn|validator_client/lighthouse_validator_store/src/lib.rs|pub fn import_slashing_protection(&self, interchange : Interchange) -> Result < () , InterchangeError >
+LighthouseValidatorStore::initialized_validators|fn|validator_client/lighthouse_validator_store/src/lib.rs|pub fn initialized_validators(&self) -> Arc < RwLock < InitializedValidators > >
+LighthouseValidatorStore::new|fn|validator_client/lighthouse_validator_store/src/lib.rs|pub fn new(validators : InitializedValidators, slashing_protection : SlashingDatabase, genesis_validators_root : Hash...
+LighthouseValidatorStore::register_all_in_doppelganger_protection_if_enabled|fn|validator_client/lighthouse_validator_store/src/lib.rs|pub fn register_all_in_doppelganger_protection_if_enabled(&self) -> Result < () , String >
+LighthouseValidatorStore::sign_voluntary_exit|fn|validator_client/lighthouse_validator_store/src/lib.rs|pub async fn sign_voluntary_exit(&self, validator_pubkey : PublicKeyBytes, voluntary_exit : VoluntaryExit) -> Result ...
