@@ -18,6 +18,7 @@ use beacon_chain::test_utils::{
 use beacon_chain::{
     BeaconChain, BeaconChainError, BeaconChainTypes, BeaconSnapshot, BlockError, ChainConfig,
     NotifyExecutionLayer, ServerSentEventHandler, WhenSlotSkipped,
+    beacon_chain::shuffling_is_compatible_with_fork_choice,
     beacon_proposer_cache::{
         compute_proposer_duties_from_head, ensure_state_can_determine_proposers_for_epoch,
     },
@@ -1158,10 +1159,12 @@ fn check_shuffling_compatible(
 
         // Would an attestation to `block_root` at the current epoch be compatible with the head
         // state's shuffling?
-        let current_epoch_shuffling_is_compatible = harness.chain.shuffling_is_compatible(
+        let current_epoch_shuffling_is_compatible = shuffling_is_compatible_with_fork_choice(
             &block_root,
             head_state.current_epoch(),
             head_state,
+            &harness.chain.canonical_head,
+            &harness.chain.attestation_manager,
         );
 
         // Check for consistency with the more expensive shuffling lookup.
@@ -1198,10 +1201,12 @@ fn check_shuffling_compatible(
             });
 
         // Similarly for the previous epoch
-        let previous_epoch_shuffling_is_compatible = harness.chain.shuffling_is_compatible(
+        let previous_epoch_shuffling_is_compatible = shuffling_is_compatible_with_fork_choice(
             &block_root,
             head_state.previous_epoch(),
             head_state,
+            &harness.chain.canonical_head,
+            &harness.chain.attestation_manager,
         );
         harness
             .chain
@@ -1229,10 +1234,12 @@ fn check_shuffling_compatible(
 
         // Targeting two epochs before the current epoch should always return false
         if head_state.current_epoch() >= 2 {
-            assert!(!harness.chain.shuffling_is_compatible(
+            assert!(!shuffling_is_compatible_with_fork_choice(
                 &block_root,
                 head_state.current_epoch() - 2,
-                head_state
+                head_state,
+                &harness.chain.canonical_head,
+                &harness.chain.attestation_manager,
             ));
         }
     }

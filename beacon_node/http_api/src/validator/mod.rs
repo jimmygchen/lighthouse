@@ -78,20 +78,40 @@ pub fn get_validator_sync_committee_contribution<T: BeaconChainTypes>(
              chain: Arc<BeaconChain<T>>| {
                 task_spawner.blocking_json_task(Priority::P0, move || {
                     not_synced_filter?;
-                    chain
+                    let contribution = chain
+                        .sync_committee_manager
                         .get_aggregated_sync_committee_contribution(&sync_committee_data)
-                        .map_err(|e| {
-                            warp_utils::reject::custom_bad_request(format!(
-                                "unable to fetch sync contribution: {:?}",
-                                e
-                            ))
-                        })?
-                        .map(GenericResponse::from)
                         .ok_or_else(|| {
                             warp_utils::reject::custom_not_found(
                                 "no matching sync contribution found".to_string(),
                             )
-                        })
+                        })?;
+                    // Filter out optimistic contributions.
+                    let beacon_block_root = contribution.beacon_block_root;
+                    match chain
+                        .canonical_head
+                        .fork_choice_read_lock()
+                        .get_block_execution_status(&beacon_block_root)
+                    {
+                        None => Err(warp_utils::reject::custom_bad_request(format!(
+                            "unable to fetch sync contribution: {:?}",
+                            BeaconChainError::SyncContributionDataReferencesFinalizedBlock {
+                                beacon_block_root
+                            }
+                        ))),
+                        Some(execution_status) if execution_status.is_valid_or_irrelevant() => {
+                            Ok(GenericResponse::from(contribution))
+                        }
+                        Some(execution_status) => {
+                            Err(warp_utils::reject::custom_bad_request(format!(
+                                "unable to fetch sync contribution: {:?}",
+                                BeaconChainError::HeadBlockNotFullyVerified {
+                                    beacon_block_root,
+                                    execution_status,
+                                }
+                            )))
+                        }
+                    }
                 })
             },
         )

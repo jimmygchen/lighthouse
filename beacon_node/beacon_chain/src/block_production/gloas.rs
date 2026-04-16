@@ -25,7 +25,7 @@ use types::consts::gloas::BUILDER_INDEX_SELF_BUILD;
 use types::{
     Address, Attestation, AttestationElectra, AttesterSlashing, AttesterSlashingElectra,
     BeaconBlock, BeaconBlockBodyGloas, BeaconBlockGloas, BeaconState, BeaconStateError,
-    BuilderIndex, Deposit, Eth1Data, EthSpec, ExecutionBlockHash, ExecutionPayloadBid,
+    BuilderIndex, Deposit, Epoch, Eth1Data, EthSpec, ExecutionBlockHash, ExecutionPayloadBid,
     ExecutionPayloadEnvelope, ExecutionPayloadGloas, ExecutionRequests, FullPayload, Graffiti,
     Hash256, PayloadAttestation, ProposerSlashing, RelativeEpoch, SignedBeaconBlock,
     SignedBlsToExecutionChange, SignedExecutionPayloadBid, SignedExecutionPayloadEnvelope,
@@ -34,7 +34,8 @@ use types::{
 
 use crate::{
     BeaconChain, BeaconChainError, BeaconChainTypes, BlockProductionError,
-    ProduceBlockVerification, graffiti_calculator::GraffitiSettings, metrics,
+    ProduceBlockVerification, beacon_chain::shuffling_is_compatible_with_fork_choice,
+    graffiti_calculator::GraffitiSettings, metrics,
 };
 
 pub const BID_VALUE_SELF_BUILD: u64 = 0;
@@ -278,13 +279,36 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             state.build_total_active_balance_cache(&self.spec)?;
             initialize_epoch_cache(&mut state, &self.spec)?;
 
+            let shuffling_is_compatible = |block_root: &Hash256, target_epoch: Epoch| -> bool {
+                shuffling_is_compatible_with_fork_choice(
+                    block_root,
+                    target_epoch,
+                    &state,
+                    &self.canonical_head,
+                    &self.attestation_manager,
+                )
+            };
             let mut prev_filter_cache = HashMap::new();
             let prev_attestation_filter = |att: &CompactAttestationRef<T::EthSpec>| {
-                self.filter_op_pool_attestation(&mut prev_filter_cache, att, &state)
+                *prev_filter_cache
+                    .entry((att.data.beacon_block_root, att.checkpoint.target_epoch))
+                    .or_insert_with(|| {
+                        shuffling_is_compatible(
+                            &att.data.beacon_block_root,
+                            att.checkpoint.target_epoch,
+                        )
+                    })
             };
             let mut curr_filter_cache = HashMap::new();
             let curr_attestation_filter = |att: &CompactAttestationRef<T::EthSpec>| {
-                self.filter_op_pool_attestation(&mut curr_filter_cache, att, &state)
+                *curr_filter_cache
+                    .entry((att.data.beacon_block_root, att.checkpoint.target_epoch))
+                    .or_insert_with(|| {
+                        shuffling_is_compatible(
+                            &att.data.beacon_block_root,
+                            att.checkpoint.target_epoch,
+                        )
+                    })
             };
 
             self.op_pool

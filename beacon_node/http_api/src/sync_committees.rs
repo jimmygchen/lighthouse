@@ -42,7 +42,13 @@ pub fn sync_committee_duties<T: BeaconChainTypes>(
     // Try using the head's sync committees to satisfy the request. This should be sufficient for
     // the vast majority of requests. Rather than checking if we think the request will succeed in a
     // way prone to data races, we attempt the request immediately and check the error code.
-    match chain.sync_committee_duties_from_head(request_epoch, request_indices) {
+    match chain.with_head(|head| {
+        chain.sync_committee_manager.sync_committee_duties(
+            request_epoch,
+            request_indices,
+            &head.beacon_state,
+        )
+    }) {
         Ok(duties) => {
             return Ok(convert_to_response(
                 verify_unknown_validators(duties, request_epoch, chain)?,
@@ -415,7 +421,10 @@ pub fn process_signed_contribution_and_proofs<T: BeaconChainTypes>(
 
     // Add to the block inclusion pool.
     for (index, verified_contribution) in verified_contributions {
-        if let Err(e) = chain.add_contribution_to_block_inclusion_pool(verified_contribution) {
+        if let Err(e) = chain
+            .sync_committee_manager
+            .add_contribution_to_block_inclusion_pool(verified_contribution)
+        {
             warn!(
                 error = ?e,
                 request_index = index,

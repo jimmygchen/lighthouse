@@ -208,8 +208,23 @@ impl<T: BeaconChainTypes> SlasherService<T> {
                 }
             };
 
-            // Add to local op pool.
-            beacon_chain.import_attester_slashing(verified_slashing);
+            // Add to fork choice.
+            beacon_chain
+                .canonical_head
+                .fork_choice_write_lock()
+                .on_attester_slashing(verified_slashing.as_inner().to_ref());
+            // Emit SSE event.
+            if let Some(event_handler) = beacon_chain.event_handler.as_ref()
+                && event_handler.has_attester_slashing_subscribers()
+            {
+                event_handler.register(EventKind::AttesterSlashing(Box::new(
+                    verified_slashing.as_inner().clone(),
+                )));
+            }
+            // Add to the op pool via the operations manager.
+            beacon_chain
+                .operations
+                .import_attester_slashing(verified_slashing);
 
             // Publish to the network if broadcast is enabled.
             if slasher.config().broadcast
@@ -284,8 +299,12 @@ impl<T: BeaconChainTypes> SlasherService<T> {
         network_sender: &UnboundedSender<NetworkMessage<T::EthSpec>>,
         slashing: AttesterSlashing<T::EthSpec>,
     ) -> Result<(), String> {
+        let wall_clock_state = beacon_chain
+            .wall_clock_state()
+            .map_err(|e| format!("gossip verification error: {:?}", e))?;
         let outcome = beacon_chain
-            .verify_attester_slashing_for_gossip(slashing)
+            .operations
+            .verify_attester_slashing(slashing, &wall_clock_state)
             .map_err(|e| format!("gossip verification error: {:?}", e))?;
 
         if let ObservationOutcome::New(slashing) = outcome {
@@ -305,8 +324,12 @@ impl<T: BeaconChainTypes> SlasherService<T> {
         network_sender: &UnboundedSender<NetworkMessage<T::EthSpec>>,
         slashing: ProposerSlashing,
     ) -> Result<(), String> {
+        let wall_clock_state = beacon_chain
+            .wall_clock_state()
+            .map_err(|e| format!("gossip verification error: {:?}", e))?;
         let outcome = beacon_chain
-            .verify_proposer_slashing_for_gossip(slashing)
+            .operations
+            .verify_proposer_slashing(slashing, &wall_clock_state)
             .map_err(|e| format!("gossip verification error: {:?}", e))?;
 
         if let ObservationOutcome::New(slashing) = outcome {

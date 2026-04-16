@@ -673,6 +673,7 @@ async fn unaggregated_gossip_verification() {
     // Add the aggregate to the pool.
     harness
         .chain
+        .sync_committee_manager
         .add_to_naive_sync_aggregation_pool(verifed_message_to_parent)
         .unwrap();
 
@@ -702,6 +703,7 @@ async fn unaggregated_gossip_verification() {
     // Add the aggregate to the pool.
     harness
         .chain
+        .sync_committee_manager
         .add_to_naive_sync_aggregation_pool(verified_message_to_head)
         .unwrap();
 
@@ -748,13 +750,13 @@ async fn unaggregated_gossip_verification() {
     let check_sync_aggregate = |root: Hash256| async move {
         // Generate an aggregate sync message from the naive aggregation pool.
         let aggregate = chain
+            .sync_committee_manager
             .get_aggregated_sync_committee_contribution(&SyncContributionData {
                 // It's a test pre-condition that both sync messages have the same slot.
                 slot: valid_sync_committee_message.slot,
                 beacon_block_root: root,
                 subcommittee_index: subnet_id.into(),
             })
-            .unwrap()
             .unwrap();
 
         // Insert the aggregate into the op pool.

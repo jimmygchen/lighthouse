@@ -1,3 +1,4 @@
+use crate::attestation_verification::VerifiedAttestation;
 use crate::blob_verification::GossipVerifiedBlob;
 use crate::block_verification_types::{AsBlock, AvailableBlockData, LookupBlock, RangeSyncBlock};
 use crate::custody_context::NodeCustodyType;
@@ -2365,10 +2366,15 @@ where
     }
 
     pub fn add_proposer_slashing(&self, validator_index: u64) -> Result<(), String> {
-        let propposer_slashing = self.make_proposer_slashing(validator_index);
+        let proposer_slashing = self.make_proposer_slashing(validator_index);
+        let wall_clock_state = self
+            .chain
+            .wall_clock_state()
+            .expect("should get wall clock state");
         if let ObservationOutcome::New(verified_proposer_slashing) = self
             .chain
-            .verify_proposer_slashing_for_gossip(propposer_slashing)
+            .operations
+            .verify_proposer_slashing(proposer_slashing, &wall_clock_state)
             .expect("should verify proposer slashing for gossip")
         {
             self.chain
@@ -2382,12 +2388,24 @@ where
 
     pub fn add_attester_slashing(&self, validator_indices: Vec<u64>) -> Result<(), String> {
         let attester_slashing = self.make_attester_slashing(validator_indices);
+        let wall_clock_state = self
+            .chain
+            .wall_clock_state()
+            .expect("should get wall clock state");
         if let ObservationOutcome::New(verified_attester_slashing) = self
             .chain
-            .verify_attester_slashing_for_gossip(attester_slashing)
+            .operations
+            .verify_attester_slashing(attester_slashing, &wall_clock_state)
             .expect("should verify attester slashing for gossip")
         {
+            // Add to fork choice.
             self.chain
+                .canonical_head
+                .fork_choice_write_lock()
+                .on_attester_slashing(verified_attester_slashing.as_inner().to_ref());
+            // Add to the op pool via the operations manager.
+            self.chain
+                .operations
                 .import_attester_slashing(verified_attester_slashing);
             Ok(())
         } else {
@@ -2954,7 +2972,10 @@ where
             .unwrap()
         {
             let verified = result.unwrap();
-            self.chain.add_to_naive_aggregation_pool(&verified).unwrap();
+            self.chain
+                .attestation_manager
+                .add_to_naive_aggregation_pool(verified.attestation())
+                .unwrap();
         }
 
         for result in self
@@ -3590,6 +3611,7 @@ where
 
         for verified_contribution in verified_contributions {
             self.chain
+                .sync_committee_manager
                 .add_contribution_to_block_inclusion_pool(verified_contribution)?;
         }
 

@@ -99,7 +99,7 @@ use slasher::Slasher;
 use slot_clock::SlotClock;
 use ssz::Encode;
 use state_processing::{
-    BlockSignatureStrategy, ConsensusContext, SigVerifiedOp, VerifyBlockRoot, VerifyOperation,
+    BlockSignatureStrategy, ConsensusContext, VerifyBlockRoot, VerifyOperation,
     common::get_attesting_indices_from_state,
     epoch_cache::initialize_epoch_cache,
     per_block_processing,
@@ -1678,46 +1678,6 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         }
     }
 
-    /// Return an aggregated `SyncCommitteeContribution` matching the given `root`.
-    pub fn get_aggregated_sync_committee_contribution(
-        &self,
-        sync_contribution_data: &SyncContributionData,
-    ) -> Result<Option<SyncCommitteeContribution<T::EthSpec>>, Error> {
-        if let Some(contribution) = self
-            .sync_committee_manager
-            .get_aggregated_sync_committee_contribution(sync_contribution_data)
-        {
-            self.filter_optimistic_sync_committee_contribution(contribution)
-                .map(Option::Some)
-        } else {
-            Ok(None)
-        }
-    }
-
-    fn filter_optimistic_sync_committee_contribution(
-        &self,
-        contribution: SyncCommitteeContribution<T::EthSpec>,
-    ) -> Result<SyncCommitteeContribution<T::EthSpec>, Error> {
-        let beacon_block_root = contribution.beacon_block_root;
-        match self
-            .canonical_head
-            .fork_choice_read_lock()
-            .get_block_execution_status(&beacon_block_root)
-        {
-            // The contribution references a block that is not in fork choice, it must be
-            // pre-finalization.
-            None => Err(Error::SyncContributionDataReferencesFinalizedBlock { beacon_block_root }),
-            // The contribution references a fully valid `beacon_block_root`.
-            Some(execution_status) if execution_status.is_valid_or_irrelevant() => Ok(contribution),
-            // The contribution references a block that has not been verified by an EL (i.e. it
-            // is optimistic or invalid). Don't return the block, return an error instead.
-            Some(execution_status) => Err(Error::HeadBlockNotFullyVerified {
-                beacon_block_root,
-                execution_status,
-            }),
-        }
-    }
-
     /// Produce an unaggregated `Attestation` that is valid for the given `slot` and `index`.
     ///
     /// The produced `Attestation` will not be valid until it has been signed by exactly one
@@ -2138,40 +2098,6 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             .map_err(Into::into)
     }
 
-    /// Accepts an `VerifiedUnaggregatedAttestation` and attempts to apply it to the "naive
-    /// aggregation pool".
-    ///
-    /// The naive aggregation pool is used by local validators to produce
-    /// `SignedAggregateAndProof`.
-    ///
-    /// If the attestation is too old (low slot) to be included in the pool it is simply dropped
-    /// and no error is returned.
-    pub fn add_to_naive_aggregation_pool(
-        &self,
-        unaggregated_attestation: &impl VerifiedAttestation<T>,
-    ) -> Result<(), AttestationError> {
-        let attestation = unaggregated_attestation.attestation();
-        self.attestation_manager
-            .add_to_naive_aggregation_pool(attestation)
-            .map_err(|e| e.into())
-    }
-
-    /// Accepts a `VerifiedSyncCommitteeMessage` and attempts to apply it to the "naive
-    /// aggregation pool".
-    ///
-    /// The naive aggregation pool is used by local validators to produce
-    /// `SignedContributionAndProof`.
-    ///
-    /// If the sync message is too old (low slot) to be included in the pool it is simply dropped
-    /// and no error is returned.
-    pub fn add_to_naive_sync_aggregation_pool(
-        &self,
-        verified_sync_committee_message: VerifiedSyncCommitteeMessage,
-    ) -> Result<VerifiedSyncCommitteeMessage, SyncCommitteeError> {
-        self.sync_committee_manager
-            .add_to_naive_sync_aggregation_pool(verified_sync_committee_message)
-    }
-
     /// Accepts a `VerifiedAttestation` and attempts to apply it to `self.op_pool`.
     ///
     /// The op pool is used by local block producers to pack blocks with operations.
@@ -2192,191 +2118,6 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             .map_err(Error::from)?;
 
         Ok(())
-    }
-
-    /// Accepts a `VerifiedSyncContribution` and attempts to apply it to `self.op_pool`.
-    ///
-    /// The op pool is used by local block producers to pack blocks with operations.
-    pub fn add_contribution_to_block_inclusion_pool(
-        &self,
-        contribution: VerifiedSyncContribution<T>,
-    ) -> Result<(), SyncCommitteeError> {
-        self.sync_committee_manager
-            .add_contribution_to_block_inclusion_pool(contribution)
-    }
-
-    /// Filter an attestation from the op pool for shuffling compatibility.
-    ///
-    /// Use the provided `filter_cache` map to memoize results.
-    pub fn filter_op_pool_attestation(
-        &self,
-        filter_cache: &mut HashMap<(Hash256, Epoch), bool>,
-        att: &CompactAttestationRef<T::EthSpec>,
-        state: &BeaconState<T::EthSpec>,
-    ) -> bool {
-        *filter_cache
-            .entry((att.data.beacon_block_root, att.checkpoint.target_epoch))
-            .or_insert_with(|| {
-                self.shuffling_is_compatible(
-                    &att.data.beacon_block_root,
-                    att.checkpoint.target_epoch,
-                    state,
-                )
-            })
-    }
-
-    /// Check that the shuffling at `block_root` is equal to one of the shufflings of `state`.
-    ///
-    /// The `target_epoch` argument determines which shuffling to check compatibility with, it
-    /// should be equal to the current or previous epoch of `state`, or else `false` will be
-    /// returned.
-    ///
-    /// The compatibility check is designed to be fast: we check that the block that
-    /// determined the RANDAO mix for the `target_epoch` matches the ancestor of the block
-    /// identified by `block_root` (at that slot).
-    pub fn shuffling_is_compatible(
-        &self,
-        block_root: &Hash256,
-        target_epoch: Epoch,
-        state: &BeaconState<T::EthSpec>,
-    ) -> bool {
-        self.shuffling_is_compatible_result(block_root, target_epoch, state)
-            .unwrap_or_else(|e| {
-                debug!(
-                    ?block_root,
-                    %target_epoch,
-                    reason = ?e,
-                    "Skipping attestation with incompatible shuffling"
-                );
-                false
-            })
-    }
-
-    fn shuffling_is_compatible_result(
-        &self,
-        block_root: &Hash256,
-        target_epoch: Epoch,
-        state: &BeaconState<T::EthSpec>,
-    ) -> Result<bool, Error> {
-        // Load the block's shuffling ID from fork choice. We use the variant of `get_block` that
-        // checks descent from the finalized block, so there's one case where we'll spuriously
-        // return `false`: where an attestation for the previous epoch nominates the pivot block
-        // which is the parent block of the finalized block. Such attestations are not useful, so
-        // this doesn't matter.
-        let fork_choice_lock = self.canonical_head.fork_choice_read_lock();
-        let block = fork_choice_lock
-            .get_block(block_root)
-            .ok_or(Error::AttestationHeadNotInForkChoice(*block_root))?;
-        drop(fork_choice_lock);
-
-        let block_shuffling_id = if target_epoch == block.current_epoch_shuffling_id.shuffling_epoch
-        {
-            block.current_epoch_shuffling_id
-        } else if target_epoch == block.next_epoch_shuffling_id.shuffling_epoch {
-            block.next_epoch_shuffling_id
-        } else if target_epoch > block.next_epoch_shuffling_id.shuffling_epoch {
-            AttestationShufflingId {
-                shuffling_epoch: target_epoch,
-                shuffling_decision_block: *block_root,
-            }
-        } else {
-            debug!(
-                ?block_root,
-                %target_epoch,
-                reason = "target epoch less than block epoch",
-                "Skipping attestation with incompatible shuffling"
-            );
-            return Ok(false);
-        };
-
-        Ok(self.attestation_manager.shuffling_is_compatible(
-            block_root,
-            target_epoch,
-            state,
-            block_shuffling_id,
-        ))
-    }
-
-    /// Verify a voluntary exit before allowing it to propagate on the gossip network.
-    pub fn verify_voluntary_exit_for_gossip(
-        &self,
-        exit: SignedVoluntaryExit,
-    ) -> Result<ObservationOutcome<SignedVoluntaryExit, T::EthSpec>, Error> {
-        let head_snapshot = self.head().snapshot;
-        let head_state = &head_snapshot.beacon_state;
-        let wall_clock_epoch = self.epoch()?;
-
-        self.operations
-            .verify_voluntary_exit(exit, head_state, wall_clock_epoch)
-            .inspect(|exit| {
-                // this method is called for both API and gossip exits, so this covers all exit events
-                if let Some(event_handler) = self.event_handler.as_ref()
-                    && event_handler.has_exit_subscribers()
-                    && let ObservationOutcome::New(exit) = exit.clone()
-                {
-                    event_handler.register(EventKind::VoluntaryExit(exit.into_inner()));
-                }
-            })
-    }
-
-    /// Verify a proposer slashing before allowing it to propagate on the gossip network.
-    pub fn verify_proposer_slashing_for_gossip(
-        &self,
-        proposer_slashing: ProposerSlashing,
-    ) -> Result<ObservationOutcome<ProposerSlashing, T::EthSpec>, Error> {
-        let wall_clock_state = self.wall_clock_state()?;
-        self.operations
-            .verify_proposer_slashing(proposer_slashing, &wall_clock_state)
-    }
-
-    /// Verify an attester slashing before allowing it to propagate on the gossip network.
-    pub fn verify_attester_slashing_for_gossip(
-        &self,
-        attester_slashing: AttesterSlashing<T::EthSpec>,
-    ) -> Result<ObservationOutcome<AttesterSlashing<T::EthSpec>, T::EthSpec>, Error> {
-        let wall_clock_state = self.wall_clock_state()?;
-        self.operations
-            .verify_attester_slashing(attester_slashing, &wall_clock_state)
-    }
-
-    /// Accept a verified attester slashing and:
-    ///
-    /// 1. Apply it to fork choice.
-    /// 2. Add it to the op pool.
-    pub fn import_attester_slashing(
-        &self,
-        attester_slashing: SigVerifiedOp<AttesterSlashing<T::EthSpec>, T::EthSpec>,
-    ) {
-        // Add to fork choice.
-        self.canonical_head
-            .fork_choice_write_lock()
-            .on_attester_slashing(attester_slashing.as_inner().to_ref());
-
-        if let Some(event_handler) = self.event_handler.as_ref()
-            && event_handler.has_attester_slashing_subscribers()
-        {
-            event_handler.register(EventKind::AttesterSlashing(Box::new(
-                attester_slashing.clone().into_inner(),
-            )));
-        }
-
-        // Add to the op pool via the operations manager.
-        self.operations.import_attester_slashing(attester_slashing)
-    }
-
-    /// Attempt to obtain sync committee duties from the head.
-    pub fn sync_committee_duties_from_head(
-        &self,
-        epoch: Epoch,
-        validator_indices: &[u64],
-    ) -> Result<Vec<Result<Option<SyncDuty>, BeaconStateError>>, Error> {
-        self.with_head(move |head| {
-            self.sync_committee_manager.sync_committee_duties(
-                epoch,
-                validator_indices,
-                &head.beacon_state,
-            )
-        })
     }
 
     /// A convenience method for spawning a blocking task. It maps an `Option` and
@@ -3669,7 +3410,8 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         // state if we returned early without committing. In other words, an error here would
         // corrupt the node's database permanently.
         // -----------------------------------------------------------------------------------------
-        self.import_block_update_shuffling_cache(block_root, &mut state);
+        self.attestation_manager
+            .import_block_update_shuffling_cache(block_root, &mut state);
         self.import_block_observe_attestations(
             block,
             &state,
@@ -4108,18 +3850,6 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
                 "Failed to send light_client server event"
             );
         }
-    }
-
-    // For the current and next epoch of this state, ensure we have the shuffling from this
-    // block in our cache.
-    #[instrument(skip_all, level = "debug")]
-    fn import_block_update_shuffling_cache(
-        &self,
-        block_root: Hash256,
-        state: &mut BeaconState<T::EthSpec>,
-    ) {
-        self.attestation_manager
-            .import_block_update_shuffling_cache(block_root, state);
     }
 
     pub async fn produce_block_with_verification(
@@ -4799,13 +4529,36 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             state.build_total_active_balance_cache(&self.spec)?;
             initialize_epoch_cache(&mut state, &self.spec)?;
 
+            let shuffling_is_compatible = |block_root: &Hash256, target_epoch: Epoch| -> bool {
+                shuffling_is_compatible_with_fork_choice(
+                    block_root,
+                    target_epoch,
+                    &state,
+                    &self.canonical_head,
+                    &self.attestation_manager,
+                )
+            };
             let mut prev_filter_cache = HashMap::new();
             let prev_attestation_filter = |att: &CompactAttestationRef<T::EthSpec>| {
-                self.filter_op_pool_attestation(&mut prev_filter_cache, att, &state)
+                *prev_filter_cache
+                    .entry((att.data.beacon_block_root, att.checkpoint.target_epoch))
+                    .or_insert_with(|| {
+                        shuffling_is_compatible(
+                            &att.data.beacon_block_root,
+                            att.checkpoint.target_epoch,
+                        )
+                    })
             };
             let mut curr_filter_cache = HashMap::new();
             let curr_attestation_filter = |att: &CompactAttestationRef<T::EthSpec>| {
-                self.filter_op_pool_attestation(&mut curr_filter_cache, att, &state)
+                *curr_filter_cache
+                    .entry((att.data.beacon_block_root, att.checkpoint.target_epoch))
+                    .or_insert_with(|| {
+                        shuffling_is_compatible(
+                            &att.data.beacon_block_root,
+                            att.checkpoint.target_epoch,
+                        )
+                    })
             };
 
             self.op_pool
@@ -6756,4 +6509,61 @@ impl ChainSegmentResult {
             ChainSegmentResult::Successful { .. } => Ok(()),
         }
     }
+}
+
+/// Check that the shuffling at `block_root` is equal to one of the shufflings of `state`.
+///
+/// This is a free function extracted from `BeaconChain` to avoid coupling to `self`. It loads the
+/// block's shuffling ID from fork choice and delegates to `AttestationManager::shuffling_is_compatible`.
+pub fn shuffling_is_compatible_with_fork_choice<T: BeaconChainTypes>(
+    block_root: &Hash256,
+    target_epoch: Epoch,
+    state: &BeaconState<T::EthSpec>,
+    canonical_head: &CanonicalHead<T>,
+    attestation_manager: &AttestationManager<T::EthSpec>,
+) -> bool {
+    let result = (|| -> Result<bool, Error> {
+        let fork_choice_lock = canonical_head.fork_choice_read_lock();
+        let block = fork_choice_lock
+            .get_block(block_root)
+            .ok_or(Error::AttestationHeadNotInForkChoice(*block_root))?;
+        drop(fork_choice_lock);
+
+        let block_shuffling_id = if target_epoch == block.current_epoch_shuffling_id.shuffling_epoch
+        {
+            block.current_epoch_shuffling_id
+        } else if target_epoch == block.next_epoch_shuffling_id.shuffling_epoch {
+            block.next_epoch_shuffling_id
+        } else if target_epoch > block.next_epoch_shuffling_id.shuffling_epoch {
+            AttestationShufflingId {
+                shuffling_epoch: target_epoch,
+                shuffling_decision_block: *block_root,
+            }
+        } else {
+            debug!(
+                ?block_root,
+                %target_epoch,
+                reason = "target epoch less than block epoch",
+                "Skipping attestation with incompatible shuffling"
+            );
+            return Ok(false);
+        };
+
+        Ok(attestation_manager.shuffling_is_compatible(
+            block_root,
+            target_epoch,
+            state,
+            block_shuffling_id,
+        ))
+    })();
+
+    result.unwrap_or_else(|e| {
+        debug!(
+            ?block_root,
+            %target_epoch,
+            reason = ?e,
+            "Skipping attestation with incompatible shuffling"
+        );
+        false
+    })
 }

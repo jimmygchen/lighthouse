@@ -430,7 +430,9 @@ impl<T: BeaconChainTypes> VerifiedSyncContribution<T> {
 
     /// A helper function to add this aggregate to `beacon_chain.op_pool`.
     pub fn add_to_pool(self, chain: &BeaconChain<T>) -> Result<(), Error> {
-        chain.add_contribution_to_block_inclusion_pool(self)
+        chain
+            .sync_committee_manager
+            .add_contribution_to_block_inclusion_pool(self)
     }
 
     /// Returns the underlying `contribution` for the `signed_aggregate`.
@@ -560,7 +562,9 @@ impl VerifiedSyncCommitteeMessage {
 
     /// A helper function to add this sync committee message to `beacon_chain.naive_sync_aggregation_pool`.
     pub fn add_to_pool<T: BeaconChainTypes>(self, chain: &BeaconChain<T>) -> Result<Self, Error> {
-        chain.add_to_naive_sync_aggregation_pool(self)
+        chain
+            .sync_committee_manager
+            .add_to_naive_sync_aggregation_pool(self)
     }
 
     /// Returns the subcommittee positions for the sync message, keyed on the `SyncSubnetId` for

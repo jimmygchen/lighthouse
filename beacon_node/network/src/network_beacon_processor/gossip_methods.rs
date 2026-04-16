@@ -383,7 +383,8 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
 
                 if let Err(e) = self
                     .chain
-                    .add_to_naive_aggregation_pool(&verified_attestation)
+                    .attestation_manager
+                    .add_to_naive_aggregation_pool(verified_attestation.attestation())
                 {
                     debug!(
                         reason = ?e,
@@ -1869,7 +1870,21 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             .read()
             .register_gossip_attester_slashing(slashing.as_inner().to_ref());
 
-        self.chain.import_attester_slashing(slashing);
+        // Add to fork choice.
+        self.chain
+            .canonical_head
+            .fork_choice_write_lock()
+            .on_attester_slashing(slashing.as_inner().to_ref());
+        // Emit SSE event.
+        if let Some(event_handler) = self.chain.event_handler.as_ref()
+            && event_handler.has_attester_slashing_subscribers()
+        {
+            event_handler.register(EventKind::AttesterSlashing(Box::new(
+                slashing.as_inner().clone(),
+            )));
+        }
+        // Add to the op pool via the operations manager.
+        self.chain.operations.import_attester_slashing(slashing);
         debug!("Successfully imported attester slashing");
         metrics::inc_counter(&metrics::BEACON_PROCESSOR_ATTESTER_SLASHING_IMPORTED_TOTAL);
     }
@@ -2035,6 +2050,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
 
         if let Err(e) = self
             .chain
+            .sync_committee_manager
             .add_to_naive_sync_aggregation_pool(sync_signature)
         {
             debug!(
@@ -2097,6 +2113,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
 
         if let Err(e) = self
             .chain
+            .sync_committee_manager
             .add_contribution_to_block_inclusion_pool(sync_contribution)
         {
             debug!(
