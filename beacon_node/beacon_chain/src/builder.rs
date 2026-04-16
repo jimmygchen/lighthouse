@@ -5,9 +5,11 @@ use crate::beacon_chain::{
     BEACON_CHAIN_DB_KEY, CanonicalHead, LightClientProducerEvent, OP_POOL_DB_KEY,
 };
 use crate::beacon_proposer_cache::BeaconProposerCache;
+use crate::block_workflow::BlockWorkflow;
 use crate::custody_context::NodeCustodyType;
 use crate::data_availability_checker::DataAvailabilityChecker;
 use crate::data_availability_manager::DataAvailabilityManager;
+use crate::execution_manager::ExecutionManager;
 use crate::fork_choice_signal::ForkChoiceSignalTx;
 use crate::graffiti_calculator::{GraffitiCalculator, GraffitiOrigin};
 use crate::kzg_utils::{build_data_column_sidecars_fulu, build_data_column_sidecars_gloas};
@@ -1025,6 +1027,12 @@ where
             rng.clone(),
         ));
 
+        let execution_manager = Arc::new(ExecutionManager::new(
+            self.spec.clone(),
+            self.execution_layer.clone(),
+            beacon_proposer_cache.clone(),
+        ));
+
         let beacon_chain = BeaconChain {
             spec: self.spec.clone(),
             config: self.chain_config,
@@ -1087,6 +1095,8 @@ where
             kzg: kzg.clone(),
             rng: rng.clone(),
             data_availability_manager,
+            execution_manager,
+            block_workflow: BlockWorkflow::new(),
         };
 
         let head = beacon_chain.head_snapshot();

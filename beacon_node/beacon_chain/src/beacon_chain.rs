@@ -16,6 +16,7 @@ use crate::block_verification::{
 use crate::block_verification_types::{
     AsBlock, AvailableExecutedBlock, BlockImportData, ExecutedBlock, RangeSyncBlock,
 };
+use crate::block_workflow::BlockWorkflow;
 pub use crate::canonical_head::CanonicalHead;
 use crate::chain_config::ChainConfig;
 use crate::custody_context::CustodyContextSsz;
@@ -28,6 +29,7 @@ use crate::data_column_verification::{GossipDataColumnError, GossipVerifiedDataC
 use crate::envelope_times_cache::EnvelopeTimesCache;
 use crate::errors::{BeaconChainError as Error, BlockProductionError};
 use crate::events::ServerSentEventHandler;
+use crate::execution_manager::ExecutionManager;
 use crate::execution_payload::{NotifyExecutionLayer, PreparePayloadHandle, get_execution_payload};
 use crate::fetch_blobs::EngineGetBlobsOutput;
 use crate::fork_choice_signal::{ForkChoiceSignalRx, ForkChoiceSignalTx};
@@ -467,6 +469,12 @@ pub struct BeaconChain<T: BeaconChainTypes> {
     /// Component managing data availability: DA boundary calculations, custody info,
     /// and blob/column retrieval.
     pub data_availability_manager: Arc<DataAvailabilityManager<T>>,
+    /// Component managing execution layer integration, proposer cache, and
+    /// fork choice signalling.
+    pub execution_manager: Arc<ExecutionManager<T>>,
+    /// Component managing block timing caches, observed block producers,
+    /// and observed slashable tracking.
+    pub block_workflow: BlockWorkflow<T::EthSpec>,
 }
 
 pub enum BeaconBlockResponseWrapper<E: EthSpec> {
@@ -6179,9 +6187,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
 
     /// Returns `true` if the given slot is prior to the `bellatrix_fork_epoch`.
     pub fn slot_is_prior_to_bellatrix(&self, slot: Slot) -> bool {
-        self.spec
-            .bellatrix_fork_epoch
-            .is_none_or(|bellatrix| slot.epoch(T::EthSpec::slots_per_epoch()) < bellatrix)
+        self.execution_manager.slot_is_prior_to_bellatrix(slot)
     }
 
     /// Returns the value of `execution_optimistic` for `block`.
@@ -6394,13 +6400,11 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         accessor: impl Fn(&EpochBlockProposers) -> Result<V, BeaconChainError>,
         state_provider: impl FnOnce() -> Result<(Hash256, BeaconState<T::EthSpec>), E>,
     ) -> Result<V, E> {
-        crate::beacon_proposer_cache::with_proposer_cache(
-            &self.beacon_proposer_cache,
+        self.execution_manager.with_proposer_cache(
             shuffling_decision_block,
             proposal_epoch,
             accessor,
             state_provider,
-            &self.spec,
         )
     }
 
