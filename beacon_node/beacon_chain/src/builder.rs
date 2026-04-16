@@ -12,12 +12,13 @@ use crate::kzg_utils::{build_data_column_sidecars_fulu, build_data_column_sideca
 use crate::light_client_server_cache::LightClientServerCache;
 use crate::migrate::{BackgroundMigrator, MigratorConfig};
 use crate::observed_data_sidecars::ObservedDataSidecars;
-use crate::operations_manager::OperationsManager;
 use crate::persisted_beacon_chain::PersistedBeaconChain;
 use crate::persisted_custody::load_custody_context;
 use crate::shuffling_cache::{BlockShufflingIds, ShufflingCache};
+use crate::sync_committee_manager::SyncCommitteeManager;
 use crate::validator_monitor::{ValidatorMonitor, ValidatorMonitorConfig};
 use crate::validator_pubkey_cache::ValidatorPubkeyCache;
+use crate::validator_query_service::ValidatorQueryService;
 use crate::{
     BeaconChain, BeaconChainTypes, BeaconForkChoiceStore, BeaconSnapshot, ServerSentEventHandler,
 };
@@ -1001,7 +1002,6 @@ where
         debug!(?custody_context, "Loaded persisted custody context");
 
         let op_pool = Arc::new(self.op_pool.ok_or("Cannot build without op pool")?);
-        let operations = OperationsManager::new(self.spec.clone(), op_pool.clone());
 
         let beacon_chain = BeaconChain {
             spec: self.spec.clone(),
@@ -1012,32 +1012,28 @@ where
                 .ok_or("Cannot build without task executor")?,
             store_migrator,
             slot_clock: slot_clock.clone(),
-            op_pool,
+            op_pool: op_pool.clone(),
             // TODO: allow for persisting and loading the pool from disk.
             naive_aggregation_pool: <_>::default(),
             // TODO: allow for persisting and loading the pool from disk.
-            naive_sync_aggregation_pool: <_>::default(),
-            // TODO: allow for persisting and loading the pool from disk.
             observed_attestations: <_>::default(),
-            // TODO: allow for persisting and loading the pool from disk.
-            observed_sync_contributions: <_>::default(),
             // TODO: allow for persisting and loading the pool from disk.
             observed_gossip_attesters: <_>::default(),
             // TODO: allow for persisting and loading the pool from disk.
             observed_block_attesters: <_>::default(),
             // TODO: allow for persisting and loading the pool from disk.
-            observed_sync_contributors: <_>::default(),
-            // TODO: allow for persisting and loading the pool from disk.
             observed_aggregators: <_>::default(),
-            // TODO: allow for persisting and loading the pool from disk.
-            observed_sync_aggregators: <_>::default(),
+            sync_committee_manager: SyncCommitteeManager::new(self.spec.clone(), op_pool.clone()),
             // TODO: allow for persisting and loading the pool from disk.
             observed_block_producers: <_>::default(),
             observed_column_sidecars: RwLock::new(ObservedDataSidecars::new(self.spec.clone())),
             observed_blob_sidecars: RwLock::new(ObservedDataSidecars::new(self.spec.clone())),
             observed_slashable: <_>::default(),
             pending_payload_envelopes: <_>::default(),
-            operations,
+            observed_voluntary_exits: <_>::default(),
+            observed_proposer_slashings: <_>::default(),
+            observed_attester_slashings: <_>::default(),
+            observed_bls_to_execution_changes: <_>::default(),
             execution_layer: self.execution_layer.clone(),
             genesis_validators_root,
             genesis_time,
@@ -1055,7 +1051,7 @@ where
             block_times_cache: <_>::default(),
             envelope_times_cache: <_>::default(),
             pre_finalization_block_cache: <_>::default(),
-            validator_pubkey_cache: RwLock::new(validator_pubkey_cache),
+            validator_query: ValidatorQueryService::new(validator_pubkey_cache),
             early_attester_cache: <_>::default(),
             light_client_server_cache: LightClientServerCache::new(),
             light_client_server_tx: self.light_client_server_tx,

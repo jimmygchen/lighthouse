@@ -42,17 +42,14 @@ use crate::light_client_server_cache::LightClientServerCache;
 use crate::migrate::{BackgroundMigrator, ManualFinalizationNotification};
 use crate::naive_aggregation_pool::{
     AggregatedAttestationMap, Error as NaiveAggregationError, NaiveAggregationPool,
-    SyncContributionAggregateMap,
 };
 use crate::observed_aggregates::{
-    Error as AttestationObservationError, ObservedAggregateAttestations, ObservedSyncContributions,
+    Error as AttestationObservationError, ObservedAggregateAttestations,
 };
-use crate::observed_attesters::{
-    ObservedAggregators, ObservedAttesters, ObservedSyncAggregators, ObservedSyncContributors,
-};
+use crate::observed_attesters::{ObservedAggregators, ObservedAttesters};
 use crate::observed_block_producers::ObservedBlockProducers;
 use crate::observed_data_sidecars::ObservedDataSidecars;
-use crate::observed_operations::ObservationOutcome;
+use crate::observed_operations::{ObservationOutcome, ObservedOperations};
 use crate::observed_slashable::ObservedSlashable;
 #[cfg(not(test))]
 use crate::payload_envelope_streamer::{EnvelopeRequestSource, launch_payload_envelope_stream};
@@ -68,7 +65,7 @@ use crate::sync_committee_verification::{
 use crate::validator_monitor::{
     HISTORIC_EPOCHS as VALIDATOR_MONITOR_HISTORIC_EPOCHS, ValidatorMonitor, get_slot_delay_ms,
 };
-use crate::validator_pubkey_cache::ValidatorPubkeyCache;
+use crate::validator_query_service::ValidatorQueryService;
 use crate::{
     AvailabilityPendingExecutedBlock, BeaconChainError, BeaconForkChoiceStore, BeaconSnapshot,
     CachedHead, metrics,
@@ -385,31 +382,20 @@ pub struct BeaconChain<T: BeaconChainTypes> {
     /// This pool accepts `Attestation` objects that only have one aggregation bit set and provides
     /// a method to get an aggregated `Attestation` for some `AttestationData`.
     pub naive_aggregation_pool: RwLock<NaiveAggregationPool<AggregatedAttestationMap<T::EthSpec>>>,
-    /// A pool of `SyncCommitteeContribution` dedicated to the "naive aggregation strategy" defined in the eth2
-    /// specs.
-    ///
-    /// This pool accepts `SyncCommitteeContribution` objects that only have one aggregation bit set and provides
-    /// a method to get an aggregated `SyncCommitteeContribution` for some `SyncCommitteeContributionData`.
-    pub naive_sync_aggregation_pool:
-        RwLock<NaiveAggregationPool<SyncContributionAggregateMap<T::EthSpec>>>,
     /// Contains a store of attestations which have been observed by the beacon chain.
     pub(crate) observed_attestations: RwLock<ObservedAggregateAttestations<T::EthSpec>>,
-    /// Contains a store of sync contributions which have been observed by the beacon chain.
-    pub(crate) observed_sync_contributions: RwLock<ObservedSyncContributions<T::EthSpec>>,
     /// Maintains a record of which validators have been seen to publish gossip attestations in
     /// recent epochs.
     pub observed_gossip_attesters: RwLock<ObservedAttesters<T::EthSpec>>,
     /// Maintains a record of which validators have been seen to have attestations included in
     /// blocks in recent epochs.
     pub observed_block_attesters: RwLock<ObservedAttesters<T::EthSpec>>,
-    /// Maintains a record of which validators have been seen sending sync messages in recent epochs.
-    pub(crate) observed_sync_contributors: RwLock<ObservedSyncContributors<T::EthSpec>>,
     /// Maintains a record of which validators have been seen to create `SignedAggregateAndProofs`
     /// in recent epochs.
     pub observed_aggregators: RwLock<ObservedAggregators<T::EthSpec>>,
-    /// Maintains a record of which validators have been seen to create `SignedContributionAndProofs`
-    /// in recent epochs.
-    pub(crate) observed_sync_aggregators: RwLock<ObservedSyncAggregators<T::EthSpec>>,
+    /// Manages sync committee message and contribution verification, and the
+    /// sync aggregation pool.
+    pub sync_committee_manager: crate::sync_committee_manager::SyncCommitteeManager<T::EthSpec>,
     /// Maintains a record of which validators have proposed blocks for each slot.
     pub observed_block_producers: RwLock<ObservedBlockProducers<T::EthSpec>>,
     /// Maintains a record of blob sidecars seen over the gossip network.
@@ -422,9 +408,16 @@ pub struct BeaconChain<T: BeaconChainTypes> {
     /// Cache of pending execution payload envelopes for local block building.
     /// Envelopes are stored here during block production and eventually published.
     pub pending_payload_envelopes: RwLock<PendingPayloadEnvelopes<T::EthSpec>>,
-    /// Manages verification and import of voluntary exits, proposer slashings,
-    /// attester slashings, and BLS-to-execution changes.
-    pub operations: crate::operations_manager::OperationsManager<T::EthSpec>,
+    /// Maintains a record of which validators have submitted voluntary exits.
+    pub observed_voluntary_exits: Mutex<ObservedOperations<SignedVoluntaryExit, T::EthSpec>>,
+    /// Maintains a record of which validators we've seen proposer slashings for.
+    pub observed_proposer_slashings: Mutex<ObservedOperations<ProposerSlashing, T::EthSpec>>,
+    /// Maintains a record of which validators we've seen attester slashings for.
+    pub observed_attester_slashings:
+        Mutex<ObservedOperations<AttesterSlashing<T::EthSpec>, T::EthSpec>>,
+    /// Maintains a record of which validators we've seen BLS to execution changes for.
+    pub observed_bls_to_execution_changes:
+        Mutex<ObservedOperations<SignedBlsToExecutionChange, T::EthSpec>>,
     /// Interfaces with the execution client.
     pub execution_layer: Option<ExecutionLayer<T::EthSpec>>,
     /// Stores information about the canonical head and finalized/justified checkpoints of the
@@ -449,8 +442,8 @@ pub struct BeaconChain<T: BeaconChainTypes> {
     pub shuffling_cache: RwLock<ShufflingCache>,
     /// Caches the beacon block proposer shuffling for a given epoch and shuffling key root.
     pub beacon_proposer_cache: Arc<Mutex<BeaconProposerCache>>,
-    /// Caches a map of `validator_index -> validator_pubkey`.
-    pub(crate) validator_pubkey_cache: RwLock<ValidatorPubkeyCache<T>>,
+    /// Handles validator public key and index lookups.
+    pub validator_query: ValidatorQueryService<T>,
     /// A cache used when producing attestations whilst the head block is still being imported.
     pub early_attester_cache: EarlyAttesterCache<T::EthSpec>,
     /// A cache used to keep track of various block timings.
@@ -1559,88 +1552,48 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
 
     /// Returns the validator index (if any) for the given public key.
     ///
-    /// ## Notes
-    ///
-    /// This query uses the `validator_pubkey_cache` which contains _all_ validators ever seen,
-    /// even if those validators aren't included in the head state. It is important to remember
-    /// that just because a validator exists here, it doesn't necessarily exist in all
-    /// `BeaconStates`.
-    ///
-    /// ## Errors
-    ///
-    /// May return an error if acquiring a read-lock on the `validator_pubkey_cache` times out.
+    /// Delegates to [`ValidatorQueryService::validator_index`].
     pub fn validator_index(&self, pubkey: &PublicKeyBytes) -> Result<Option<usize>, Error> {
-        let pubkey_cache = self.validator_pubkey_cache.read();
-
-        Ok(pubkey_cache.get_index(pubkey))
+        self.validator_query.validator_index(pubkey)
     }
 
     /// Return the validator indices of all public keys fetched from an iterator.
     ///
-    /// If any public key doesn't belong to a known validator then an error will be returned.
-    /// We could consider relaxing this by returning `Vec<Option<usize>>` in future.
+    /// Delegates to [`ValidatorQueryService::validator_indices`].
     pub fn validator_indices<'a>(
         &self,
         validator_pubkeys: impl Iterator<Item = &'a PublicKeyBytes>,
     ) -> Result<Vec<u64>, Error> {
-        let pubkey_cache = self.validator_pubkey_cache.read();
-
-        validator_pubkeys
-            .map(|pubkey| {
-                pubkey_cache
-                    .get_index(pubkey)
-                    .map(|id| id as u64)
-                    .ok_or(Error::ValidatorPubkeyUnknown(*pubkey))
-            })
-            .collect()
+        self.validator_query.validator_indices(validator_pubkeys)
     }
 
     /// Returns the validator pubkey (if any) for the given validator index.
     ///
-    /// ## Notes
-    ///
-    /// This query uses the `validator_pubkey_cache` which contains _all_ validators ever seen,
-    /// even if those validators aren't included in the head state. It is important to remember
-    /// that just because a validator exists here, it doesn't necessarily exist in all
-    /// `BeaconStates`.
-    ///
-    /// ## Errors
-    ///
-    /// May return an error if acquiring a read-lock on the `validator_pubkey_cache` times out.
+    /// Delegates to [`ValidatorQueryService::validator_pubkey`].
     pub fn validator_pubkey(&self, validator_index: usize) -> Result<Option<PublicKey>, Error> {
-        let pubkey_cache = self.validator_pubkey_cache.read();
-
-        Ok(pubkey_cache.get(validator_index).cloned())
+        self.validator_query.validator_pubkey(validator_index)
     }
 
     /// As per `Self::validator_pubkey`, but returns `PublicKeyBytes`.
+    ///
+    /// Delegates to [`ValidatorQueryService::validator_pubkey_bytes`].
     pub fn validator_pubkey_bytes(
         &self,
         validator_index: usize,
     ) -> Result<Option<PublicKeyBytes>, Error> {
-        let pubkey_cache = self.validator_pubkey_cache.read();
-
-        Ok(pubkey_cache.get_pubkey_bytes(validator_index).copied())
+        self.validator_query.validator_pubkey_bytes(validator_index)
     }
 
     /// As per `Self::validator_pubkey_bytes` but will resolve multiple indices at once to avoid
     /// bouncing the read-lock on the pubkey cache.
     ///
-    /// Returns a map that may have a length less than `validator_indices.len()` if some indices
-    /// were unable to be resolved.
+    /// Delegates to [`ValidatorQueryService::validator_pubkey_bytes_many`].
     pub fn validator_pubkey_bytes_many(
         &self,
         validator_indices: &[usize],
     ) -> Result<HashMap<usize, PublicKeyBytes>, Error> {
-        let pubkey_cache = self.validator_pubkey_cache.read();
-
-        let mut map = HashMap::with_capacity(validator_indices.len());
-        for &validator_index in validator_indices {
-            if let Some(pubkey) = pubkey_cache.get_pubkey_bytes(validator_index) {
-                map.insert(validator_index, *pubkey);
-            }
-        }
-        Ok(map)
+        self.validator_query
+            .validator_pubkey_bytes_many(validator_indices)
     }
 
     /// Returns the block canonical root of the current canonical chain at a given slot, starting from the given state.
@@ -1851,9 +1804,8 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         sync_contribution_data: &SyncContributionData,
     ) -> Result<Option<SyncCommitteeContribution<T::EthSpec>>, Error> {
         if let Some(contribution) = self
-            .naive_sync_aggregation_pool
-            .read()
-            .get(sync_contribution_data)
+            .sync_committee_manager
+            .get_aggregated_sync_committee_contribution(sync_contribution_data)
         {
             self.filter_optimistic_sync_committee_contribution(contribution)
                 .map(Option::Some)
@@ -2364,53 +2316,8 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         &self,
         verified_sync_committee_message: VerifiedSyncCommitteeMessage,
     ) -> Result<VerifiedSyncCommitteeMessage, SyncCommitteeError> {
-        let sync_message = verified_sync_committee_message.sync_message();
-        let positions_by_subnet_id: &HashMap<SyncSubnetId, Vec<usize>> =
-            verified_sync_committee_message.subnet_positions();
-        for (subnet_id, positions) in positions_by_subnet_id.iter() {
-            for position in positions {
-                let _timer =
-                    metrics::start_timer(&metrics::SYNC_CONTRIBUTION_PROCESSING_APPLY_TO_AGG_POOL);
-                let contribution = SyncCommitteeContribution::from_message(
-                    sync_message,
-                    subnet_id.into(),
-                    *position,
-                )?;
-
-                match self
-                    .naive_sync_aggregation_pool
-                    .write()
-                    .insert(&contribution)
-                {
-                    Ok(outcome) => trace!(
-                        ?outcome,
-                        index = sync_message.validator_index,
-                        slot = sync_message.slot.as_u64(),
-                        "Stored unaggregated sync committee message"
-                    ),
-                    Err(NaiveAggregationError::SlotTooLow {
-                        slot,
-                        lowest_permissible_slot,
-                    }) => {
-                        trace!(
-                            lowest_permissible_slot = lowest_permissible_slot.as_u64(),
-                            slot = slot.as_u64(),
-                            "Refused to store unaggregated sync committee message"
-                        );
-                    }
-                    Err(e) => {
-                        error!(
-                            error = ?e,
-                            index = sync_message.validator_index,
-                            slot = sync_message.slot.as_u64(),
-                            "Failed to store unaggregated sync committee message"
-                        );
-                        return Err(Error::from(e).into());
-                    }
-                };
-            }
-        }
-        Ok(verified_sync_committee_message)
+        self.sync_committee_manager
+            .add_to_naive_sync_aggregation_pool(verified_sync_committee_message)
     }
 
     /// Accepts a `VerifiedAttestation` and attempts to apply it to `self.op_pool`.
@@ -2442,15 +2349,8 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         &self,
         contribution: VerifiedSyncContribution<T>,
     ) -> Result<(), SyncCommitteeError> {
-        let _timer = metrics::start_timer(&metrics::SYNC_CONTRIBUTION_PROCESSING_APPLY_TO_OP_POOL);
-
-        // If there's no eth1 chain then it's impossible to produce blocks and therefore
-        // useless to put things in the op pool.
-        self.op_pool
-            .insert_sync_contribution(contribution.contribution())
-            .map_err(Error::from)?;
-
-        Ok(())
+        self.sync_committee_manager
+            .add_contribution_to_block_inclusion_pool(contribution)
     }
 
     /// Filter an attestation from the op pool for shuffling compatibility.
@@ -2566,24 +2466,24 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         let head_state = &head_snapshot.beacon_state;
         let wall_clock_epoch = self.epoch()?;
 
-        let outcome = self
-            .operations
-            .verify_voluntary_exit(exit, head_state, wall_clock_epoch)?;
-
-        // This method is called for both API and gossip exits, so this covers all exit events.
-        if let Some(event_handler) = self.event_handler.as_ref()
-            && event_handler.has_exit_subscribers()
-            && let ObservationOutcome::New(ref verified_exit) = outcome
-        {
-            event_handler.register(EventKind::VoluntaryExit(verified_exit.clone().into_inner()));
-        }
-
-        Ok(outcome)
+        Ok(self
+            .observed_voluntary_exits
+            .lock()
+            .verify_and_observe_at(exit, wall_clock_epoch, head_state, &self.spec)
+            .inspect(|exit| {
+                // this method is called for both API and gossip exits, so this covers all exit events
+                if let Some(event_handler) = self.event_handler.as_ref()
+                    && event_handler.has_exit_subscribers()
+                    && let ObservationOutcome::New(exit) = exit.clone()
+                {
+                    event_handler.register(EventKind::VoluntaryExit(exit.into_inner()));
+                }
+            })?)
     }
 
     /// Accept a pre-verified exit and queue it for inclusion in an appropriate block.
     pub fn import_voluntary_exit(&self, exit: SigVerifiedOp<SignedVoluntaryExit, T::EthSpec>) {
-        self.operations.import_voluntary_exit(exit)
+        self.op_pool.insert_voluntary_exit(exit)
     }
 
     /// Verify a proposer slashing before allowing it to propagate on the gossip network.
@@ -2592,8 +2492,12 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         proposer_slashing: ProposerSlashing,
     ) -> Result<ObservationOutcome<ProposerSlashing, T::EthSpec>, Error> {
         let wall_clock_state = self.wall_clock_state()?;
-        self.operations
-            .verify_proposer_slashing(proposer_slashing, &wall_clock_state)
+
+        Ok(self.observed_proposer_slashings.lock().verify_and_observe(
+            proposer_slashing,
+            &wall_clock_state,
+            &self.spec,
+        )?)
     }
 
     /// Accept some proposer slashing and queue it for inclusion in an appropriate block.
@@ -2601,13 +2505,15 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         &self,
         proposer_slashing: SigVerifiedOp<ProposerSlashing, T::EthSpec>,
     ) {
-        let slashing = self.operations.import_proposer_slashing(proposer_slashing);
-
         if let Some(event_handler) = self.event_handler.as_ref()
             && event_handler.has_proposer_slashing_subscribers()
         {
-            event_handler.register(EventKind::ProposerSlashing(Box::new(slashing)));
+            event_handler.register(EventKind::ProposerSlashing(Box::new(
+                proposer_slashing.clone().into_inner(),
+            )));
         }
+
+        self.op_pool.insert_proposer_slashing(proposer_slashing)
     }
 
     /// Verify an attester slashing before allowing it to propagate on the gossip network.
@@ -2616,8 +2522,12 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         attester_slashing: AttesterSlashing<T::EthSpec>,
     ) -> Result<ObservationOutcome<AttesterSlashing<T::EthSpec>, T::EthSpec>, Error> {
         let wall_clock_state = self.wall_clock_state()?;
-        self.operations
-            .verify_attester_slashing(attester_slashing, &wall_clock_state)
+
+        Ok(self.observed_attester_slashings.lock().verify_and_observe(
+            attester_slashing,
+            &wall_clock_state,
+            &self.spec,
+        )?)
     }
 
     /// Accept a verified attester slashing and:
@@ -2628,7 +2538,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         &self,
         attester_slashing: SigVerifiedOp<AttesterSlashing<T::EthSpec>, T::EthSpec>,
     ) {
-        // Add to fork choice (stays on BeaconChain because it requires the fork-choice write lock).
+        // Add to fork choice.
         self.canonical_head
             .fork_choice_write_lock()
             .on_attester_slashing(attester_slashing.as_inner().to_ref());
@@ -2642,7 +2552,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         }
 
         // Add to the op pool (if we have the ability to propose blocks).
-        self.operations.import_attester_slashing(attester_slashing)
+        self.op_pool.insert_attester_slashing(attester_slashing)
     }
 
     /// Verify a signed BLS to execution change before allowing it to propagate on the gossip network.
@@ -2650,10 +2560,27 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         &self,
         bls_to_execution_change: SignedBlsToExecutionChange,
     ) -> Result<ObservationOutcome<SignedBlsToExecutionChange, T::EthSpec>, Error> {
+        // Before checking the gossip duplicate filter, check that no prior change is already
+        // in our op pool. Ignore these messages: do not gossip, do not try to override the pool.
+        match self
+            .op_pool
+            .bls_to_execution_change_in_pool_equals(&bls_to_execution_change)
+        {
+            Some(true) => return Ok(ObservationOutcome::AlreadyKnown),
+            Some(false) => return Err(Error::BlsToExecutionConflictsWithPool),
+            None => (),
+        }
+
+        // Use the head state to save advancing to the wall-clock slot unnecessarily. The message is
+        // signed with respect to the genesis fork version, and the slot check for gossip is applied
+        // separately. This `Arc` clone of the head is nice and cheap.
         let head_snapshot = self.head().snapshot;
         let head_state = &head_snapshot.beacon_state;
-        self.operations
-            .verify_bls_to_execution_change(bls_to_execution_change, head_state)
+
+        Ok(self
+            .observed_bls_to_execution_changes
+            .lock()
+            .verify_and_observe(bls_to_execution_change, head_state, &self.spec)?)
     }
 
     /// Verify a signed BLS to execution change before allowing it to propagate on the gossip network.
@@ -2661,14 +2588,18 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         &self,
         bls_to_execution_change: SignedBlsToExecutionChange,
     ) -> Result<ObservationOutcome<SignedBlsToExecutionChange, T::EthSpec>, Error> {
-        let is_post_capella = self.current_slot_is_post_capella()?;
-        let head_snapshot = self.head().snapshot;
-        let head_state = &head_snapshot.beacon_state;
-        self.operations.verify_bls_to_execution_change_for_gossip(
-            bls_to_execution_change,
-            head_state,
-            is_post_capella,
-        )
+        // Ignore BLS to execution changes on gossip prior to Capella.
+        if !self.current_slot_is_post_capella()? {
+            return Err(Error::BlsToExecutionPriorToCapella);
+        }
+        self.verify_bls_to_execution_change_for_http_api(bls_to_execution_change)
+            .or_else(|e| {
+                // On gossip treat conflicts the same as duplicates [IGNORE].
+                match e {
+                    Error::BlsToExecutionConflictsWithPool => Ok(ObservationOutcome::AlreadyKnown),
+                    e => Err(e),
+                }
+            })
     }
 
     /// Check if the current slot is greater than or equal to the Capella fork epoch.
@@ -2693,8 +2624,8 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             )));
         }
 
-        self.operations
-            .import_bls_to_execution_change(bls_to_execution_change, received_pre_capella)
+        self.op_pool
+            .insert_bls_to_execution_change(bls_to_execution_change, received_pre_capella)
     }
 
     /// Attempt to obtain sync committee duties from the head.
@@ -2704,9 +2635,11 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         validator_indices: &[u64],
     ) -> Result<Vec<Result<Option<SyncDuty>, BeaconStateError>>, Error> {
         self.with_head(move |head| {
-            head.beacon_state
-                .get_sync_committee_duties(epoch, validator_indices, &self.spec)
-                .map_err(Error::SyncDutiesError)
+            self.sync_committee_manager.sync_committee_duties(
+                epoch,
+                validator_indices,
+                &head.beacon_state,
+            )
         })
     }
 
@@ -3832,7 +3765,10 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         // would be difficult to check that they all lock fork choice first.
         let mut ops = {
             let _timer = metrics::start_timer(&metrics::BLOCK_PROCESSING_PUBKEY_CACHE_LOCK);
-            let pubkey_cache = self.validator_pubkey_cache.upgradable_read();
+            let pubkey_cache = self
+                .validator_query
+                .validator_pubkey_cache
+                .upgradable_read();
 
             // Only take a write lock if there are new keys to import.
             if state.validators().len() > pubkey_cache.len() {

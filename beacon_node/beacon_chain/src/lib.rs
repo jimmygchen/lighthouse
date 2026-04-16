@@ -43,7 +43,6 @@ pub mod observed_block_producers;
 pub mod observed_data_sidecars;
 pub mod observed_operations;
 mod observed_slashable;
-pub mod operations_manager;
 pub mod payload_envelope_streamer;
 pub mod payload_envelope_verification;
 pub mod pending_payload_envelopes;
@@ -57,11 +56,13 @@ pub mod shuffling_cache;
 pub mod single_attestation;
 pub mod state_advance_timer;
 pub mod summaries_dag;
+pub mod sync_committee_manager;
 pub mod sync_committee_rewards;
 pub mod sync_committee_verification;
 pub mod test_utils;
 pub mod validator_monitor;
 pub mod validator_pubkey_cache;
+pub mod validator_query_service;
 
 pub use self::beacon_chain::{
     AttestationProcessingOutcome, AvailabilityProcessingStatus, BeaconBlockResponse,
