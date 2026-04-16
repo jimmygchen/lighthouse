@@ -1,7 +1,36 @@
 # BeaconChain Architecture
 
-This document describes the modular architecture that replaces the
-`BeaconChain<T>` god object.
+## Goal
+
+Enable a productive LLM-assisted development workflow where humans
+focus on architecture, specifications, and correctness review, while
+LLMs handle component implementation, test generation, and fast
+iteration — without compromising correctness, performance, or liveness.
+
+The modular architecture is the prerequisite. Today's `BeaconChain<T>`
+god object (40+ fields, 200+ methods) makes this impossible — an LLM
+can't safely work on one concern without understanding everything.
+Breaking it into focused components with clean boundaries is what makes
+the workflow viable.
+
+### What this unlocks
+
+- **Components are independently testable** — construct with `::new()`,
+  pass in test state, assert results. No `BeaconChainHarness` needed.
+- **LLMs can implement against specs** — a component with explicit
+  parameters and no hidden state fetching is something an LLM can
+  reason about and implement correctly.
+- **Fast iteration** — change a component's internals without risking
+  the rest of the system. Test in isolation, then integration.
+- **Spec-driven development** — scenario specs for behavior alignment,
+  formal specs for mathematically proven invariants. Both feed into
+  LLM-generated implementations.
+
+### What stays the same
+
+Correctness, performance, and liveness guarantees. This restructuring
+changes how code is organized and who writes it. It does not change
+runtime characteristics.
 
 ## Overview
 
