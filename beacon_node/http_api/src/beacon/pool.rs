@@ -75,6 +75,7 @@ pub fn post_beacon_pool_bls_to_execution_changes<T: BeaconChainTypes>(
                                 Err(beacon_chain::BeaconChainError::BlsToExecutionConflictsWithPool)
                             }
                             None => chain
+                                .operations
                                 .observed_bls_to_execution_changes
                                 .lock()
                                 .verify_and_observe(address_change, head_state, &chain.spec)
@@ -254,6 +255,7 @@ pub fn post_beacon_pool_voluntary_exits<T: BeaconChainTypes>(
                     })?;
 
                     let outcome = chain
+                        .operations
                         .observed_voluntary_exits
                         .lock()
                         .verify_and_observe_at(
@@ -347,6 +349,7 @@ pub fn post_beacon_pool_proposer_slashings<T: BeaconChainTypes>(
                     })?;
 
                     let outcome = chain
+                        .operations
                         .observed_proposer_slashings
                         .lock()
                         .verify_and_observe(slashing.clone(), &wall_clock_state, &chain.spec)
@@ -473,6 +476,7 @@ pub fn post_beacon_pool_attester_slashings<T: BeaconChainTypes>(
                     })?;
 
                     let outcome = chain
+                        .operations
                         .observed_attester_slashings
                         .lock()
                         .verify_and_observe(slashing.clone(), &wall_clock_state, &chain.spec)

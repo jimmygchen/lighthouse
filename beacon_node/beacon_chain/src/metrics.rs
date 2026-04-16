@@ -2162,7 +2162,10 @@ fn scrape_attestation_observation<T: BeaconChainTypes>(slot_now: Slot, chain: &B
 fn scrape_sync_committee_observation<T: BeaconChainTypes>(slot_now: Slot, chain: &BeaconChain<T>) {
     let prev_slot = slot_now - 1;
 
-    let contributors = chain.observed_sync_contributors.read();
+    let contributors = chain
+        .sync_committee_manager
+        .observed_sync_contributors
+        .read();
     let mut contributor_sum = 0;
     for i in 0..SYNC_COMMITTEE_SUBNET_COUNT {
         if let Some(count) =
@@ -2174,7 +2177,10 @@ fn scrape_sync_committee_observation<T: BeaconChainTypes>(slot_now: Slot, chain:
     drop(contributors);
     set_gauge_by_usize(&SYNC_COMM_OBSERVATION_PREV_SLOT_SIGNERS, contributor_sum);
 
-    let sync_aggregators = chain.observed_sync_aggregators.read();
+    let sync_aggregators = chain
+        .sync_committee_manager
+        .observed_sync_aggregators
+        .read();
     let mut aggregator_sum = 0;
     for i in 0..SYNC_COMMITTEE_SUBNET_COUNT {
         if let Some(count) =

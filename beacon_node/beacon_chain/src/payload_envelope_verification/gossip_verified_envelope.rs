@@ -249,7 +249,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             store: &self.store,
             spec: &self.spec,
             beacon_proposer_cache: &self.beacon_proposer_cache,
-            validator_pubkey_cache: &self.validator_pubkey_cache,
+            validator_pubkey_cache: &self.validator_query.validator_pubkey_cache,
             genesis_validators_root: self.genesis_validators_root,
             event_handler: &self.event_handler,
         }

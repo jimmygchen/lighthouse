@@ -42,14 +42,10 @@ use crate::light_client_optimistic_update_verification::{
 };
 use crate::light_client_server_cache::LightClientServerCache;
 use crate::migrate::{BackgroundMigrator, ManualFinalizationNotification};
-use crate::naive_aggregation_pool::{
-    Error as NaiveAggregationError, NaiveAggregationPool, SyncContributionAggregateMap,
-};
-use crate::observed_aggregates::{Error as AttestationObservationError, ObservedSyncContributions};
-use crate::observed_attesters::{ObservedSyncAggregators, ObservedSyncContributors};
+use crate::observed_aggregates::Error as AttestationObservationError;
 use crate::observed_block_producers::ObservedBlockProducers;
 use crate::observed_data_sidecars::ObservedDataSidecars;
-use crate::observed_operations::{ObservationOutcome, ObservedOperations};
+use crate::observed_operations::ObservationOutcome;
 use crate::observed_slashable::ObservedSlashable;
 use crate::operations_manager::OperationsManager;
 use crate::payload_bid_verification::payload_bid_cache::GossipVerifiedPayloadBidCache;
@@ -62,13 +58,14 @@ use crate::persisted_fork_choice::PersistedForkChoice;
 use crate::pre_finalization_cache::PreFinalizationBlockCache;
 use crate::proposer_preferences_verification::proposer_preference_cache::GossipVerifiedProposerPreferenceCache;
 use crate::shuffling_cache::BlockShufflingIds;
+use crate::sync_committee_manager::SyncCommitteeManager;
 use crate::sync_committee_verification::{
     Error as SyncCommitteeError, VerifiedSyncCommitteeMessage, VerifiedSyncContribution,
 };
 use crate::validator_monitor::{
     HISTORIC_EPOCHS as VALIDATOR_MONITOR_HISTORIC_EPOCHS, ValidatorMonitor, get_slot_delay_ms,
 };
-use crate::validator_pubkey_cache::ValidatorPubkeyCache;
+use crate::validator_query_service::ValidatorQueryService;
 use crate::{
     AvailabilityPendingExecutedBlock, BeaconChainError, BeaconForkChoiceStore, BeaconSnapshot,
     CachedHead, metrics,
@@ -381,20 +378,9 @@ pub struct BeaconChain<T: BeaconChainTypes> {
     pub attestation_manager: AttestationManager<T::EthSpec>,
     /// Manages voluntary exits, proposer/attester slashings, and BLS-to-execution changes.
     pub operations: OperationsManager<T::EthSpec>,
-    /// A pool of `SyncCommitteeContribution` dedicated to the "naive aggregation strategy" defined in the eth2
-    /// specs.
-    ///
-    /// This pool accepts `SyncCommitteeContribution` objects that only have one aggregation bit set and provides
-    /// a method to get an aggregated `SyncCommitteeContribution` for some `SyncCommitteeContributionData`.
-    pub naive_sync_aggregation_pool:
-        RwLock<NaiveAggregationPool<SyncContributionAggregateMap<T::EthSpec>>>,
-    /// Contains a store of sync contributions which have been observed by the beacon chain.
-    pub(crate) observed_sync_contributions: RwLock<ObservedSyncContributions<T::EthSpec>>,
-    /// Maintains a record of which validators have been seen sending sync messages in recent epochs.
-    pub(crate) observed_sync_contributors: RwLock<ObservedSyncContributors<T::EthSpec>>,
-    /// Maintains a record of which validators have been seen to create `SignedContributionAndProofs`
-    /// in recent epochs.
-    pub(crate) observed_sync_aggregators: RwLock<ObservedSyncAggregators<T::EthSpec>>,
+    /// Manages sync committee message and contribution verification, and the
+    /// sync aggregation pool.
+    pub sync_committee_manager: SyncCommitteeManager<T::EthSpec>,
     /// Maintains a record of which validators have proposed blocks for each slot.
     pub observed_block_producers: RwLock<ObservedBlockProducers<T::EthSpec>>,
     /// Maintains a record of blob sidecars seen over the gossip network.
@@ -407,16 +393,6 @@ pub struct BeaconChain<T: BeaconChainTypes> {
     /// Cache of pending execution payload envelopes for local block building.
     /// Envelopes are stored here during block production and eventually published.
     pub pending_payload_envelopes: RwLock<PendingPayloadEnvelopes<T::EthSpec>>,
-    /// Maintains a record of which validators have submitted voluntary exits.
-    pub observed_voluntary_exits: Mutex<ObservedOperations<SignedVoluntaryExit, T::EthSpec>>,
-    /// Maintains a record of which validators we've seen proposer slashings for.
-    pub observed_proposer_slashings: Mutex<ObservedOperations<ProposerSlashing, T::EthSpec>>,
-    /// Maintains a record of which validators we've seen attester slashings for.
-    pub observed_attester_slashings:
-        Mutex<ObservedOperations<AttesterSlashing<T::EthSpec>, T::EthSpec>>,
-    /// Maintains a record of which validators we've seen BLS to execution changes for.
-    pub observed_bls_to_execution_changes:
-        Mutex<ObservedOperations<SignedBlsToExecutionChange, T::EthSpec>>,
     /// Interfaces with the execution client.
     pub execution_layer: Option<ExecutionLayer<T::EthSpec>>,
     /// Stores information about the canonical head and finalized/justified checkpoints of the
@@ -439,8 +415,8 @@ pub struct BeaconChain<T: BeaconChainTypes> {
     pub event_handler: Option<ServerSentEventHandler<T::EthSpec>>,
     /// Caches the beacon block proposer shuffling for a given epoch and shuffling key root.
     pub beacon_proposer_cache: Arc<Mutex<BeaconProposerCache>>,
-    /// Caches a map of `validator_index -> validator_pubkey`.
-    pub validator_pubkey_cache: RwLock<ValidatorPubkeyCache<T>>,
+    /// Handles validator public key and index lookups.
+    pub validator_query: ValidatorQueryService<T>,
     /// A cache used to keep track of various block timings.
     pub block_times_cache: Arc<RwLock<BlockTimesCache>>,
     /// A cache used to keep track of various envelope timings.
@@ -1498,9 +1474,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
     ///
     /// May return an error if acquiring a read-lock on the `validator_pubkey_cache` times out.
     pub fn validator_index(&self, pubkey: &PublicKeyBytes) -> Result<Option<usize>, Error> {
-        let pubkey_cache = self.validator_pubkey_cache.read();
-
-        Ok(pubkey_cache.get_index(pubkey))
+        self.validator_query.validator_index(pubkey)
     }
 
     /// Return the validator indices of all public keys fetched from an iterator.
@@ -1511,16 +1485,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         &self,
         validator_pubkeys: impl Iterator<Item = &'a PublicKeyBytes>,
     ) -> Result<Vec<u64>, Error> {
-        let pubkey_cache = self.validator_pubkey_cache.read();
-
-        validator_pubkeys
-            .map(|pubkey| {
-                pubkey_cache
-                    .get_index(pubkey)
-                    .map(|id| id as u64)
-                    .ok_or(Error::ValidatorPubkeyUnknown(*pubkey))
-            })
-            .collect()
+        self.validator_query.validator_indices(validator_pubkeys)
     }
 
     /// Returns the validator pubkey (if any) for the given validator index.
@@ -1536,9 +1501,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
     ///
     /// May return an error if acquiring a read-lock on the `validator_pubkey_cache` times out.
     pub fn validator_pubkey(&self, validator_index: usize) -> Result<Option<PublicKey>, Error> {
-        let pubkey_cache = self.validator_pubkey_cache.read();
-
-        Ok(pubkey_cache.get(validator_index).cloned())
+        self.validator_query.validator_pubkey(validator_index)
     }
 
     /// As per `Self::validator_pubkey`, but returns `PublicKeyBytes`.
@@ -1546,9 +1509,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         &self,
         validator_index: usize,
     ) -> Result<Option<PublicKeyBytes>, Error> {
-        let pubkey_cache = self.validator_pubkey_cache.read();
-
-        Ok(pubkey_cache.get_pubkey_bytes(validator_index).copied())
+        self.validator_query.validator_pubkey_bytes(validator_index)
     }
 
     /// As per `Self::validator_pubkey_bytes` but will resolve multiple indices at once to avoid
@@ -1560,15 +1521,8 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         &self,
         validator_indices: &[usize],
     ) -> Result<HashMap<usize, PublicKeyBytes>, Error> {
-        let pubkey_cache = self.validator_pubkey_cache.read();
-
-        let mut map = HashMap::with_capacity(validator_indices.len());
-        for &validator_index in validator_indices {
-            if let Some(pubkey) = pubkey_cache.get_pubkey_bytes(validator_index) {
-                map.insert(validator_index, *pubkey);
-            }
-        }
-        Ok(map)
+        self.validator_query
+            .validator_pubkey_bytes_many(validator_indices)
     }
 
     /// Returns the block canonical root of the current canonical chain at a given slot, starting from the given state.
@@ -1794,9 +1748,8 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         sync_contribution_data: &SyncContributionData,
     ) -> Result<Option<SyncCommitteeContribution<T::EthSpec>>, Error> {
         if let Some(contribution) = self
-            .naive_sync_aggregation_pool
-            .read()
-            .get(sync_contribution_data)
+            .sync_committee_manager
+            .get_aggregated_sync_committee_contribution(sync_contribution_data)
         {
             self.filter_optimistic_sync_committee_contribution(contribution)
                 .map(Option::Some)
@@ -2279,53 +2232,8 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         &self,
         verified_sync_committee_message: VerifiedSyncCommitteeMessage,
     ) -> Result<VerifiedSyncCommitteeMessage, SyncCommitteeError> {
-        let sync_message = verified_sync_committee_message.sync_message();
-        let positions_by_subnet_id: &HashMap<SyncSubnetId, Vec<usize>> =
-            verified_sync_committee_message.subnet_positions();
-        for (subnet_id, positions) in positions_by_subnet_id.iter() {
-            for position in positions {
-                let _timer =
-                    metrics::start_timer(&metrics::SYNC_CONTRIBUTION_PROCESSING_APPLY_TO_AGG_POOL);
-                let contribution = SyncCommitteeContribution::from_message(
-                    sync_message,
-                    subnet_id.into(),
-                    *position,
-                )?;
-
-                match self
-                    .naive_sync_aggregation_pool
-                    .write()
-                    .insert(&contribution)
-                {
-                    Ok(outcome) => trace!(
-                        ?outcome,
-                        index = sync_message.validator_index,
-                        slot = sync_message.slot.as_u64(),
-                        "Stored unaggregated sync committee message"
-                    ),
-                    Err(NaiveAggregationError::SlotTooLow {
-                        slot,
-                        lowest_permissible_slot,
-                    }) => {
-                        trace!(
-                            lowest_permissible_slot = lowest_permissible_slot.as_u64(),
-                            slot = slot.as_u64(),
-                            "Refused to store unaggregated sync committee message"
-                        );
-                    }
-                    Err(e) => {
-                        error!(
-                            error = ?e,
-                            index = sync_message.validator_index,
-                            slot = sync_message.slot.as_u64(),
-                            "Failed to store unaggregated sync committee message"
-                        );
-                        return Err(Error::from(e).into());
-                    }
-                };
-            }
-        }
-        Ok(verified_sync_committee_message)
+        self.sync_committee_manager
+            .add_to_naive_sync_aggregation_pool(verified_sync_committee_message)
     }
 
     /// Accepts a `VerifiedAttestation` and attempts to apply it to `self.op_pool`.
@@ -2357,15 +2265,8 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         &self,
         contribution: VerifiedSyncContribution<T>,
     ) -> Result<(), SyncCommitteeError> {
-        let _timer = metrics::start_timer(&metrics::SYNC_CONTRIBUTION_PROCESSING_APPLY_TO_OP_POOL);
-
-        // If there's no eth1 chain then it's impossible to produce blocks and therefore
-        // useless to put things in the op pool.
-        self.op_pool
-            .insert_sync_contribution(contribution.contribution())
-            .map_err(Error::from)?;
-
-        Ok(())
+        self.sync_committee_manager
+            .add_contribution_to_block_inclusion_pool(contribution)
     }
 
     /// Filter an attestation from the op pool for shuffling compatibility.
@@ -2469,10 +2370,8 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         let head_state = &head_snapshot.beacon_state;
         let wall_clock_epoch = self.epoch()?;
 
-        Ok(self
-            .observed_voluntary_exits
-            .lock()
-            .verify_and_observe_at(exit, wall_clock_epoch, head_state, &self.spec)
+        self.operations
+            .verify_voluntary_exit(exit, head_state, wall_clock_epoch)
             .inspect(|exit| {
                 // this method is called for both API and gossip exits, so this covers all exit events
                 if let Some(event_handler) = self.event_handler.as_ref()
@@ -2481,7 +2380,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
                 {
                     event_handler.register(EventKind::VoluntaryExit(exit.into_inner()));
                 }
-            })?)
+            })
     }
 
     /// Verify a proposer slashing before allowing it to propagate on the gossip network.
@@ -2490,12 +2389,8 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         proposer_slashing: ProposerSlashing,
     ) -> Result<ObservationOutcome<ProposerSlashing, T::EthSpec>, Error> {
         let wall_clock_state = self.wall_clock_state()?;
-
-        Ok(self.observed_proposer_slashings.lock().verify_and_observe(
-            proposer_slashing,
-            &wall_clock_state,
-            &self.spec,
-        )?)
+        self.operations
+            .verify_proposer_slashing(proposer_slashing, &wall_clock_state)
     }
 
     /// Verify an attester slashing before allowing it to propagate on the gossip network.
@@ -2504,12 +2399,8 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         attester_slashing: AttesterSlashing<T::EthSpec>,
     ) -> Result<ObservationOutcome<AttesterSlashing<T::EthSpec>, T::EthSpec>, Error> {
         let wall_clock_state = self.wall_clock_state()?;
-
-        Ok(self.observed_attester_slashings.lock().verify_and_observe(
-            attester_slashing,
-            &wall_clock_state,
-            &self.spec,
-        )?)
+        self.operations
+            .verify_attester_slashing(attester_slashing, &wall_clock_state)
     }
 
     /// Accept a verified attester slashing and:
@@ -2533,8 +2424,8 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             )));
         }
 
-        // Add to the op pool (if we have the ability to propose blocks).
-        self.op_pool.insert_attester_slashing(attester_slashing)
+        // Add to the op pool via the operations manager.
+        self.operations.import_attester_slashing(attester_slashing)
     }
 
     /// Attempt to obtain sync committee duties from the head.
@@ -2544,9 +2435,11 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         validator_indices: &[u64],
     ) -> Result<Vec<Result<Option<SyncDuty>, BeaconStateError>>, Error> {
         self.with_head(move |head| {
-            head.beacon_state
-                .get_sync_committee_duties(epoch, validator_indices, &self.spec)
-                .map_err(Error::SyncDutiesError)
+            self.sync_committee_manager.sync_committee_duties(
+                epoch,
+                validator_indices,
+                &head.beacon_state,
+            )
         })
     }
 
@@ -3672,7 +3565,10 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         // would be difficult to check that they all lock fork choice first.
         let mut ops = {
             let _timer = metrics::start_timer(&metrics::BLOCK_PROCESSING_PUBKEY_CACHE_LOCK);
-            let pubkey_cache = self.validator_pubkey_cache.upgradable_read();
+            let pubkey_cache = self
+                .validator_query
+                .validator_pubkey_cache
+                .upgradable_read();
 
             // Only take a write lock if there are new keys to import.
             if state.validators().len() > pubkey_cache.len() {

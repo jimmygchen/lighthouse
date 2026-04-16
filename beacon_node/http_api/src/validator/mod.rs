@@ -34,7 +34,7 @@ use warp_utils::reject::convert_rejection;
 
 pub mod execution_payload_envelope;
 
-/// Uses the `chain.validator_pubkey_cache` to resolve a pubkey to a validator
+/// Uses the `chain.validator_query.validator_pubkey_cache` to resolve a pubkey to a validator
 /// index and then ensures that the validator exists in the given `state`.
 pub fn pubkey_to_validator_index<T: BeaconChainTypes>(
     chain: &BeaconChain<T>,
@@ -42,6 +42,7 @@ pub fn pubkey_to_validator_index<T: BeaconChainTypes>(
     pubkey: &PublicKeyBytes,
 ) -> Result<Option<usize>, Box<BeaconChainError>> {
     chain
+        .validator_query
         .validator_pubkey_cache
         .read()
         .get_index(pubkey)

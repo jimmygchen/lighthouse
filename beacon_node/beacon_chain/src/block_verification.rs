@@ -2152,7 +2152,7 @@ pub fn cheap_state_advance_to_obtain_committees<'a, E: EthSpec, Err: BlockBlobEr
 pub fn get_validator_pubkey_cache<T: BeaconChainTypes>(
     chain: &BeaconChain<T>,
 ) -> Result<RwLockReadGuard<'_, ValidatorPubkeyCache<T>>, BeaconChainError> {
-    Ok(chain.validator_pubkey_cache.read())
+    Ok(chain.validator_query.validator_pubkey_cache.read())
 }
 
 /// Produces an _empty_ `BlockSignatureVerifier`.
