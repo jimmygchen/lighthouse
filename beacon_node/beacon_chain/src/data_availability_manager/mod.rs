@@ -6,14 +6,10 @@ use crate::beacon_chain::BeaconStore;
 use crate::data_availability_checker::DataAvailabilityChecker;
 use crate::errors::BeaconChainError as Error;
 use crate::kzg_utils::reconstruct_blobs;
-use crate::observed_data_sidecars::ObservedDataSidecars;
 use kzg::Kzg;
-use parking_lot::{Mutex, RwLock};
-use rand::RngCore;
 use std::collections::HashSet;
 use std::sync::Arc;
 use store::BlobSidecarListFromRoot;
-use task_executor::TaskExecutor;
 use tracing::error;
 use types::data::{ColumnIndex, DataColumnSidecar, DataColumnSidecarList};
 use types::*;
@@ -22,25 +18,15 @@ use types::*;
 /// calculations, and DA queries.
 ///
 /// Generic over `T: BeaconChainTypes` because it needs store access for
-/// persisting custody info and `TaskExecutor` for async operations.
+/// persisting custody info.
 ///
 /// State is passed as method parameters where possible. The component never
 /// fetches head state or slot clock values on its own.
 pub struct DataAvailabilityManager<T: BeaconChainTypes> {
     spec: Arc<ChainSpec>,
     store: BeaconStore<T>,
-    #[allow(dead_code)]
-    task_executor: TaskExecutor,
     data_availability_checker: Arc<DataAvailabilityChecker<T>>,
-    #[allow(dead_code)]
-    pub(crate) observed_blob_sidecars:
-        RwLock<ObservedDataSidecars<BlobSidecar<T::EthSpec>, T::EthSpec>>,
-    #[allow(dead_code)]
-    pub(crate) observed_column_sidecars:
-        RwLock<ObservedDataSidecars<DataColumnSidecar<T::EthSpec>, T::EthSpec>>,
     kzg: Arc<Kzg>,
-    #[allow(dead_code)]
-    rng: Arc<Mutex<Box<dyn RngCore + Send>>>,
 }
 
 impl<T: BeaconChainTypes> DataAvailabilityManager<T> {
@@ -48,20 +34,14 @@ impl<T: BeaconChainTypes> DataAvailabilityManager<T> {
     pub fn new(
         spec: Arc<ChainSpec>,
         store: BeaconStore<T>,
-        task_executor: TaskExecutor,
         data_availability_checker: Arc<DataAvailabilityChecker<T>>,
         kzg: Arc<Kzg>,
-        rng: Arc<Mutex<Box<dyn RngCore + Send>>>,
     ) -> Self {
         Self {
-            observed_blob_sidecars: RwLock::new(ObservedDataSidecars::new(spec.clone())),
-            observed_column_sidecars: RwLock::new(ObservedDataSidecars::new(spec.clone())),
             spec,
             store,
-            task_executor,
             data_availability_checker,
             kzg,
-            rng,
         }
     }
 
@@ -73,11 +53,6 @@ impl<T: BeaconChainTypes> DataAvailabilityManager<T> {
     /// Return a reference to the KZG trusted setup.
     pub fn kzg(&self) -> &Arc<Kzg> {
         &self.kzg
-    }
-
-    /// Return a reference to the RNG.
-    pub fn rng(&self) -> &Arc<Mutex<Box<dyn RngCore + Send>>> {
-        &self.rng
     }
 
     // -----------------------------------------------------------------------
@@ -143,25 +118,6 @@ impl<T: BeaconChainTypes> DataAvailabilityManager<T> {
                 }
             }
             None => None, // Deneb hasn't been enabled
-        }
-    }
-
-    /// The DA boundary for custodying columns. It will just be the DA boundary
-    /// unless we are near the Fulu fork epoch.
-    pub fn get_column_da_boundary(&self) -> Option<Epoch> {
-        match self.data_availability_boundary() {
-            Some(da_boundary_epoch) => {
-                if let Some(fulu_fork_epoch) = self.spec.fulu_fork_epoch {
-                    if da_boundary_epoch < fulu_fork_epoch {
-                        Some(fulu_fork_epoch)
-                    } else {
-                        Some(da_boundary_epoch)
-                    }
-                } else {
-                    None
-                }
-            }
-            None => None, // If no DA boundary set, dont try to custody backfill
         }
     }
 

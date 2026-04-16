@@ -165,7 +165,7 @@ impl<T: BeaconChainTypes> CustodyBackFillSync<T> {
         let Some(da_boundary_epoch) = self
             .beacon_chain
             .data_availability_manager
-            .get_column_da_boundary()
+            .column_data_availability_boundary()
         else {
             return false;
         };
@@ -300,7 +300,7 @@ impl<T: BeaconChainTypes> CustodyBackFillSync<T> {
         let Some(column_da_boundary) = self
             .beacon_chain
             .data_availability_manager
-            .get_column_da_boundary()
+            .column_data_availability_boundary()
         else {
             return Ok(SyncStart::NotSyncing);
         };
@@ -394,7 +394,7 @@ impl<T: BeaconChainTypes> CustodyBackFillSync<T> {
         let Some(column_da_boundary) = self
             .beacon_chain
             .data_availability_manager
-            .get_column_da_boundary()
+            .column_data_availability_boundary()
         else {
             return None;
         };
@@ -736,7 +736,7 @@ impl<T: BeaconChainTypes> CustodyBackFillSync<T> {
                 let Some(column_da_boundary) = self
                     .beacon_chain
                     .data_availability_manager
-                    .get_column_da_boundary()
+                    .column_data_availability_boundary()
                 else {
                     return Err(CustodyBackfillError::InvalidSyncState(
                         "Can't calculate column data availability boundary".to_string(),
@@ -917,7 +917,7 @@ impl<T: BeaconChainTypes> CustodyBackFillSync<T> {
         let Some(column_da_boundary) = self
             .beacon_chain
             .data_availability_manager
-            .get_column_da_boundary()
+            .column_data_availability_boundary()
         else {
             return;
         };
@@ -1020,7 +1020,7 @@ impl<T: BeaconChainTypes> CustodyBackFillSync<T> {
             let Some(column_da_boundary) = self
                 .beacon_chain
                 .data_availability_manager
-                .get_column_da_boundary()
+                .column_data_availability_boundary()
             else {
                 return false;
             };
@@ -1035,7 +1035,7 @@ impl<T: BeaconChainTypes> CustodyBackFillSync<T> {
         let Some(column_da_boundary) = self
             .beacon_chain
             .data_availability_manager
-            .get_column_da_boundary()
+            .column_data_availability_boundary()
         else {
             return false;
         };

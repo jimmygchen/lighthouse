@@ -167,9 +167,13 @@ Execution layer integration, proposer preparation, forkchoice updates.
 
 **Holds:** `spec`, `execution_layer`
 
-### `ValidatorQueryService<E: EthSpec>`
+### `ValidatorQueryService<T: BeaconChainTypes>`
 
 Validator pubkey lookups, committee cache access.
+
+**Note:** This is the one component generic over `T: BeaconChainTypes`
+rather than `E: EthSpec`, because `ValidatorPubkeyCache` requires store
+access for persistence. This is a known exception to the general pattern.
 
 **Owns:** `validator_pubkey_cache`
 

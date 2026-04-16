@@ -1024,10 +1024,8 @@ where
         let data_availability_manager = Arc::new(DataAvailabilityManager::new(
             self.spec.clone(),
             store.clone(),
-            task_executor.clone(),
             data_availability_checker.clone(),
             kzg.clone(),
-            rng.clone(),
         ));
 
         let execution_manager = Arc::new(ExecutionManager::new(

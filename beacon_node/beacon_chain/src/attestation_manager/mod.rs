@@ -69,11 +69,11 @@ pub struct AttestationManager<E: EthSpec> {
     /// Tracks aggregate attestations that have been observed.
     pub(crate) observed_attestations: RwLock<ObservedAggregateAttestations<E>>,
     /// Tracks validators that have sent gossip attestations.
-    pub observed_gossip_attesters: RwLock<ObservedAttesters<E>>,
+    pub(crate) observed_gossip_attesters: RwLock<ObservedAttesters<E>>,
     /// Tracks validators whose attestations have been included in blocks.
-    pub observed_block_attesters: RwLock<ObservedAttesters<E>>,
+    pub(crate) observed_block_attesters: RwLock<ObservedAttesters<E>>,
     /// Tracks aggregators that have produced signed aggregates.
-    pub observed_aggregators: RwLock<ObservedAggregators<E>>,
+    pub(crate) observed_aggregators: RwLock<ObservedAggregators<E>>,
     /// Cache for producing attestations when the head block is still being imported.
     pub early_attester_cache: EarlyAttesterCache<E>,
     /// Cache of committee shufflings keyed by shuffling ID.

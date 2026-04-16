@@ -63,11 +63,11 @@ pub struct BlockImportState<E: EthSpec> {
     pub pre_finalization_block_cache: PreFinalizationBlockCache,
     /// Tracks which validators have proposed blocks in recent slots,
     /// used to detect equivocating (duplicate) block proposals.
-    pub observed_block_producers: RwLock<ObservedBlockProducers<E>>,
+    pub(crate) observed_block_producers: RwLock<ObservedBlockProducers<E>>,
     /// Tracks slashable messages (equivocating block proposals) observed
     /// over gossip or RPC, supporting `broadcast_validation` in the
     /// Beacon API.
-    pub observed_slashable: RwLock<ObservedSlashable<E>>,
+    pub(crate) observed_slashable: RwLock<ObservedSlashable<E>>,
 }
 
 impl<E: EthSpec> BlockImportState<E> {

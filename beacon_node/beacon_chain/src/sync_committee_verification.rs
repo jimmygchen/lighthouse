@@ -577,6 +577,22 @@ impl VerifiedSyncCommitteeMessage {
     pub fn sync_message(&self) -> &SyncCommitteeMessage {
         &self.sync_message
     }
+
+    /// Create a `VerifiedSyncCommitteeMessage` directly, bypassing full verification.
+    ///
+    /// For use only in unit tests that need to exercise downstream logic (e.g.,
+    /// adding to the naive sync aggregation pool) without standing up an entire
+    /// `BeaconChain`.
+    #[cfg(test)]
+    pub(crate) fn new_for_test(
+        sync_message: SyncCommitteeMessage,
+        subnet_positions: HashMap<SyncSubnetId, Vec<usize>>,
+    ) -> Self {
+        Self {
+            sync_message,
+            subnet_positions,
+        }
+    }
 }
 
 /// Verify that the `sync_contribution` is within the acceptable gossip propagation range, with reference

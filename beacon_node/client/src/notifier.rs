@@ -173,7 +173,7 @@ pub fn spawn_notifier<T: BeaconChainTypes>(
                                 .and_then(|info| info.earliest_data_column_slot)
                                 && let Some(da_boundary) = beacon_chain
                                     .data_availability_manager
-                                    .get_column_da_boundary()
+                                    .column_data_availability_boundary()
                             {
                                 sync_distance = earliest_data_column_slot.saturating_sub(
                                     da_boundary.start_slot(T::EthSpec::slots_per_epoch()),
@@ -299,7 +299,7 @@ pub fn spawn_notifier<T: BeaconChainTypes>(
                 let est_time_in_secs = if let (Some(da_boundary_epoch), Some(original_slot)) = (
                     beacon_chain
                         .data_availability_manager
-                        .get_column_da_boundary(),
+                        .column_data_availability_boundary(),
                     original_earliest_data_column_slot,
                 ) {
                     let target = original_slot.saturating_sub(
