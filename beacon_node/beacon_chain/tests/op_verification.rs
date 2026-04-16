@@ -175,6 +175,7 @@ async fn voluntary_exit_duplicate_in_state() {
     // field in the head state.
     harness
         .chain
+        .operations
         .observed_voluntary_exits
         .lock()
         .__reset_for_testing_only();
@@ -284,6 +285,7 @@ async fn proposer_slashing_duplicate_in_state() {
     // in the head state.
     harness
         .chain
+        .operations
         .observed_proposer_slashings
         .lock()
         .__reset_for_testing_only();
@@ -412,6 +414,7 @@ async fn attester_slashing_duplicate_in_state() {
     // in the head state.
     harness
         .chain
+        .operations
         .observed_attester_slashings
         .lock()
         .__reset_for_testing_only();

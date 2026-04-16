@@ -12,6 +12,7 @@ use crate::kzg_utils::{build_data_column_sidecars_fulu, build_data_column_sideca
 use crate::light_client_server_cache::LightClientServerCache;
 use crate::migrate::{BackgroundMigrator, MigratorConfig};
 use crate::observed_data_sidecars::ObservedDataSidecars;
+use crate::operations_manager::OperationsManager;
 use crate::persisted_beacon_chain::PersistedBeaconChain;
 use crate::persisted_custody::load_custody_context;
 use crate::shuffling_cache::{BlockShufflingIds, ShufflingCache};
@@ -34,7 +35,8 @@ use rand::RngCore;
 use rayon::prelude::*;
 use slasher::Slasher;
 use slot_clock::{SlotClock, TestingSlotClock};
-use state_processing::{AllCaches, per_slot_processing};
+use state_processing::AllCaches;
+use state_processing::per_slot_processing;
 use std::marker::PhantomData;
 use std::sync::Arc;
 use std::time::Duration;
@@ -45,7 +47,7 @@ use tree_hash::TreeHash;
 use types::data::CustodyIndex;
 use types::{
     BeaconBlock, BeaconState, BlobSidecarList, ChainSpec, ColumnIndex, DataColumnSidecarList,
-    Epoch, EthSpec, Hash256, SignedBeaconBlock, Slot,
+    Epoch, EthSpec, Hash256, SignedBeaconBlock, Slot, StatePayloadStatus,
 };
 
 /// An empty struct used to "witness" all the `BeaconChainTypes` traits. It has no user-facing
@@ -433,14 +435,22 @@ where
             .clone()
             .ok_or("weak_subjectivity_state requires a store")?;
 
-        // Ensure the state is advanced to an epoch boundary.
+        // Pre-Gloas: advance the state to an epoch boundary to preserve existing checkpoint sync
+        // behavior. Post-Gloas: the state cannot be advanced without the execution payload
+        // envelope, so it stays at the block's slot.
         let slots_per_epoch = E::slots_per_epoch();
-        if weak_subj_state.slot() % slots_per_epoch != 0 {
-            debug!(
-                state_slot = %weak_subj_state.slot(),
-                block_slot = %weak_subj_block.slot(),
-                "Advancing checkpoint state to boundary"
-            );
+        if !self
+            .spec
+            .fork_name_at_slot::<E>(weak_subj_state.slot())
+            .gloas_enabled()
+        {
+            if weak_subj_state.slot() % slots_per_epoch != 0 {
+                debug!(
+                    state_slot = %weak_subj_state.slot(),
+                    block_slot = %weak_subj_block.slot(),
+                    "Advancing checkpoint state to boundary"
+                );
+            }
             while weak_subj_state.slot() % slots_per_epoch != 0 {
                 per_slot_processing(&mut weak_subj_state, None, &self.spec)
                     .map_err(|e| format!("Error advancing state: {e:?}"))?;
@@ -476,6 +486,15 @@ where
                  is {:?} but should be {:?}",
                 weak_subj_state.genesis_validators_root(),
                 genesis_state.genesis_validators_root()
+            ));
+        }
+
+        // Checkpoint state must ALWAYS be pending, even post-Gloas. The finalized block's payload
+        // is not finalized.
+        if weak_subj_state.payload_status() == StatePayloadStatus::Full {
+            return Err(format!(
+                "Checkpoint state is a post-payload state but should be post-block, \
+                 state root: {weak_subj_state_root:?}"
             ));
         }
 
@@ -617,7 +636,6 @@ where
                 .map_err(|e| format!("Failed to initialize data column info: {:?}", e))?,
         );
 
-        // TODO(gloas): add check that checkpoint state is Pending
         let snapshot = BeaconSnapshot {
             beacon_block_root: weak_subj_block_root,
             execution_envelope: None,
@@ -982,6 +1000,9 @@ where
         };
         debug!(?custody_context, "Loaded persisted custody context");
 
+        let op_pool = Arc::new(self.op_pool.ok_or("Cannot build without op pool")?);
+        let operations = OperationsManager::new(self.spec.clone(), op_pool.clone());
+
         let beacon_chain = BeaconChain {
             spec: self.spec.clone(),
             config: self.chain_config,
@@ -991,7 +1012,7 @@ where
                 .ok_or("Cannot build without task executor")?,
             store_migrator,
             slot_clock: slot_clock.clone(),
-            op_pool: self.op_pool.ok_or("Cannot build without op pool")?,
+            op_pool,
             // TODO: allow for persisting and loading the pool from disk.
             naive_aggregation_pool: <_>::default(),
             // TODO: allow for persisting and loading the pool from disk.
@@ -1016,10 +1037,7 @@ where
             observed_blob_sidecars: RwLock::new(ObservedDataSidecars::new(self.spec.clone())),
             observed_slashable: <_>::default(),
             pending_payload_envelopes: <_>::default(),
-            observed_voluntary_exits: <_>::default(),
-            observed_proposer_slashings: <_>::default(),
-            observed_attester_slashings: <_>::default(),
-            observed_bls_to_execution_changes: <_>::default(),
+            operations,
             execution_layer: self.execution_layer.clone(),
             genesis_validators_root,
             genesis_time,
@@ -1064,8 +1082,6 @@ where
             ),
             kzg: self.kzg.clone(),
             rng: Arc::new(Mutex::new(rng)),
-            gossip_verified_payload_bid_cache: <_>::default(),
-            gossip_verified_proposer_preferences_cache: <_>::default(),
         };
 
         let head = beacon_chain.head_snapshot();

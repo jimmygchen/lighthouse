@@ -52,9 +52,8 @@ use crate::observed_attesters::{
 };
 use crate::observed_block_producers::ObservedBlockProducers;
 use crate::observed_data_sidecars::ObservedDataSidecars;
-use crate::observed_operations::{ObservationOutcome, ObservedOperations};
+use crate::observed_operations::ObservationOutcome;
 use crate::observed_slashable::ObservedSlashable;
-use crate::payload_bid_verification::payload_bid_cache::GossipVerifiedPayloadBidCache;
 #[cfg(not(test))]
 use crate::payload_envelope_streamer::{EnvelopeRequestSource, launch_payload_envelope_stream};
 use crate::pending_payload_envelopes::PendingPayloadEnvelopes;
@@ -62,7 +61,6 @@ use crate::persisted_beacon_chain::PersistedBeaconChain;
 use crate::persisted_custody::persist_custody_context;
 use crate::persisted_fork_choice::PersistedForkChoice;
 use crate::pre_finalization_cache::PreFinalizationBlockCache;
-use crate::proposer_preferences_verification::proposer_preference_cache::GossipVerifiedProposerPreferenceCache;
 use crate::shuffling_cache::{BlockShufflingIds, ShufflingCache};
 use crate::sync_committee_verification::{
     Error as SyncCommitteeError, VerifiedSyncCommitteeMessage, VerifiedSyncContribution,
@@ -380,7 +378,7 @@ pub struct BeaconChain<T: BeaconChainTypes> {
     pub slot_clock: T::SlotClock,
     /// Stores all operations (e.g., `Attestation`, `Deposit`, etc) that are candidates for
     /// inclusion in a block.
-    pub op_pool: OperationPool<T::EthSpec>,
+    pub op_pool: Arc<OperationPool<T::EthSpec>>,
     /// A pool of attestations dedicated to the "naive aggregation strategy" defined in the eth2
     /// specs.
     ///
@@ -424,16 +422,9 @@ pub struct BeaconChain<T: BeaconChainTypes> {
     /// Cache of pending execution payload envelopes for local block building.
     /// Envelopes are stored here during block production and eventually published.
     pub pending_payload_envelopes: RwLock<PendingPayloadEnvelopes<T::EthSpec>>,
-    /// Maintains a record of which validators have submitted voluntary exits.
-    pub observed_voluntary_exits: Mutex<ObservedOperations<SignedVoluntaryExit, T::EthSpec>>,
-    /// Maintains a record of which validators we've seen proposer slashings for.
-    pub observed_proposer_slashings: Mutex<ObservedOperations<ProposerSlashing, T::EthSpec>>,
-    /// Maintains a record of which validators we've seen attester slashings for.
-    pub observed_attester_slashings:
-        Mutex<ObservedOperations<AttesterSlashing<T::EthSpec>, T::EthSpec>>,
-    /// Maintains a record of which validators we've seen BLS to execution changes for.
-    pub observed_bls_to_execution_changes:
-        Mutex<ObservedOperations<SignedBlsToExecutionChange, T::EthSpec>>,
+    /// Manages verification and import of voluntary exits, proposer slashings,
+    /// attester slashings, and BLS-to-execution changes.
+    pub operations: crate::operations_manager::OperationsManager<T::EthSpec>,
     /// Interfaces with the execution client.
     pub execution_layer: Option<ExecutionLayer<T::EthSpec>>,
     /// Stores information about the canonical head and finalized/justified checkpoints of the
@@ -468,10 +459,6 @@ pub struct BeaconChain<T: BeaconChainTypes> {
     pub envelope_times_cache: Arc<RwLock<EnvelopeTimesCache>>,
     /// A cache used to track pre-finalization block roots for quick rejection.
     pub pre_finalization_block_cache: PreFinalizationBlockCache,
-    /// A cache used to store gossip verified payload bids.
-    pub gossip_verified_payload_bid_cache: GossipVerifiedPayloadBidCache<T>,
-    /// A cache used to store gossip verified proposer preferences.
-    pub gossip_verified_proposer_preferences_cache: GossipVerifiedProposerPreferenceCache,
     /// A cache used to produce light_client server messages
     pub light_client_server_cache: LightClientServerCache<T>,
     /// Sender to signal the light_client server to produce new updates
@@ -907,8 +894,17 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         }
 
         // Fast-path for the split slot (which usually corresponds to the finalized slot).
+        // Post-Gloas, the split state root is always the Pending root but the canonical state root
+        // at the finalized slot may be the Full root (from the state_roots vector). Skip the
+        // fast-path for Gloas to ensure consistency with the forwards state root iterator.
+        // TODO(gloas): revisit this if spec changes to finalize payload status.
         let split = self.store.get_split_info();
-        if request_slot == split.slot {
+        if request_slot == split.slot
+            && !self
+                .spec
+                .fork_name_at_slot::<T::EthSpec>(split.slot)
+                .gloas_enabled()
+        {
             return Ok(Some(split.state_root));
         }
 
@@ -2570,24 +2566,24 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         let head_state = &head_snapshot.beacon_state;
         let wall_clock_epoch = self.epoch()?;
 
-        Ok(self
-            .observed_voluntary_exits
-            .lock()
-            .verify_and_observe_at(exit, wall_clock_epoch, head_state, &self.spec)
-            .inspect(|exit| {
-                // this method is called for both API and gossip exits, so this covers all exit events
-                if let Some(event_handler) = self.event_handler.as_ref()
-                    && event_handler.has_exit_subscribers()
-                    && let ObservationOutcome::New(exit) = exit.clone()
-                {
-                    event_handler.register(EventKind::VoluntaryExit(exit.into_inner()));
-                }
-            })?)
+        let outcome = self
+            .operations
+            .verify_voluntary_exit(exit, head_state, wall_clock_epoch)?;
+
+        // This method is called for both API and gossip exits, so this covers all exit events.
+        if let Some(event_handler) = self.event_handler.as_ref()
+            && event_handler.has_exit_subscribers()
+            && let ObservationOutcome::New(ref verified_exit) = outcome
+        {
+            event_handler.register(EventKind::VoluntaryExit(verified_exit.clone().into_inner()));
+        }
+
+        Ok(outcome)
     }
 
     /// Accept a pre-verified exit and queue it for inclusion in an appropriate block.
     pub fn import_voluntary_exit(&self, exit: SigVerifiedOp<SignedVoluntaryExit, T::EthSpec>) {
-        self.op_pool.insert_voluntary_exit(exit)
+        self.operations.import_voluntary_exit(exit)
     }
 
     /// Verify a proposer slashing before allowing it to propagate on the gossip network.
@@ -2596,12 +2592,8 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         proposer_slashing: ProposerSlashing,
     ) -> Result<ObservationOutcome<ProposerSlashing, T::EthSpec>, Error> {
         let wall_clock_state = self.wall_clock_state()?;
-
-        Ok(self.observed_proposer_slashings.lock().verify_and_observe(
-            proposer_slashing,
-            &wall_clock_state,
-            &self.spec,
-        )?)
+        self.operations
+            .verify_proposer_slashing(proposer_slashing, &wall_clock_state)
     }
 
     /// Accept some proposer slashing and queue it for inclusion in an appropriate block.
@@ -2609,15 +2601,13 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         &self,
         proposer_slashing: SigVerifiedOp<ProposerSlashing, T::EthSpec>,
     ) {
+        let slashing = self.operations.import_proposer_slashing(proposer_slashing);
+
         if let Some(event_handler) = self.event_handler.as_ref()
             && event_handler.has_proposer_slashing_subscribers()
         {
-            event_handler.register(EventKind::ProposerSlashing(Box::new(
-                proposer_slashing.clone().into_inner(),
-            )));
+            event_handler.register(EventKind::ProposerSlashing(Box::new(slashing)));
         }
-
-        self.op_pool.insert_proposer_slashing(proposer_slashing)
     }
 
     /// Verify an attester slashing before allowing it to propagate on the gossip network.
@@ -2626,12 +2616,8 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         attester_slashing: AttesterSlashing<T::EthSpec>,
     ) -> Result<ObservationOutcome<AttesterSlashing<T::EthSpec>, T::EthSpec>, Error> {
         let wall_clock_state = self.wall_clock_state()?;
-
-        Ok(self.observed_attester_slashings.lock().verify_and_observe(
-            attester_slashing,
-            &wall_clock_state,
-            &self.spec,
-        )?)
+        self.operations
+            .verify_attester_slashing(attester_slashing, &wall_clock_state)
     }
 
     /// Accept a verified attester slashing and:
@@ -2642,7 +2628,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         &self,
         attester_slashing: SigVerifiedOp<AttesterSlashing<T::EthSpec>, T::EthSpec>,
     ) {
-        // Add to fork choice.
+        // Add to fork choice (stays on BeaconChain because it requires the fork-choice write lock).
         self.canonical_head
             .fork_choice_write_lock()
             .on_attester_slashing(attester_slashing.as_inner().to_ref());
@@ -2656,7 +2642,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         }
 
         // Add to the op pool (if we have the ability to propose blocks).
-        self.op_pool.insert_attester_slashing(attester_slashing)
+        self.operations.import_attester_slashing(attester_slashing)
     }
 
     /// Verify a signed BLS to execution change before allowing it to propagate on the gossip network.
@@ -2664,27 +2650,10 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         &self,
         bls_to_execution_change: SignedBlsToExecutionChange,
     ) -> Result<ObservationOutcome<SignedBlsToExecutionChange, T::EthSpec>, Error> {
-        // Before checking the gossip duplicate filter, check that no prior change is already
-        // in our op pool. Ignore these messages: do not gossip, do not try to override the pool.
-        match self
-            .op_pool
-            .bls_to_execution_change_in_pool_equals(&bls_to_execution_change)
-        {
-            Some(true) => return Ok(ObservationOutcome::AlreadyKnown),
-            Some(false) => return Err(Error::BlsToExecutionConflictsWithPool),
-            None => (),
-        }
-
-        // Use the head state to save advancing to the wall-clock slot unnecessarily. The message is
-        // signed with respect to the genesis fork version, and the slot check for gossip is applied
-        // separately. This `Arc` clone of the head is nice and cheap.
         let head_snapshot = self.head().snapshot;
         let head_state = &head_snapshot.beacon_state;
-
-        Ok(self
-            .observed_bls_to_execution_changes
-            .lock()
-            .verify_and_observe(bls_to_execution_change, head_state, &self.spec)?)
+        self.operations
+            .verify_bls_to_execution_change(bls_to_execution_change, head_state)
     }
 
     /// Verify a signed BLS to execution change before allowing it to propagate on the gossip network.
@@ -2692,18 +2661,14 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         &self,
         bls_to_execution_change: SignedBlsToExecutionChange,
     ) -> Result<ObservationOutcome<SignedBlsToExecutionChange, T::EthSpec>, Error> {
-        // Ignore BLS to execution changes on gossip prior to Capella.
-        if !self.current_slot_is_post_capella()? {
-            return Err(Error::BlsToExecutionPriorToCapella);
-        }
-        self.verify_bls_to_execution_change_for_http_api(bls_to_execution_change)
-            .or_else(|e| {
-                // On gossip treat conflicts the same as duplicates [IGNORE].
-                match e {
-                    Error::BlsToExecutionConflictsWithPool => Ok(ObservationOutcome::AlreadyKnown),
-                    e => Err(e),
-                }
-            })
+        let is_post_capella = self.current_slot_is_post_capella()?;
+        let head_snapshot = self.head().snapshot;
+        let head_state = &head_snapshot.beacon_state;
+        self.operations.verify_bls_to_execution_change_for_gossip(
+            bls_to_execution_change,
+            head_state,
+            is_post_capella,
+        )
     }
 
     /// Check if the current slot is greater than or equal to the Capella fork epoch.
@@ -2728,8 +2693,8 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             )));
         }
 
-        self.op_pool
-            .insert_bls_to_execution_change(bls_to_execution_change, received_pre_capella)
+        self.operations
+            .import_bls_to_execution_change(bls_to_execution_change, received_pre_capella)
     }
 
     /// Attempt to obtain sync committee duties from the head.
@@ -6409,8 +6374,6 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             self.naive_aggregation_pool.write().prune(slot);
             self.block_times_cache.write().prune(slot);
             self.envelope_times_cache.write().prune(slot);
-            self.gossip_verified_payload_bid_cache.prune(slot);
-            self.gossip_verified_proposer_preferences_cache.prune(slot);
 
             // Don't run heavy-weight tasks during sync.
             if self.best_slot() + MAX_PER_SLOT_FORK_CHOICE_DISTANCE < slot {
@@ -6730,12 +6693,21 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
                         (None, block.state_root())
                     }
                 } else {
-                    // TODO(gloas): should use fork choice/cached head for last block in sequence
-                    opt_envelope
-                        .as_ref()
-                        .map_or((None, block.state_root()), |envelope| {
-                            (Some(envelope.clone()), envelope.message.state_root)
-                        })
+                    // Last block in the sequence: use canonical head to determine
+                    // whether the payload is canonical.
+                    let head = self.canonical_head.cached_head();
+                    assert_eq!(head.head_block_root(), *block_root);
+                    let payload_received = head.head_payload_status().as_state_payload_status()
+                        == StatePayloadStatus::Full;
+                    if payload_received {
+                        let envelope = opt_envelope.ok_or_else(|| {
+                            Error::DBInconsistent(format!("Missing envelope {block_root:?}"))
+                        })?;
+                        let state_root = envelope.message.state_root;
+                        (Some(envelope), state_root)
+                    } else {
+                        (None, block.state_root())
+                    }
                 }
             } else {
                 (None, block.state_root())
