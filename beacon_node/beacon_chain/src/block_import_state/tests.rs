@@ -11,7 +11,7 @@ type E = MinimalEthSpec;
 
 #[test]
 fn new_creates_empty_caches() {
-    let bw = BlockWorkflow::<E>::new();
+    let bw = BlockImportState::<E>::new();
 
     // Block times cache should be empty.
     assert!(
@@ -38,7 +38,7 @@ fn new_creates_empty_caches() {
 
 #[test]
 fn prune_caches_removes_old_entries() {
-    let bw = BlockWorkflow::<E>::new();
+    let bw = BlockImportState::<E>::new();
 
     let old_slot = Slot::new(10);
     let recent_slot = Slot::new(100);
@@ -88,8 +88,8 @@ fn prune_caches_removes_old_entries() {
 
 #[test]
 fn default_is_equivalent_to_new() {
-    let bw1 = BlockWorkflow::<E>::new();
-    let bw2 = BlockWorkflow::<E>::default();
+    let bw1 = BlockImportState::<E>::new();
+    let bw2 = BlockImportState::<E>::default();
 
     // Both should produce empty caches.
     assert!(bw1.block_times_cache.read().cache.is_empty());

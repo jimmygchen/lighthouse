@@ -5,7 +5,7 @@ use crate::beacon_chain::{
     BEACON_CHAIN_DB_KEY, CanonicalHead, LightClientProducerEvent, OP_POOL_DB_KEY,
 };
 use crate::beacon_proposer_cache::BeaconProposerCache;
-use crate::block_workflow::BlockWorkflow;
+use crate::block_import_state::BlockImportState;
 use crate::custody_context::NodeCustodyType;
 use crate::data_availability_checker::DataAvailabilityChecker;
 use crate::data_availability_manager::DataAvailabilityManager;
@@ -1104,7 +1104,7 @@ where
             rng: rng.clone(),
             data_availability_manager,
             execution_manager,
-            block_workflow: BlockWorkflow::new(),
+            block_import_state: BlockImportState::new(),
         };
 
         let head = beacon_chain.head_snapshot();

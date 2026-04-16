@@ -1,9 +1,9 @@
-//! Block verification, import state, and timing caches.
+//! Block import state: timing caches and observation trackers.
 //!
-//! `BlockWorkflow<T>` owns the caches and observation trackers directly related
-//! to block processing: timing caches, observed block producers, and the
-//! pre-finalization block cache. It provides simple accessor and pruning
-//! methods on this owned state.
+//! `BlockImportState<E>` owns the caches and observation trackers directly
+//! related to block processing: timing caches, observed block producers, and
+//! the pre-finalization block cache. It is a pure state holder with no
+//! business logic beyond construction and cache pruning.
 //!
 //! ## What stays on `BeaconChain`
 //!
@@ -51,7 +51,7 @@ use types::{EthSpec, Slot};
 ///
 /// Generic over `E: EthSpec` because none of these fields require store
 /// access or the slot clock type.
-pub struct BlockWorkflow<E: EthSpec> {
+pub struct BlockImportState<E: EthSpec> {
     /// Cache tracking timestamps for block observation, verification,
     /// execution, import, and head-setting.
     pub block_times_cache: Arc<RwLock<BlockTimesCache>>,
@@ -70,8 +70,8 @@ pub struct BlockWorkflow<E: EthSpec> {
     pub observed_slashable: RwLock<ObservedSlashable<E>>,
 }
 
-impl<E: EthSpec> BlockWorkflow<E> {
-    /// Create a new `BlockWorkflow` with default (empty) caches.
+impl<E: EthSpec> BlockImportState<E> {
+    /// Create a new `BlockImportState` with default (empty) caches.
     pub fn new() -> Self {
         Self {
             block_times_cache: <_>::default(),
@@ -89,24 +89,9 @@ impl<E: EthSpec> BlockWorkflow<E> {
         self.block_times_cache.write().prune(current_slot);
         self.envelope_times_cache.write().prune(current_slot);
     }
-
-    /// Prune the observed block producers cache based on the finalized slot.
-    ///
-    /// Should be called after finalization updates (e.g., from
-    /// `after_new_head`).
-    pub fn prune_observed_block_producers(&self, finalized_slot: Slot) {
-        self.observed_block_producers.write().prune(finalized_slot);
-    }
-
-    /// Prune the observed slashable cache based on the finalized slot.
-    ///
-    /// Should be called after finalization updates.
-    pub fn prune_observed_slashable(&self, finalized_slot: Slot) {
-        self.observed_slashable.write().prune(finalized_slot);
-    }
 }
 
-impl<E: EthSpec> Default for BlockWorkflow<E> {
+impl<E: EthSpec> Default for BlockImportState<E> {
     fn default() -> Self {
         Self::new()
     }

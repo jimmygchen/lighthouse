@@ -7,6 +7,7 @@ use crate::attestation_verification::{
 use crate::beacon_block_streamer::{BeaconBlockStreamer, CheckCaches};
 use crate::beacon_proposer_cache::{BeaconProposerCache, EpochBlockProposers};
 use crate::blob_verification::{GossipBlobError, GossipVerifiedBlob};
+use crate::block_import_state::BlockImportState;
 use crate::block_times_cache::BlockTimesCache;
 use crate::block_verification::{
     BlockError, ExecutionPendingBlock, GossipVerifiedBlock, IntoExecutionPendingBlock,
@@ -16,7 +17,6 @@ use crate::block_verification::{
 use crate::block_verification_types::{
     AsBlock, AvailableExecutedBlock, BlockImportData, ExecutedBlock, RangeSyncBlock,
 };
-use crate::block_workflow::BlockWorkflow;
 pub use crate::canonical_head::CanonicalHead;
 use crate::chain_config::ChainConfig;
 use crate::custody_context::CustodyContextSsz;
@@ -479,9 +479,9 @@ pub struct BeaconChain<T: BeaconChainTypes> {
     /// Component managing execution layer integration, proposer cache, and
     /// fork choice signalling.
     pub execution_manager: Arc<ExecutionManager<T>>,
-    /// Component managing block timing caches, observed block producers,
+    /// Block import state: timing caches, observed block producers,
     /// and observed slashable tracking.
-    pub block_workflow: BlockWorkflow<T::EthSpec>,
+    pub block_import_state: BlockImportState<T::EthSpec>,
 }
 
 pub enum BeaconBlockResponseWrapper<E: EthSpec> {
