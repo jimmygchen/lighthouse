@@ -378,6 +378,7 @@ pub fn get_beacon_state_committees<T: BeaconChainTypes>(
                                     shuffling_id.as_ref()
                                 {
                                     chain
+                                        .attestation_manager
                                         .shuffling_cache
                                         .try_write_for(std::time::Duration::from_secs(1))
                                         .and_then(|mut cache_write| cache_write.get(shuffling_id))
@@ -445,6 +446,7 @@ pub fn get_beacon_state_committees<T: BeaconChainTypes>(
                                             != beacon_chain::shuffling_cache::DEFAULT_CACHE_SIZE
                                             && let Some(shuffling_id) = shuffling_id
                                             && let Some(mut cache_write) = chain
+                                                .attestation_manager
                                                 .shuffling_cache
                                                 .try_write_for(std::time::Duration::from_secs(1))
                                         {

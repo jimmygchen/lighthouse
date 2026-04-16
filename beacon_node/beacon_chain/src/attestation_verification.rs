@@ -565,6 +565,7 @@ impl<'a, T: BeaconChainTypes> IndexedAggregatedAttestation<'a, T> {
         verify_committee_index(attestation, fork_name)?;
 
         if chain
+            .attestation_manager
             .observed_attestations
             .write()
             .is_known_subset(attestation, observed_attestation_key_root)
@@ -582,6 +583,7 @@ impl<'a, T: BeaconChainTypes> IndexedAggregatedAttestation<'a, T> {
         //
         // Note: do not observe yet, only observe once the attestation has been verified.
         match chain
+            .attestation_manager
             .observed_aggregators
             .read()
             .validator_has_been_observed(attestation.data().target.epoch, aggregator_index as usize)
@@ -749,6 +751,7 @@ impl<'a, T: BeaconChainTypes> VerifiedAggregatedAttestation<'a, T> {
         // It's important to double check that the attestation is not already known, otherwise two
         // attestations processed at the same time could be published.
         if let ObserveOutcome::Subset = chain
+            .attestation_manager
             .observed_attestations
             .write()
             .observe_item(attestation, Some(observed_attestation_key_root))
@@ -765,6 +768,7 @@ impl<'a, T: BeaconChainTypes> VerifiedAggregatedAttestation<'a, T> {
         // It's important to double check that the attestation is not already known, otherwise two
         // attestations processed at the same time could be published.
         if chain
+            .attestation_manager
             .observed_aggregators
             .write()
             .observe_validator(attestation.data().target.epoch, aggregator_index as usize)
@@ -946,6 +950,7 @@ impl<'a, T: BeaconChainTypes> IndexedUnaggregatedAttestation<'a, T> {
          * for the slot, attestation.data.slot.
          */
         if chain
+            .attestation_manager
             .observed_gossip_attesters
             .read()
             .validator_has_been_observed(attestation.data.target.epoch, validator_index as usize)
@@ -1080,6 +1085,7 @@ impl<'a, T: BeaconChainTypes> VerifiedUnaggregatedAttestation<'a, T> {
         // there can be a race-condition if we receive two attestations at the same time and
         // process them in different threads.
         if chain
+            .attestation_manager
             .observed_gossip_attesters
             .write()
             .observe_validator(attestation.data.target.epoch, validator_index as usize)
@@ -1208,6 +1214,7 @@ fn verify_head_block_is_known<T: BeaconChainTypes>(
         .get_block(&attestation_data.beacon_block_root)
         .or_else(|| {
             chain
+                .attestation_manager
                 .early_attester_cache
                 .get_proto_block(attestation_data.beacon_block_root)
         });
@@ -1303,7 +1310,7 @@ pub fn verify_attestation_signature<T: BeaconChainTypes>(
     let signature_setup_timer =
         metrics::start_timer(&metrics::ATTESTATION_PROCESSING_SIGNATURE_SETUP_TIMES);
 
-    let pubkey_cache = chain.validator_query.validator_pubkey_cache.read();
+    let pubkey_cache = chain.validator_pubkey_cache.read();
 
     let fork = chain
         .spec
@@ -1398,7 +1405,7 @@ pub fn verify_signed_aggregate_signatures<T: BeaconChainTypes>(
     signed_aggregate: &SignedAggregateAndProof<T::EthSpec>,
     indexed_attestation: &IndexedAttestation<T::EthSpec>,
 ) -> Result<bool, Error> {
-    let pubkey_cache = chain.validator_query.validator_pubkey_cache.read();
+    let pubkey_cache = chain.validator_pubkey_cache.read();
 
     let aggregator_index = signed_aggregate.message().aggregator_index();
     if aggregator_index >= pubkey_cache.len() as u64 {
@@ -1579,7 +1586,10 @@ where
         .canonical_head
         .fork_choice_read_lock()
         .contains_block(&target.root)
-        && !chain.early_attester_cache.contains_block(target.root)
+        && !chain
+            .attestation_manager
+            .early_attester_cache
+            .contains_block(target.root)
     {
         return Err(Error::UnknownTargetRoot(target.root));
     }

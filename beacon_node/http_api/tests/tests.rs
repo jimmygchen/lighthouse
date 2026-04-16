@@ -2507,7 +2507,14 @@ impl ApiTester {
             .data;
 
         let mut expected = self.chain.op_pool.get_all_attestations();
-        expected.extend(self.chain.naive_aggregation_pool.read().iter().cloned());
+        expected.extend(
+            self.chain
+                .attestation_manager
+                .naive_aggregation_pool
+                .read()
+                .iter()
+                .cloned(),
+        );
 
         assert_eq!(result, expected);
 
@@ -2580,7 +2587,14 @@ impl ApiTester {
                 .unwrap()
                 .into_data();
             let mut expected = self.chain.op_pool.get_all_attestations();
-            expected.extend(self.chain.naive_aggregation_pool.read().iter().cloned());
+            expected.extend(
+                self.chain
+                    .attestation_manager
+                    .naive_aggregation_pool
+                    .read()
+                    .iter()
+                    .cloned(),
+            );
             let expected_committee_index_filtered = expected
                 .clone()
                 .into_iter()

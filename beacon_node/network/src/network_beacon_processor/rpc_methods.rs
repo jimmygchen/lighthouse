@@ -412,7 +412,12 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                         BlockProcessStatus::ExecutionValidated(block) => Some(block),
                         BlockProcessStatus::Unknown => None,
                     })
-                    .or_else(|| self.chain.early_attester_cache.get_block(block_root))
+                    .or_else(|| {
+                        self.chain
+                            .attestation_manager
+                            .early_attester_cache
+                            .get_block(block_root)
+                    })
                     .map(|block| (block_root, block.slot()))
             })
             .collect();

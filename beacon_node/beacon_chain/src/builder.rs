@@ -1,11 +1,13 @@
 use crate::ChainConfig;
 use crate::CustodyContext;
+use crate::attestation_manager::AttestationManager;
 use crate::beacon_chain::{
     BEACON_CHAIN_DB_KEY, CanonicalHead, LightClientProducerEvent, OP_POOL_DB_KEY,
 };
 use crate::beacon_proposer_cache::BeaconProposerCache;
 use crate::custody_context::NodeCustodyType;
 use crate::data_availability_checker::DataAvailabilityChecker;
+use crate::data_availability_manager::DataAvailabilityManager;
 use crate::fork_choice_signal::ForkChoiceSignalTx;
 use crate::graffiti_calculator::{GraffitiCalculator, GraffitiOrigin};
 use crate::kzg_utils::{build_data_column_sidecars_fulu, build_data_column_sidecars_gloas};
@@ -15,10 +17,8 @@ use crate::observed_data_sidecars::ObservedDataSidecars;
 use crate::persisted_beacon_chain::PersistedBeaconChain;
 use crate::persisted_custody::load_custody_context;
 use crate::shuffling_cache::{BlockShufflingIds, ShufflingCache};
-use crate::sync_committee_manager::SyncCommitteeManager;
 use crate::validator_monitor::{ValidatorMonitor, ValidatorMonitorConfig};
 use crate::validator_pubkey_cache::ValidatorPubkeyCache;
-use crate::validator_query_service::ValidatorQueryService;
 use crate::{
     BeaconChain, BeaconChainTypes, BeaconForkChoiceStore, BeaconSnapshot, ServerSentEventHandler,
 };
@@ -1001,29 +1001,51 @@ where
         };
         debug!(?custody_context, "Loaded persisted custody context");
 
-        let op_pool = Arc::new(self.op_pool.ok_or("Cannot build without op pool")?);
+        let task_executor = self
+            .task_executor
+            .ok_or("Cannot build without task executor")?;
+        let kzg = self.kzg.clone();
+        let rng = Arc::new(Mutex::new(rng));
+        let data_availability_checker = Arc::new(
+            DataAvailabilityChecker::new(
+                complete_blob_backfill,
+                slot_clock.clone(),
+                kzg.clone(),
+                Arc::new(custody_context),
+                self.spec.clone(),
+            )
+            .map_err(|e| format!("Error initializing DataAvailabilityChecker: {:?}", e))?,
+        );
+        let data_availability_manager = Arc::new(DataAvailabilityManager::new(
+            self.spec.clone(),
+            store.clone(),
+            task_executor.clone(),
+            data_availability_checker.clone(),
+            kzg.clone(),
+            rng.clone(),
+        ));
 
         let beacon_chain = BeaconChain {
             spec: self.spec.clone(),
             config: self.chain_config,
             store: store.clone(),
-            task_executor: self
-                .task_executor
-                .ok_or("Cannot build without task executor")?,
+            task_executor,
             store_migrator,
             slot_clock: slot_clock.clone(),
-            op_pool: op_pool.clone(),
+            op_pool: self.op_pool.ok_or("Cannot build without op pool")?,
+            attestation_manager: AttestationManager::new(
+                self.spec.clone(),
+                genesis_block_root,
+                ShufflingCache::new(shuffling_cache_size, head_shuffling_ids.clone()),
+            ),
             // TODO: allow for persisting and loading the pool from disk.
-            naive_aggregation_pool: <_>::default(),
+            naive_sync_aggregation_pool: <_>::default(),
             // TODO: allow for persisting and loading the pool from disk.
-            observed_attestations: <_>::default(),
+            observed_sync_contributions: <_>::default(),
             // TODO: allow for persisting and loading the pool from disk.
-            observed_gossip_attesters: <_>::default(),
+            observed_sync_contributors: <_>::default(),
             // TODO: allow for persisting and loading the pool from disk.
-            observed_block_attesters: <_>::default(),
-            // TODO: allow for persisting and loading the pool from disk.
-            observed_aggregators: <_>::default(),
-            sync_committee_manager: SyncCommitteeManager::new(self.spec.clone(), op_pool.clone()),
+            observed_sync_aggregators: <_>::default(),
             // TODO: allow for persisting and loading the pool from disk.
             observed_block_producers: <_>::default(),
             observed_column_sidecars: RwLock::new(ObservedDataSidecars::new(self.spec.clone())),
@@ -1043,16 +1065,11 @@ where
             fork_choice_signal_tx,
             fork_choice_signal_rx,
             event_handler: self.event_handler,
-            shuffling_cache: RwLock::new(ShufflingCache::new(
-                shuffling_cache_size,
-                head_shuffling_ids,
-            )),
             beacon_proposer_cache,
             block_times_cache: <_>::default(),
             envelope_times_cache: <_>::default(),
             pre_finalization_block_cache: <_>::default(),
-            validator_query: ValidatorQueryService::new(validator_pubkey_cache),
-            early_attester_cache: <_>::default(),
+            validator_pubkey_cache: RwLock::new(validator_pubkey_cache),
             light_client_server_cache: LightClientServerCache::new(),
             light_client_server_tx: self.light_client_server_tx,
             shutdown_sender: self
@@ -1066,18 +1083,10 @@ where
             slasher: self.slasher.clone(),
             validator_monitor: RwLock::new(validator_monitor),
             genesis_backfill_slot,
-            data_availability_checker: Arc::new(
-                DataAvailabilityChecker::new(
-                    complete_blob_backfill,
-                    slot_clock,
-                    self.kzg.clone(),
-                    Arc::new(custody_context),
-                    self.spec,
-                )
-                .map_err(|e| format!("Error initializing DataAvailabilityChecker: {:?}", e))?,
-            ),
-            kzg: self.kzg.clone(),
-            rng: Arc::new(Mutex::new(rng)),
+            data_availability_checker: data_availability_checker.clone(),
+            kzg: kzg.clone(),
+            rng: rng.clone(),
+            data_availability_manager,
         };
 
         let head = beacon_chain.head_snapshot();

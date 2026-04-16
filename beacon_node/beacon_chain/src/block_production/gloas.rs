@@ -247,7 +247,12 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             let _guard = debug_span!("import_naive_aggregation_pool").entered();
             let _unagg_import_timer =
                 metrics::start_timer(&metrics::BLOCK_PRODUCTION_UNAGGREGATED_TIMES);
-            for attestation in self.naive_aggregation_pool.read().iter() {
+            for attestation in self
+                .attestation_manager
+                .naive_aggregation_pool
+                .read()
+                .iter()
+            {
                 let import = |attestation: &Attestation<T::EthSpec>| {
                     let attesting_indices =
                         get_attesting_indices_from_state(&state, attestation.to_ref())?;

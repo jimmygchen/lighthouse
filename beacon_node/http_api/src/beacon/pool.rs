@@ -443,6 +443,7 @@ pub fn get_beacon_pool_attestations<T: BeaconChainTypes>(
                     let mut attestations = chain.op_pool.get_filtered_attestations(query_filter);
                     attestations.extend(
                         chain
+                            .attestation_manager
                             .naive_aggregation_pool
                             .read()
                             .iter()

@@ -1,3 +1,4 @@
+use crate::attestation_manager::AttestationManager;
 use crate::attestation_verification::{
     Error as AttestationError, VerifiedAggregatedAttestation, VerifiedAttestation,
     VerifiedUnaggregatedAttestation, batch_verify_aggregated_attestations,
@@ -22,8 +23,8 @@ use crate::data_availability_checker::{
     Availability, AvailabilityCheckError, AvailableBlock, AvailableBlockData,
     DataAvailabilityChecker, DataColumnReconstructionResult,
 };
+use crate::data_availability_manager::DataAvailabilityManager;
 use crate::data_column_verification::{GossipDataColumnError, GossipVerifiedDataColumn};
-use crate::early_attester_cache::EarlyAttesterCache;
 use crate::envelope_times_cache::EnvelopeTimesCache;
 use crate::errors::{BeaconChainError as Error, BlockProductionError};
 use crate::events::ServerSentEventHandler;
@@ -31,7 +32,6 @@ use crate::execution_payload::{NotifyExecutionLayer, PreparePayloadHandle, get_e
 use crate::fetch_blobs::EngineGetBlobsOutput;
 use crate::fork_choice_signal::{ForkChoiceSignalRx, ForkChoiceSignalTx};
 use crate::graffiti_calculator::{GraffitiCalculator, GraffitiSettings};
-use crate::kzg_utils::reconstruct_blobs;
 use crate::light_client_finality_update_verification::{
     Error as LightClientFinalityUpdateError, VerifiedLightClientFinalityUpdate,
 };
@@ -41,12 +41,10 @@ use crate::light_client_optimistic_update_verification::{
 use crate::light_client_server_cache::LightClientServerCache;
 use crate::migrate::{BackgroundMigrator, ManualFinalizationNotification};
 use crate::naive_aggregation_pool::{
-    AggregatedAttestationMap, Error as NaiveAggregationError, NaiveAggregationPool,
+    Error as NaiveAggregationError, NaiveAggregationPool, SyncContributionAggregateMap,
 };
-use crate::observed_aggregates::{
-    Error as AttestationObservationError, ObservedAggregateAttestations,
-};
-use crate::observed_attesters::{ObservedAggregators, ObservedAttesters};
+use crate::observed_aggregates::{Error as AttestationObservationError, ObservedSyncContributions};
+use crate::observed_attesters::{ObservedSyncAggregators, ObservedSyncContributors};
 use crate::observed_block_producers::ObservedBlockProducers;
 use crate::observed_data_sidecars::ObservedDataSidecars;
 use crate::observed_operations::{ObservationOutcome, ObservedOperations};
@@ -58,14 +56,14 @@ use crate::persisted_beacon_chain::PersistedBeaconChain;
 use crate::persisted_custody::persist_custody_context;
 use crate::persisted_fork_choice::PersistedForkChoice;
 use crate::pre_finalization_cache::PreFinalizationBlockCache;
-use crate::shuffling_cache::{BlockShufflingIds, ShufflingCache};
+use crate::shuffling_cache::BlockShufflingIds;
 use crate::sync_committee_verification::{
     Error as SyncCommitteeError, VerifiedSyncCommitteeMessage, VerifiedSyncContribution,
 };
 use crate::validator_monitor::{
     HISTORIC_EPOCHS as VALIDATOR_MONITOR_HISTORIC_EPOCHS, ValidatorMonitor, get_slot_delay_ms,
 };
-use crate::validator_query_service::ValidatorQueryService;
+use crate::validator_pubkey_cache::ValidatorPubkeyCache;
 use crate::{
     AvailabilityPendingExecutedBlock, BeaconChainError, BeaconForkChoiceStore, BeaconSnapshot,
     CachedHead, metrics,
@@ -375,27 +373,23 @@ pub struct BeaconChain<T: BeaconChainTypes> {
     pub slot_clock: T::SlotClock,
     /// Stores all operations (e.g., `Attestation`, `Deposit`, etc) that are candidates for
     /// inclusion in a block.
-    pub op_pool: Arc<OperationPool<T::EthSpec>>,
-    /// A pool of attestations dedicated to the "naive aggregation strategy" defined in the eth2
+    pub op_pool: OperationPool<T::EthSpec>,
+    /// Manages attestation pools, observation tracking, and shuffling caches.
+    pub attestation_manager: AttestationManager<T::EthSpec>,
+    /// A pool of `SyncCommitteeContribution` dedicated to the "naive aggregation strategy" defined in the eth2
     /// specs.
     ///
-    /// This pool accepts `Attestation` objects that only have one aggregation bit set and provides
-    /// a method to get an aggregated `Attestation` for some `AttestationData`.
-    pub naive_aggregation_pool: RwLock<NaiveAggregationPool<AggregatedAttestationMap<T::EthSpec>>>,
-    /// Contains a store of attestations which have been observed by the beacon chain.
-    pub(crate) observed_attestations: RwLock<ObservedAggregateAttestations<T::EthSpec>>,
-    /// Maintains a record of which validators have been seen to publish gossip attestations in
-    /// recent epochs.
-    pub observed_gossip_attesters: RwLock<ObservedAttesters<T::EthSpec>>,
-    /// Maintains a record of which validators have been seen to have attestations included in
-    /// blocks in recent epochs.
-    pub observed_block_attesters: RwLock<ObservedAttesters<T::EthSpec>>,
-    /// Maintains a record of which validators have been seen to create `SignedAggregateAndProofs`
+    /// This pool accepts `SyncCommitteeContribution` objects that only have one aggregation bit set and provides
+    /// a method to get an aggregated `SyncCommitteeContribution` for some `SyncCommitteeContributionData`.
+    pub naive_sync_aggregation_pool:
+        RwLock<NaiveAggregationPool<SyncContributionAggregateMap<T::EthSpec>>>,
+    /// Contains a store of sync contributions which have been observed by the beacon chain.
+    pub(crate) observed_sync_contributions: RwLock<ObservedSyncContributions<T::EthSpec>>,
+    /// Maintains a record of which validators have been seen sending sync messages in recent epochs.
+    pub(crate) observed_sync_contributors: RwLock<ObservedSyncContributors<T::EthSpec>>,
+    /// Maintains a record of which validators have been seen to create `SignedContributionAndProofs`
     /// in recent epochs.
-    pub observed_aggregators: RwLock<ObservedAggregators<T::EthSpec>>,
-    /// Manages sync committee message and contribution verification, and the
-    /// sync aggregation pool.
-    pub sync_committee_manager: crate::sync_committee_manager::SyncCommitteeManager<T::EthSpec>,
+    pub(crate) observed_sync_aggregators: RwLock<ObservedSyncAggregators<T::EthSpec>>,
     /// Maintains a record of which validators have proposed blocks for each slot.
     pub observed_block_producers: RwLock<ObservedBlockProducers<T::EthSpec>>,
     /// Maintains a record of blob sidecars seen over the gossip network.
@@ -438,14 +432,10 @@ pub struct BeaconChain<T: BeaconChainTypes> {
     /// A handler for events generated by the beacon chain. This is only initialized when the
     /// HTTP server is enabled.
     pub event_handler: Option<ServerSentEventHandler<T::EthSpec>>,
-    /// Caches the attester shuffling for a given epoch and shuffling key root.
-    pub shuffling_cache: RwLock<ShufflingCache>,
     /// Caches the beacon block proposer shuffling for a given epoch and shuffling key root.
     pub beacon_proposer_cache: Arc<Mutex<BeaconProposerCache>>,
-    /// Handles validator public key and index lookups.
-    pub validator_query: ValidatorQueryService<T>,
-    /// A cache used when producing attestations whilst the head block is still being imported.
-    pub early_attester_cache: EarlyAttesterCache<T::EthSpec>,
+    /// Caches a map of `validator_index -> validator_pubkey`.
+    pub(crate) validator_pubkey_cache: RwLock<ValidatorPubkeyCache<T>>,
     /// A cache used to keep track of various block timings.
     pub block_times_cache: Arc<RwLock<BlockTimesCache>>,
     /// A cache used to keep track of various envelope timings.
@@ -474,6 +464,9 @@ pub struct BeaconChain<T: BeaconChainTypes> {
     pub kzg: Arc<Kzg>,
     /// RNG instance used by the chain. Currently used for shuffling column sidecars in block publishing.
     pub rng: Arc<Mutex<Box<dyn RngCore + Send>>>,
+    /// Component managing data availability: DA boundary calculations, custody info,
+    /// and blob/column retrieval.
+    pub data_availability_manager: Arc<DataAvailabilityManager<T>>,
 }
 
 pub enum BeaconBlockResponseWrapper<E: EthSpec> {
@@ -1126,7 +1119,8 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         &self,
         block_root: &Hash256,
     ) -> Result<BlobSidecarListFromRoot<T::EthSpec>, Error> {
-        self.early_attester_cache
+        self.attestation_manager
+            .early_attester_cache
             .get_blobs(*block_root)
             .map(Into::into)
             .map_or_else(|| self.get_blobs(block_root), Ok)
@@ -1155,7 +1149,11 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         let all_cached_columns_opt = self
             .data_availability_checker
             .get_data_columns(block_root)
-            .or_else(|| self.early_attester_cache.get_data_columns(block_root));
+            .or_else(|| {
+                self.attestation_manager
+                    .early_attester_cache
+                    .get_data_columns(block_root)
+            });
 
         if let Some(mut all_cached_columns) = all_cached_columns_opt {
             all_cached_columns.retain(|col| indices.contains(col.index()));
@@ -1244,7 +1242,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         &self,
         block_root: &Hash256,
     ) -> Result<BlobSidecarListFromRoot<T::EthSpec>, Error> {
-        self.store.get_blobs(block_root).map_err(Error::from)
+        self.data_availability_manager.get_blobs(block_root)
     }
 
     /// Returns the data columns at the given root, if any.
@@ -1256,9 +1254,8 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         block_root: &Hash256,
         fork_name: ForkName,
     ) -> Result<Option<DataColumnSidecarList<T::EthSpec>>, Error> {
-        self.store
+        self.data_availability_manager
             .get_data_columns(block_root, fork_name)
-            .map_err(Error::from)
     }
 
     /// Returns the blobs at the given root, if any.
@@ -1274,33 +1271,11 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         &self,
         block_root: &Hash256,
     ) -> Result<Option<BlobSidecarList<T::EthSpec>>, Error> {
-        let Some(block) = self.store.get_blinded_block(block_root)? else {
-            return Ok(None);
-        };
-
-        if self.spec.is_peer_das_enabled_for_epoch(block.epoch()) {
-            let fork_name = self.spec.fork_name_at_epoch(block.epoch());
-            if let Some(columns) = self.store.get_data_columns(block_root, fork_name)? {
-                let num_required_columns = T::EthSpec::number_of_columns() / 2;
-                let reconstruction_possible = columns.len() >= num_required_columns;
-                if reconstruction_possible {
-                    reconstruct_blobs(&self.kzg, columns, None, &block, &self.spec)
-                        .map(Some)
-                        .map_err(Error::FailedToReconstructBlobs)
-                } else {
-                    Err(Error::InsufficientColumnsToReconstructBlobs {
-                        columns_found: columns.len(),
-                    })
-                }
-            } else {
-                Ok(None)
-            }
-        } else {
-            Ok(self.get_blobs(block_root)?.blobs())
-        }
+        self.data_availability_manager
+            .get_or_reconstruct_blobs(block_root)
     }
 
-    /// Returns the data columns at the given root, if any.
+    /// Returns the data column at the given root and index, if any.
     ///
     /// ## Errors
     /// May return a database error.
@@ -1310,9 +1285,8 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         column_index: &ColumnIndex,
         fork_name: ForkName,
     ) -> Result<Option<Arc<DataColumnSidecar<T::EthSpec>>>, Error> {
-        Ok(self
-            .store
-            .get_data_column(block_root, column_index, fork_name)?)
+        self.data_availability_manager
+            .get_data_column(block_root, column_index, fork_name)
     }
 
     pub fn get_blinded_block(
@@ -1552,48 +1526,88 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
 
     /// Returns the validator index (if any) for the given public key.
     ///
-    /// Delegates to [`ValidatorQueryService::validator_index`].
+    /// ## Notes
+    ///
+    /// This query uses the `validator_pubkey_cache` which contains _all_ validators ever seen,
+    /// even if those validators aren't included in the head state. It is important to remember
+    /// that just because a validator exists here, it doesn't necessarily exist in all
+    /// `BeaconStates`.
+    ///
+    /// ## Errors
+    ///
+    /// May return an error if acquiring a read-lock on the `validator_pubkey_cache` times out.
     pub fn validator_index(&self, pubkey: &PublicKeyBytes) -> Result<Option<usize>, Error> {
-        self.validator_query.validator_index(pubkey)
+        let pubkey_cache = self.validator_pubkey_cache.read();
+
+        Ok(pubkey_cache.get_index(pubkey))
     }
 
     /// Return the validator indices of all public keys fetched from an iterator.
     ///
-    /// Delegates to [`ValidatorQueryService::validator_indices`].
+    /// If any public key doesn't belong to a known validator then an error will be returned.
+    /// We could consider relaxing this by returning `Vec<Option<usize>>` in future.
     pub fn validator_indices<'a>(
         &self,
         validator_pubkeys: impl Iterator<Item = &'a PublicKeyBytes>,
     ) -> Result<Vec<u64>, Error> {
-        self.validator_query.validator_indices(validator_pubkeys)
+        let pubkey_cache = self.validator_pubkey_cache.read();
+
+        validator_pubkeys
+            .map(|pubkey| {
+                pubkey_cache
+                    .get_index(pubkey)
+                    .map(|id| id as u64)
+                    .ok_or(Error::ValidatorPubkeyUnknown(*pubkey))
+            })
+            .collect()
     }
 
     /// Returns the validator pubkey (if any) for the given validator index.
     ///
-    /// Delegates to [`ValidatorQueryService::validator_pubkey`].
+    /// ## Notes
+    ///
+    /// This query uses the `validator_pubkey_cache` which contains _all_ validators ever seen,
+    /// even if those validators aren't included in the head state. It is important to remember
+    /// that just because a validator exists here, it doesn't necessarily exist in all
+    /// `BeaconStates`.
+    ///
+    /// ## Errors
+    ///
+    /// May return an error if acquiring a read-lock on the `validator_pubkey_cache` times out.
     pub fn validator_pubkey(&self, validator_index: usize) -> Result<Option<PublicKey>, Error> {
-        self.validator_query.validator_pubkey(validator_index)
+        let pubkey_cache = self.validator_pubkey_cache.read();
+
+        Ok(pubkey_cache.get(validator_index).cloned())
     }
 
     /// As per `Self::validator_pubkey`, but returns `PublicKeyBytes`.
-    ///
-    /// Delegates to [`ValidatorQueryService::validator_pubkey_bytes`].
     pub fn validator_pubkey_bytes(
         &self,
         validator_index: usize,
     ) -> Result<Option<PublicKeyBytes>, Error> {
-        self.validator_query.validator_pubkey_bytes(validator_index)
+        let pubkey_cache = self.validator_pubkey_cache.read();
+
+        Ok(pubkey_cache.get_pubkey_bytes(validator_index).copied())
     }
 
     /// As per `Self::validator_pubkey_bytes` but will resolve multiple indices at once to avoid
     /// bouncing the read-lock on the pubkey cache.
     ///
-    /// Delegates to [`ValidatorQueryService::validator_pubkey_bytes_many`].
+    /// Returns a map that may have a length less than `validator_indices.len()` if some indices
+    /// were unable to be resolved.
     pub fn validator_pubkey_bytes_many(
         &self,
         validator_indices: &[usize],
     ) -> Result<HashMap<usize, PublicKeyBytes>, Error> {
-        self.validator_query
-            .validator_pubkey_bytes_many(validator_indices)
+        let pubkey_cache = self.validator_pubkey_cache.read();
+
+        let mut map = HashMap::with_capacity(validator_indices.len());
+        for &validator_index in validator_indices {
+            if let Some(pubkey) = pubkey_cache.get_pubkey_bytes(validator_index) {
+                map.insert(validator_index, *pubkey);
+            }
+        }
+        Ok(map)
     }
 
     /// Returns the block canonical root of the current canonical chain at a given slot, starting from the given state.
@@ -1713,13 +1727,18 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
 
     /// Returns an aggregated `Attestation`, if any, that has a matching `attestation.data`.
     ///
-    /// The attestation will be obtained from `self.naive_aggregation_pool`.
+    /// The attestation will be obtained from `self.attestation_manager.naive_aggregation_pool`.
     pub fn get_aggregated_attestation_base(
         &self,
         data: &AttestationData,
     ) -> Result<Option<Attestation<T::EthSpec>>, Error> {
         let attestation_key = crate::naive_aggregation_pool::AttestationKey::new_base(data);
-        if let Some(attestation) = self.naive_aggregation_pool.read().get(&attestation_key) {
+        if let Some(attestation) = self
+            .attestation_manager
+            .naive_aggregation_pool
+            .read()
+            .get(&attestation_key)
+        {
             self.filter_optimistic_attestation(attestation)
                 .map(Option::Some)
         } else {
@@ -1738,7 +1757,12 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             *attestation_data_root,
             committee_index,
         );
-        if let Some(attestation) = self.naive_aggregation_pool.read().get(&attestation_key) {
+        if let Some(attestation) = self
+            .attestation_manager
+            .naive_aggregation_pool
+            .read()
+            .get(&attestation_key)
+        {
             self.filter_optimistic_attestation(attestation)
                 .map(Option::Some)
         } else {
@@ -1749,7 +1773,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
     /// Returns an aggregated `Attestation`, if any, that has a matching
     /// `attestation.data.tree_hash_root()`.
     ///
-    /// The attestation will be obtained from `self.naive_aggregation_pool`.
+    /// The attestation will be obtained from `self.attestation_manager.naive_aggregation_pool`.
     ///
     /// NOTE: This function will *only* work with pre-electra attestations and it only
     ///       exists to support the pre-electra validator API method.
@@ -1764,7 +1788,12 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
                 *attestation_data_root,
             );
 
-        if let Some(attestation) = self.naive_aggregation_pool.read().get(&attestation_key) {
+        if let Some(attestation) = self
+            .attestation_manager
+            .naive_aggregation_pool
+            .read()
+            .get(&attestation_key)
+        {
             self.filter_optimistic_attestation(attestation)
                 .map(Option::Some)
         } else {
@@ -1804,8 +1833,9 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         sync_contribution_data: &SyncContributionData,
     ) -> Result<Option<SyncCommitteeContribution<T::EthSpec>>, Error> {
         if let Some(contribution) = self
-            .sync_committee_manager
-            .get_aggregated_sync_committee_contribution(sync_contribution_data)
+            .naive_sync_aggregation_pool
+            .read()
+            .get(sync_contribution_data)
         {
             self.filter_optimistic_sync_committee_contribution(contribution)
                 .map(Option::Some)
@@ -1864,10 +1894,11 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         // head/target votes.
         //
         // The early attester cache should never contain an optimistically imported block.
-        match self
-            .early_attester_cache
-            .try_attest(request_slot, request_index, &self.spec)
-        {
+        match self.attestation_manager.early_attester_cache.try_attest(
+            request_slot,
+            request_index,
+            &self.spec,
+        ) {
             // The cache matched this request, return the value.
             Ok(Some(attestation)) => return Ok(attestation),
             // The cache did not match this request, proceed with the rest of this function.
@@ -2269,39 +2300,10 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         &self,
         unaggregated_attestation: &impl VerifiedAttestation<T>,
     ) -> Result<(), AttestationError> {
-        let _timer = metrics::start_timer(&metrics::ATTESTATION_PROCESSING_APPLY_TO_AGG_POOL);
-
         let attestation = unaggregated_attestation.attestation();
-
-        match self.naive_aggregation_pool.write().insert(attestation) {
-            Ok(outcome) => trace!(
-                ?outcome,
-                index = attestation.committee_index(),
-                slot = attestation.data().slot.as_u64(),
-                "Stored unaggregated attestation"
-            ),
-            Err(NaiveAggregationError::SlotTooLow {
-                slot,
-                lowest_permissible_slot,
-            }) => {
-                trace!(
-                    lowest_permissible_slot = lowest_permissible_slot.as_u64(),
-                    slot = slot.as_u64(),
-                    "Refused to store unaggregated attestation"
-                );
-            }
-            Err(e) => {
-                error!(
-                    error = ?e,
-                    index = attestation.committee_index(),
-                    slot = attestation.data().slot.as_u64(),
-                    "Failed to store unaggregated attestation"
-                );
-                return Err(Error::from(e).into());
-            }
-        };
-
-        Ok(())
+        self.attestation_manager
+            .add_to_naive_aggregation_pool(attestation)
+            .map_err(|e| e.into())
     }
 
     /// Accepts a `VerifiedSyncCommitteeMessage` and attempts to apply it to the "naive
@@ -2316,8 +2318,53 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         &self,
         verified_sync_committee_message: VerifiedSyncCommitteeMessage,
     ) -> Result<VerifiedSyncCommitteeMessage, SyncCommitteeError> {
-        self.sync_committee_manager
-            .add_to_naive_sync_aggregation_pool(verified_sync_committee_message)
+        let sync_message = verified_sync_committee_message.sync_message();
+        let positions_by_subnet_id: &HashMap<SyncSubnetId, Vec<usize>> =
+            verified_sync_committee_message.subnet_positions();
+        for (subnet_id, positions) in positions_by_subnet_id.iter() {
+            for position in positions {
+                let _timer =
+                    metrics::start_timer(&metrics::SYNC_CONTRIBUTION_PROCESSING_APPLY_TO_AGG_POOL);
+                let contribution = SyncCommitteeContribution::from_message(
+                    sync_message,
+                    subnet_id.into(),
+                    *position,
+                )?;
+
+                match self
+                    .naive_sync_aggregation_pool
+                    .write()
+                    .insert(&contribution)
+                {
+                    Ok(outcome) => trace!(
+                        ?outcome,
+                        index = sync_message.validator_index,
+                        slot = sync_message.slot.as_u64(),
+                        "Stored unaggregated sync committee message"
+                    ),
+                    Err(NaiveAggregationError::SlotTooLow {
+                        slot,
+                        lowest_permissible_slot,
+                    }) => {
+                        trace!(
+                            lowest_permissible_slot = lowest_permissible_slot.as_u64(),
+                            slot = slot.as_u64(),
+                            "Refused to store unaggregated sync committee message"
+                        );
+                    }
+                    Err(e) => {
+                        error!(
+                            error = ?e,
+                            index = sync_message.validator_index,
+                            slot = sync_message.slot.as_u64(),
+                            "Failed to store unaggregated sync committee message"
+                        );
+                        return Err(Error::from(e).into());
+                    }
+                };
+            }
+        }
+        Ok(verified_sync_committee_message)
     }
 
     /// Accepts a `VerifiedAttestation` and attempts to apply it to `self.op_pool`.
@@ -2349,8 +2396,15 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         &self,
         contribution: VerifiedSyncContribution<T>,
     ) -> Result<(), SyncCommitteeError> {
-        self.sync_committee_manager
-            .add_contribution_to_block_inclusion_pool(contribution)
+        let _timer = metrics::start_timer(&metrics::SYNC_CONTRIBUTION_PROCESSING_APPLY_TO_OP_POOL);
+
+        // If there's no eth1 chain then it's impossible to produce blocks and therefore
+        // useless to put things in the op pool.
+        self.op_pool
+            .insert_sync_contribution(contribution.contribution())
+            .map_err(Error::from)?;
+
+        Ok(())
     }
 
     /// Filter an attestation from the op pool for shuffling compatibility.
@@ -2406,12 +2460,6 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         target_epoch: Epoch,
         state: &BeaconState<T::EthSpec>,
     ) -> Result<bool, Error> {
-        // Compute the shuffling ID for the head state in the `target_epoch`.
-        let relative_epoch = RelativeEpoch::from_epoch(state.current_epoch(), target_epoch)
-            .map_err(|e| Error::BeaconStateError(e.into()))?;
-        let head_shuffling_id =
-            AttestationShufflingId::new(self.genesis_block_root, state, relative_epoch)?;
-
         // Load the block's shuffling ID from fork choice. We use the variant of `get_block` that
         // checks descent from the finalized block, so there's one case where we'll spuriously
         // return `false`: where an attestation for the previous epoch nominates the pivot block
@@ -2443,18 +2491,12 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             return Ok(false);
         };
 
-        if head_shuffling_id == block_shuffling_id {
-            Ok(true)
-        } else {
-            debug!(
-                ?block_root,
-                %target_epoch,
-                ?head_shuffling_id,
-                ?block_shuffling_id,
-                "Skipping attestation with incompatible shuffling"
-            );
-            Ok(false)
-        }
+        Ok(self.attestation_manager.shuffling_is_compatible(
+            block_root,
+            target_epoch,
+            state,
+            block_shuffling_id,
+        ))
     }
 
     /// Verify a voluntary exit before allowing it to propagate on the gossip network.
@@ -2635,11 +2677,9 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         validator_indices: &[u64],
     ) -> Result<Vec<Result<Option<SyncDuty>, BeaconStateError>>, Error> {
         self.with_head(move |head| {
-            self.sync_committee_manager.sync_committee_duties(
-                epoch,
-                validator_indices,
-                &head.beacon_state,
-            )
+            head.beacon_state
+                .get_sync_committee_duties(epoch, validator_indices, &self.spec)
+                .map_err(Error::SyncDutiesError)
         })
     }
 
@@ -3765,10 +3805,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         // would be difficult to check that they all lock fork choice first.
         let mut ops = {
             let _timer = metrics::start_timer(&metrics::BLOCK_PROCESSING_PUBKEY_CACHE_LOCK);
-            let pubkey_cache = self
-                .validator_query
-                .validator_pubkey_cache
-                .upgradable_read();
+            let pubkey_cache = self.validator_pubkey_cache.upgradable_read();
 
             // Only take a write lock if there are new keys to import.
             if state.validators().len() > pubkey_cache.len() {
@@ -3847,12 +3884,11 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
                         let new_head_is_optimistic =
                             proto_block.execution_status.is_optimistic_or_invalid();
 
-                        if let Err(e) = self.early_attester_cache.add_head_block(
-                            block_root,
-                            &signed_block,
-                            proto_block,
-                            &state,
-                        ) {
+                        if let Err(e) = self
+                            .attestation_manager
+                            .early_attester_cache
+                            .add_head_block(block_root, &signed_block, proto_block, &state)
+                        {
                             warn!(
                                 error = ?e,
                                 "Early attester cache insert failed"
@@ -4034,7 +4070,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
     ) -> Result<(), BlockError> {
         // Clear the early attester cache to prevent attestations which we would later be unable
         // to verify due to the failure.
-        self.early_attester_cache.clear();
+        self.attestation_manager.early_attester_cache.clear();
 
         // Since the write failed, try to revert the canonical head back to what was stored
         // in the database. This attempts to prevent inconsistency between the database and
@@ -4229,7 +4265,12 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         let _timer = metrics::start_timer(&metrics::BLOCK_PROCESSING_ATTESTATION_OBSERVATION);
 
         for a in block.body().attestations() {
-            match self.observed_attestations.write().observe_item(a, None) {
+            match self
+                .attestation_manager
+                .observed_attestations
+                .write()
+                .observe_item(a, None)
+            {
                 // If the observation was successful or if the slot for the attestation was too
                 // low, continue.
                 //
@@ -4257,7 +4298,8 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
                 }
             };
 
-            let mut observed_block_attesters = self.observed_block_attesters.write();
+            let mut observed_block_attesters =
+                self.attestation_manager.observed_block_attesters.write();
 
             for &validator_index in indexed_attestation.attesting_indices_iter() {
                 if let Err(e) = observed_block_attesters
@@ -4377,33 +4419,8 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         block_root: Hash256,
         state: &mut BeaconState<T::EthSpec>,
     ) {
-        if let Err(e) = self.import_block_update_shuffling_cache_fallible(block_root, state) {
-            warn!(
-                error = ?e,
-                "Failed to prime shuffling cache"
-            );
-        }
-    }
-
-    fn import_block_update_shuffling_cache_fallible(
-        &self,
-        block_root: Hash256,
-        state: &mut BeaconState<T::EthSpec>,
-    ) -> Result<(), BlockError> {
-        for relative_epoch in [RelativeEpoch::Current, RelativeEpoch::Next] {
-            let shuffling_id = AttestationShufflingId::new(block_root, state, relative_epoch)?;
-
-            let shuffling_is_cached = self.shuffling_cache.read().contains(&shuffling_id);
-
-            if !shuffling_is_cached {
-                state.build_committee_cache(relative_epoch, &self.spec)?;
-                let committee_cache = state.committee_cache(relative_epoch)?;
-                self.shuffling_cache
-                    .write()
-                    .insert_committee_cache(shuffling_id, committee_cache);
-            }
-        }
-        Ok(())
+        self.attestation_manager
+            .import_block_update_shuffling_cache(block_root, state);
     }
 
     pub async fn produce_block_with_verification(
@@ -5052,7 +5069,12 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             let _guard = debug_span!("import_naive_aggregation_pool").entered();
             let _unagg_import_timer =
                 metrics::start_timer(&metrics::BLOCK_PRODUCTION_UNAGGREGATED_TIMES);
-            for attestation in self.naive_aggregation_pool.read().iter() {
+            for attestation in self
+                .attestation_manager
+                .naive_aggregation_pool
+                .read()
+                .iter()
+            {
                 let import = |attestation: &Attestation<T::EthSpec>| {
                     let attesting_indices =
                         get_attesting_indices_from_state(&state, attestation.to_ref())?;
@@ -6307,7 +6329,10 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
 
             // Always run the light-weight pruning tasks (these structures should be empty during
             // sync anyway).
-            self.naive_aggregation_pool.write().prune(slot);
+            self.attestation_manager
+                .naive_aggregation_pool
+                .write()
+                .prune(slot);
             self.block_times_cache.write().prune(slot);
             self.envelope_times_cache.write().prune(slot);
 
@@ -6438,7 +6463,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         let mut shuffling_cache = {
             let _ =
                 metrics::start_timer(&metrics::ATTESTATION_PROCESSING_SHUFFLING_CACHE_WAIT_TIMES);
-            self.shuffling_cache.write()
+            self.attestation_manager.shuffling_cache.write()
         };
 
         if let Some(cache_item) = shuffling_cache.get(&shuffling_id) {
@@ -6552,7 +6577,8 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             let committee_cache = state.committee_cache(relative_epoch)?.clone();
             let shuffling_decision_block = shuffling_id.shuffling_decision_block;
 
-            self.shuffling_cache
+            self.attestation_manager
+                .shuffling_cache
                 .write()
                 .insert_committee_cache(shuffling_id, &committee_cache);
 
@@ -6711,51 +6737,23 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
 
     /// Update data column custody info with the slot at which cgc was changed.
     pub fn update_data_column_custody_info(&self, slot: Option<Slot>) {
-        self.store
-            .put_data_column_custody_info(slot)
-            .unwrap_or_else(|e| error!(error = ?e, "Failed to update data column custody info"));
+        self.data_availability_manager
+            .update_data_column_custody_info(slot)
     }
 
     /// Get the earliest epoch in which the node has met its custody requirements.
     /// A `None` response indicates that we've met our custody requirements up to the
-    /// column data availability window
+    /// column data availability window.
     pub fn earliest_custodied_data_column_epoch(&self) -> Option<Epoch> {
-        self.store
-            .get_data_column_custody_info()
-            .inspect_err(
-                |e| error!(error=?e, "Failed to get data column custody info from the store"),
-            )
-            .ok()
-            .flatten()
-            .and_then(|info| info.earliest_data_column_slot)
-            .map(|slot| {
-                let mut epoch = slot.epoch(T::EthSpec::slots_per_epoch());
-                // If the earliest custodied slot isn't the first slot in the epoch
-                // The node has only met its custody requirements for the next epoch.
-                if slot > epoch.start_slot(T::EthSpec::slots_per_epoch()) {
-                    epoch += 1;
-                }
-                epoch
-            })
+        self.data_availability_manager
+            .earliest_custodied_data_column_epoch()
     }
 
     /// The data availability boundary for custodying columns. It will just be the
     /// regular data availability boundary unless we are near the Fulu fork epoch.
     pub fn column_data_availability_boundary(&self) -> Option<Epoch> {
-        match self.data_availability_boundary() {
-            Some(da_boundary_epoch) => {
-                if let Some(fulu_fork_epoch) = self.spec.fulu_fork_epoch {
-                    if da_boundary_epoch < fulu_fork_epoch {
-                        Some(fulu_fork_epoch)
-                    } else {
-                        Some(da_boundary_epoch)
-                    }
-                } else {
-                    None // Fulu hasn't been enabled
-                }
-            }
-            None => None, // Deneb hasn't been enabled
-        }
+        self.data_availability_manager
+            .column_data_availability_boundary()
     }
 
     /// Safely update data column custody info by ensuring that:
@@ -6766,85 +6764,21 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         &self,
         effective_epoch: Epoch,
     ) -> Result<(), Error> {
-        let Some(earliest_data_column_epoch) = self.earliest_custodied_data_column_epoch() else {
-            return Ok(());
-        };
-
-        if effective_epoch >= earliest_data_column_epoch {
-            return Ok(());
-        }
-
-        let cgc_at_effective_epoch = self
-            .data_availability_checker
-            .custody_context()
-            .custody_group_count_at_epoch(effective_epoch, &self.spec);
-
-        let cgc_at_earliest_data_colum_epoch = self
-            .data_availability_checker
-            .custody_context()
-            .custody_group_count_at_epoch(earliest_data_column_epoch, &self.spec);
-
-        let can_update_data_column_custody_info = cgc_at_effective_epoch
-            == cgc_at_earliest_data_colum_epoch
-            && effective_epoch == earliest_data_column_epoch - 1;
-
-        if can_update_data_column_custody_info {
-            self.store.put_data_column_custody_info(Some(
-                effective_epoch.start_slot(T::EthSpec::slots_per_epoch()),
-            ))?;
-        } else {
-            error!(
-                ?cgc_at_effective_epoch,
-                ?cgc_at_earliest_data_colum_epoch,
-                ?effective_epoch,
-                ?earliest_data_column_epoch,
-                "Couldn't update data column custody info"
-            );
-            return Err(Error::FailedColumnCustodyInfoUpdate);
-        }
-
-        Ok(())
+        self.data_availability_manager
+            .safely_backfill_data_column_custody_info(effective_epoch)
     }
 
     /// Compare columns custodied for `epoch` versus columns custodied for the head of the chain
     /// and return any column indices that are missing.
     pub fn get_missing_columns_for_epoch(&self, epoch: Epoch) -> HashSet<ColumnIndex> {
-        let custody_context = self.data_availability_checker.custody_context();
-
-        let columns_required = custody_context
-            .custody_columns_for_epoch(None, &self.spec)
-            .iter()
-            .cloned()
-            .collect::<HashSet<_>>();
-
-        let current_columns_at_epoch = custody_context
-            .custody_columns_for_epoch(Some(epoch), &self.spec)
-            .iter()
-            .cloned()
-            .collect::<HashSet<_>>();
-
-        columns_required
-            .difference(&current_columns_at_epoch)
-            .cloned()
-            .collect::<HashSet<_>>()
+        self.data_availability_manager
+            .get_missing_columns_for_epoch(epoch)
     }
 
-    /// The da boundary for custodying columns. It will just be the DA boundary unless we are near the Fulu fork epoch.
+    /// The DA boundary for custodying columns. It will just be the DA boundary
+    /// unless we are near the Fulu fork epoch.
     pub fn get_column_da_boundary(&self) -> Option<Epoch> {
-        match self.data_availability_boundary() {
-            Some(da_boundary_epoch) => {
-                if let Some(fulu_fork_epoch) = self.spec.fulu_fork_epoch {
-                    if da_boundary_epoch < fulu_fork_epoch {
-                        Some(fulu_fork_epoch)
-                    } else {
-                        Some(da_boundary_epoch)
-                    }
-                } else {
-                    None
-                }
-            }
-            None => None, // If no DA boundary set, dont try to custody backfill
-        }
+        self.data_availability_manager.get_column_da_boundary()
     }
 
     /// This method serves to get a sense of the current chain health. It is used in block proposal
@@ -7030,14 +6964,17 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         //
         // See: https://github.com/sigp/lighthouse/pull/2230#discussion_r620013993
         let gossip_attested = self
+            .attestation_manager
             .observed_gossip_attesters
             .read()
             .index_seen_at_epoch(validator_index, epoch);
         let block_attested = self
+            .attestation_manager
             .observed_block_attesters
             .read()
             .index_seen_at_epoch(validator_index, epoch);
         let aggregated = self
+            .attestation_manager
             .observed_aggregators
             .read()
             .index_seen_at_epoch(validator_index, epoch);
@@ -7052,25 +6989,25 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
     /// The epoch at which we require a data availability check in block processing.
     /// `None` if the `Deneb` fork is disabled.
     pub fn data_availability_boundary(&self) -> Option<Epoch> {
-        self.data_availability_checker.data_availability_boundary()
+        self.data_availability_manager.data_availability_boundary()
     }
 
-    /// Returns true if epoch is within the data availability boundary
+    /// Returns true if epoch is within the data availability boundary.
     pub fn da_check_required_for_epoch(&self, epoch: Epoch) -> bool {
-        self.data_availability_checker
+        self.data_availability_manager
             .da_check_required_for_epoch(epoch)
     }
 
-    /// Returns true if we should fetch blobs for this block
+    /// Returns true if we should fetch blobs for this block.
     pub fn should_fetch_blobs(&self, block_epoch: Epoch) -> bool {
-        self.da_check_required_for_epoch(block_epoch)
-            && !self.spec.is_peer_das_enabled_for_epoch(block_epoch)
+        self.data_availability_manager
+            .should_fetch_blobs(block_epoch)
     }
 
-    /// Returns true if we should fetch custody columns for this block
+    /// Returns true if we should fetch custody columns for this block.
     pub fn should_fetch_custody_columns(&self, block_epoch: Epoch) -> bool {
-        self.da_check_required_for_epoch(block_epoch)
-            && self.spec.is_peer_das_enabled_for_epoch(block_epoch)
+        self.data_availability_manager
+            .should_fetch_custody_columns(block_epoch)
     }
 
     /// Gets the `LightClientBootstrap` object for a requested block root.
@@ -7161,9 +7098,8 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
     /// Returns a list of column indices that should be sampled for a given epoch.
     /// Used for data availability sampling in PeerDAS.
     pub fn sampling_columns_for_epoch(&self, epoch: Epoch) -> &[ColumnIndex] {
-        self.data_availability_checker
-            .custody_context()
-            .sampling_columns_for_epoch(epoch, &self.spec)
+        self.data_availability_manager
+            .sampling_columns_for_epoch(epoch)
     }
 
     /// Returns a list of column indices that the node is expected to custody for a given epoch.
@@ -7172,9 +7108,8 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
     ///
     /// If epoch is `None`, this function computes the custody columns at head.
     pub fn custody_columns_for_epoch(&self, epoch_opt: Option<Epoch>) -> &[ColumnIndex] {
-        self.data_availability_checker
-            .custody_context()
-            .custody_columns_for_epoch(epoch_opt, &self.spec)
+        self.data_availability_manager
+            .custody_columns_for_epoch(epoch_opt)
     }
 }
 

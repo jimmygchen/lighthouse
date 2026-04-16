@@ -315,8 +315,7 @@ impl<T: BeaconChainTypes> CanonicalHead<T> {
             .ok_or(Error::MissingBeaconBlock(beacon_block_root))?;
         let current_slot = fork_choice.fc_store().get_current_slot();
 
-        // TODO(gloas): pass a better payload status once fork choice is implemented
-        let payload_status = StatePayloadStatus::Pending;
+        let payload_status = head_payload_status.as_state_payload_status();
         let (_, beacon_state) = store
             .get_advanced_hot_state(
                 beacon_block_root,
@@ -683,7 +682,9 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         drop(fork_choice_read_lock);
 
         // If the head has changed, update `self.canonical_head`.
-        let new_cached_head = if new_view.head_block_root != old_view.head_block_root {
+        let new_cached_head = if new_view.head_block_root != old_view.head_block_root
+            || new_payload_status != old_payload_status
+        {
             metrics::inc_counter(&metrics::FORK_CHOICE_CHANGED_HEAD);
 
             let mut new_snapshot = {
@@ -692,21 +693,37 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
                     .get_full_block(&new_view.head_block_root)?
                     .ok_or(Error::MissingBeaconBlock(new_view.head_block_root))?;
 
-                // TODO(gloas): update once we have fork choice
-                let payload_status = StatePayloadStatus::Pending;
+                let payload_status = new_payload_status.as_state_payload_status();
+
+                // Load the execution envelope from the store if the head has a Full payload.
+                let (state_root, execution_envelope) = if payload_status == StatePayloadStatus::Full
+                {
+                    // TODO(gloas): include block root in error
+                    let envelope = self
+                        .store
+                        .get_payload_envelope(&new_view.head_block_root)?
+                        .map(Arc::new)
+                        .ok_or(Error::MissingExecutionPayloadEnvelope(
+                            new_view.head_block_root,
+                        ))?;
+
+                    (envelope.message.state_root, Some(envelope))
+                } else {
+                    (beacon_block.state_root(), None)
+                };
                 let (_, beacon_state) = self
                     .store
                     .get_advanced_hot_state(
                         new_view.head_block_root,
                         payload_status,
                         current_slot,
-                        beacon_block.state_root(),
+                        state_root,
                     )?
-                    .ok_or(Error::MissingBeaconState(beacon_block.state_root()))?;
+                    .ok_or(Error::MissingBeaconState(state_root))?;
 
                 BeaconSnapshot {
                     beacon_block: Arc::new(beacon_block),
-                    execution_envelope: None,
+                    execution_envelope,
                     beacon_block_root: new_view.head_block_root,
                     beacon_state,
                 }
@@ -738,7 +755,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             };
 
             // Clear the early attester cache in case it conflicts with `self.canonical_head`.
-            self.early_attester_cache.clear();
+            self.attestation_manager.early_attester_cache.clear();
 
             new_head
         } else {
@@ -770,7 +787,8 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         let old_snapshot = &old_cached_head.snapshot;
 
         // If the head changed, perform some updates.
-        if new_snapshot.beacon_block_root != old_snapshot.beacon_block_root
+        if (new_snapshot.beacon_block_root != old_snapshot.beacon_block_root
+            || new_payload_status != old_payload_status)
             && let Err(e) =
                 self.after_new_head(&old_cached_head, &new_cached_head, new_head_proto_block)
         {
@@ -857,6 +875,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             &new_snapshot.beacon_state,
         ) {
             Ok(head_shuffling_ids) => self
+                .attestation_manager
                 .shuffling_cache
                 .write()
                 .update_head_shuffling_ids(head_shuffling_ids),
@@ -974,26 +993,40 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         // The store migration task and op pool pruning require the *state at the first slot of the
         // finalized epoch*, rather than the state of the latest finalized block. These two values
         // will only differ when the first slot of the finalized epoch is a skip slot.
-        //
-        // Use the `StateRootsIterator` directly rather than `BeaconChain::state_root_at_slot`
-        // to ensure we use the same state that we just set as the head.
         let new_finalized_slot = new_view
             .finalized_checkpoint
             .epoch
             .start_slot(T::EthSpec::slots_per_epoch());
-        let new_finalized_state_root = process_results(
-            StateRootsIterator::new(&self.store, &new_snapshot.beacon_state),
-            |mut iter| {
-                iter.find_map(|(state_root, slot)| {
-                    if slot == new_finalized_slot {
-                        Some(state_root)
-                    } else {
-                        None
-                    }
-                })
-            },
-        )?
-        .ok_or(Error::MissingFinalizedStateRoot(new_finalized_slot))?;
+        let new_finalized_state_root = if new_finalized_slot == finalized_proto_block.slot
+            || self
+                .spec
+                .fork_name_at_slot::<T::EthSpec>(finalized_proto_block.slot)
+                .gloas_enabled()
+        {
+            // Fast-path for the common case where the finalized state is not at a skipped slot.
+            //
+            // This is mandatory post-Gloas because the state root iterator will return the
+            // canonical state root at `new_finalized_slot`, which could be `Full`, but we need the
+            // state root of the `Pending` no matter what.
+            // TODO(gloas): consider just always using this state root (even pre-Gloas)
+            finalized_proto_block.state_root
+        } else {
+            // Use the `StateRootsIterator` directly rather than `BeaconChain::state_root_at_slot`
+            // to ensure we use the same state that we just set as the head.
+            process_results(
+                StateRootsIterator::new(&self.store, &new_snapshot.beacon_state),
+                |mut iter| {
+                    iter.find_map(|(state_root, slot)| {
+                        if slot == new_finalized_slot {
+                            Some(state_root)
+                        } else {
+                            None
+                        }
+                    })
+                },
+            )?
+            .ok_or(Error::MissingFinalizedStateRoot(new_finalized_slot))?
+        };
 
         let update_cache = true;
         let new_finalized_state = self

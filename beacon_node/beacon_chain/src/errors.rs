@@ -251,6 +251,7 @@ pub enum BeaconChainError {
     },
     SkipProposerPreparation,
     FailedColumnCustodyInfoUpdate,
+    MissingExecutionPayloadEnvelope(Hash256),
 }
 
 easy_from_to!(SlotProcessingError, BeaconChainError);

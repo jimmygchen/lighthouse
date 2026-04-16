@@ -1207,8 +1207,10 @@ pub fn serve<T: BeaconChainTypes>(
                     // See: https://github.com/sigp/lighthouse/issues/8667
                     let (block_root, execution_optimistic, finalized) =
                         if let BlockId(eth2::types::BlockId::Head) = block_id
-                            && let Some((head_block_slot, head_block_root)) =
-                                chain.early_attester_cache.get_head_block_root()
+                            && let Some((head_block_slot, head_block_root)) = chain
+                                .attestation_manager
+                                .early_attester_cache
+                                .get_head_block_root()
                             && head_block_slot >= chain.canonical_head.cached_head().head_slot()
                         {
                             // We know execution is NOT optimistic if the block is from the early
