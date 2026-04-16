@@ -935,27 +935,29 @@ impl<T: BeaconChainTypes> GossipVerifiedBlock<T> {
 
         let block_slot = block.slot();
         let mut opt_parent = None;
-        let proposer = chain.with_proposer_cache::<_, BlockError>(
-            proposer_shuffling_decision_block,
-            block_epoch,
-            |proposers| proposers.get_slot::<T::EthSpec>(block_slot),
-            || {
-                // The proposer index was *not* cached and we must load the parent in order to
-                // determine the proposer index.
-                let (mut parent, _) = load_parent(block.clone(), chain)?;
-                let parent_state_root = if let Some(state_root) = parent.beacon_state_root {
-                    state_root
-                } else {
-                    // This is potentially a little inefficient, although we are likely to need
-                    // the state's hash eventually (if the block is valid), and we are also likely
-                    // to already have the hash cached (if fetched from the state cache).
-                    parent.pre_state.canonical_root()?
-                };
-                let parent_state = parent.pre_state.clone();
-                opt_parent = Some(parent);
-                Ok((parent_state_root, parent_state))
-            },
-        )?;
+        let proposer = chain
+            .execution_manager
+            .with_proposer_cache::<_, BlockError>(
+                proposer_shuffling_decision_block,
+                block_epoch,
+                |proposers| proposers.get_slot::<T::EthSpec>(block_slot),
+                || {
+                    // The proposer index was *not* cached and we must load the parent in order to
+                    // determine the proposer index.
+                    let (mut parent, _) = load_parent(block.clone(), chain)?;
+                    let parent_state_root = if let Some(state_root) = parent.beacon_state_root {
+                        state_root
+                    } else {
+                        // This is potentially a little inefficient, although we are likely to need
+                        // the state's hash eventually (if the block is valid), and we are also likely
+                        // to already have the hash cached (if fetched from the state cache).
+                        parent.pre_state.canonical_root()?
+                    };
+                    let parent_state = parent.pre_state.clone();
+                    opt_parent = Some(parent);
+                    Ok((parent_state_root, parent_state))
+                },
+            )?;
         let expected_proposer = proposer.index;
         let fork = proposer.fork;
 

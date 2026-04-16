@@ -311,6 +311,7 @@ pub fn get_beacon_state_sync_committees<T: BeaconChainTypes>(
                         )?;
 
                     let validators = chain
+                        .validator_query
                         .validator_indices(sync_committee.pubkeys.iter())
                         .map_err(warp_utils::reject::unhandled_error)?;
 

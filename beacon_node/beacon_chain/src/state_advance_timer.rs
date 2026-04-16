@@ -355,7 +355,7 @@ fn advance_head<T: BeaconChainTypes>(beacon_chain: &Arc<BeaconChain<T>>) -> Resu
             head_block_root,
             &beacon_chain.spec,
         )?;
-        beacon_chain.with_proposer_cache(
+        beacon_chain.execution_manager.with_proposer_cache(
             current_epoch_decision_root,
             state.current_epoch(),
             |_| Ok(()),
@@ -382,7 +382,7 @@ fn advance_head<T: BeaconChainTypes>(beacon_chain: &Arc<BeaconChain<T>>) -> Resu
                 head_block_root,
                 &beacon_chain.spec,
             )?;
-            beacon_chain.with_proposer_cache(
+            beacon_chain.execution_manager.with_proposer_cache(
                 next_epoch_decision_root,
                 next_epoch,
                 |_| Ok(()),

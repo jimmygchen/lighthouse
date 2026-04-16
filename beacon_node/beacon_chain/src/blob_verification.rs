@@ -499,7 +499,7 @@ pub fn validate_blob_sidecar_for_gossip<T: BeaconChainTypes, O: ObservationStrat
     let proposer_shuffling_root =
         parent_block.proposer_shuffling_root_for_child_block(blob_epoch, &chain.spec);
 
-    let proposer = chain.with_proposer_cache(
+    let proposer = chain.execution_manager.with_proposer_cache(
         proposer_shuffling_root,
         blob_epoch,
         |proposers| proposers.get_slot::<T::EthSpec>(blob_slot),

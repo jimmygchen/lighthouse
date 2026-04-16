@@ -305,6 +305,7 @@ fn convert_to_api_response<T: BeaconChainTypes>(
     indices: Vec<usize>,
 ) -> Result<ApiDuties, warp::reject::Rejection> {
     let index_to_pubkey_map = chain
+        .validator_query
         .validator_pubkey_bytes_many(&indices)
         .map_err(warp_utils::reject::unhandled_error)?;
 

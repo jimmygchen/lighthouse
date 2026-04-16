@@ -5,7 +5,7 @@ use crate::attestation_verification::{
     batch_verify_unaggregated_attestations,
 };
 use crate::beacon_block_streamer::{BeaconBlockStreamer, CheckCaches};
-use crate::beacon_proposer_cache::{BeaconProposerCache, EpochBlockProposers};
+use crate::beacon_proposer_cache::BeaconProposerCache;
 use crate::blob_verification::{GossipBlobError, GossipVerifiedBlob};
 use crate::block_import_state::BlockImportState;
 use crate::block_times_cache::BlockTimesCache;
@@ -70,7 +70,7 @@ use crate::{
     AvailabilityPendingExecutedBlock, BeaconChainError, BeaconForkChoiceStore, BeaconSnapshot,
     CachedHead, metrics,
 };
-use bls::{PublicKey, PublicKeyBytes, Signature};
+use bls::Signature;
 use eth2::beacon_response::ForkVersionedResponse;
 use eth2::types::{
     EventKind, SseBlobSidecar, SseBlock, SseDataColumnSidecar, SseExtendedPayloadAttributes,
@@ -1459,70 +1459,6 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
     ///  be read.
     pub fn wall_clock_state(&self) -> Result<BeaconState<T::EthSpec>, Error> {
         self.state_at_slot(self.slot()?, StateSkipConfig::WithStateRoots)
-    }
-
-    /// Returns the validator index (if any) for the given public key.
-    ///
-    /// ## Notes
-    ///
-    /// This query uses the `validator_pubkey_cache` which contains _all_ validators ever seen,
-    /// even if those validators aren't included in the head state. It is important to remember
-    /// that just because a validator exists here, it doesn't necessarily exist in all
-    /// `BeaconStates`.
-    ///
-    /// ## Errors
-    ///
-    /// May return an error if acquiring a read-lock on the `validator_pubkey_cache` times out.
-    pub fn validator_index(&self, pubkey: &PublicKeyBytes) -> Result<Option<usize>, Error> {
-        self.validator_query.validator_index(pubkey)
-    }
-
-    /// Return the validator indices of all public keys fetched from an iterator.
-    ///
-    /// If any public key doesn't belong to a known validator then an error will be returned.
-    /// We could consider relaxing this by returning `Vec<Option<usize>>` in future.
-    pub fn validator_indices<'a>(
-        &self,
-        validator_pubkeys: impl Iterator<Item = &'a PublicKeyBytes>,
-    ) -> Result<Vec<u64>, Error> {
-        self.validator_query.validator_indices(validator_pubkeys)
-    }
-
-    /// Returns the validator pubkey (if any) for the given validator index.
-    ///
-    /// ## Notes
-    ///
-    /// This query uses the `validator_pubkey_cache` which contains _all_ validators ever seen,
-    /// even if those validators aren't included in the head state. It is important to remember
-    /// that just because a validator exists here, it doesn't necessarily exist in all
-    /// `BeaconStates`.
-    ///
-    /// ## Errors
-    ///
-    /// May return an error if acquiring a read-lock on the `validator_pubkey_cache` times out.
-    pub fn validator_pubkey(&self, validator_index: usize) -> Result<Option<PublicKey>, Error> {
-        self.validator_query.validator_pubkey(validator_index)
-    }
-
-    /// As per `Self::validator_pubkey`, but returns `PublicKeyBytes`.
-    pub fn validator_pubkey_bytes(
-        &self,
-        validator_index: usize,
-    ) -> Result<Option<PublicKeyBytes>, Error> {
-        self.validator_query.validator_pubkey_bytes(validator_index)
-    }
-
-    /// As per `Self::validator_pubkey_bytes` but will resolve multiple indices at once to avoid
-    /// bouncing the read-lock on the pubkey cache.
-    ///
-    /// Returns a map that may have a length less than `validator_indices.len()` if some indices
-    /// were unable to be resolved.
-    pub fn validator_pubkey_bytes_many(
-        &self,
-        validator_indices: &[usize],
-    ) -> Result<HashMap<usize, PublicKeyBytes>, Error> {
-        self.validator_query
-            .validator_pubkey_bytes_many(validator_indices)
     }
 
     /// Returns the block canonical root of the current canonical chain at a given slot, starting from the given state.
@@ -4259,7 +4195,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             .beacon_state
             .proposer_shuffling_decision_root_at_epoch(proposal_epoch, proposer_head, &self.spec)?;
 
-        let Some(proposer_index) = self.with_proposer_cache(
+        let Some(proposer_index) = self.execution_manager.with_proposer_cache(
             shuffling_decision_root,
             proposal_epoch,
             |proposers| proposers.get_slot::<T::EthSpec>(proposal_slot).map(|p| p.index as u64),
@@ -5562,7 +5498,10 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         let prepare_slot = current_slot + 1;
 
         // There's no need to run the proposer preparation routine before the bellatrix fork.
-        if self.slot_is_prior_to_bellatrix(prepare_slot) {
+        if self
+            .execution_manager
+            .slot_is_prior_to_bellatrix(prepare_slot)
+        {
             return Ok(None);
         }
 
@@ -5940,11 +5879,6 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         }
     }
 
-    /// Returns `true` if the given slot is prior to the `bellatrix_fork_epoch`.
-    pub fn slot_is_prior_to_bellatrix(&self, slot: Slot) -> bool {
-        self.execution_manager.slot_is_prior_to_bellatrix(slot)
-    }
-
     /// Returns the value of `execution_optimistic` for `block`.
     ///
     /// Returns `Ok(false)` if the block is pre-Bellatrix, or has `ExecutionStatus::Valid`.
@@ -5955,7 +5889,10 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         block: &SignedBeaconBlock<T::EthSpec, Payload>,
     ) -> Result<bool, BeaconChainError> {
         // Check if the block is pre-Bellatrix.
-        if self.slot_is_prior_to_bellatrix(block.slot()) {
+        if self
+            .execution_manager
+            .slot_is_prior_to_bellatrix(block.slot())
+        {
             Ok(false)
         } else {
             self.canonical_head
@@ -5981,7 +5918,10 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         head_block: &SignedBeaconBlock<T::EthSpec, Payload>,
     ) -> Result<bool, BeaconChainError> {
         // Check if the block is pre-Bellatrix.
-        if self.slot_is_prior_to_bellatrix(head_block.slot()) {
+        if self
+            .execution_manager
+            .slot_is_prior_to_bellatrix(head_block.slot())
+        {
             Ok(false)
         } else {
             self.canonical_head
@@ -6011,7 +5951,10 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         block_root: &Hash256,
     ) -> Result<bool, BeaconChainError> {
         // Check if the block is pre-Bellatrix.
-        if self.slot_is_prior_to_bellatrix(block_slot) {
+        if self
+            .execution_manager
+            .slot_is_prior_to_bellatrix(block_slot)
+        {
             Ok(false)
         } else {
             self.canonical_head
@@ -6145,26 +6088,6 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
     ///   recommended for code that wants to keep track of cache misses to produce a log and/or
     ///   increment a metric inside this closure .
     ///
-    /// This function makes use of closures in order to efficiently handle concurrent accesses to
-    /// the cache.
-    ///
-    /// The error type is polymorphic, if in doubt you can use `BeaconChainError`. You might need
-    /// to use a turbofish if type inference can't work it out.
-    pub fn with_proposer_cache<V, E: From<BeaconChainError> + From<BeaconStateError>>(
-        &self,
-        shuffling_decision_block: Hash256,
-        proposal_epoch: Epoch,
-        accessor: impl Fn(&EpochBlockProposers) -> Result<V, BeaconChainError>,
-        state_provider: impl FnOnce() -> Result<(Hash256, BeaconState<T::EthSpec>), E>,
-    ) -> Result<V, E> {
-        self.execution_manager.with_proposer_cache(
-            shuffling_decision_block,
-            proposal_epoch,
-            accessor,
-            state_provider,
-        )
-    }
-
     /// Runs the `map_fn` with the committee cache for `shuffling_epoch` from the chain with head
     /// `head_block_root`. The `map_fn` will be supplied two values:
     ///

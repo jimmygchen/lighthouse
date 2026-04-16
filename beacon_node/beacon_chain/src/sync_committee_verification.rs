@@ -313,6 +313,7 @@ impl<T: BeaconChainTypes> VerifiedSyncContribution<T> {
 
         // Ensure the aggregator's pubkey is in the declared subcommittee of the current sync committee
         let pubkey_bytes = chain
+            .validator_query
             .validator_pubkey_bytes(aggregator_index as usize)?
             .ok_or(Error::UnknownValidatorIndex(aggregator_index as usize))?;
         let sync_subcommittee_pubkeys = chain
@@ -467,6 +468,7 @@ impl VerifiedSyncCommitteeMessage {
 
         // Ensure the `subnet_id` is valid for the given validator.
         let pubkey = chain
+            .validator_query
             .validator_pubkey_bytes(sync_message.validator_index as usize)?
             .ok_or(Error::UnknownValidatorIndex(
                 sync_message.validator_index as usize,

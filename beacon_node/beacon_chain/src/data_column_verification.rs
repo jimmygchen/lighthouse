@@ -729,7 +729,7 @@ fn verify_proposer_and_signature<T: BeaconChainTypes>(
     let proposer_shuffling_root =
         parent_block.proposer_shuffling_root_for_child_block(column_epoch, &chain.spec);
 
-    let proposer = chain.with_proposer_cache(
+    let proposer = chain.execution_manager.with_proposer_cache(
         proposer_shuffling_root,
         column_epoch,
         |proposers| proposers.get_slot::<T::EthSpec>(column_slot),

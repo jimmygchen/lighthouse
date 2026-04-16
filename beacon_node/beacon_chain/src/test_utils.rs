@@ -1793,6 +1793,7 @@ where
                     .map(|(subcommittee_position, pubkey)| {
                         let validator_index = self
                             .chain
+                            .validator_query
                             .validator_index(pubkey)
                             .expect("should find validator index")
                             .expect("pubkey should exist in the beacon chain");
@@ -2044,6 +2045,7 @@ where
                         .find_map(|pubkey| {
                             let validator_index = self
                                 .chain
+                                .validator_query
                                 .validator_index(pubkey)
                                 .expect("should find validator index")
                                 .expect("pubkey should exist in the beacon chain");

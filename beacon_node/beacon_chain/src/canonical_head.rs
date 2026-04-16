@@ -1203,7 +1203,10 @@ fn spawn_execution_layer_updates<T: BeaconChainTypes>(
                 // Avoids raising an error before Bellatrix.
                 //
                 // See `Self::prepare_beacon_proposer` for more detail.
-                if chain.slot_is_prior_to_bellatrix(current_slot + 1) {
+                if chain
+                    .execution_manager
+                    .slot_is_prior_to_bellatrix(current_slot + 1)
+                {
                     return;
                 }
 
