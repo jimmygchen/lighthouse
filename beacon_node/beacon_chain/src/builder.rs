@@ -16,6 +16,7 @@ use crate::kzg_utils::{build_data_column_sidecars_fulu, build_data_column_sideca
 use crate::light_client_server_cache::LightClientServerCache;
 use crate::migrate::{BackgroundMigrator, MigratorConfig};
 use crate::observed_data_sidecars::ObservedDataSidecars;
+use crate::operations_manager::OperationsManager;
 use crate::persisted_beacon_chain::PersistedBeaconChain;
 use crate::persisted_custody::load_custody_context;
 use crate::shuffling_cache::{BlockShufflingIds, ShufflingCache};
@@ -1033,6 +1034,10 @@ where
             beacon_proposer_cache.clone(),
         ));
 
+        let op_pool = Arc::new(self.op_pool.ok_or("Cannot build without op pool")?);
+
+        let operations = OperationsManager::new(self.spec.clone(), op_pool.clone());
+
         let beacon_chain = BeaconChain {
             spec: self.spec.clone(),
             config: self.chain_config,
@@ -1040,12 +1045,13 @@ where
             task_executor,
             store_migrator,
             slot_clock: slot_clock.clone(),
-            op_pool: self.op_pool.ok_or("Cannot build without op pool")?,
+            op_pool,
             attestation_manager: AttestationManager::new(
                 self.spec.clone(),
                 genesis_block_root,
                 ShufflingCache::new(shuffling_cache_size, head_shuffling_ids.clone()),
             ),
+            operations,
             // TODO: allow for persisting and loading the pool from disk.
             naive_sync_aggregation_pool: <_>::default(),
             // TODO: allow for persisting and loading the pool from disk.
@@ -1077,6 +1083,8 @@ where
             block_times_cache: <_>::default(),
             envelope_times_cache: <_>::default(),
             pre_finalization_block_cache: <_>::default(),
+            gossip_verified_payload_bid_cache: <_>::default(),
+            gossip_verified_proposer_preferences_cache: <_>::default(),
             validator_pubkey_cache: RwLock::new(validator_pubkey_cache),
             light_client_server_cache: LightClientServerCache::new(),
             light_client_server_tx: self.light_client_server_tx,

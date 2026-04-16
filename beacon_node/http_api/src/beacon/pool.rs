@@ -5,6 +5,7 @@ use crate::version::{
     unsupported_version_rejection,
 };
 use crate::{sync_committees, utils};
+use beacon_chain::events::EventKind;
 use beacon_chain::observed_operations::ObservationOutcome;
 use beacon_chain::{BeaconChain, BeaconChainTypes};
 use eth2::types::{AttestationPoolQuery, EndpointVersion, Failure, GenericResponse};
@@ -57,10 +58,30 @@ pub fn post_beacon_pool_bls_to_execution_changes<T: BeaconChainTypes>(
                 task_spawner.blocking_json_task(Priority::P0, move || {
                     let mut failures = vec![];
 
+                    // Fetch head state once for all verifications (caller DI pattern).
+                    let head = chain.canonical_head.cached_head();
+                    let head_state = &head.snapshot.beacon_state;
+
                     for (index, address_change) in address_changes.into_iter().enumerate() {
                         let validator_index = address_change.message.validator_index;
 
-                        match chain.verify_bls_to_execution_change_for_http_api(address_change) {
+                        // Check op pool for conflicts before checking the gossip duplicate filter.
+                        let pool_result = chain
+                            .op_pool
+                            .bls_to_execution_change_in_pool_equals(&address_change);
+                        let verify_result = match pool_result {
+                            Some(true) => Ok(ObservationOutcome::AlreadyKnown),
+                            Some(false) => {
+                                Err(beacon_chain::BeaconChainError::BlsToExecutionConflictsWithPool)
+                            }
+                            None => chain
+                                .observed_bls_to_execution_changes
+                                .lock()
+                                .verify_and_observe(address_change, head_state, &chain.spec)
+                                .map_err(Into::into),
+                        };
+
+                        match verify_result {
                             Ok(ObservationOutcome::New(verified_address_change)) => {
                                 let validator_index =
                                     verified_address_change.as_inner().message.validator_index;
@@ -70,12 +91,14 @@ pub fn post_beacon_pool_bls_to_execution_changes<T: BeaconChainTypes>(
                                     .to_execution_address;
 
                                 // New to P2P *and* op pool, gossip immediately if post-Capella.
-                                let received_pre_capella =
-                                    if chain.current_slot_is_post_capella().unwrap_or(false) {
-                                        ReceivedPreCapella::No
-                                    } else {
-                                        ReceivedPreCapella::Yes
-                                    };
+                                let current_fork = chain.spec.fork_name_at_slot::<T::EthSpec>(
+                                    chain.slot().unwrap_or_default(),
+                                );
+                                let received_pre_capella = if current_fork.capella_enabled() {
+                                    ReceivedPreCapella::No
+                                } else {
+                                    ReceivedPreCapella::Yes
+                                };
                                 if matches!(received_pre_capella, ReceivedPreCapella::No) {
                                     utils::publish_pubsub_message(
                                         &network_tx,
@@ -85,8 +108,17 @@ pub fn post_beacon_pool_bls_to_execution_changes<T: BeaconChainTypes>(
                                     )?;
                                 }
 
+                                // Fire SSE event.
+                                if let Some(event_handler) = chain.event_handler.as_ref()
+                                    && event_handler.has_bls_to_execution_change_subscribers()
+                                {
+                                    event_handler.register(EventKind::BlsToExecutionChange(
+                                        Box::new(verified_address_change.clone().into_inner()),
+                                    ));
+                                }
+
                                 // Import to op pool (may return `false` if there's a race).
-                                let imported = chain.import_bls_to_execution_change(
+                                let imported = chain.op_pool.insert_bls_to_execution_change(
                                     verified_address_change,
                                     received_pre_capella,
                                 );
@@ -211,8 +243,25 @@ pub fn post_beacon_pool_voluntary_exits<T: BeaconChainTypes>(
              exit: SignedVoluntaryExit,
              network_tx: UnboundedSender<NetworkMessage<T::EthSpec>>| {
                 task_spawner.blocking_json_task(Priority::P0, move || {
+                    // Fetch state and epoch for verification (caller DI pattern).
+                    let head = chain.canonical_head.cached_head();
+                    let head_state = &head.snapshot.beacon_state;
+                    let wall_clock_epoch = chain.epoch().map_err(|e| {
+                        warp_utils::reject::object_invalid(format!(
+                            "gossip verification failed: {:?}",
+                            e
+                        ))
+                    })?;
+
                     let outcome = chain
-                        .verify_voluntary_exit_for_gossip(exit.clone())
+                        .observed_voluntary_exits
+                        .lock()
+                        .verify_and_observe_at(
+                            exit.clone(),
+                            wall_clock_epoch,
+                            head_state,
+                            &chain.spec,
+                        )
                         .map_err(|e| {
                             warp_utils::reject::object_invalid(format!(
                                 "gossip verification failed: {:?}",
@@ -226,13 +275,24 @@ pub fn post_beacon_pool_voluntary_exits<T: BeaconChainTypes>(
                         .read()
                         .register_api_voluntary_exit(&exit.message);
 
-                    if let ObservationOutcome::New(exit) = outcome {
+                    if let ObservationOutcome::New(ref verified_exit) = outcome {
+                        // Fire SSE event.
+                        if let Some(event_handler) = chain.event_handler.as_ref()
+                            && event_handler.has_exit_subscribers()
+                        {
+                            event_handler.register(EventKind::VoluntaryExit(
+                                verified_exit.as_inner().clone(),
+                            ));
+                        }
+
                         utils::publish_pubsub_message(
                             &network_tx,
-                            PubsubMessage::VoluntaryExit(Box::new(exit.clone().into_inner())),
+                            PubsubMessage::VoluntaryExit(Box::new(
+                                verified_exit.clone().into_inner(),
+                            )),
                         )?;
 
-                        chain.import_voluntary_exit(exit);
+                        chain.op_pool.insert_voluntary_exit(verified_exit.clone());
                     }
 
                     Ok(())
@@ -278,8 +338,18 @@ pub fn post_beacon_pool_proposer_slashings<T: BeaconChainTypes>(
              slashing: ProposerSlashing,
              network_tx: UnboundedSender<NetworkMessage<T::EthSpec>>| {
                 task_spawner.blocking_json_task(Priority::P0, move || {
+                    // Fetch wall clock state for verification (caller DI pattern).
+                    let wall_clock_state = chain.wall_clock_state().map_err(|e| {
+                        warp_utils::reject::object_invalid(format!(
+                            "gossip verification failed: {:?}",
+                            e
+                        ))
+                    })?;
+
                     let outcome = chain
-                        .verify_proposer_slashing_for_gossip(slashing.clone())
+                        .observed_proposer_slashings
+                        .lock()
+                        .verify_and_observe(slashing.clone(), &wall_clock_state, &chain.spec)
                         .map_err(|e| {
                             warp_utils::reject::object_invalid(format!(
                                 "gossip verification failed: {:?}",
@@ -293,15 +363,24 @@ pub fn post_beacon_pool_proposer_slashings<T: BeaconChainTypes>(
                         .read()
                         .register_api_proposer_slashing(&slashing);
 
-                    if let ObservationOutcome::New(slashing) = outcome {
+                    if let ObservationOutcome::New(verified_slashing) = outcome {
+                        // Fire SSE event.
+                        if let Some(event_handler) = chain.event_handler.as_ref()
+                            && event_handler.has_proposer_slashing_subscribers()
+                        {
+                            event_handler.register(EventKind::ProposerSlashing(Box::new(
+                                verified_slashing.clone().into_inner(),
+                            )));
+                        }
+
                         utils::publish_pubsub_message(
                             &network_tx,
                             PubsubMessage::ProposerSlashing(Box::new(
-                                slashing.clone().into_inner(),
+                                verified_slashing.clone().into_inner(),
                             )),
                         )?;
 
-                        chain.import_proposer_slashing(slashing);
+                        chain.op_pool.insert_proposer_slashing(verified_slashing);
                     }
 
                     Ok(())
@@ -385,8 +464,18 @@ pub fn post_beacon_pool_attester_slashings<T: BeaconChainTypes>(
              slashing: AttesterSlashing<T::EthSpec>,
              network_tx: UnboundedSender<NetworkMessage<T::EthSpec>>| {
                 task_spawner.blocking_json_task(Priority::P0, move || {
+                    // Fetch wall clock state for verification (caller DI pattern).
+                    let wall_clock_state = chain.wall_clock_state().map_err(|e| {
+                        warp_utils::reject::object_invalid(format!(
+                            "gossip verification failed: {:?}",
+                            e
+                        ))
+                    })?;
+
                     let outcome = chain
-                        .verify_attester_slashing_for_gossip(slashing.clone())
+                        .observed_attester_slashings
+                        .lock()
+                        .verify_and_observe(slashing.clone(), &wall_clock_state, &chain.spec)
                         .map_err(|e| {
                             warp_utils::reject::object_invalid(format!(
                                 "gossip verification failed: {:?}",
@@ -400,15 +489,30 @@ pub fn post_beacon_pool_attester_slashings<T: BeaconChainTypes>(
                         .read()
                         .register_api_attester_slashing(slashing.to_ref());
 
-                    if let ObservationOutcome::New(slashing) = outcome {
+                    if let ObservationOutcome::New(verified_slashing) = outcome {
+                        // Apply to fork choice.
+                        chain
+                            .canonical_head
+                            .fork_choice_write_lock()
+                            .on_attester_slashing(verified_slashing.as_inner().to_ref());
+
+                        // Fire SSE event.
+                        if let Some(event_handler) = chain.event_handler.as_ref()
+                            && event_handler.has_attester_slashing_subscribers()
+                        {
+                            event_handler.register(EventKind::AttesterSlashing(Box::new(
+                                verified_slashing.clone().into_inner(),
+                            )));
+                        }
+
                         utils::publish_pubsub_message(
                             &network_tx,
                             PubsubMessage::AttesterSlashing(Box::new(
-                                slashing.clone().into_inner(),
+                                verified_slashing.clone().into_inner(),
                             )),
                         )?;
 
-                        chain.import_attester_slashing(slashing);
+                        chain.op_pool.insert_attester_slashing(verified_slashing);
                     }
 
                     Ok(())

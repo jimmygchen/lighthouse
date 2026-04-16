@@ -536,7 +536,10 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
     ) -> Result<(), (RpcErrorResponse, &'static str)> {
         let mut send_data_column_count = 0;
         // Only attempt lookups for columns the node has advertised and is responsible for maintaining custody of.
-        let available_columns = self.chain.custody_columns_for_epoch(None);
+        let available_columns = self
+            .chain
+            .data_availability_manager
+            .custody_columns_for_epoch(None);
 
         for data_column_ids_by_root in request.data_column_ids.as_slice() {
             let indices_to_retrieve = data_column_ids_by_root
@@ -1340,7 +1343,11 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             req.count
         };
 
-        let data_availability_boundary_slot = match self.chain.data_availability_boundary() {
+        let data_availability_boundary_slot = match self
+            .chain
+            .data_availability_manager
+            .data_availability_boundary()
+        {
             Some(boundary) => boundary.start_slot(T::EthSpec::slots_per_epoch()),
             None => {
                 debug!("Deneb fork is disabled");
@@ -1397,7 +1404,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         let mut blobs_sent = 0;
 
         for (root, _) in block_roots_and_slots {
-            match self.chain.get_blobs(&root) {
+            match self.chain.data_availability_manager.get_blobs(&root) {
                 Ok(blob_sidecar_list) => {
                     for blob_sidecar in blob_sidecar_list.iter() {
                         // Due to skip slots, blobs could be out of the range, we ensure they
@@ -1490,29 +1497,35 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
 
         let request_start_slot = Slot::from(req.start_slot);
 
-        let column_data_availability_boundary_slot =
-            match self.chain.column_data_availability_boundary() {
-                Some(boundary) => boundary.start_slot(T::EthSpec::slots_per_epoch()),
-                None => {
-                    debug!("Fulu fork is disabled");
-                    return Err((RpcErrorResponse::InvalidRequest, "Fulu fork is disabled"));
-                }
-            };
+        let column_data_availability_boundary_slot = match self
+            .chain
+            .data_availability_manager
+            .column_data_availability_boundary()
+        {
+            Some(boundary) => boundary.start_slot(T::EthSpec::slots_per_epoch()),
+            None => {
+                debug!("Fulu fork is disabled");
+                return Err((RpcErrorResponse::InvalidRequest, "Fulu fork is disabled"));
+            }
+        };
 
-        let earliest_custodied_data_column_slot =
-            match self.chain.earliest_custodied_data_column_epoch() {
-                Some(earliest_custodied_epoch) => {
-                    let earliest_custodied_slot =
-                        earliest_custodied_epoch.start_slot(T::EthSpec::slots_per_epoch());
-                    // Ensure the earliest columns we serve are within the data availability window
-                    if earliest_custodied_slot < column_data_availability_boundary_slot {
-                        column_data_availability_boundary_slot
-                    } else {
-                        earliest_custodied_slot
-                    }
+        let earliest_custodied_data_column_slot = match self
+            .chain
+            .data_availability_manager
+            .earliest_custodied_data_column_epoch()
+        {
+            Some(earliest_custodied_epoch) => {
+                let earliest_custodied_slot =
+                    earliest_custodied_epoch.start_slot(T::EthSpec::slots_per_epoch());
+                // Ensure the earliest columns we serve are within the data availability window
+                if earliest_custodied_slot < column_data_availability_boundary_slot {
+                    column_data_availability_boundary_slot
+                } else {
+                    earliest_custodied_slot
                 }
-                None => column_data_availability_boundary_slot,
-            };
+            }
+            None => column_data_availability_boundary_slot,
+        };
 
         if request_start_slot < earliest_custodied_data_column_slot {
             debug!(
@@ -1555,7 +1568,11 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         for (root, slot) in block_roots_and_slots {
             let fork_name = self.chain.spec.fork_name_at_slot::<T::EthSpec>(slot);
             for index in &indices_to_retrieve {
-                match self.chain.get_data_column(&root, index, fork_name) {
+                match self
+                    .chain
+                    .data_availability_manager
+                    .get_data_column(&root, index, fork_name)
+                {
                     Ok(Some(data_column_sidecar)) => {
                         // Due to skip slots, data columns could be out of the range, we ensure they
                         // are in the range before sending

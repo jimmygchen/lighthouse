@@ -665,7 +665,10 @@ impl<T: BeaconChainTypes> SyncNetworkContext<T> {
             data_column_requests.map(|data_column_requests| {
                 (
                     data_column_requests,
-                    self.chain.sampling_columns_for_epoch(epoch).to_vec(),
+                    self.chain
+                        .data_availability_manager
+                        .sampling_columns_for_epoch(epoch)
+                        .to_vec(),
                 )
             }),
             range_request_span,

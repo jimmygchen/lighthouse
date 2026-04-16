@@ -35,6 +35,7 @@
 //! appears that this validator is capable of producing valid
 //! attestations and there's no immediate cause for concern.
 use crate::task_spawner::{Priority, TaskSpawner};
+use beacon_chain::attestation_verification::VerifiedAttestation;
 use beacon_chain::{AttestationError, BeaconChain, BeaconChainError, BeaconChainTypes};
 use beacon_processor::work_reprocessing_queue::{QueuedUnaggregate, ReprocessQueueMessage};
 use beacon_processor::{Work, WorkEvent};
@@ -97,7 +98,10 @@ fn verify_and_publish_attestation<T: BeaconChainTypes>(
         );
 
     let fc_result = chain.apply_attestation_to_fork_choice(&verified_attestation);
-    let naive_aggregation_result = chain.add_to_naive_aggregation_pool(&verified_attestation);
+    let naive_aggregation_result: Result<(), AttestationError> = chain
+        .attestation_manager
+        .add_to_naive_aggregation_pool(verified_attestation.attestation())
+        .map_err(Into::into);
 
     if let Err(e) = &fc_result {
         warn!(

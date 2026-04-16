@@ -17,6 +17,7 @@ pub fn info<T: BeaconChainTypes>(
         .map_err(|e| custom_server_error(format!("error reading DataColumnCustodyInfo: {e:?}")))?;
 
     let column_data_availability_boundary = chain
+        .data_availability_manager
         .column_data_availability_boundary()
         .ok_or_else(|| custom_server_error("unreachable: Fulu should be enabled".to_string()))?;
 

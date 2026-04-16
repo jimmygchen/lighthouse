@@ -4,6 +4,7 @@ use crate::{
     service::NetworkMessage,
     sync::SyncMessage,
 };
+use beacon_chain::events::EventKind;
 use beacon_chain::store::Error;
 use beacon_chain::{
     AvailabilityProcessingStatus, BeaconChainError, BeaconChainTypes, BlockError, ForkChoiceError,
@@ -1647,8 +1648,37 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
     ) {
         let validator_index = voluntary_exit.message.validator_index;
 
-        let exit = match self.chain.verify_voluntary_exit_for_gossip(voluntary_exit) {
-            Ok(ObservationOutcome::New(exit)) => exit,
+        // Fetch state context for verification (moved from BeaconChain delegation wrapper).
+        let head_snapshot = self.chain.head().snapshot;
+        let head_state = &head_snapshot.beacon_state;
+        let wall_clock_epoch = match self.chain.epoch() {
+            Ok(epoch) => epoch,
+            Err(e) => {
+                debug!(
+                    validator_index,
+                    %peer_id,
+                    error = ?e,
+                    "Dropping exit: unable to read slot clock"
+                );
+                self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Ignore);
+                return;
+            }
+        };
+
+        let exit = match self.chain.operations.verify_voluntary_exit(
+            voluntary_exit,
+            head_state,
+            wall_clock_epoch,
+        ) {
+            Ok(ObservationOutcome::New(exit)) => {
+                // Emit SSE event for new exits (moved from BeaconChain delegation wrapper).
+                if let Some(event_handler) = self.chain.event_handler.as_ref()
+                    && event_handler.has_exit_subscribers()
+                {
+                    event_handler.register(EventKind::VoluntaryExit(exit.as_inner().clone()));
+                }
+                exit
+            }
             Ok(ObservationOutcome::AlreadyKnown) => {
                 self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Ignore);
                 debug!(
@@ -1688,7 +1718,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             .read()
             .register_gossip_voluntary_exit(&exit.as_inner().message);
 
-        self.chain.import_voluntary_exit(exit);
+        self.chain.operations.import_voluntary_exit(exit);
 
         debug!("Successfully imported voluntary exit");
 
@@ -1703,9 +1733,25 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
     ) {
         let validator_index = proposer_slashing.signed_header_1.message.proposer_index;
 
+        // Fetch wall-clock state for verification (moved from BeaconChain delegation wrapper).
+        let wall_clock_state = match self.chain.wall_clock_state() {
+            Ok(state) => state,
+            Err(e) => {
+                debug!(
+                    validator_index,
+                    %peer_id,
+                    error = ?e,
+                    "Dropping proposer slashing: unable to get wall clock state"
+                );
+                self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Ignore);
+                return;
+            }
+        };
+
         let slashing = match self
             .chain
-            .verify_proposer_slashing_for_gossip(proposer_slashing)
+            .operations
+            .verify_proposer_slashing(proposer_slashing, &wall_clock_state)
         {
             Ok(ObservationOutcome::New(slashing)) => slashing,
             Ok(ObservationOutcome::AlreadyKnown) => {
@@ -1749,7 +1795,13 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             .read()
             .register_gossip_proposer_slashing(slashing.as_inner());
 
-        self.chain.import_proposer_slashing(slashing);
+        // Import: emit SSE event + add to op pool (moved from BeaconChain delegation wrapper).
+        let inner_slashing = self.chain.operations.import_proposer_slashing(slashing);
+        if let Some(event_handler) = self.chain.event_handler.as_ref()
+            && event_handler.has_proposer_slashing_subscribers()
+        {
+            event_handler.register(EventKind::ProposerSlashing(Box::new(inner_slashing)));
+        }
         debug!("Successfully imported proposer slashing");
 
         metrics::inc_counter(&metrics::BEACON_PROCESSOR_PROPOSER_SLASHING_IMPORTED_TOTAL);
@@ -1761,9 +1813,24 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         peer_id: PeerId,
         attester_slashing: AttesterSlashing<T::EthSpec>,
     ) {
+        // Fetch wall-clock state for verification (moved from BeaconChain delegation wrapper).
+        let wall_clock_state = match self.chain.wall_clock_state() {
+            Ok(state) => state,
+            Err(e) => {
+                debug!(
+                    %peer_id,
+                    error = ?e,
+                    "Dropping attester slashing: unable to get wall clock state"
+                );
+                self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Ignore);
+                return;
+            }
+        };
+
         let slashing = match self
             .chain
-            .verify_attester_slashing_for_gossip(attester_slashing)
+            .operations
+            .verify_attester_slashing(attester_slashing, &wall_clock_state)
         {
             Ok(ObservationOutcome::New(slashing)) => slashing,
             Ok(ObservationOutcome::AlreadyKnown) => {
@@ -1816,10 +1883,31 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         let validator_index = bls_to_execution_change.message.validator_index;
         let address = bls_to_execution_change.message.to_execution_address;
 
+        // Fetch state context for verification (moved from BeaconChain delegation wrapper).
+        let is_post_capella = match self.chain.current_slot_is_post_capella() {
+            Ok(v) => v,
+            Err(e) => {
+                debug!(
+                    validator_index,
+                    %peer_id,
+                    error = ?e,
+                    "Dropping BLS to execution change: unable to read slot clock"
+                );
+                self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Ignore);
+                return;
+            }
+        };
+        let head_snapshot = self.chain.head().snapshot;
+        let head_state = &head_snapshot.beacon_state;
+
         let change = match self
             .chain
-            .verify_bls_to_execution_change_for_gossip(bls_to_execution_change)
-        {
+            .operations
+            .verify_bls_to_execution_change_for_gossip(
+                bls_to_execution_change,
+                head_state,
+                is_post_capella,
+            ) {
             Ok(ObservationOutcome::New(change)) => change,
             Ok(ObservationOutcome::AlreadyKnown) => {
                 self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Ignore);
@@ -1869,7 +1957,17 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         // Capella fork epoch.
         let received_pre_capella = ReceivedPreCapella::No;
 
+        // Emit SSE event before importing (moved from BeaconChain delegation wrapper).
+        if let Some(event_handler) = self.chain.event_handler.as_ref()
+            && event_handler.has_bls_to_execution_change_subscribers()
+        {
+            event_handler.register(EventKind::BlsToExecutionChange(Box::new(
+                change.as_inner().clone(),
+            )));
+        }
+
         self.chain
+            .operations
             .import_bls_to_execution_change(change, received_pre_capella);
 
         debug!(

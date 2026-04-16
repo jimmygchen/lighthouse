@@ -1,6 +1,7 @@
 //! Handlers for sync committee endpoints.
 
 use crate::utils::publish_pubsub_message;
+use beacon_chain::naive_aggregation_pool::Error as NaiveAggregationError;
 use beacon_chain::sync_committee_verification::{
     Error as SyncVerificationError, VerifiedSyncCommitteeMessage,
 };
@@ -12,10 +13,10 @@ use slot_clock::SlotClock;
 use std::cmp::max;
 use std::collections::HashMap;
 use tokio::sync::mpsc::UnboundedSender;
-use tracing::{debug, error, warn};
+use tracing::{debug, error, trace, warn};
 use types::{
-    BeaconStateError, Epoch, EthSpec, SignedContributionAndProof, SlotData, SyncCommitteeMessage,
-    SyncDuty, SyncSubnetId,
+    BeaconStateError, Epoch, EthSpec, SignedContributionAndProof, SlotData,
+    SyncCommitteeContribution, SyncCommitteeMessage, SyncDuty, SyncSubnetId,
 };
 
 /// The struct that is returned to the requesting HTTP client.
@@ -271,15 +272,15 @@ pub fn process_sync_committee_signatures<T: BeaconChainTypes>(
             }
         }
 
-        if let Some(verified) = verified_for_pool
-            && let Err(e) = chain.add_to_naive_sync_aggregation_pool(verified)
-        {
-            error!(
-                error = ?e,
-                slot = %sync_committee_signature.slot,
-                validator_index = sync_committee_signature.validator_index,
-                "Unable to add sync committee signature to pool"
-            );
+        if let Some(verified) = verified_for_pool {
+            if let Err(e) = add_to_naive_sync_aggregation_pool(chain, verified) {
+                error!(
+                    error = ?e,
+                    slot = %sync_committee_signature.slot,
+                    validator_index = sync_committee_signature.validator_index,
+                    "Unable to add sync committee signature to pool"
+                );
+            }
         }
     }
 
@@ -299,7 +300,10 @@ pub fn get_subnet_positions_for_sync_committee_message<T: BeaconChainTypes>(
     chain: &BeaconChain<T>,
 ) -> Result<HashMap<SyncSubnetId, Vec<usize>>, SyncVerificationError> {
     let pubkey = chain
-        .validator_pubkey_bytes(sync_message.validator_index as usize)?
+        .validator_pubkey_cache
+        .read()
+        .get_pubkey_bytes(sync_message.validator_index as usize)
+        .copied()
         .ok_or(SyncVerificationError::UnknownValidatorIndex(
             sync_message.validator_index as usize,
         ))?;
@@ -429,4 +433,58 @@ pub fn process_signed_contribution_and_proofs<T: BeaconChainTypes>(
     } else {
         Ok(())
     }
+}
+
+/// Add a verified sync committee message to the naive sync aggregation pool.
+///
+/// Inlined from the `BeaconChain::add_to_naive_sync_aggregation_pool` delegation wrapper
+/// following the caller-DI pattern: the caller accesses the pool directly.
+fn add_to_naive_sync_aggregation_pool<T: BeaconChainTypes>(
+    chain: &BeaconChain<T>,
+    verified: VerifiedSyncCommitteeMessage,
+) -> Result<VerifiedSyncCommitteeMessage, SyncVerificationError> {
+    let sync_message = verified.sync_message();
+    let positions_by_subnet_id = verified.subnet_positions();
+    for (subnet_id, positions) in positions_by_subnet_id.iter() {
+        for position in positions {
+            let _timer = beacon_chain::metrics::start_timer(
+                &beacon_chain::metrics::SYNC_CONTRIBUTION_PROCESSING_APPLY_TO_AGG_POOL,
+            );
+            let contribution =
+                SyncCommitteeContribution::from_message(sync_message, subnet_id.into(), *position)?;
+
+            match chain
+                .naive_sync_aggregation_pool
+                .write()
+                .insert(&contribution)
+            {
+                Ok(outcome) => trace!(
+                    ?outcome,
+                    index = sync_message.validator_index,
+                    slot = sync_message.slot.as_u64(),
+                    "Stored unaggregated sync committee message"
+                ),
+                Err(NaiveAggregationError::SlotTooLow {
+                    slot,
+                    lowest_permissible_slot,
+                }) => {
+                    trace!(
+                        lowest_permissible_slot = lowest_permissible_slot.as_u64(),
+                        slot = slot.as_u64(),
+                        "Refused to store unaggregated sync committee message"
+                    );
+                }
+                Err(e) => {
+                    error!(
+                        error = ?e,
+                        index = sync_message.validator_index,
+                        slot = sync_message.slot.as_u64(),
+                        "Failed to store unaggregated sync committee message"
+                    );
+                    return Err(BeaconChainError::from(e).into());
+                }
+            };
+        }
+    }
+    Ok(verified)
 }

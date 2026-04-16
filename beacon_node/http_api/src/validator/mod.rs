@@ -42,8 +42,9 @@ pub fn pubkey_to_validator_index<T: BeaconChainTypes>(
     pubkey: &PublicKeyBytes,
 ) -> Result<Option<usize>, Box<BeaconChainError>> {
     chain
-        .validator_index(pubkey)
-        .map_err(Box::new)?
+        .validator_pubkey_cache
+        .read()
+        .get_index(pubkey)
         .filter(|&index| {
             state
                 .validators()
@@ -481,9 +482,9 @@ pub fn post_validator_register_validator<T: BeaconChainTypes>(
                             .into_iter()
                             .filter_map(|register_data| {
                                 chain
-                                    .validator_index(&register_data.message.pubkey)
-                                    .ok()
-                                    .flatten()
+                                    .validator_pubkey_cache
+                                    .read()
+                                    .get_index(&register_data.message.pubkey)
                                     .and_then(|validator_index| {
                                         let validator = head_snapshot
                                             .beacon_state
