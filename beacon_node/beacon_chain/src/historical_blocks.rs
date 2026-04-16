@@ -211,7 +211,6 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         let sig_timer = metrics::start_timer(&metrics::BACKFILL_SIGNATURE_TOTAL_TIMES);
         let setup_timer = metrics::start_timer(&metrics::BACKFILL_SIGNATURE_SETUP_TIMES);
         let pubkey_cache = self
-            .validator_query
             .validator_pubkey_cache
             .try_read_for(PUBKEY_CACHE_LOCK_TIMEOUT)
             .ok_or(HistoricalBlockError::ValidatorPubkeyCacheTimeout)?;

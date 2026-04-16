@@ -38,7 +38,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
                 .custody_columns_for_epoch(None, &self.spec)
                 .to_vec(),
             pubkey_cache_pubkeys: {
-                let cache = self.validator_query.validator_pubkey_cache.read();
+                let cache = self.validator_pubkey_cache.read();
                 (0..cache.len())
                     .filter_map(|i| {
                         cache.get(i).map(|pk| {

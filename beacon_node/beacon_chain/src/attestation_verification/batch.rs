@@ -57,7 +57,7 @@ where
         let signature_setup_timer =
             metrics::start_timer(&metrics::ATTESTATION_PROCESSING_BATCH_AGG_SIGNATURE_SETUP_TIMES);
 
-        let pubkey_cache = chain.validator_query.validator_pubkey_cache.read();
+        let pubkey_cache = chain.validator_pubkey_cache.read();
 
         let mut signature_sets = Vec::with_capacity(num_indexed * 3);
         // Iterate, flattening to get only the `Ok` values.
@@ -163,7 +163,7 @@ where
             &metrics::ATTESTATION_PROCESSING_BATCH_UNAGG_SIGNATURE_SETUP_TIMES,
         );
 
-        let pubkey_cache = chain.validator_query.validator_pubkey_cache.read();
+        let pubkey_cache = chain.validator_pubkey_cache.read();
 
         let mut signature_sets = Vec::with_capacity(num_partially_verified);
 

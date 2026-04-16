@@ -1263,7 +1263,12 @@ async fn import_gossip_block_at_current_slot() {
 async fn import_gossip_attestation() {
     let mut rig = TestRig::new(SMALL_CHAIN).await;
 
-    let initial_attns = rig.chain.naive_aggregation_pool.read().num_items();
+    let initial_attns = rig
+        .chain
+        .attestation_manager
+        .naive_aggregation_pool
+        .read()
+        .num_items();
 
     rig.enqueue_unaggregated_attestation();
 
@@ -1271,7 +1276,11 @@ async fn import_gossip_attestation() {
         .await;
 
     assert_eq!(
-        rig.chain.naive_aggregation_pool.read().num_items(),
+        rig.chain
+            .attestation_manager
+            .naive_aggregation_pool
+            .read()
+            .num_items(),
         initial_attns + 1,
         "op pool should have one more attestation"
     );
@@ -1289,7 +1298,12 @@ async fn attestation_to_unknown_block_processed(import_method: BlockImportMethod
 
     // Send the attestation but not the block, and check that it was not imported.
 
-    let initial_attns = rig.chain.naive_aggregation_pool.read().num_items();
+    let initial_attns = rig
+        .chain
+        .attestation_manager
+        .naive_aggregation_pool
+        .read()
+        .num_items();
 
     rig.enqueue_next_block_unaggregated_attestation();
 
@@ -1297,7 +1311,11 @@ async fn attestation_to_unknown_block_processed(import_method: BlockImportMethod
         .await;
 
     assert_eq!(
-        rig.chain.naive_aggregation_pool.read().num_items(),
+        rig.chain
+            .attestation_manager
+            .naive_aggregation_pool
+            .read()
+            .num_items(),
         initial_attns,
         "Attestation should not have been included."
     );
@@ -1348,7 +1366,11 @@ async fn attestation_to_unknown_block_processed(import_method: BlockImportMethod
     );
 
     assert_eq!(
-        rig.chain.naive_aggregation_pool.read().num_items(),
+        rig.chain
+            .attestation_manager
+            .naive_aggregation_pool
+            .read()
+            .num_items(),
         initial_attns + 1,
         "Attestation should have been included."
     );
@@ -1458,7 +1480,12 @@ async fn requeue_unknown_block_gossip_attestation_without_import() {
 
     // Send the attestation but not the block, and check that it was not imported.
 
-    let initial_attns = rig.chain.naive_aggregation_pool.read().num_items();
+    let initial_attns = rig
+        .chain
+        .attestation_manager
+        .naive_aggregation_pool
+        .read()
+        .num_items();
 
     rig.enqueue_next_block_unaggregated_attestation();
 
@@ -1466,7 +1493,11 @@ async fn requeue_unknown_block_gossip_attestation_without_import() {
         .await;
 
     assert_eq!(
-        rig.chain.naive_aggregation_pool.read().num_items(),
+        rig.chain
+            .attestation_manager
+            .naive_aggregation_pool
+            .read()
+            .num_items(),
         initial_attns,
         "Attestation should not have been included."
     );
@@ -1486,7 +1517,11 @@ async fn requeue_unknown_block_gossip_attestation_without_import() {
     .await;
 
     assert_eq!(
-        rig.chain.naive_aggregation_pool.read().num_items(),
+        rig.chain
+            .attestation_manager
+            .naive_aggregation_pool
+            .read()
+            .num_items(),
         initial_attns,
         "Attestation should not have been included."
     );
@@ -1508,7 +1543,11 @@ async fn requeue_unknown_block_gossip_aggregated_attestation_without_import() {
         .await;
 
     assert_eq!(
-        rig.chain.naive_aggregation_pool.read().num_items(),
+        rig.chain
+            .attestation_manager
+            .naive_aggregation_pool
+            .read()
+            .num_items(),
         initial_attns,
         "Attestation should not have been included."
     );

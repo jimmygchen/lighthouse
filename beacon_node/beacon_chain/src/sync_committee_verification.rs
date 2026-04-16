@@ -332,7 +332,6 @@ impl<T: BeaconChainTypes> VerifiedSyncContribution<T> {
         .tree_hash_root();
 
         if chain
-            .sync_committee_manager
             .observed_sync_contributions
             .write()
             .is_known_subset(contribution, contribution_data_root)
@@ -348,7 +347,6 @@ impl<T: BeaconChainTypes> VerifiedSyncContribution<T> {
         let observed_key =
             SlotSubcommitteeIndex::new(contribution.slot, contribution.subcommittee_index);
         match chain
-            .sync_committee_manager
             .observed_sync_aggregators
             .read()
             .validator_has_been_observed(observed_key, aggregator_index as usize)
@@ -395,7 +393,6 @@ impl<T: BeaconChainTypes> VerifiedSyncContribution<T> {
         // It's important to double check that the contribution is not already known, otherwise two
         // contribution processed at the same time could be published.
         if let ObserveOutcome::Subset = chain
-            .sync_committee_manager
             .observed_sync_contributions
             .write()
             .observe_item(contribution, Some(contribution_data_root))
@@ -410,7 +407,6 @@ impl<T: BeaconChainTypes> VerifiedSyncContribution<T> {
         // It's important to double check that the sync committee message is not already known, otherwise two
         // sync committee messages processed at the same time could be published.
         if chain
-            .sync_committee_manager
             .observed_sync_aggregators
             .write()
             .observe_validator(observed_key, aggregator_index as usize, ())
@@ -503,7 +499,6 @@ impl VerifiedSyncCommitteeMessage {
             roots_differ && new_elects_head
         };
         if let Some(prev_root) = chain
-            .sync_committee_manager
             .observed_sync_contributors
             .read()
             .observation_for_validator(
@@ -531,7 +526,6 @@ impl VerifiedSyncCommitteeMessage {
         // there can be a race-condition if we receive two sync committee messages at the same time and
         // process them in different threads.
         if let Some(prev_root) = chain
-            .sync_committee_manager
             .observed_sync_contributors
             .write()
             .observe_validator_with_override(
@@ -624,7 +618,7 @@ pub fn verify_signed_aggregate_signatures<T: BeaconChainTypes>(
     signed_aggregate: &SignedContributionAndProof<T::EthSpec>,
     participant_pubkeys: &[PublicKeyBytes],
 ) -> Result<bool, Error> {
-    let pubkey_cache = chain.validator_query.validator_pubkey_cache.read();
+    let pubkey_cache = chain.validator_pubkey_cache.read();
 
     let aggregator_index = signed_aggregate.message.aggregator_index;
     if aggregator_index >= pubkey_cache.len() as u64 {
@@ -685,7 +679,7 @@ pub fn verify_sync_committee_message<T: BeaconChainTypes>(
     let signature_setup_timer =
         metrics::start_timer(&metrics::SYNC_MESSAGE_PROCESSING_SIGNATURE_SETUP_TIMES);
 
-    let pubkey_cache = chain.validator_query.validator_pubkey_cache.read();
+    let pubkey_cache = chain.validator_pubkey_cache.read();
 
     let pubkey = pubkey_cache
         .get_pubkey_from_pubkey_bytes(pubkey_bytes)
