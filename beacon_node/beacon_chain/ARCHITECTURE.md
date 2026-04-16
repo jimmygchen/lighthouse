@@ -156,6 +156,24 @@ multiple components, because block import genuinely needs it.
 
 This is one-directional (BlockWorkflow → others, no cycles).
 
+### Unmapped fields
+
+Several `BeaconChain<T>` fields don't have a clear home in the above
+components and need further design work:
+
+- `config: ChainConfig` — referenced 20+ times across every domain
+  (re-org settings, builder fallback thresholds, sync tolerance, light
+  client toggle, payload preparation). Needs partitioning into
+  per-component config structs or a shared read-only reference.
+- `light_client_server_cache`, `light_client_server_tx` — used during
+  block import and head recomputation. Cross-cutting.
+- `store_migrator` (BackgroundMigrator) — triggered by finalization.
+- `graffiti_calculator` — used in block production.
+- `pending_payload_envelopes` — ePBS-related.
+- `shutdown_sender` — used in error paths across multiple components.
+- `genesis_state_root`, `genesis_validators_root`, `genesis_time`,
+  `genesis_backfill_slot` — scattered usage, no clear single owner.
+
 ## Rules
 
 ### 1. Components are generic over `E: EthSpec`, not `T: BeaconChainTypes`
@@ -166,11 +184,28 @@ use `E: EthSpec`. This gives simpler generics and faster compilation.
 Exceptions: `DataAvailabilityManager`, `ExecutionManager`, and
 `BlockWorkflow` need `T`.
 
-### 2. Fork choice write locks are acquired only by `BlockWorkflow`
+### 2. Fork choice write locks are concentrated in well-defined paths
 
-Only `BlockWorkflow` (for `import_block`, `recompute_head`) and direct
-callers (for `import_attester_slashing`) acquire fork choice write locks.
-Other components never touch fork choice locks.
+Fork choice write locks are acquired only by:
+
+- **Block import** — `fork_choice.on_block()` during `import_block`
+  (`beacon_chain.rs:3896`)
+- **Head recomputation** — `fork_choice.get_head()` in
+  `recompute_head_inner` (`canonical_head.rs:616`) and
+  `fork_choice.prune()` in `after_finalization`
+  (`canonical_head.rs:1059`)
+- **Attestation application** — `fork_choice.on_attestation()` for
+  gossip attestations (`beacon_chain.rs:2305`)
+- **Execution layer callbacks** — `fork_choice.on_invalid_execution_payload()`
+  and `fork_choice.on_valid_execution_payload()` when the EL reports
+  INVALID/VALID asynchronously (`beacon_chain.rs:5791`, `6149`)
+- **Attester slashing import** — `fork_choice.on_attester_slashing()`
+  for standalone gossip slashings (`beacon_chain.rs:2650`)
+
+Components like OperationsManager, SyncCommitteeManager, and
+ValidatorQueryService never touch fork choice locks. No fork choice
+write locks exist outside the `beacon_chain` crate — the HTTP API,
+network, and sync layers never acquire them directly.
 
 This preserves the lock ordering documented in `canonical_head.rs`.
 
@@ -180,6 +215,13 @@ Components don't hold `event_handler` or `SlotClock`. They don't emit
 SSE events or fetch the current time. Import methods return data that the
 caller uses for side effects (SSE events, metrics, etc.).
 
+**Known hard case:** During `import_block`, `early_attester_cache`
+insertion happens while holding the fork choice write lock, and SSE head
+events are emitted in the same critical section. Moving side effects to
+the caller requires careful design to preserve lock-scope semantics —
+the caller must replicate the context (e.g., computing `dependent_root`
+from state) that today exists only inside the locked section.
+
 ### 4. State is passed as parameters, not fetched internally
 
 Components receive `&BeaconState<E>`, `&CachedHead<E>`, `Epoch`, or
@@ -188,6 +230,52 @@ Components receive `&BeaconState<E>`, `&CachedHead<E>`, `Epoch`, or
 
 This is what makes components directly testable — construct a test state,
 pass it as a parameter, no chain infrastructure needed.
+
+### 5. Favour composition over god objects
+
+Workflows compose the specific capabilities they need — not whole
+components. Pass what you need, not what _has_ what you need.
+
+**Example: block production.** Today `produce_block_on_state` accesses
+`self.*` for everything because the god object makes it easy. Tracing
+what it actually uses reveals 3 domain dependencies out of 40+ fields:
+
+| Dependency | What it uses |
+|-----------|-------------|
+| `&OperationPool` | Pull attestations, exits, slashings, sync aggregate |
+| `CanonicalHead` (read) | Head slot, finalized checkpoint, forkchoice params |
+| `ExecutionLayer` | Fee recipient, gas limit, `get_payload` |
+
+The remaining dependencies are infrastructure (`&ChainSpec`, `SlotClock`,
+`TaskExecutor`, `BlockProductionConfig`) that every async workflow needs.
+
+```rust
+/// Block production composed from thin slices.
+/// No Arc<BeaconChain>, no god object.
+pub async fn produce_block(
+    state: BeaconState<E>,
+    // Domain dependencies (the actual coupling)
+    op_pool: &OperationPool<E>,
+    canonical_head: &CanonicalHead<T>,
+    execution_layer: &ExecutionLayer<E>,
+    // Infrastructure
+    spec: &ChainSpec,
+    config: &BlockProductionConfig,
+    slot_clock: &T::SlotClock,
+) -> Result<BeaconBlock<E>> {
+    let attestations = op_pool.get_attestations(&state, spec)?;
+    let (slashings, exits) = op_pool.get_slashings_and_exits(&state, spec);
+    let health = check_chain_health(canonical_head, slot_clock, config);
+    let payload = execution_layer.get_payload(
+        canonical_head.forkchoice_update_params(),
+        health.use_builder(),
+    ).await?;
+    assemble_block(state, attestations, slashings, exits, payload, spec)
+}
+```
+
+This applies to other complex call sites (HTTP API, sync) — each
+composes the thin slices it needs rather than holding `Arc<BeaconChain>`.
 
 ## Testing
 
@@ -210,6 +298,31 @@ fn rejects_exit_for_unknown_validator() {
 ```
 
 No harness, no store, no fork choice. Runs in under a second.
+
+Composition also enables testing complex workflows directly:
+
+```rust
+#[tokio::test]
+async fn block_includes_available_exits() {
+    let spec = ChainSpec::mainnet();
+    let (state, keypairs) = create_genesis_state(&spec, 16);
+
+    let op_pool = OperationPool::new();
+    let exit = make_signed_exit(&keypairs[0], 0, Epoch::new(5), &spec);
+    op_pool.insert_voluntary_exit(exit.clone());
+
+    let mock_el = MockExecutionLayer::default_payload();
+    let mock_head = MockCanonicalHead::at_slot(10);
+
+    let block = produce_block(
+        state, &op_pool, &mock_head, &mock_el,
+        &spec, &BlockProductionConfig::default(), &test_clock(),
+    ).await.unwrap();
+
+    assert_eq!(block.body().voluntary_exits().len(), 1);
+    assert_eq!(block.body().voluntary_exits()[0], exit);
+}
+```
 
 ### BDD specs (humans write)
 
