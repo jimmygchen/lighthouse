@@ -1136,7 +1136,9 @@ where
             // This will trigger column backfill.
             let cgc_change_effective_slot =
                 cgc_changed.effective_epoch.start_slot(E::slots_per_epoch());
-            beacon_chain.update_data_column_custody_info(Some(cgc_change_effective_slot));
+            beacon_chain
+                .data_availability_manager
+                .update_data_column_custody_info(Some(cgc_change_effective_slot));
 
             // Persist change to disk.
             beacon_chain
@@ -1170,7 +1172,10 @@ where
         }
 
         // Prune blobs older than the blob data availability boundary in the background.
-        if let Some(data_availability_boundary) = beacon_chain.data_availability_boundary() {
+        if let Some(data_availability_boundary) = beacon_chain
+            .data_availability_manager
+            .data_availability_boundary()
+        {
             beacon_chain
                 .store_migrator
                 .process_prune_blobs(data_availability_boundary);

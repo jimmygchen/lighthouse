@@ -1556,6 +1556,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         let request_start_epoch = request_start_slot.epoch(T::EthSpec::slots_per_epoch());
         let available_columns = self
             .chain
+            .data_availability_manager
             .custody_columns_for_epoch(Some(request_start_epoch));
 
         let indices_to_retrieve = req

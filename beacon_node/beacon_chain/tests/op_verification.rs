@@ -148,7 +148,10 @@ async fn voluntary_exit_duplicate_in_state() {
     else {
         panic!("exit should verify");
     };
-    harness.chain.import_voluntary_exit(verified_exit);
+    harness
+        .chain
+        .operations
+        .import_voluntary_exit(verified_exit);
 
     // Make a new block to include the exit.
     harness
@@ -259,7 +262,10 @@ async fn proposer_slashing_duplicate_in_state() {
     else {
         panic!("slashing should verify");
     };
-    harness.chain.import_proposer_slashing(verified_slashing);
+    harness
+        .chain
+        .operations
+        .import_proposer_slashing(verified_slashing);
 
     // Make a new block to include the slashing.
     harness

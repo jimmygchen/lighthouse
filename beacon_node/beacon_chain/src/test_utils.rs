@@ -2370,6 +2370,7 @@ where
             .expect("should verify proposer slashing for gossip")
         {
             self.chain
+                .operations
                 .import_proposer_slashing(verified_proposer_slashing);
             Ok(())
         } else {
@@ -2398,12 +2399,25 @@ where
         address: Address,
     ) -> Result<(), String> {
         let signed_bls_change = self.make_bls_to_execution_change(validator_index, address);
+        let head_snapshot = self.chain.head().snapshot;
+        let head_state = &head_snapshot.beacon_state;
+        let is_post_capella = self
+            .chain
+            .spec
+            .fork_name_at_slot::<E>(self.chain.slot().unwrap())
+            .capella_enabled();
         if let ObservationOutcome::New(verified_bls_change) = self
             .chain
-            .verify_bls_to_execution_change_for_gossip(signed_bls_change)
+            .operations
+            .verify_bls_to_execution_change_for_gossip(
+                signed_bls_change,
+                head_state,
+                is_post_capella,
+            )
             .expect("should verify BLS to execution change for gossip")
         {
             self.chain
+                .operations
                 .import_bls_to_execution_change(verified_bls_change, ReceivedPreCapella::No)
                 .then_some(())
                 .ok_or("should import BLS to execution change to the op pool".to_string())
@@ -2787,6 +2801,7 @@ where
             let fork_name = self.spec.fork_name_at_epoch(block.epoch());
             let columns = self
                 .chain
+                .data_availability_manager
                 .get_data_columns(&block_root, fork_name)
                 .unwrap()
                 .unwrap();
@@ -2800,7 +2815,12 @@ where
             )
             .unwrap()
         } else {
-            let blobs = self.chain.get_blobs(&block_root).unwrap().blobs();
+            let blobs = self
+                .chain
+                .data_availability_manager
+                .get_blobs(&block_root)
+                .unwrap()
+                .blobs();
             let block_data = if let Some(blobs) = blobs {
                 AvailableBlockData::new_with_blobs(blobs)
             } else {
@@ -2825,7 +2845,10 @@ where
     ) -> Result<RangeSyncBlock<E>, BlockError> {
         Ok(if self.spec.is_peer_das_enabled_for_epoch(block.epoch()) {
             let epoch = block.slot().epoch(E::slots_per_epoch());
-            let sampling_columns = self.chain.sampling_columns_for_epoch(epoch);
+            let sampling_columns = self
+                .chain
+                .data_availability_manager
+                .sampling_columns_for_epoch(epoch);
 
             if blob_items.is_some_and(|(kzg_proofs, _)| !kzg_proofs.is_empty()) {
                 // Note: this method ignores the actual custody columns and just take the first
@@ -3585,6 +3608,7 @@ where
             let custody_columns = custody_columns_opt.unwrap_or_else(|| {
                 let epoch = block.slot().epoch(E::slots_per_epoch());
                 self.chain
+                    .data_availability_manager
                     .sampling_columns_for_epoch(epoch)
                     .iter()
                     .copied()

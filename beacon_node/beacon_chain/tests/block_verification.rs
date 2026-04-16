@@ -90,6 +90,7 @@ async fn get_chain_segment() -> (Vec<BeaconSnapshot<E>>, Vec<Option<DataSidecars
         let data_sidecars = if harness.spec.is_peer_das_enabled_for_epoch(block_epoch) {
             harness
                 .chain
+                .data_availability_manager
                 .get_data_columns(&snapshot.beacon_block_root, fork_name)
                 .unwrap()
                 .map(|columns| {
@@ -102,6 +103,7 @@ async fn get_chain_segment() -> (Vec<BeaconSnapshot<E>>, Vec<Option<DataSidecars
         } else {
             harness
                 .chain
+                .data_availability_manager
                 .get_blobs(&snapshot.beacon_block_root)
                 .unwrap()
                 .blobs()
@@ -2003,7 +2005,13 @@ async fn range_sync_block_construction_fails_with_wrong_blob_count() {
         if let Ok(commitments) = block.message().body().blob_kzg_commitments()
             && !commitments.is_empty()
         {
-            let blobs = harness.chain.get_blobs(&root).unwrap().blobs().unwrap();
+            let blobs = harness
+                .chain
+                .data_availability_manager
+                .get_blobs(&root)
+                .unwrap()
+                .blobs()
+                .unwrap();
 
             // Create AvailableBlockData with wrong number of blobs (remove one)
             let mut wrong_blobs_vec: Vec<_> = blobs.iter().cloned().collect();
@@ -2078,6 +2086,7 @@ async fn range_sync_block_rejects_missing_custody_columns() {
             let fork_name = harness.chain.spec.fork_name_at_slot::<E>(block.slot());
             let columns = harness
                 .chain
+                .data_availability_manager
                 .get_data_columns(&root, fork_name)
                 .unwrap()
                 .unwrap();

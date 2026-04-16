@@ -1,3 +1,4 @@
+use beacon_chain::events::EventKind;
 use beacon_chain::{
     BeaconChain, BeaconChainError, BeaconChainTypes, observed_operations::ObservationOutcome,
 };
@@ -257,7 +258,14 @@ impl<T: BeaconChainTypes> SlasherService<T> {
                     continue;
                 }
             };
-            beacon_chain.import_proposer_slashing(verified_slashing);
+            let inner_slashing = beacon_chain
+                .operations
+                .import_proposer_slashing(verified_slashing);
+            if let Some(event_handler) = beacon_chain.event_handler.as_ref()
+                && event_handler.has_proposer_slashing_subscribers()
+            {
+                event_handler.register(EventKind::ProposerSlashing(Box::new(inner_slashing)));
+            }
 
             if slasher.config().broadcast
                 && let Err(e) =

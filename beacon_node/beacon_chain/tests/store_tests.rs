@@ -2889,6 +2889,7 @@ async fn reproduction_unaligned_checkpoint_sync_pruned_payload() {
 
     let wss_blobs_opt = harness
         .chain
+        .data_availability_manager
         .get_or_reconstruct_blobs(&wss_block_root)
         .unwrap();
 
@@ -3027,6 +3028,7 @@ async fn weak_subjectivity_sync_test(
         .unwrap();
     let wss_blobs_opt = harness
         .chain
+        .data_availability_manager
         .get_or_reconstruct_blobs(&wss_block_root)
         .unwrap();
     let wss_state = full_store
@@ -3111,6 +3113,7 @@ async fn weak_subjectivity_sync_test(
         .unwrap();
     // This test may break in the future if we no longer store the full checkpoint data columns.
     let store_wss_blobs_opt = beacon_chain
+        .data_availability_manager
         .get_or_reconstruct_blobs(&wss_block_root)
         .unwrap();
 
@@ -4768,7 +4771,10 @@ async fn test_column_da_boundary() {
 
     // The column da boundary should be the fulu fork epoch
     assert_eq!(
-        harness.chain.column_data_availability_boundary(),
+        harness
+            .chain
+            .data_availability_manager
+            .column_data_availability_boundary(),
         Some(fulu_fork_epoch)
     );
 }
@@ -4790,22 +4796,30 @@ async fn test_earliest_custodied_data_column_epoch() {
     // earliest custody info is set to the last slot in `custody_info_epoch`
     harness
         .chain
+        .data_availability_manager
         .update_data_column_custody_info(Some(custody_info_epoch.end_slot(E::slots_per_epoch())));
 
     // earliest custodied data column epoch should be `custody_info_epoch` + 1
     assert_eq!(
-        harness.chain.earliest_custodied_data_column_epoch(),
+        harness
+            .chain
+            .data_availability_manager
+            .earliest_custodied_data_column_epoch(),
         Some(custody_info_epoch + 1)
     );
 
     // earliest custody info is set to the first slot in `custody_info_epoch`
     harness
         .chain
+        .data_availability_manager
         .update_data_column_custody_info(Some(custody_info_epoch.start_slot(E::slots_per_epoch())));
 
     // earliest custodied data column epoch should be `custody_info_epoch`
     assert_eq!(
-        harness.chain.earliest_custodied_data_column_epoch(),
+        harness
+            .chain
+            .data_availability_manager
+            .earliest_custodied_data_column_epoch(),
         Some(custody_info_epoch)
     );
 }
@@ -5175,6 +5189,7 @@ async fn test_custody_column_filtering_regular_node() {
     // Get custody columns for this epoch - regular nodes only store a subset
     let expected_custody_columns: HashSet<_> = harness
         .chain
+        .data_availability_manager
         .custody_columns_for_epoch(Some(current_slot.epoch(E::slots_per_epoch())))
         .iter()
         .copied()
@@ -5267,6 +5282,7 @@ async fn test_missing_columns_after_cgc_change() {
 
     let missing_columns = harness
         .chain
+        .data_availability_manager
         .get_missing_columns_for_epoch(epoch_before_increase);
 
     // We should have no missing columns
@@ -5289,6 +5305,7 @@ async fn test_missing_columns_after_cgc_change() {
     // We should have missing columns from before the cgc increase
     let missing_columns = harness
         .chain
+        .data_availability_manager
         .get_missing_columns_for_epoch(epoch_before_increase);
 
     assert!(!missing_columns.is_empty());
@@ -5296,6 +5313,7 @@ async fn test_missing_columns_after_cgc_change() {
     // We should have no missing columns after the cgc increase
     let missing_columns = harness
         .chain
+        .data_availability_manager
         .get_missing_columns_for_epoch(epoch_after_increase);
 
     assert!(missing_columns.is_empty());
@@ -5357,12 +5375,14 @@ async fn test_safely_backfill_data_column_custody_info() {
 
     harness
         .chain
+        .data_availability_manager
         .update_data_column_custody_info(Some(head_slot));
 
     // We can only safely update custody column info 1 epoch at a time
     // Skipping an epoch should return an error
     harness
         .chain
+        .data_availability_manager
         .safely_backfill_data_column_custody_info(head_slot.epoch(E::slots_per_epoch()) - 2)
         .unwrap_err();
 
@@ -5373,6 +5393,7 @@ async fn test_safely_backfill_data_column_custody_info() {
         if epoch <= epoch_after_increase.into() {
             harness
                 .chain
+                .data_availability_manager
                 .safely_backfill_data_column_custody_info(Epoch::new(epoch))
                 .unwrap_err();
         } else {
@@ -5380,6 +5401,7 @@ async fn test_safely_backfill_data_column_custody_info() {
             // as long as we iterate epoch by epoch
             harness
                 .chain
+                .data_availability_manager
                 .safely_backfill_data_column_custody_info(Epoch::new(epoch))
                 .unwrap();
             let earliest_available_epoch = harness

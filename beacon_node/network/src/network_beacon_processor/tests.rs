@@ -1770,6 +1770,7 @@ async fn test_blobs_by_range() {
         blob_count += root
             .map(|root| {
                 rig.chain
+                    .data_availability_manager
                     .get_blobs(&root)
                     .map(|list| list.len())
                     .unwrap_or(0)
@@ -1834,6 +1835,7 @@ async fn test_blobs_by_range_spans_fulu_fork() {
         blob_count += root
             .map(|root| {
                 rig.chain
+                    .data_availability_manager
                     .get_blobs(&root)
                     .map(|list| list.len())
                     .unwrap_or(0)
@@ -1903,6 +1905,7 @@ async fn test_blobs_by_root() {
     blob_count += root
         .map(|root| {
             rig.chain
+                .data_availability_manager
                 .get_blobs(&root)
                 .map(|list| list.len())
                 .unwrap_or(0)
@@ -2046,6 +2049,7 @@ async fn test_data_columns_by_range_request_only_returns_requested_columns() {
 
     let all_custody_columns = rig
         .chain
+        .data_availability_manager
         .sampling_columns_for_epoch(rig.chain.epoch().unwrap());
     let available_columns: Vec<u64> = all_custody_columns.to_vec();
 

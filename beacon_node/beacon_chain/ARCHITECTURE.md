@@ -1,45 +1,55 @@
 # BeaconChain Architecture
 
-This document describes the modular architecture of the `beacon_chain` crate.
+This document describes the modular architecture that replaces the
+`BeaconChain<T>` god object.
 
 ## Overview
 
-Components are the primary units. They own their state, are independently
-testable, and are shared across callers via `Arc`. There is no central god
-object — callers receive only the components they need.
+`BeaconChain<T>` is fully replaced by focused components. Components own
+state and logic. Callers (HTTP API, NetworkBeaconProcessor, Sync Manager)
+hold `Arc` refs to components but contain no business logic of their own.
+Complex workflows like block import and block production are composed
+functions that take thin slices from components at call time.
 
 ```
 Builder (startup)
   │
   ├── OperationsManager ──── Arc ──┬── NetworkBeaconProcessor
-  │                                └── HTTP API (pool endpoints)
+  │                                └── HTTP API Context
   │
   ├── AttestationManager ─── Arc ──┬── NetworkBeaconProcessor
-  │                                └── HTTP API (attestation endpoints)
+  │                                └── HTTP API Context
+  │
+  ├── SyncCommitteeManager ─ Arc ──── NetworkBeaconProcessor
   │
   ├── DataAvailabilityMgr ── Arc ──┬── NetworkBeaconProcessor
-  │                                └── Sync manager
+  │                                └── Sync Manager
   │
   ├── CanonicalHead ──────── Arc ──┬── NetworkBeaconProcessor
-  │                                ├── HTTP API
-  │                                └── BlockWorkflow
+  │                                └── HTTP API Context
   │
-  ├── BlockWorkflow ──────── Arc ──── NetworkBeaconProcessor
-  │   (holds refs to DA, Attestation, etc. for import_block)
+  ├── ExecutionManager ───── Arc ──── HTTP API Context
   │
-  └── (other components...)
+  ├── ValidatorQueryService ─ Arc ── HTTP API Context
+  │
+  └── BlockImportState ───── Arc ──── NetworkBeaconProcessor
 ```
 
-After startup, components live independently. No single struct holds
-everything. Each caller holds `Arc` refs to only what it uses.
+Callers are bags of refs — they hold dependencies but don't implement
+logic. Handler functions pull the specific refs they need from the
+caller struct.
 
-## Core Pattern: Separate Verification from State Fetching
+## Core Pattern: Separate Business Logic from Infrastructure
+
+Components own verification logic and state. Infrastructure like chain
+state, current slot, and event dispatch is provided by the caller —
+either as values, references, or callbacks.
 
 Most verification follows a three-step pattern:
 
-1. **Fetch state** — get head state, wall clock epoch, fork choice data
-2. **Verify/process** — run business logic against that state
-3. **Mutate owned data** — update observed_*, pools, caches
+1. **Fetch state** — caller gets head state, current epoch, fork choice data
+2. **Verify/process** — component runs business logic against that state
+3. **Mutate owned data** — component updates observed_*, pools, caches
 
 Components own steps 2 and 3. Callers handle step 1.
 
@@ -136,25 +146,14 @@ Validator pubkey lookups, committee cache access.
 
 **Holds:** `spec`
 
-### `BlockWorkflow<T: BeaconChainTypes>`
+### `BlockImportState<E: EthSpec>`
 
-Block verification, import, and the cross-component coordination that
-`import_block` requires. This is the only place that orchestrates across
-multiple components, because block import genuinely needs it.
+Block import caches and observation tracking. Used by the composed
+block import workflow function — not an orchestrator.
 
 **Owns:** `block_times_cache`, `envelope_times_cache`,
 `pre_finalization_block_cache`, `observed_block_producers`,
 `observed_slashable`
-
-**Holds:** `spec`, `store`, `slot_clock`, `canonical_head`, `op_pool`,
-`task_executor`, `execution_layer`, `event_handler`, `validator_monitor`,
-`slasher`, `genesis_block_root`
-
-**Also holds refs to other components:**
-- `attestations: Arc<AttestationManager<E>>` (early attester cache updates)
-- `data_availability: Arc<DataAvailabilityManager<T>>` (DA checks)
-
-This is one-directional (BlockWorkflow → others, no cycles).
 
 ### Unmapped fields
 
@@ -174,64 +173,9 @@ components and need further design work:
 - `genesis_state_root`, `genesis_validators_root`, `genesis_time`,
   `genesis_backfill_slot` — scattered usage, no clear single owner.
 
-## Rules
+## Design Principles
 
-### 1. Components are generic over `E: EthSpec`, not `T: BeaconChainTypes`
-
-Unless a component genuinely needs store access or the slot clock type,
-use `E: EthSpec`. This gives simpler generics and faster compilation.
-
-Exceptions: `DataAvailabilityManager`, `ExecutionManager`, and
-`BlockWorkflow` need `T`.
-
-### 2. Fork choice write locks are concentrated in well-defined paths
-
-Fork choice write locks are acquired only by:
-
-- **Block import** — `fork_choice.on_block()` during `import_block`
-  (`beacon_chain.rs:3896`)
-- **Head recomputation** — `fork_choice.get_head()` in
-  `recompute_head_inner` (`canonical_head.rs:616`) and
-  `fork_choice.prune()` in `after_finalization`
-  (`canonical_head.rs:1059`)
-- **Attestation application** — `fork_choice.on_attestation()` for
-  gossip attestations (`beacon_chain.rs:2305`)
-- **Execution layer callbacks** — `fork_choice.on_invalid_execution_payload()`
-  and `fork_choice.on_valid_execution_payload()` when the EL reports
-  INVALID/VALID asynchronously (`beacon_chain.rs:5791`, `6149`)
-- **Attester slashing import** — `fork_choice.on_attester_slashing()`
-  for standalone gossip slashings (`beacon_chain.rs:2650`)
-
-Components like OperationsManager, SyncCommitteeManager, and
-ValidatorQueryService never touch fork choice locks. No fork choice
-write locks exist outside the `beacon_chain` crate — the HTTP API,
-network, and sync layers never acquire them directly.
-
-This preserves the lock ordering documented in `canonical_head.rs`.
-
-### 3. Components are side-effect-free
-
-Components don't hold `event_handler` or `SlotClock`. They don't emit
-SSE events or fetch the current time. Import methods return data that the
-caller uses for side effects (SSE events, metrics, etc.).
-
-**Known hard case:** During `import_block`, `early_attester_cache`
-insertion happens while holding the fork choice write lock, and SSE head
-events are emitted in the same critical section. Moving side effects to
-the caller requires careful design to preserve lock-scope semantics —
-the caller must replicate the context (e.g., computing `dependent_root`
-from state) that today exists only inside the locked section.
-
-### 4. State is passed as parameters, not fetched internally
-
-Components receive `&BeaconState<E>`, `&CachedHead<E>`, `Epoch`, or
-`bool` flags as method parameters. They never hold `CanonicalHead<T>` or
-`BeaconStore<T>`. The caller fetches state and passes it in.
-
-This is what makes components directly testable — construct a test state,
-pass it as a parameter, no chain infrastructure needed.
-
-### 5. Favour composition over god objects
+### 1. Favour composition over god objects
 
 Workflows compose the specific capabilities they need — not whole
 components. Pass what you need, not what _has_ what you need.
@@ -274,12 +218,60 @@ pub async fn produce_block(
 }
 ```
 
-This applies to other complex call sites (HTTP API, sync) — each
-composes the thin slices it needs rather than holding `Arc<BeaconChain>`.
+This applies to other complex call sites — block import, the HTTP API,
+sync — each composes the thin slices it needs.
+
+### 2. Separate business logic from infrastructure
+
+Components own verification logic and state. Infrastructure like chain
+state, current slot, and event dispatch is provided by the caller —
+either as values, references, or callbacks.
+
+For example, the caller could read `slot_clock.now()` and pass the
+resulting `Epoch` in, or pass a callback for mid-workflow side effects
+like SSE events.
+
+**Known hard case:** During `import_block`, `early_attester_cache`
+insertion happens while holding the fork choice write lock, and SSE head
+events are emitted in the same critical section. Moving side effects to
+the caller requires careful design to preserve lock-scope semantics —
+the caller must replicate the context (e.g., computing `dependent_root`
+from state) that today exists only inside the locked section. A callback
+pattern could address this.
+
+### 3. Components are testable in isolation
+
+You should be able to construct a component, pass in test state, and
+assert results — without `BeaconChainHarness`, store, or fork choice.
+
+### 4. Fork choice write locks are concentrated
+
+Fork choice write locks are acquired only by:
+
+- **Block import** — `fork_choice.on_block()` during `import_block`
+  (`beacon_chain.rs:3896`)
+- **Head recomputation** — `fork_choice.get_head()` in
+  `recompute_head_inner` (`canonical_head.rs:616`) and
+  `fork_choice.prune()` in `after_finalization`
+  (`canonical_head.rs:1059`)
+- **Attestation application** — `fork_choice.on_attestation()` for
+  gossip attestations (`beacon_chain.rs:2305`)
+- **Execution layer callbacks** — `fork_choice.on_invalid_execution_payload()`
+  and `fork_choice.on_valid_execution_payload()` when the EL reports
+  INVALID/VALID asynchronously (`beacon_chain.rs:5791`, `6149`)
+- **Attester slashing import** — `fork_choice.on_attester_slashing()`
+  for standalone gossip slashings (`beacon_chain.rs:2650`)
+
+Components like OperationsManager, SyncCommitteeManager, and
+ValidatorQueryService never touch fork choice locks. No fork choice
+write locks exist outside the `beacon_chain` crate — the HTTP API,
+network, and sync layers never acquire them directly.
+
+This preserves the lock ordering documented in `canonical_head.rs`.
 
 ## Testing
 
-### Unit tests (AI writes, fast)
+### Unit tests — components directly
 
 Components are directly testable without `BeaconChainHarness`:
 
@@ -296,8 +288,6 @@ fn rejects_exit_for_unknown_validator() {
     assert!(ops.verify_voluntary_exit(exit, &state, Epoch::new(0)).is_err());
 }
 ```
-
-No harness, no store, no fork choice. Runs in under a second.
 
 Composition also enables testing complex workflows directly:
 
@@ -324,53 +314,49 @@ async fn block_includes_available_exits() {
 }
 ```
 
-### BDD specs (humans write)
+### Acceptance tests — event-based via sync manager
 
-```gherkin
-Feature: Voluntary Exit Verification
+The existing `TestRig` infrastructure in the sync manager enables
+event-based acceptance tests for component interactions and full
+workflows without needing `BeaconChainHarness`.
 
-  Scenario: Valid exit is accepted
-    Given a genesis state with 8 validators
-    When validator 0 submits a voluntary exit at epoch 5
-    Then the exit is accepted as new
-
-  Scenario: Duplicate exit is ignored
-    Given a genesis state with 8 validators
-    And validator 0 has already submitted a voluntary exit
-    When validator 0 submits the same exit again
-    Then the exit is marked as already known
-
-  Scenario: Exit for unknown validator is rejected
-    Given a genesis state with 4 validators
-    When validator 999 submits a voluntary exit
-    Then the exit is rejected with an error
-```
-
-AI implements the component against the spec. Humans review the spec only.
-
-### Integration tests (existing, still work)
+### Integration tests — existing harness
 
 `BeaconChainHarness` tests continue to work for end-to-end workflows.
 They test the full call path including state fetching and side effects.
 
 ## Caller Dependency Injection
 
-Callers receive only the components they need, injected at construction:
+Callers hold refs to components but no logic of their own. Handler
+functions pull the specific refs they need:
 
 ```rust
-// NetworkBeaconProcessor — holds refs to what it uses
+// NetworkBeaconProcessor — holds refs, no business logic
 struct NetworkBeaconProcessor<T: BeaconChainTypes> {
     operations:        Arc<OperationsManager<T::EthSpec>>,
     attestations:      Arc<AttestationManager<T::EthSpec>>,
     sync_committee:    Arc<SyncCommitteeManager<T::EthSpec>>,
     data_availability: Arc<DataAvailabilityManager<T>>,
-    block_workflow:    Arc<BlockWorkflow<T>>,
+    block_import:      Arc<BlockImportState<T::EthSpec>>,
     canonical_head:    Arc<CanonicalHead<T>>,
     slot_clock:        T::SlotClock,
     event_handler:     Option<ServerSentEventHandler<T::EthSpec>>,
-    // NOT the full BeaconChain — only what it needs
+    // Holds refs — handler functions contain the logic
+}
+
+// HTTP API Context — same pattern, different subset
+struct Context<T: BeaconChainTypes> {
+    operations:        Arc<OperationsManager<T::EthSpec>>,
+    attestations:      Arc<AttestationManager<T::EthSpec>>,
+    canonical_head:    Arc<CanonicalHead<T>>,
+    execution:         Arc<ExecutionManager<T>>,
+    validator_query:   Arc<ValidatorQueryService<T::EthSpec>>,
+    spec:              Arc<ChainSpec>,
+    slot_clock:        T::SlotClock,
+    config:            ChainConfig,
+    // Holds refs — route handlers contain the logic
 }
 ```
 
-HTTP API route groups similarly receive only their relevant components.
-No single caller holds all components.
+No single caller holds all components. Each holds only the refs its
+handler functions need.

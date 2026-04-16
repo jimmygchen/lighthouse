@@ -1883,8 +1883,13 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         let validator_index = bls_to_execution_change.message.validator_index;
         let address = bls_to_execution_change.message.to_execution_address;
 
-        // Fetch state context for verification (moved from BeaconChain delegation wrapper).
-        let is_post_capella = match self.chain.current_slot_is_post_capella() {
+        // Fetch state context for verification.
+        let is_post_capella = match self.chain.slot().map(|slot| {
+            self.chain
+                .spec
+                .fork_name_at_slot::<T::EthSpec>(slot)
+                .capella_enabled()
+        }) {
             Ok(v) => v,
             Err(e) => {
                 debug!(

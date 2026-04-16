@@ -2053,6 +2053,7 @@ fn get_custody_columns(tester: &InteractiveTester<E>, slot: Slot) -> HashSet<Col
         .chain
         .as_ref()
         .unwrap()
+        .data_availability_manager
         .sampling_columns_for_epoch(epoch)
         .iter()
         .copied()

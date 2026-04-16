@@ -3106,9 +3106,11 @@ pub fn serve<T: BeaconChainTypes>(
                     // cgc requiremnets.
                     custody_context.reset_validator_custody_requirements(effective_epoch);
                     // Update `DataColumnCustodyInfo` to reflect the custody change.
-                    chain.update_data_column_custody_info(Some(
-                        effective_epoch.start_slot(T::EthSpec::slots_per_epoch()),
-                    ));
+                    chain
+                        .data_availability_manager
+                        .update_data_column_custody_info(Some(
+                            effective_epoch.start_slot(T::EthSpec::slots_per_epoch()),
+                        ));
                     Ok(())
                 })
             },

@@ -582,6 +582,7 @@ impl<T: BeaconChainTypes> SyncNetworkContext<T> {
                 let epoch = Slot::new(*request.start_slot()).epoch(T::EthSpec::slots_per_epoch());
                 let column_indexes = self
                     .chain
+                    .data_availability_manager
                     .sampling_columns_for_epoch(epoch)
                     .iter()
                     .cloned()
@@ -1101,6 +1102,7 @@ impl<T: BeaconChainTypes> SyncNetworkContext<T> {
         // Include only the blob indexes not yet imported (received through gossip)
         let mut custody_indexes_to_fetch = self
             .chain
+            .data_availability_manager
             .sampling_columns_for_epoch(current_epoch)
             .iter()
             .copied()
@@ -1685,6 +1687,7 @@ impl<T: BeaconChainTypes> SyncNetworkContext<T> {
         let columns_by_range_peers_to_request = {
             let column_indexes = self
                 .chain
+                .data_availability_manager
                 .sampling_columns_for_epoch(batch_id.epoch)
                 .iter()
                 .cloned()

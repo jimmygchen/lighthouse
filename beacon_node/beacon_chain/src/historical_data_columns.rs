@@ -135,7 +135,8 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             .custody_context()
             .update_and_backfill_custody_count_at_epoch(epoch, expected_cgc);
 
-        self.safely_backfill_data_column_custody_info(epoch)
+        self.data_availability_manager
+            .safely_backfill_data_column_custody_info(epoch)
             .map_err(|e| HistoricalDataColumnError::BeaconChainError(Box::new(e)))?;
 
         debug!(?epoch, total_imported, "Imported historical data columns");

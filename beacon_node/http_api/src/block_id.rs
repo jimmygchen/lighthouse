@@ -292,11 +292,17 @@ impl BlockId {
         let data_column_sidecars = if let Some(indices) = query.indices {
             indices
                 .iter()
-                .filter_map(|index| chain.get_data_column(&root, index, fork_name).transpose())
+                .filter_map(|index| {
+                    chain
+                        .data_availability_manager
+                        .get_data_column(&root, index, fork_name)
+                        .transpose()
+                })
                 .collect::<Result<DataColumnSidecarList<T::EthSpec>, _>>()
                 .map_err(warp_utils::reject::unhandled_error)?
         } else {
             chain
+                .data_availability_manager
                 .get_data_columns(&root, fork_name)
                 .map_err(warp_utils::reject::unhandled_error)?
                 .unwrap_or_default()
@@ -470,7 +476,11 @@ impl BlockId {
             let data_columns = column_indices
                 .into_iter()
                 .filter_map(|column_index| {
-                    match chain.get_data_column(&root, &column_index, fork_name) {
+                    match chain.data_availability_manager.get_data_column(
+                        &root,
+                        &column_index,
+                        fork_name,
+                    ) {
                         Ok(Some(data_column)) => Some(Ok(data_column)),
                         Ok(None) => None,
                         Err(e) => Some(Err(warp_utils::reject::unhandled_error(e))),

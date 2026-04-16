@@ -93,9 +93,7 @@ use itertools::Itertools;
 use itertools::process_results;
 use kzg::Kzg;
 use logging::crit;
-use operation_pool::{
-    CompactAttestationRef, OperationPool, PersistedOperationPool, ReceivedPreCapella,
-};
+use operation_pool::{CompactAttestationRef, OperationPool, PersistedOperationPool};
 use parking_lot::{Mutex, RwLock, RwLockWriteGuard};
 use proto_array::{DoNotReOrg, ProposerHeadError};
 use rand::RngCore;
@@ -1140,7 +1138,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             .early_attester_cache
             .get_blobs(*block_root)
             .map(Into::into)
-            .map_or_else(|| self.get_blobs(block_root), Ok)
+            .map_or_else(|| self.data_availability_manager.get_blobs(block_root), Ok)
     }
 
     #[cfg(not(test))]
@@ -1179,7 +1177,8 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             indices
                 .iter()
                 .filter_map(|index| {
-                    self.get_data_column(&block_root, index, block.fork_name_unchecked())
+                    self.data_availability_manager
+                        .get_data_column(&block_root, index, block.fork_name_unchecked())
                         .transpose()
                 })
                 .collect::<Result<_, _>>()
@@ -1249,61 +1248,6 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             .try_into_full_block(Some(execution_payload))
             .ok_or(Error::AddPayloadLogicError)
             .map(Some)
-    }
-
-    /// Returns the blobs at the given root, if any.
-    ///
-    /// ## Errors
-    /// May return a database error.
-    pub fn get_blobs(
-        &self,
-        block_root: &Hash256,
-    ) -> Result<BlobSidecarListFromRoot<T::EthSpec>, Error> {
-        self.data_availability_manager.get_blobs(block_root)
-    }
-
-    /// Returns the data columns at the given root, if any.
-    ///
-    /// ## Errors
-    /// May return a database error.
-    pub fn get_data_columns(
-        &self,
-        block_root: &Hash256,
-        fork_name: ForkName,
-    ) -> Result<Option<DataColumnSidecarList<T::EthSpec>>, Error> {
-        self.data_availability_manager
-            .get_data_columns(block_root, fork_name)
-    }
-
-    /// Returns the blobs at the given root, if any.
-    ///
-    /// Uses the `block.epoch()` to determine whether to retrieve blobs or columns from the store.
-    ///
-    /// If at least 50% of columns are retrieved, blobs will be reconstructed and returned,
-    /// otherwise an error `InsufficientColumnsToReconstructBlobs` is returned.
-    ///
-    /// ## Errors
-    /// May return a database error.
-    pub fn get_or_reconstruct_blobs(
-        &self,
-        block_root: &Hash256,
-    ) -> Result<Option<BlobSidecarList<T::EthSpec>>, Error> {
-        self.data_availability_manager
-            .get_or_reconstruct_blobs(block_root)
-    }
-
-    /// Returns the data column at the given root and index, if any.
-    ///
-    /// ## Errors
-    /// May return a database error.
-    pub fn get_data_column(
-        &self,
-        block_root: &Hash256,
-        column_index: &ColumnIndex,
-        fork_name: ForkName,
-    ) -> Result<Option<Arc<DataColumnSidecar<T::EthSpec>>>, Error> {
-        self.data_availability_manager
-            .get_data_column(block_root, column_index, fork_name)
     }
 
     pub fn get_blinded_block(
@@ -2540,11 +2484,6 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             })?)
     }
 
-    /// Accept a pre-verified exit and queue it for inclusion in an appropriate block.
-    pub fn import_voluntary_exit(&self, exit: SigVerifiedOp<SignedVoluntaryExit, T::EthSpec>) {
-        self.op_pool.insert_voluntary_exit(exit)
-    }
-
     /// Verify a proposer slashing before allowing it to propagate on the gossip network.
     pub fn verify_proposer_slashing_for_gossip(
         &self,
@@ -2557,22 +2496,6 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             &wall_clock_state,
             &self.spec,
         )?)
-    }
-
-    /// Accept some proposer slashing and queue it for inclusion in an appropriate block.
-    pub fn import_proposer_slashing(
-        &self,
-        proposer_slashing: SigVerifiedOp<ProposerSlashing, T::EthSpec>,
-    ) {
-        if let Some(event_handler) = self.event_handler.as_ref()
-            && event_handler.has_proposer_slashing_subscribers()
-        {
-            event_handler.register(EventKind::ProposerSlashing(Box::new(
-                proposer_slashing.clone().into_inner(),
-            )));
-        }
-
-        self.op_pool.insert_proposer_slashing(proposer_slashing)
     }
 
     /// Verify an attester slashing before allowing it to propagate on the gossip network.
@@ -2612,79 +2535,6 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
 
         // Add to the op pool (if we have the ability to propose blocks).
         self.op_pool.insert_attester_slashing(attester_slashing)
-    }
-
-    /// Verify a signed BLS to execution change before allowing it to propagate on the gossip network.
-    pub fn verify_bls_to_execution_change_for_http_api(
-        &self,
-        bls_to_execution_change: SignedBlsToExecutionChange,
-    ) -> Result<ObservationOutcome<SignedBlsToExecutionChange, T::EthSpec>, Error> {
-        // Before checking the gossip duplicate filter, check that no prior change is already
-        // in our op pool. Ignore these messages: do not gossip, do not try to override the pool.
-        match self
-            .op_pool
-            .bls_to_execution_change_in_pool_equals(&bls_to_execution_change)
-        {
-            Some(true) => return Ok(ObservationOutcome::AlreadyKnown),
-            Some(false) => return Err(Error::BlsToExecutionConflictsWithPool),
-            None => (),
-        }
-
-        // Use the head state to save advancing to the wall-clock slot unnecessarily. The message is
-        // signed with respect to the genesis fork version, and the slot check for gossip is applied
-        // separately. This `Arc` clone of the head is nice and cheap.
-        let head_snapshot = self.head().snapshot;
-        let head_state = &head_snapshot.beacon_state;
-
-        Ok(self
-            .observed_bls_to_execution_changes
-            .lock()
-            .verify_and_observe(bls_to_execution_change, head_state, &self.spec)?)
-    }
-
-    /// Verify a signed BLS to execution change before allowing it to propagate on the gossip network.
-    pub fn verify_bls_to_execution_change_for_gossip(
-        &self,
-        bls_to_execution_change: SignedBlsToExecutionChange,
-    ) -> Result<ObservationOutcome<SignedBlsToExecutionChange, T::EthSpec>, Error> {
-        // Ignore BLS to execution changes on gossip prior to Capella.
-        if !self.current_slot_is_post_capella()? {
-            return Err(Error::BlsToExecutionPriorToCapella);
-        }
-        self.verify_bls_to_execution_change_for_http_api(bls_to_execution_change)
-            .or_else(|e| {
-                // On gossip treat conflicts the same as duplicates [IGNORE].
-                match e {
-                    Error::BlsToExecutionConflictsWithPool => Ok(ObservationOutcome::AlreadyKnown),
-                    e => Err(e),
-                }
-            })
-    }
-
-    /// Check if the current slot is greater than or equal to the Capella fork epoch.
-    pub fn current_slot_is_post_capella(&self) -> Result<bool, Error> {
-        let current_fork = self.spec.fork_name_at_slot::<T::EthSpec>(self.slot()?);
-        Ok(current_fork.capella_enabled())
-    }
-
-    /// Import a BLS to execution change to the op pool.
-    ///
-    /// Return `true` if the change was added to the pool.
-    pub fn import_bls_to_execution_change(
-        &self,
-        bls_to_execution_change: SigVerifiedOp<SignedBlsToExecutionChange, T::EthSpec>,
-        received_pre_capella: ReceivedPreCapella,
-    ) -> bool {
-        if let Some(event_handler) = self.event_handler.as_ref()
-            && event_handler.has_bls_to_execution_change_subscribers()
-        {
-            event_handler.register(EventKind::BlsToExecutionChange(Box::new(
-                bls_to_execution_change.clone().into_inner(),
-            )));
-        }
-
-        self.op_pool
-            .insert_bls_to_execution_change(bls_to_execution_change, received_pre_capella)
     }
 
     /// Attempt to obtain sync committee duties from the head.
@@ -6750,52 +6600,6 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             .map(|duration| (next_digest_epoch, duration))
     }
 
-    /// Update data column custody info with the slot at which cgc was changed.
-    pub fn update_data_column_custody_info(&self, slot: Option<Slot>) {
-        self.data_availability_manager
-            .update_data_column_custody_info(slot)
-    }
-
-    /// Get the earliest epoch in which the node has met its custody requirements.
-    /// A `None` response indicates that we've met our custody requirements up to the
-    /// column data availability window.
-    pub fn earliest_custodied_data_column_epoch(&self) -> Option<Epoch> {
-        self.data_availability_manager
-            .earliest_custodied_data_column_epoch()
-    }
-
-    /// The data availability boundary for custodying columns. It will just be the
-    /// regular data availability boundary unless we are near the Fulu fork epoch.
-    pub fn column_data_availability_boundary(&self) -> Option<Epoch> {
-        self.data_availability_manager
-            .column_data_availability_boundary()
-    }
-
-    /// Safely update data column custody info by ensuring that:
-    /// - cgc values at the updated epoch and the earliest custodied column epoch are equal
-    /// - we are only decrementing the earliest custodied data column epoch by one epoch
-    /// - the new earliest data column slot is set to the first slot in `effective_epoch`.
-    pub fn safely_backfill_data_column_custody_info(
-        &self,
-        effective_epoch: Epoch,
-    ) -> Result<(), Error> {
-        self.data_availability_manager
-            .safely_backfill_data_column_custody_info(effective_epoch)
-    }
-
-    /// Compare columns custodied for `epoch` versus columns custodied for the head of the chain
-    /// and return any column indices that are missing.
-    pub fn get_missing_columns_for_epoch(&self, epoch: Epoch) -> HashSet<ColumnIndex> {
-        self.data_availability_manager
-            .get_missing_columns_for_epoch(epoch)
-    }
-
-    /// The DA boundary for custodying columns. It will just be the DA boundary
-    /// unless we are near the Fulu fork epoch.
-    pub fn get_column_da_boundary(&self) -> Option<Epoch> {
-        self.data_availability_manager.get_column_da_boundary()
-    }
-
     /// This method serves to get a sense of the current chain health. It is used in block proposal
     /// to determine whether we should outsource payload production duties.
     ///
@@ -7001,30 +6805,6 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         gossip_attested || block_attested || aggregated || produced_block
     }
 
-    /// The epoch at which we require a data availability check in block processing.
-    /// `None` if the `Deneb` fork is disabled.
-    pub fn data_availability_boundary(&self) -> Option<Epoch> {
-        self.data_availability_manager.data_availability_boundary()
-    }
-
-    /// Returns true if epoch is within the data availability boundary.
-    pub fn da_check_required_for_epoch(&self, epoch: Epoch) -> bool {
-        self.data_availability_manager
-            .da_check_required_for_epoch(epoch)
-    }
-
-    /// Returns true if we should fetch blobs for this block.
-    pub fn should_fetch_blobs(&self, block_epoch: Epoch) -> bool {
-        self.data_availability_manager
-            .should_fetch_blobs(block_epoch)
-    }
-
-    /// Returns true if we should fetch custody columns for this block.
-    pub fn should_fetch_custody_columns(&self, block_epoch: Epoch) -> bool {
-        self.data_availability_manager
-            .should_fetch_custody_columns(block_epoch)
-    }
-
     /// Gets the `LightClientBootstrap` object for a requested block root.
     ///
     /// Returns `None` when the state or block is not found in the database.
@@ -7063,9 +6843,11 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
                 Some(StoreOp::PutBlobs(block_root, blobs))
             }
             AvailableBlockData::DataColumns(mut data_columns) => {
-                let columns_to_custody = self.custody_columns_for_epoch(Some(
-                    block_slot.epoch(T::EthSpec::slots_per_epoch()),
-                ));
+                let columns_to_custody =
+                    self.data_availability_manager
+                        .custody_columns_for_epoch(Some(
+                            block_slot.epoch(T::EthSpec::slots_per_epoch()),
+                        ));
                 // Supernodes need to persist all sampled custody columns
                 if columns_to_custody.len() != self.spec.number_of_custody_groups as usize {
                     data_columns
@@ -7108,23 +6890,6 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         // return in ascending slot order
         roots.reverse();
         roots
-    }
-
-    /// Returns a list of column indices that should be sampled for a given epoch.
-    /// Used for data availability sampling in PeerDAS.
-    pub fn sampling_columns_for_epoch(&self, epoch: Epoch) -> &[ColumnIndex] {
-        self.data_availability_manager
-            .sampling_columns_for_epoch(epoch)
-    }
-
-    /// Returns a list of column indices that the node is expected to custody for a given epoch.
-    /// i.e. the node must have validated and persisted the column samples and should be able to
-    /// serve them to peers.
-    ///
-    /// If epoch is `None`, this function computes the custody columns at head.
-    pub fn custody_columns_for_epoch(&self, epoch_opt: Option<Epoch>) -> &[ColumnIndex] {
-        self.data_availability_manager
-            .custody_columns_for_epoch(epoch_opt)
     }
 }
 

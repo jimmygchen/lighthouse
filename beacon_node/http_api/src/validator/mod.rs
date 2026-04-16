@@ -714,11 +714,13 @@ pub fn post_validator_prepare_beacon_proposer<T: BeaconChainTypes>(
                             .custody_context()
                             .register_validators(validators_and_balances, current_slot, &chain.spec)
                         {
-                            chain.update_data_column_custody_info(Some(
-                                cgc_change
-                                    .effective_epoch
-                                    .start_slot(T::EthSpec::slots_per_epoch()),
-                            ));
+                            chain
+                                .data_availability_manager
+                                .update_data_column_custody_info(Some(
+                                    cgc_change
+                                        .effective_epoch
+                                        .start_slot(T::EthSpec::slots_per_epoch()),
+                                ));
 
                             network_tx.send(NetworkMessage::CustodyCountChanged {
                                 new_custody_group_count: cgc_change.new_custody_group_count,

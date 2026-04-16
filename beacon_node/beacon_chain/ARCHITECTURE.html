@@ -1,0 +1,1024 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<title>BeaconChain, Rearchitected</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #161b22;
+    --surface2: #1c2129;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-muted: #8b949e;
+    --accent: #58a6ff;
+    --accent2: #3fb950;
+    --accent3: #d2a8ff;
+    --accent4: #f0883e;
+    --accent5: #ff7b72;
+    --accent6: #79c0ff;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+
+  /* ── Hero ── */
+  .hero {
+    min-height: 100vh;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    text-align: center; padding: 2rem;
+    position: relative; overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute; top: -40%; left: -20%;
+    width: 140%; height: 140%;
+    background: radial-gradient(ellipse at 60% 40%, rgba(88,166,255,0.08) 0%, transparent 60%),
+                radial-gradient(ellipse at 30% 70%, rgba(63,185,80,0.06) 0%, transparent 50%);
+    animation: drift 20s ease-in-out infinite alternate;
+    pointer-events: none;
+  }
+  @keyframes drift {
+    0%   { transform: translate(0, 0) scale(1); }
+    100% { transform: translate(30px, -20px) scale(1.05); }
+  }
+  .hero h1 {
+    font-size: clamp(2.5rem, 6vw, 4.5rem);
+    font-weight: 800; letter-spacing: -0.03em;
+    background: linear-gradient(135deg, var(--accent), var(--accent3));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    margin-bottom: 1rem; position: relative;
+  }
+  .hero .subtitle {
+    font-size: clamp(1rem, 2.5vw, 1.4rem);
+    color: var(--text-muted); max-width: 600px; margin-bottom: 2.5rem;
+  }
+  .hero .scroll-hint {
+    position: absolute; bottom: 2rem;
+    animation: bob 2s ease-in-out infinite;
+    color: var(--text-muted); font-size: 1.5rem;
+  }
+  @keyframes bob {
+    0%,100% { transform: translateY(0); }
+    50%     { transform: translateY(8px); }
+  }
+
+  /* ── Nav ── */
+  nav {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(15,17,23,0.85);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 2rem;
+  }
+  nav ul {
+    list-style: none; display: flex; gap: 0.25rem;
+    max-width: 1100px; margin: 0 auto;
+    overflow-x: auto; scrollbar-width: none;
+  }
+  nav ul::-webkit-scrollbar { display: none; }
+  nav a {
+    display: block; padding: 0.75rem 1rem;
+    color: var(--text-muted); text-decoration: none;
+    font-size: 0.85rem; font-weight: 500; white-space: nowrap;
+    border-bottom: 2px solid transparent; transition: all 0.2s;
+  }
+  nav a:hover, nav a.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* ── Sections ── */
+  section {
+    max-width: 1100px; margin: 0 auto; padding: 5rem 2rem;
+  }
+  section h2 {
+    font-size: 2rem; font-weight: 700; margin-bottom: 0.5rem;
+    display: flex; align-items: center; gap: 0.75rem;
+  }
+  section h2 .badge {
+    font-size: 0.7rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.08em; padding: 0.2em 0.6em; border-radius: 4px;
+    background: var(--accent); color: var(--bg);
+  }
+  section .lead {
+    font-size: 1.1rem; color: var(--text-muted);
+    max-width: 700px; margin-bottom: 3rem;
+  }
+
+  /* ── Before / After ── */
+  .compare {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 2rem; margin: 2rem 0;
+  }
+  @media (max-width: 768px) { .compare { grid-template-columns: 1fr; } }
+  .compare-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 2rem;
+  }
+  .compare-card.before { border-top: 3px solid var(--accent5); }
+  .compare-card.after  { border-top: 3px solid var(--accent2); }
+  .compare-card h3 {
+    font-size: 0.8rem; text-transform: uppercase;
+    letter-spacing: 0.1em; margin-bottom: 1.5rem;
+  }
+  .compare-card.before h3 { color: var(--accent5); }
+  .compare-card.after h3  { color: var(--accent2); }
+  .god-object {
+    display: flex; flex-direction: column; align-items: center; gap: 0.5rem;
+  }
+  .god-box {
+    background: linear-gradient(135deg, #2a1a1a, #1a1a2a);
+    border: 2px solid var(--accent5); border-radius: 10px;
+    padding: 1rem 2rem; text-align: center; font-weight: 700; font-size: 0.95rem;
+    box-shadow: 0 0 20px rgba(255,123,114,0.15); width: 100%; max-width: 260px;
+  }
+  .god-fields {
+    display: flex; flex-wrap: wrap; gap: 0.4rem;
+    justify-content: center; max-width: 280px;
+  }
+  .god-field {
+    font-size: 0.65rem; padding: 0.15em 0.5em;
+    background: rgba(255,123,114,0.1); border: 1px solid rgba(255,123,114,0.25);
+    border-radius: 4px; color: var(--accent5);
+  }
+  .bullet-list {
+    list-style: none; padding: 0;
+  }
+  .bullet-list li {
+    font-size: 0.85rem; padding: 0.4em 0;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-muted);
+  }
+  .bullet-list li:last-child { border-bottom: none; }
+  .bullet-list li strong { color: var(--text); }
+
+  /* ── Workflow ── */
+  .workflow-layers {
+    display: grid; grid-template-columns: 1fr auto 1fr;
+    gap: 0; margin: 2rem 0; align-items: stretch;
+  }
+  @media (max-width: 768px) {
+    .workflow-layers { grid-template-columns: 1fr; }
+    .workflow-divider { display: none; }
+  }
+  .workflow-col {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 1.75rem;
+  }
+  .workflow-col h3 {
+    font-size: 0.75rem; text-transform: uppercase;
+    letter-spacing: 0.1em; margin-bottom: 1.25rem;
+  }
+  .workflow-col.human h3 { color: var(--accent); }
+  .workflow-col.ai h3 { color: var(--accent3); }
+  .workflow-divider {
+    display: flex; align-items: center; justify-content: center;
+    padding: 0 1rem; color: var(--text-muted); font-size: 1.5rem;
+  }
+  .wf-item {
+    padding: 0.6em 0; border-bottom: 1px solid var(--border); font-size: 0.85rem;
+  }
+  .wf-item:last-child { border-bottom: none; }
+  .wf-item .wf-title { font-weight: 600; margin-bottom: 0.2rem; }
+  .wf-item .wf-desc { font-size: 0.8rem; color: var(--text-muted); }
+  .horizon { margin-top: 3rem; }
+  .horizon-bar {
+    display: flex; margin: 0.75rem 0; border-radius: 8px;
+    overflow: hidden; height: 44px;
+  }
+  .horizon-seg {
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.75rem; font-weight: 600; padding: 0 1rem; white-space: nowrap;
+  }
+  .horizon-label {
+    display: flex; justify-content: space-between;
+    font-size: 0.7rem; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 0.25rem;
+  }
+
+  /* ── Principles ── */
+  .principles {
+    display: grid; gap: 1.25rem; margin: 2rem 0;
+  }
+  .principle {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 1.5rem 1.5rem 1.5rem 5rem;
+    position: relative;
+  }
+  .principle-num {
+    position: absolute; left: 1.5rem; top: 1.5rem;
+    width: 36px; height: 36px; line-height: 36px;
+    text-align: center; border-radius: 8px;
+    font-weight: 800; font-size: 1.1rem;
+  }
+  .principle:nth-child(1) .principle-num { background: rgba(88,166,255,0.15); color: var(--accent); }
+  .principle:nth-child(2) .principle-num { background: rgba(63,185,80,0.15); color: var(--accent2); }
+  .principle:nth-child(3) .principle-num { background: rgba(210,168,255,0.15); color: var(--accent3); }
+  .principle:nth-child(4) .principle-num { background: rgba(240,136,62,0.15); color: var(--accent4); }
+  .principle:nth-child(5) .principle-num { background: rgba(255,123,114,0.15); color: var(--accent5); }
+  .principle h3 { font-size: 1rem; margin-bottom: 0.4rem; }
+  .principle p  { font-size: 0.85rem; color: var(--text-muted); }
+  .principle .why {
+    margin-top: 0.75rem; padding-top: 0.75rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.8rem; color: var(--text-muted); font-style: italic;
+  }
+
+  /* ── Spec-Driven ── */
+  .spec-cards {
+    display: grid; grid-template-columns: repeat(2, 1fr);
+    gap: 1.25rem; margin: 2rem 0;
+  }
+  @media (max-width: 768px) { .spec-cards { grid-template-columns: 1fr; } }
+  .spec-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 1.5rem; text-align: center;
+  }
+  .spec-card .icon { font-size: 2rem; margin-bottom: 0.75rem; display: block; }
+  .spec-card h3 { font-size: 1rem; margin-bottom: 0.25rem; }
+  .spec-card .role {
+    font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em;
+    font-weight: 600; margin-bottom: 0.75rem;
+  }
+  .spec-card p { font-size: 0.8rem; color: var(--text-muted); text-align: left; }
+
+  /* ── Code Blocks ── */
+  .code-block {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; overflow: hidden; margin: 1.5rem 0;
+  }
+  .code-header {
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.6rem 1rem; background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+    font-size: 0.75rem; color: var(--text-muted);
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  }
+  .code-header .dot {
+    width: 8px; height: 8px; border-radius: 50%; display: inline-block;
+  }
+  .code-header .dot:nth-child(1) { background: #ff5f57; }
+  .code-header .dot:nth-child(2) { background: #febc2e; }
+  .code-header .dot:nth-child(3) { background: #28c840; }
+  pre {
+    padding: 1.25rem; overflow-x: auto;
+    font-size: 0.8rem; line-height: 1.7;
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  }
+  .kw  { color: var(--accent5); }
+  .ty  { color: var(--accent3); }
+  .fn  { color: var(--accent); }
+  .cm  { color: var(--text-muted); font-style: italic; }
+  .lt  { color: var(--accent4); }
+  .mc  { color: var(--accent6); }
+
+  /* ── Callout ── */
+  .callout {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 1.25rem; margin: 1.5rem 0;
+    font-size: 0.85rem; color: var(--text-muted);
+  }
+  .callout strong { color: var(--text); }
+
+  /* ── Reference (collapsible) ── */
+  details {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; margin: 1.25rem 0;
+  }
+  details summary {
+    padding: 1rem 1.5rem; cursor: pointer;
+    font-weight: 600; font-size: 0.95rem;
+    list-style: none; display: flex; align-items: center; gap: 0.5rem;
+  }
+  details summary::-webkit-details-marker { display: none; }
+  details summary::before {
+    content: '\25B6'; font-size: 0.7rem; color: var(--text-muted);
+    transition: transform 0.2s;
+  }
+  details[open] summary::before { transform: rotate(90deg); }
+  details .detail-body {
+    padding: 0 1.5rem 1.5rem; font-size: 0.85rem; color: var(--text-muted);
+  }
+  .ref-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1rem; margin-top: 1rem;
+  }
+  .ref-card {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 1rem;
+  }
+  .ref-card h4 { font-size: 0.9rem; margin-bottom: 0.5rem; }
+  .ref-card p { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem; }
+  .tag-list { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+  .tag {
+    font-size: 0.65rem; padding: 0.15em 0.45em; border-radius: 3px;
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  }
+  .tag.own { background: rgba(88,166,255,0.12); color: var(--accent6); border: 1px solid rgba(88,166,255,0.2); }
+  .tag.hld { background: var(--surface2); color: var(--text-muted); border: 1px solid var(--border); }
+
+  /* ── Cheat Sheet ── */
+  .cheat {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 1.25rem; margin: 2rem 0;
+  }
+  @media (max-width: 768px) { .cheat { grid-template-columns: 1fr; } }
+  .cheat-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 1.5rem;
+  }
+  .cheat-card h3 { font-size: 0.9rem; margin-bottom: 1rem; }
+  .do-dont { display: grid; gap: 0.5rem; }
+  .do-item, .dont-item {
+    font-size: 0.8rem; padding: 0.5em 0.75em; border-radius: 6px;
+    display: flex; align-items: flex-start; gap: 0.5rem;
+  }
+  .do-item { background: rgba(63,185,80,0.08); border: 1px solid rgba(63,185,80,0.2); }
+  .dont-item { background: rgba(255,123,114,0.08); border: 1px solid rgba(255,123,114,0.2); }
+  .do-item::before { content: '\2713'; color: var(--accent2); font-weight: 700; flex-shrink: 0; }
+  .dont-item::before { content: '\2717'; color: var(--accent5); font-weight: 700; flex-shrink: 0; }
+
+  /* ── Footer ── */
+  footer {
+    text-align: center; padding: 3rem 2rem;
+    color: var(--text-muted); font-size: 0.8rem;
+    border-top: 1px solid var(--border);
+  }
+
+  /* ── Animations ── */
+  .fade-in {
+    opacity: 0; transform: translateY(20px);
+    transition: opacity 0.6s ease, transform 0.6s ease;
+  }
+  .fade-in.visible { opacity: 1; transform: translateY(0); }
+</style>
+</head>
+<body>
+
+<!-- ════════════ HERO ════════════ -->
+<div class="hero">
+  <h1>BeaconChain, Rearchitected</h1>
+  <p class="subtitle">
+    Designed for fast iteration and human-AI collaboration &mdash;
+    without compromising correctness, performance, or liveness.
+  </p>
+  <div class="scroll-hint" aria-hidden="true">&#8595;</div>
+</div>
+
+<!-- ════════════ NAV ════════════ -->
+<nav>
+  <ul>
+    <li><a href="#problem">Problem</a></li>
+    <li><a href="#workflow">Workflow</a></li>
+    <li><a href="#principles">Design Principles</a></li>
+    <li><a href="#deps">Structure</a></li>
+    <li><a href="#casestudy">Case Study</a></li>
+    <li><a href="#specs">Spec-Driven Dev</a></li>
+    <li><a href="#reference">Reference</a></li>
+    <li><a href="#cheatsheet">Cheat Sheet</a></li>
+  </ul>
+</nav>
+
+<!-- ════════════ PROBLEM ════════════ -->
+<section id="problem">
+  <h2 class="fade-in">The Problem <span class="badge">Why</span></h2>
+  <p class="lead fade-in">
+    <code>BeaconChain&lt;T&gt;</code> is a single struct with 40+ fields.
+    Every caller holds <code>Arc&lt;BeaconChain&gt;</code> and can reach everything.
+    This makes it hard to test in isolation, hard for LLMs to reason about,
+    and hard to iterate on without risk.
+  </p>
+
+  <div class="compare fade-in">
+    <div class="compare-card before">
+      <h3>Before &mdash; God Object</h3>
+      <div class="god-object">
+        <div class="god-box">BeaconChain&lt;T&gt;</div>
+        <div class="god-fields">
+          <span class="god-field">op_pool</span>
+          <span class="god-field">fork_choice</span>
+          <span class="god-field">store</span>
+          <span class="god-field">observed_*</span>
+          <span class="god-field">slot_clock</span>
+          <span class="god-field">exec_layer</span>
+          <span class="god-field">event_handler</span>
+          <span class="god-field">kzg</span>
+          <span class="god-field">...40+ fields</span>
+        </div>
+        <p style="font-size:0.75rem; color:var(--text-muted); margin-top:0.75rem;">Everyone gets access to everything</p>
+      </div>
+    </div>
+
+    <div class="compare-card after">
+      <h3>After &mdash; Components + Composition</h3>
+      <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:1rem;"><code>BeaconChain</code> is replaced by focused components. Callers hold refs but no logic &mdash; logic lives in the components and composed workflow functions.</p>
+      <div style="display:flex; flex-direction:column; gap:0.5rem;">
+        <div style="display:flex; align-items:center; gap:0.5rem;">
+          <span style="padding:0.3em 0.6em; border-radius:6px; font-size:0.75rem; font-weight:600; background:rgba(88,166,255,0.1); border:1px solid var(--accent); color:var(--accent); white-space:nowrap;">OperationsManager</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:0.5rem;">
+          <span style="padding:0.3em 0.6em; border-radius:6px; font-size:0.75rem; font-weight:600; background:rgba(63,185,80,0.1); border:1px solid var(--accent2); color:var(--accent2); white-space:nowrap;">AttestationManager</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:0.5rem;">
+          <span style="padding:0.3em 0.6em; border-radius:6px; font-size:0.75rem; font-weight:600; background:rgba(210,168,255,0.1); border:1px solid var(--accent3); color:var(--accent3); white-space:nowrap;">SyncCommitteeMgr</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:0.5rem;">
+          <span style="padding:0.3em 0.6em; border-radius:6px; font-size:0.75rem; font-weight:600; background:rgba(240,136,62,0.1); border:1px solid var(--accent4); color:var(--accent4); white-space:nowrap;">DataAvailabilityMgr</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:0.5rem;">
+          <span style="padding:0.3em 0.6em; border-radius:6px; font-size:0.75rem; font-weight:600; background:rgba(255,123,114,0.1); border:1px solid var(--accent5); color:var(--accent5); white-space:nowrap;">CanonicalHead</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:0.5rem;">
+          <span style="padding:0.3em 0.6em; border-radius:6px; font-size:0.75rem; font-weight:600; background:rgba(126,231,135,0.1); border:1px solid #7ee787; color:#7ee787; white-space:nowrap;">ExecutionManager</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:0.5rem;">
+          <span style="padding:0.3em 0.6em; border-radius:6px; font-size:0.75rem; font-weight:600; background:rgba(121,192,255,0.1); border:1px solid var(--accent6); color:var(--accent6); white-space:nowrap;">ValidatorQueryService</span>
+        </div>
+      </div>
+      <p style="font-size:0.75rem; color:var(--text-muted); margin-top:0.75rem;">Components own their state and are testable in isolation</p>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════ WORKFLOW ════════════ -->
+<section id="workflow">
+  <h2 class="fade-in">How We Work <span class="badge">Workflow</span></h2>
+  <p class="lead fade-in">
+    Modular components with clean boundaries let humans and LLMs each focus on what they're best at.
+  </p>
+
+  <div class="workflow-layers fade-in">
+    <div class="workflow-col human">
+      <h3>Humans own</h3>
+      <div class="wf-item">
+        <div class="wf-title">Architecture &amp; component design</div>
+        <div class="wf-desc">Define component boundaries, what each component owns, how they compose</div>
+      </div>
+      <div class="wf-item">
+        <div class="wf-title">Specifications</div>
+        <div class="wf-desc">Scenario specs for behavior alignment, correctness properties and invariants for safety</div>
+      </div>
+      <div class="wf-item">
+        <div class="wf-title">Correctness &amp; safety review</div>
+        <div class="wf-desc">Consensus constraints, liveness properties, performance-critical paths</div>
+      </div>
+      <div class="wf-item">
+        <div class="wf-title">Integration decisions</div>
+        <div class="wf-desc">How components wire together, lock ordering, cross-component coordination</div>
+      </div>
+    </div>
+
+    <div class="workflow-divider" aria-hidden="true">&#8652;</div>
+
+    <div class="workflow-col ai">
+      <h3>LLMs handle</h3>
+      <div class="wf-item">
+        <div class="wf-title">Component implementation</div>
+        <div class="wf-desc">Implement against specs within well-defined component boundaries</div>
+      </div>
+      <div class="wf-item">
+        <div class="wf-title">Test generation</div>
+        <div class="wf-desc">Generate unit tests directly &mdash; components are testable without harness infrastructure</div>
+      </div>
+      <div class="wf-item">
+        <div class="wf-title">Fast iteration</div>
+        <div class="wf-desc">Iterate on implementation details, refactor internals without affecting other components</div>
+      </div>
+      <div class="wf-item">
+        <div class="wf-title">Boilerplate &amp; mechanical work</div>
+        <div class="wf-desc">Serialization, observer patterns, pool management, routine verification logic</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout fade-in">
+    As LLMs improve, the proportion of work they can handle grows &mdash; but only if the codebase is structured for it. A god object is a ceiling. Modular components are a foundation that scales with model capability.
+  </div>
+</section>
+
+<!-- ════════════ RULES ════════════ -->
+<section id="principles">
+  <h2 class="fade-in">Design Principles <span class="badge">Constraints</span></h2>
+  <p class="lead fade-in">
+    Derived from specific problems in the current <code>BeaconChain&lt;T&gt;</code>. Not prescriptive &mdash; these guide design decisions.
+  </p>
+
+  <div class="principles fade-in">
+    <div class="principle">
+      <div class="principle-num">1</div>
+      <h3>Favour composition over god objects</h3>
+      <p>Workflows compose the specific capabilities they need &mdash; not whole components. Pass what you need, not what <em>has</em> what you need.</p>
+      <div class="why">Today <code>produce_block_on_state</code> accesses <code>self.*</code> for everything because the god object makes it easy. Tracing what it actually uses reveals 3 domain dependencies out of 40+ fields. See the <a href="#casestudy" style="color:var(--accent);">block production case study</a> below.</div>
+    </div>
+
+    <div class="principle">
+      <div class="principle-num">2</div>
+      <h3>Separate business logic from infrastructure</h3>
+      <p>Components own verification logic and state. Infrastructure like chain state, current slot, and event dispatch is provided by the caller &mdash; either as values, references, or callbacks.</p>
+      <div class="why">Today verification methods internally reach into <code>CanonicalHead</code> for head state and <code>SlotClock</code> for the current epoch. This couples every component to chain infrastructure and makes isolated testing impossible. For example, the caller could read <code>slot_clock.now()</code> and pass the resulting <code>Epoch</code> in, or pass a callback for mid-workflow side effects like SSE events.</div>
+    </div>
+
+    <div class="principle">
+      <div class="principle-num">3</div>
+      <h3>Components are testable in isolation</h3>
+      <p>You should be able to construct a component, pass in test state, and assert results &mdash; without <code>BeaconChainHarness</code>, store, or fork choice.</p>
+      <div class="why">Today you can't test verification logic without spinning up the full chain. Deterministic components that receive context as parameters can be tested directly, verified against specs, and safely modified by LLMs.</div>
+    </div>
+
+    <div class="principle">
+      <div class="principle-num">4</div>
+      <h3>Fork choice write locks are concentrated</h3>
+      <p>Fork choice write locks are acquired only by block import, head recomputation, attestation application, and execution layer callbacks. Components like OperationsManager and SyncCommitteeManager never touch them.</p>
+      <div class="why">The lock ordering in <code>canonical_head.rs</code> is where deadlocks happen. Today any code holding <code>Arc&lt;BeaconChain&gt;</code> can reach the fork choice lock. No fork choice write locks exist outside <code>beacon_chain</code> &mdash; this architecture enforces that.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════ DEPENDENCIES ════════════ -->
+<section id="deps">
+  <h2 class="fade-in">Structure <span class="badge">Overview</span></h2>
+  <p class="lead fade-in">
+    <code>BeaconChain</code> is fully replaced. Components own the logic. Callers hold refs to components but no logic of their own.
+  </p>
+
+  <div class="fade-in" style="margin:2rem 0; overflow-x:auto; padding-bottom:1rem;">
+    <svg viewBox="0 0 780 340" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Architecture overview" style="display:block; margin:0 auto; width:100%; max-width:780px; height:auto;">
+
+      <!-- Components -->
+      <text x="20" y="20" fill="#58a6ff" font-size="11" font-weight="600">COMPONENTS (own state + logic)</text>
+
+      <rect x="20" y="32" width="170" height="30" rx="5" fill="rgba(88,166,255,0.1)" stroke="#58a6ff" stroke-width="1"/>
+      <text x="105" y="52" text-anchor="middle" fill="#58a6ff" font-size="11" font-weight="600">OperationsManager</text>
+
+      <rect x="20" y="68" width="170" height="30" rx="5" fill="rgba(63,185,80,0.1)" stroke="#3fb950" stroke-width="1"/>
+      <text x="105" y="88" text-anchor="middle" fill="#3fb950" font-size="11" font-weight="600">AttestationManager</text>
+
+      <rect x="20" y="104" width="170" height="30" rx="5" fill="rgba(210,168,255,0.1)" stroke="#d2a8ff" stroke-width="1"/>
+      <text x="105" y="124" text-anchor="middle" fill="#d2a8ff" font-size="11" font-weight="600">SyncCommitteeMgr</text>
+
+      <rect x="20" y="140" width="170" height="30" rx="5" fill="rgba(240,136,62,0.1)" stroke="#f0883e" stroke-width="1"/>
+      <text x="105" y="160" text-anchor="middle" fill="#f0883e" font-size="11" font-weight="600">DataAvailabilityMgr</text>
+
+      <rect x="200" y="32" width="170" height="30" rx="5" fill="rgba(255,123,114,0.1)" stroke="#ff7b72" stroke-width="1"/>
+      <text x="285" y="52" text-anchor="middle" fill="#ff7b72" font-size="11" font-weight="600">CanonicalHead</text>
+
+      <rect x="200" y="68" width="170" height="30" rx="5" fill="rgba(126,231,135,0.1)" stroke="#7ee787" stroke-width="1"/>
+      <text x="285" y="88" text-anchor="middle" fill="#7ee787" font-size="11" font-weight="600">ExecutionManager</text>
+
+      <rect x="200" y="104" width="170" height="30" rx="5" fill="rgba(121,192,255,0.1)" stroke="#79c0ff" stroke-width="1"/>
+      <text x="285" y="124" text-anchor="middle" fill="#79c0ff" font-size="11" font-weight="600">ValidatorQuerySvc</text>
+
+      <rect x="200" y="140" width="170" height="30" rx="5" fill="rgba(88,166,255,0.1)" stroke="#58a6ff" stroke-width="1"/>
+      <text x="285" y="160" text-anchor="middle" fill="#58a6ff" font-size="11" font-weight="600">BlockImportState</text>
+
+      <!-- Callers -->
+      <text x="450" y="20" fill="#8b949e" font-size="11" font-weight="600">CALLERS (hold refs, no logic)</text>
+      <rect x="450" y="32" width="210" height="30" rx="6" fill="#1c2129" stroke="#30363d" stroke-width="1"/>
+      <text x="555" y="52" text-anchor="middle" fill="#8b949e" font-size="11">HTTP API Context</text>
+      <rect x="450" y="68" width="210" height="30" rx="6" fill="#1c2129" stroke="#30363d" stroke-width="1"/>
+      <text x="555" y="88" text-anchor="middle" fill="#8b949e" font-size="11">NetworkBeaconProcessor</text>
+      <rect x="450" y="104" width="210" height="30" rx="6" fill="#1c2129" stroke="#30363d" stroke-width="1"/>
+      <text x="555" y="124" text-anchor="middle" fill="#8b949e" font-size="11">Sync Manager</text>
+
+      <!-- Arrows -->
+      <line x1="448" y1="47" x2="372" y2="47" stroke="#30363d" stroke-width="1" marker-end="url(#arrowBlue)" opacity="0.5"/>
+      <line x1="448" y1="83" x2="372" y2="83" stroke="#30363d" stroke-width="1" marker-end="url(#arrowBlue)" opacity="0.5"/>
+      <line x1="448" y1="119" x2="372" y2="119" stroke="#30363d" stroke-width="1" marker-end="url(#arrowBlue)" opacity="0.5"/>
+
+      <!-- Composed workflows -->
+      <text x="450" y="165" fill="#d2a8ff" font-size="11" font-weight="600">COMPOSED WORKFLOWS (functions)</text>
+      <rect x="450" y="177" width="210" height="26" rx="5" fill="#1c2129" stroke="#d2a8ff" stroke-width="1" stroke-dasharray="4,2"/>
+      <text x="555" y="195" text-anchor="middle" fill="#d2a8ff" font-size="10">block import, block production, ...</text>
+      <text x="450" y="218" fill="#8b949e" font-size="9" font-style="italic">Compose thin slices from components at call time</text>
+
+      <!-- Testing -->
+      <text x="20" y="205" fill="#3fb950" font-size="11" font-weight="600">TESTING</text>
+      <rect x="20" y="217" width="350" height="30" rx="5" fill="rgba(63,185,80,0.06)" stroke="rgba(63,185,80,0.25)" stroke-width="1"/>
+      <text x="195" y="237" text-anchor="middle" fill="#3fb950" font-size="10" font-weight="500">Unit tests &mdash; construct component, pass test state, assert</text>
+      <rect x="20" y="253" width="350" height="30" rx="5" fill="rgba(240,136,62,0.06)" stroke="rgba(240,136,62,0.25)" stroke-width="1"/>
+      <text x="195" y="273" text-anchor="middle" fill="#f0883e" font-size="10" font-weight="500">Acceptance tests &mdash; event-based via sync manager TestRig</text>
+      <rect x="20" y="289" width="350" height="30" rx="5" fill="rgba(121,192,255,0.06)" stroke="rgba(121,192,255,0.25)" stroke-width="1"/>
+      <text x="195" y="309" text-anchor="middle" fill="#79c0ff" font-size="10" font-weight="500">Integration tests &mdash; existing BeaconChainHarness (still works)</text>
+    </svg>
+  </div>
+</section>
+
+<!-- ════════════ CASE STUDY ════════════ -->
+<section id="casestudy">
+  <h2 class="fade-in">Case Study: Block Production <span class="badge">Composition</span></h2>
+  <p class="lead fade-in">
+    <code>produce_block_on_state</code> looks like it needs the entire <code>BeaconChain</code>. It doesn't.
+    Tracing the actual code reveals three domain dependencies &mdash; the rest is infrastructure.
+  </p>
+
+  <details class="fade-in" open>
+    <summary>What block production actually needs</summary>
+    <div class="detail-body">
+      <p style="margin-bottom:1rem;">Today <code>produce_block_on_state</code> accesses <code>self.*</code> everywhere because the god object makes it easy. But tracing what it actually <em>uses</em>:</p>
+
+      <div style="display:grid; grid-template-columns:auto 1fr; gap:0.5rem 1rem; font-size:0.85rem; margin-bottom:1.5rem;">
+        <strong style="color:var(--accent);">Domain</strong><span></span>
+        <code style="color:var(--accent6);">&amp;OperationPool</code>
+        <span style="color:var(--text-muted);">Pull attestations, exits, slashings, sync aggregate, BLS changes</span>
+        <code style="color:var(--accent6);">CanonicalHead</code>
+        <span style="color:var(--text-muted);">Head slot, finalized checkpoint, forkchoice params (read-only)</span>
+        <code style="color:var(--accent6);">ExecutionLayer</code>
+        <span style="color:var(--text-muted);">Get payload from EL, fee recipient, gas limit</span>
+
+        <strong style="color:var(--text-muted); margin-top:0.5rem;">Infrastructure</strong><span></span>
+        <code style="color:var(--text-muted);">&amp;ChainSpec</code>
+        <span style="color:var(--text-muted);">Spec constants (everything needs this)</span>
+        <code style="color:var(--text-muted);">BlockProductionConfig</code>
+        <span style="color:var(--text-muted);">~5 flags: paranoid mode, size limits, builder fallback</span>
+        <code style="color:var(--text-muted);">SlotClock</code>
+        <span style="color:var(--text-muted);">Current slot</span>
+        <code style="color:var(--text-muted);">TaskExecutor</code>
+        <span style="color:var(--text-muted);">Spawn blocking work</span>
+      </div>
+
+      <p><strong>3 domain dependencies</strong> vs 40+ fields on the god object. The infrastructure deps (spec, clock, executor) are just Rust requiring you to be explicit about what other languages grab from globals.</p>
+    </div>
+  </details>
+
+  <details class="fade-in">
+    <summary>Composed block producer &mdash; code sketch</summary>
+    <div class="detail-body">
+      <div class="code-block" style="margin:0 0 1rem 0;">
+        <div class="code-header">
+          <span class="dot" aria-hidden="true"></span><span class="dot" aria-hidden="true"></span><span class="dot" aria-hidden="true"></span>
+          <span>block_producer.rs &mdash; composed from thin slices</span>
+        </div>
+<pre><span class="cm">/// Block production composed from the minimum interface it needs.</span>
+<span class="cm">/// No Arc&lt;BeaconChain&gt;, no god object.</span>
+<span class="kw">pub async fn</span> <span class="fn">produce_block</span>(
+    state: <span class="ty">BeaconState</span>&lt;<span class="ty">E</span>&gt;,
+    <span class="cm">// Domain dependencies (the actual coupling)</span>
+    op_pool: &amp;<span class="ty">OperationPool</span>&lt;<span class="ty">E</span>&gt;,
+    canonical_head: &amp;<span class="ty">CanonicalHead</span>&lt;<span class="ty">T</span>&gt;,
+    execution_layer: &amp;<span class="ty">ExecutionLayer</span>&lt;<span class="ty">E</span>&gt;,
+    <span class="cm">// Infrastructure (spec, config, clock)</span>
+    spec: &amp;<span class="ty">ChainSpec</span>,
+    config: &amp;<span class="ty">BlockProductionConfig</span>,
+    slot_clock: &amp;<span class="ty">T::SlotClock</span>,
+) -&gt; <span class="ty">Result</span>&lt;<span class="ty">BeaconBlock</span>&lt;<span class="ty">E</span>&gt;&gt; {
+    <span class="cm">// 1. Pack operations from pool</span>
+    <span class="kw">let</span> attestations = op_pool.<span class="fn">get_attestations</span>(&amp;state, spec)?;
+    <span class="kw">let</span> (slashings, exits) = op_pool.<span class="fn">get_slashings_and_exits</span>(&amp;state, spec);
+
+    <span class="cm">// 2. Check chain health for builder fallback</span>
+    <span class="kw">let</span> health = <span class="fn">check_chain_health</span>(canonical_head, slot_clock, config);
+
+    <span class="cm">// 3. Get execution payload</span>
+    <span class="kw">let</span> payload = execution_layer.<span class="fn">get_payload</span>(
+        canonical_head.<span class="fn">forkchoice_update_params</span>(),
+        health.use_builder(),
+    ).<span class="kw">await</span>?;
+
+    <span class="cm">// 4. Assemble block</span>
+    <span class="fn">assemble_block</span>(state, attestations, slashings, exits, payload, spec)
+}</pre>
+      </div>
+    </div>
+  </details>
+
+  <details class="fade-in">
+    <summary>Testing without the harness</summary>
+    <div class="detail-body">
+      <p style="margin-bottom:1rem;">Because <code>produce_block</code> takes thin slices, you can test it directly with constructed state and mock pools. No <code>BeaconChainHarness</code> needed.</p>
+      <div class="code-block" style="margin:0;">
+        <div class="code-header">
+          <span class="dot" aria-hidden="true"></span><span class="dot" aria-hidden="true"></span><span class="dot" aria-hidden="true"></span>
+          <span>test &mdash; block production packs available operations</span>
+        </div>
+<pre><span class="kw">#[tokio::test]</span>
+<span class="kw">async fn</span> <span class="fn">block_includes_available_exits</span>() {
+    <span class="kw">let</span> spec = <span class="ty">ChainSpec</span>::<span class="fn">mainnet</span>();
+    <span class="kw">let</span> (state, keypairs) = <span class="fn">create_genesis_state</span>(&amp;spec, <span class="lt">16</span>);
+
+    <span class="cm">// Set up an op pool with one voluntary exit</span>
+    <span class="kw">let</span> op_pool = <span class="ty">OperationPool</span>::<span class="fn">new</span>();
+    <span class="kw">let</span> exit = <span class="fn">make_signed_exit</span>(&amp;keypairs[<span class="lt">0</span>], <span class="lt">0</span>, <span class="ty">Epoch</span>::new(<span class="lt">5</span>), &amp;spec);
+    op_pool.<span class="fn">insert_voluntary_exit</span>(exit.clone());
+
+    <span class="cm">// Mock execution layer and canonical head</span>
+    <span class="kw">let</span> mock_el = <span class="ty">MockExecutionLayer</span>::<span class="fn">default_payload</span>();
+    <span class="kw">let</span> mock_head = <span class="ty">MockCanonicalHead</span>::<span class="fn">at_slot</span>(<span class="lt">10</span>);
+
+    <span class="kw">let</span> block = <span class="fn">produce_block</span>(
+        state, &amp;op_pool, &amp;mock_head, &amp;mock_el,
+        &amp;spec, &amp;<span class="ty">BlockProductionConfig</span>::<span class="fn">default</span>(), &amp;<span class="fn">test_clock</span>(),
+    ).<span class="kw">await</span>.<span class="fn">unwrap</span>();
+
+    <span class="mc">assert_eq!</span>(block.body().voluntary_exits().len(), <span class="lt">1</span>);
+    <span class="mc">assert_eq!</span>(block.body().voluntary_exits()[<span class="lt">0</span>], exit);
+}</pre>
+      </div>
+    </div>
+  </details>
+</section>
+
+<!-- ════════════ SPEC-DRIVEN DEV ════════════ -->
+<section id="specs">
+  <h2 class="fade-in">Spec-Driven Development <span class="badge" style="background:var(--accent3);">Exploring</span></h2>
+  <p class="lead fade-in">
+    The modular architecture opens the door to spec-driven workflows: humans define behavior and correctness properties upfront, LLMs implement against them.
+    We're exploring two complementary approaches.
+  </p>
+
+  <div class="spec-cards fade-in">
+    <div class="spec-card" style="border-top: 3px solid var(--accent2);">
+      <span class="icon" aria-hidden="true">&#9997;</span>
+      <h3>Scenario Specs</h3>
+      <div class="role" style="color:var(--accent2);">Behavior &amp; alignment</div>
+      <p>Quick to draft, easy to iterate on, readable by anyone. Good for aligning on feature behavior and happy-path scenarios at the start of a feature. Less suited for exhaustive correctness.</p>
+    </div>
+    <div class="spec-card" style="border-top: 3px solid var(--accent6);">
+      <span class="icon" aria-hidden="true">&#128270;</span>
+      <h3>Formal Specs</h3>
+      <div class="role" style="color:var(--accent6);">Mathematically proven invariants</div>
+      <p>Machine-checkable proofs that properties hold for all inputs &mdash; not just specific scenarios. No ambiguity, no interpretation. Covers state machine invariants, consensus constraints, and correctness properties that scenarios and natural language can't reliably capture.</p>
+    </div>
+  </div>
+
+  <div class="callout fade-in">
+    <strong>Complementary, not competing:</strong> Scenario specs map out behavior quickly &mdash; <em>"given X, when Y, then Z"</em>. Formal specs mathematically prove what scenarios can't exhaustively cover &mdash; no ambiguity, no interpretation, machine-checked. Both feed into LLM-generated implementations and tests. The workflow between them is still being figured out.
+  </div>
+
+  <h3 class="fade-in" style="margin-top:2.5rem; margin-bottom:1rem; font-size:1rem;">Examples</h3>
+
+  <div class="code-block fade-in">
+    <div class="code-header">
+      <span class="dot" aria-hidden="true"></span><span class="dot" aria-hidden="true"></span><span class="dot" aria-hidden="true"></span>
+      <span>scenario spec &mdash; quick to draft, easy to align on</span>
+    </div>
+<pre><span class="kw">Feature:</span> Voluntary Exit Verification
+
+  <span class="ty">Scenario:</span> Valid exit is accepted
+    <span class="fn">Given</span> a genesis state with <span class="lt">8</span> validators
+    <span class="fn">When</span> validator <span class="lt">0</span> submits a voluntary exit at epoch <span class="lt">5</span>
+    <span class="fn">Then</span> the exit is accepted as new
+
+  <span class="ty">Scenario:</span> Duplicate exit is ignored
+    <span class="fn">Given</span> a genesis state with <span class="lt">8</span> validators
+    <span class="fn">And</span> validator <span class="lt">0</span> has already submitted a voluntary exit
+    <span class="fn">When</span> validator <span class="lt">0</span> submits the same exit again
+    <span class="fn">Then</span> the exit is marked as already known
+
+  <span class="ty">Scenario:</span> Exit for unknown validator is rejected
+    <span class="fn">Given</span> a genesis state with <span class="lt">4</span> validators
+    <span class="fn">When</span> validator <span class="lt">999</span> submits a voluntary exit
+    <span class="fn">Then</span> the exit is rejected with an error</pre>
+  </div>
+
+  <div class="code-block fade-in">
+    <div class="code-header">
+      <span class="dot" aria-hidden="true"></span><span class="dot" aria-hidden="true"></span><span class="dot" aria-hidden="true"></span>
+      <span>formal spec (Lean 4) &mdash; machine-checked, compiler verifies the proof</span>
+    </div>
+<pre><span class="cm">-- Model the observation logic, then prove idempotency:</span>
+<span class="cm">-- "if verify_and_observe returns New, a second call must return AlreadyKnown"</span>
+
+<span class="kw">def</span> <span class="fn">verify_and_observe</span> (seen : <span class="ty">Finset Nat</span>) (idx n : <span class="ty">Nat</span>)
+    : <span class="ty">Outcome</span> &times; <span class="ty">Finset Nat</span> :=
+  <span class="kw">if</span> idx &ge; n <span class="kw">then</span> (.InvalidIndex, seen)
+  <span class="kw">else if</span> idx &isin; seen <span class="kw">then</span> (.AlreadyKnown, seen)
+  <span class="kw">else</span> (.New, seen &cup; {idx})
+
+<span class="kw">theorem</span> <span class="fn">idempotent</span> (seen : <span class="ty">Finset Nat</span>) (idx n : <span class="ty">Nat</span>)
+    (h : (verify_and_observe seen idx n).1 = .New) :
+    (verify_and_observe (verify_and_observe seen idx n).2 idx n).1
+      = .AlreadyKnown := <span class="kw">by</span>
+  <span class="fn">simp</span> [verify_and_observe] <span class="kw">at</span> h &vdash;
+  <span class="fn">split</span> &lt;;&gt; <span class="fn">simp_all</span> [Finset.mem_union, Finset.mem_singleton]</pre>
+  </div>
+</section>
+
+<!-- ════════════ REFERENCE ════════════ -->
+<section id="reference">
+  <h2 class="fade-in">Reference <span class="badge" style="background:var(--text-muted);">Implementation Details</span></h2>
+  <p class="lead fade-in">
+    Implementation details &mdash; one way to apply the design principles above. The specifics may evolve.
+  </p>
+
+  <details class="fade-in">
+    <summary>Components &mdash; what each one owns and holds</summary>
+    <div class="detail-body">
+      <p style="margin-bottom:1rem;">Each component owns its verification state and holds shared references. See <code>ARCHITECTURE.md</code> for the full specification.</p>
+      <div class="ref-grid">
+        <div class="ref-card">
+          <h4>OperationsManager</h4>
+          <p>Voluntary exits, slashings, BLS changes. Verification, dedup, pool insertion.</p>
+          <div class="tag-list">
+            <span class="tag own">observed_voluntary_exits</span>
+            <span class="tag own">observed_proposer_slashings</span>
+            <span class="tag own">observed_attester_slashings</span>
+            <span class="tag hld">spec</span>
+            <span class="tag hld">op_pool</span>
+          </div>
+        </div>
+        <div class="ref-card">
+          <h4>AttestationManager</h4>
+          <p>Attestation production, verification, aggregation, pool management.</p>
+          <div class="tag-list">
+            <span class="tag own">naive_aggregation_pool</span>
+            <span class="tag own">observed_attestations</span>
+            <span class="tag own">shuffling_cache</span>
+            <span class="tag hld">spec</span>
+            <span class="tag hld">op_pool</span>
+          </div>
+        </div>
+        <div class="ref-card">
+          <h4>SyncCommitteeManager</h4>
+          <p>Sync committee message/contribution verification, aggregation pool.</p>
+          <div class="tag-list">
+            <span class="tag own">naive_sync_aggregation_pool</span>
+            <span class="tag own">observed_sync_contributions</span>
+            <span class="tag hld">spec</span>
+            <span class="tag hld">op_pool</span>
+          </div>
+        </div>
+        <div class="ref-card">
+          <h4>DataAvailabilityManager</h4>
+          <p>Blob/data column processing, custody, DA boundary calculations.</p>
+          <div class="tag-list">
+            <span class="tag own">data_availability_checker</span>
+            <span class="tag own">observed_blob_sidecars</span>
+            <span class="tag own">kzg</span>
+            <span class="tag hld">spec</span>
+            <span class="tag hld">store</span>
+          </div>
+        </div>
+        <div class="ref-card">
+          <h4>ExecutionManager</h4>
+          <p>Execution layer integration, proposer preparation, forkchoice updates.</p>
+          <div class="tag-list">
+            <span class="tag own">beacon_proposer_cache</span>
+            <span class="tag hld">spec</span>
+            <span class="tag hld">execution_layer</span>
+          </div>
+        </div>
+        <div class="ref-card">
+          <h4>ValidatorQueryService</h4>
+          <p>Validator pubkey lookups, committee cache access.</p>
+          <div class="tag-list">
+            <span class="tag own">validator_pubkey_cache</span>
+            <span class="tag hld">spec</span>
+          </div>
+        </div>
+        <div class="ref-card">
+          <h4>BlockImportState</h4>
+          <p>Block import caches and observation tracking. Used by the composed block import workflow.</p>
+          <div class="tag-list">
+            <span class="tag own">block_times_cache</span>
+            <span class="tag own">observed_block_producers</span>
+            <span class="tag own">observed_slashable</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </details>
+
+  <details class="fade-in">
+    <summary>Dependency injection &mdash; what each caller receives</summary>
+    <div class="detail-body">
+      <p style="margin-bottom:1rem;">Callers hold refs to components but no logic of their own. Handler functions pull the specific refs they need. <em>(Illustrative groupings &mdash; the specifics may evolve.)</em></p>
+      <div class="ref-grid">
+        <div class="ref-card">
+          <h4>NetworkBeaconProcessor</h4>
+          <p>Gossip handlers, sync</p>
+          <div class="tag-list">
+            <span class="tag own">OperationsManager</span>
+            <span class="tag own">AttestationManager</span>
+            <span class="tag own">SyncCommitteeManager</span>
+            <span class="tag own">DataAvailabilityMgr</span>
+            <span class="tag own">BlockImportState</span>
+            <span class="tag own">CanonicalHead</span>
+          </div>
+        </div>
+        <div class="ref-card">
+          <h4>HTTP API &mdash; Pool Endpoints</h4>
+          <p>/eth/v1/beacon/pool/*</p>
+          <div class="tag-list">
+            <span class="tag own">OperationsManager</span>
+            <span class="tag own">CanonicalHead</span>
+          </div>
+        </div>
+        <div class="ref-card">
+          <h4>HTTP API &mdash; Validator Endpoints</h4>
+          <p>/eth/v1/validator/*</p>
+          <div class="tag-list">
+            <span class="tag own">ValidatorQueryService</span>
+            <span class="tag own">ExecutionManager</span>
+            <span class="tag own">CanonicalHead</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </details>
+
+  <details class="fade-in">
+    <summary>Unit test example &mdash; no harness needed</summary>
+    <div class="detail-body">
+      <p style="margin-bottom:1rem;">Components are directly testable. Construct with <code>::new()</code>, pass in test state, assert results.</p>
+      <div class="code-block" style="margin:0;">
+        <div class="code-header">
+          <span class="dot" aria-hidden="true"></span><span class="dot" aria-hidden="true"></span><span class="dot" aria-hidden="true"></span>
+          <span>direct component test</span>
+        </div>
+<pre><span class="kw">#[test]</span>
+<span class="kw">fn</span> <span class="fn">rejects_exit_for_unknown_validator</span>() {
+    <span class="kw">let</span> spec = <span class="ty">Arc</span>::new(<span class="ty">ChainSpec</span>::<span class="fn">mainnet</span>());
+    <span class="kw">let</span> ops = <span class="ty">OperationsManager</span>::<span class="fn">new</span>(spec.clone(), <span class="ty">Arc</span>::new(<span class="ty">OperationPool</span>::<span class="fn">new</span>()));
+    <span class="kw">let</span> (state, _keypairs) = <span class="fn">create_genesis_state</span>(&amp;spec, <span class="lt">4</span>);
+
+    <span class="kw">let</span> exit = <span class="fn">make_exit_for_validator</span>(<span class="lt">999</span>);
+    <span class="mc">assert!</span>(ops.<span class="fn">verify_voluntary_exit</span>(exit, &amp;state, <span class="ty">Epoch</span>::new(<span class="lt">0</span>)).<span class="fn">is_err</span>());
+}</pre>
+      </div>
+    </div>
+  </details>
+</section>
+
+<!-- ════════════ CHEAT SHEET ════════════ -->
+<section id="cheatsheet">
+  <h2 class="fade-in">Quick Reference <span class="badge">Cheat Sheet</span></h2>
+  <p class="lead fade-in">
+    Patterns and anti-patterns for developing in the modular architecture.
+  </p>
+
+  <div class="cheat fade-in">
+    <div class="cheat-card">
+      <h3>Adding a New Verification</h3>
+      <div class="do-dont">
+        <div class="do-item">Add method to the relevant component with state as params</div>
+        <div class="do-item">Have the caller fetch state and pass it in</div>
+        <div class="do-item">Return result; let caller handle side effects</div>
+        <div class="dont-item">Fetch state internally from the component</div>
+        <div class="dont-item">Emit events or log metrics from inside the component</div>
+      </div>
+    </div>
+
+    <div class="cheat-card">
+      <h3>Adding a New Component</h3>
+      <div class="do-dont">
+        <div class="do-item">Minimize generic parameters &mdash; only what you actually need</div>
+        <div class="do-item">Register in the Builder, wire refs to callers</div>
+        <div class="do-item">Write unit tests with constructed state</div>
+        <div class="dont-item">Add type parameters "just in case"</div>
+        <div class="dont-item">Hold references to shared mutable state</div>
+      </div>
+    </div>
+
+    <div class="cheat-card">
+      <h3>Testing a Component</h3>
+      <div class="do-dont">
+        <div class="do-item">Construct the component directly</div>
+        <div class="do-item">Create test state and pass it as parameters</div>
+        <div class="do-item">Write a scenario spec first for alignment</div>
+        <div class="dont-item">Use the full harness for unit-level tests</div>
+        <div class="dont-item">Set up store, fork choice, or networking</div>
+      </div>
+    </div>
+
+    <div class="cheat-card">
+      <h3>Cross-Component Coordination</h3>
+      <div class="do-dont">
+        <div class="do-item">Keep dependencies one-directional</div>
+        <div class="do-item">Coordinate via composed workflow functions</div>
+        <div class="do-item">Follow documented lock ordering</div>
+        <div class="dont-item">Create circular dependencies between components</div>
+        <div class="dont-item">Acquire write locks from within a component</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <p>Lighthouse &mdash; BeaconChain, Rearchitected</p>
+</footer>
+
+<script>
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+}, { threshold: 0.15 });
+document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+
+const sections = document.querySelectorAll('section[id]');
+const navLinks = document.querySelectorAll('nav a');
+window.addEventListener('scroll', () => {
+  let current = '';
+  sections.forEach(s => { if (window.scrollY >= s.offsetTop - 120) current = s.id; });
+  navLinks.forEach(a => {
+    a.classList.toggle('active', a.getAttribute('href') === '#' + current);
+  });
+});
+</script>
+</body>
+</html>

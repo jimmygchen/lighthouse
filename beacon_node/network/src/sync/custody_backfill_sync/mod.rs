@@ -328,6 +328,7 @@ impl<T: BeaconChainTypes> CustodyBackFillSync<T> {
     fn set_start_epoch(&mut self) {
         let earliest_data_column_epoch = self
             .beacon_chain
+            .data_availability_manager
             .earliest_custodied_data_column_epoch()
             .unwrap_or(Epoch::new(0));
 
@@ -855,6 +856,7 @@ impl<T: BeaconChainTypes> CustodyBackFillSync<T> {
             // Update data column custody info with the skipped batch
             if let Err(e) = self
                 .beacon_chain
+                .data_availability_manager
                 .safely_backfill_data_column_custody_info(self.processing_target)
             {
                 // I can't see a scenario where this could happen, but if we don't
