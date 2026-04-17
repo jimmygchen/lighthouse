@@ -83,8 +83,7 @@ impl StateId {
             }
             CoreStateId::Slot(slot) => (
                 *slot,
-                chain
-                    .is_optimistic_or_invalid_head()
+                beacon_chain::execution_methods::is_optimistic_or_invalid_head(chain)
                     .map_err(warp_utils::reject::unhandled_error)?,
                 *slot
                     <= chain

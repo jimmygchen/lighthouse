@@ -64,7 +64,7 @@ fn verify_voluntary_exit_for_gossip(
     harness: &TestHarness,
     exit: SignedVoluntaryExit,
 ) -> Result<ObservationOutcome<SignedVoluntaryExit, E>, BeaconChainError> {
-    let head_snapshot = harness.chain.head().snapshot;
+    let head_snapshot = harness.chain.canonical_head.cached_head().snapshot;
     let head_state = &head_snapshot.beacon_state;
     let wall_clock_epoch = harness.chain.epoch()?;
     harness

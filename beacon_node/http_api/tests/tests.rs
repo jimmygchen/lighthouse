@@ -165,7 +165,7 @@ impl ApiTester {
             harness.advance_slot();
         }
 
-        let head = harness.chain.head_snapshot();
+        let head = harness.chain.canonical_head.head_snapshot();
 
         assert_eq!(
             harness.chain.slot().unwrap(),
@@ -353,7 +353,7 @@ impl ApiTester {
 
         harness.advance_slot();
 
-        let head = harness.chain.head_snapshot();
+        let head = harness.chain.canonical_head.head_snapshot();
 
         let (next_block, _next_state) = harness
             .make_block(head.beacon_state.clone(), harness.chain.slot().unwrap())
@@ -512,7 +512,7 @@ impl ApiTester {
     pub async fn test_beacon_genesis(self) -> Self {
         let result = self.client.get_beacon_genesis().await.unwrap().data;
 
-        let state = &self.chain.head_snapshot().beacon_state;
+        let state = &self.chain.canonical_head.head_snapshot().beacon_state;
         let expected = GenesisData {
             genesis_time: state.genesis_time(),
             genesis_validators_root: state.genesis_validators_root(),
@@ -2165,7 +2165,7 @@ impl ApiTester {
             .map(|att| self.chain.spec.fork_name_at_slot::<E>(att.data().slot))
             .unwrap();
 
-        let state = &self.chain.head_snapshot().beacon_state;
+        let state = &self.chain.canonical_head.head_snapshot().beacon_state;
 
         let attestations = self
             .attestations
@@ -2237,7 +2237,7 @@ impl ApiTester {
 
     pub async fn test_post_beacon_pool_attestations_invalid_v1(mut self) -> Self {
         let mut attestations = Vec::new();
-        let state = &self.chain.head_snapshot().beacon_state;
+        let state = &self.chain.canonical_head.head_snapshot().beacon_state;
         for attestation in &self.attestations {
             let mut invalid_attestation = attestation.clone();
             invalid_attestation.data_mut().slot += 1;
@@ -3218,7 +3218,12 @@ impl ApiTester {
     }
 
     fn validator_count(&self) -> usize {
-        self.chain.head_snapshot().beacon_state.validators().len()
+        self.chain
+            .canonical_head
+            .head_snapshot()
+            .beacon_state
+            .validators()
+            .len()
     }
 
     fn interesting_validator_indices(&self) -> Vec<Vec<u64>> {
@@ -3303,7 +3308,7 @@ impl ApiTester {
                         WhenSlotSkipped::Prev,
                     )
                     .unwrap()
-                    .unwrap_or(self.chain.head_beacon_block_root());
+                    .unwrap_or(self.chain.canonical_head.head_beacon_block_root());
 
                 assert_eq!(results.dependent_root, dependent_root);
 
@@ -3378,7 +3383,7 @@ impl ApiTester {
                     WhenSlotSkipped::Prev,
                 )
                 .unwrap()
-                .unwrap_or(self.chain.head_beacon_block_root());
+                .unwrap_or(self.chain.canonical_head.head_beacon_block_root());
 
             // Presently, the beacon chain harness never runs the code that primes the proposer
             // cache. If this changes in the future then we'll need some smarter logic here, but
@@ -3499,7 +3504,7 @@ impl ApiTester {
                 .chain
                 .block_root_at_slot(decision_slot, WhenSlotSkipped::Prev)
                 .unwrap()
-                .unwrap_or(self.chain.head_beacon_block_root());
+                .unwrap_or(self.chain.canonical_head.head_beacon_block_root());
 
             let result = self
                 .client
@@ -3583,7 +3588,7 @@ impl ApiTester {
                 WhenSlotSkipped::Prev,
             )
             .unwrap()
-            .unwrap_or(self.chain.head_beacon_block_root());
+            .unwrap_or(self.chain.canonical_head.head_beacon_block_root());
 
         self.client
             .get_validator_duties_proposer(current_epoch)
@@ -3692,7 +3697,10 @@ impl ApiTester {
                 .await
                 .unwrap();
 
-            assert_eq!(self.chain.head_beacon_block().as_ref(), &signed_block);
+            assert_eq!(
+                self.chain.canonical_head.head_beacon_block().as_ref(),
+                &signed_block
+            );
 
             self.chain.slot_clock.set_slot(slot.as_u64() + 1);
         }
@@ -3758,7 +3766,7 @@ impl ApiTester {
                 .unwrap();
 
             assert_eq!(
-                self.chain.head_beacon_block(),
+                self.chain.canonical_head.head_beacon_block(),
                 *signed_block_contents.signed_block()
             );
 
@@ -3852,7 +3860,11 @@ impl ApiTester {
                         .await
                         .unwrap();
 
-                    let head_block = self.chain.head_beacon_block().clone_as_blinded();
+                    let head_block = self
+                        .chain
+                        .canonical_head
+                        .head_beacon_block()
+                        .clone_as_blinded();
                     assert_eq!(head_block, signed_blinded_block);
 
                     self.chain.slot_clock.set_slot(slot.as_u64() + 1);
@@ -3876,7 +3888,7 @@ impl ApiTester {
                         .unwrap();
 
                     assert_eq!(
-                        self.chain.head_beacon_block(),
+                        self.chain.canonical_head.head_beacon_block(),
                         *signed_block_contents.signed_block()
                     );
 
@@ -4035,7 +4047,10 @@ impl ApiTester {
                 .post_beacon_blocks_v2(&signed_block_request, None)
                 .await
                 .unwrap();
-            assert_eq!(self.chain.head_beacon_block(), Arc::new(signed_block));
+            assert_eq!(
+                self.chain.canonical_head.head_beacon_block(),
+                Arc::new(signed_block)
+            );
 
             let signed_envelope =
                 self.sign_envelope(envelope, &sk, epoch, &fork, genesis_validators_root);
@@ -4096,7 +4111,10 @@ impl ApiTester {
                 .post_beacon_blocks_v2_ssz(&signed_block_request, None)
                 .await
                 .unwrap();
-            assert_eq!(self.chain.head_beacon_block(), Arc::new(signed_block));
+            assert_eq!(
+                self.chain.canonical_head.head_beacon_block(),
+                Arc::new(signed_block)
+            );
 
             let signed_envelope =
                 self.sign_envelope(envelope, &sk, epoch, &fork, genesis_validators_root);
@@ -4420,7 +4438,7 @@ impl ApiTester {
     }
 
     pub async fn test_get_validator_attestation_data(self) -> Self {
-        let mut state = self.chain.head_beacon_state_cloned();
+        let mut state = self.chain.canonical_head.head_beacon_state_cloned();
         let slot = state.slot();
         state
             .build_committee_cache(RelativeEpoch::Current, &self.chain.spec)
@@ -4451,6 +4469,7 @@ impl ApiTester {
     pub async fn test_get_validator_aggregate_attestation_v1(self) -> Self {
         let attestation = self
             .chain
+            .canonical_head
             .head_beacon_block()
             .message()
             .body()
@@ -4506,7 +4525,7 @@ impl ApiTester {
         let slot = self.chain.slot().unwrap();
         let epoch = self.chain.epoch().unwrap();
 
-        let mut head = self.chain.head_snapshot().as_ref().clone();
+        let mut head = self.chain.canonical_head.head_snapshot().as_ref().clone();
         while head.beacon_state.current_epoch() < epoch {
             per_slot_processing(&mut head.beacon_state, None, &self.chain.spec).unwrap();
         }
@@ -4755,6 +4774,7 @@ impl ApiTester {
 
         for (val_index, (_, fee_recipient)) in self
             .chain
+            .canonical_head
             .head_snapshot()
             .beacon_state
             .validators()
@@ -4812,6 +4832,7 @@ impl ApiTester {
 
         for (val_index, (_, fee_recipient)) in self
             .chain
+            .canonical_head
             .head_snapshot()
             .beacon_state
             .validators()
@@ -4851,6 +4872,7 @@ impl ApiTester {
 
         for (val_index, (_, fee_recipient)) in self
             .chain
+            .canonical_head
             .head_snapshot()
             .beacon_state
             .validators()
@@ -4879,7 +4901,7 @@ impl ApiTester {
 
     pub async fn test_post_validator_liveness_epoch(self) -> Self {
         let epoch = self.chain.epoch().unwrap();
-        let head_state = self.chain.head_beacon_state_cloned();
+        let head_state = self.chain.canonical_head.head_beacon_state_cloned();
         let indices = (0..head_state.validators().len())
             .map(|i| i as u64)
             .collect::<Vec<_>>();
@@ -5347,6 +5369,7 @@ impl ApiTester {
         let epoch = self.chain.epoch().unwrap();
         let expected_parent_hash = self
             .chain
+            .canonical_head
             .head_snapshot()
             .beacon_state
             .latest_execution_payload_header()
@@ -5399,6 +5422,7 @@ impl ApiTester {
         let epoch = self.chain.epoch().unwrap();
         let expected_parent_hash = self
             .chain
+            .canonical_head
             .head_snapshot()
             .beacon_state
             .latest_execution_payload_header()
@@ -5530,6 +5554,7 @@ impl ApiTester {
         let epoch = self.chain.epoch().unwrap();
         let expected_block_number = self
             .chain
+            .canonical_head
             .head_snapshot()
             .beacon_state
             .latest_execution_payload_header()
@@ -5580,6 +5605,7 @@ impl ApiTester {
         let epoch = self.chain.epoch().unwrap();
         let expected_block_number = self
             .chain
+            .canonical_head
             .head_snapshot()
             .beacon_state
             .latest_execution_payload_header()
@@ -5621,6 +5647,7 @@ impl ApiTester {
         let epoch = self.chain.epoch().unwrap();
         let min_expected_timestamp = self
             .chain
+            .canonical_head
             .head_snapshot()
             .beacon_state
             .latest_execution_payload_header()
@@ -5670,6 +5697,7 @@ impl ApiTester {
         let epoch = self.chain.epoch().unwrap();
         let min_expected_timestamp = self
             .chain
+            .canonical_head
             .head_snapshot()
             .beacon_state
             .latest_execution_payload_header()
@@ -6641,7 +6669,7 @@ impl ApiTester {
 
     pub async fn test_post_lighthouse_liveness(self) -> Self {
         let epoch = self.chain.epoch().unwrap();
-        let head_state = self.chain.head_beacon_state_cloned();
+        let head_state = self.chain.canonical_head.head_beacon_state_cloned();
         let indices = (0..head_state.validators().len())
             .map(|i| i as u64)
             .collect::<Vec<_>>();
@@ -6855,7 +6883,7 @@ impl ApiTester {
         let block_root = self.next_block.signed_block().canonical_root();
 
         // current_duty_dependent_root = block root because this is the first slot of the epoch
-        let current_duty_dependent_root = self.chain.head_beacon_block_root();
+        let current_duty_dependent_root = self.chain.canonical_head.head_beacon_block_root();
         let current_slot = self.chain.slot().unwrap();
         let next_slot = self.next_block.signed_block().slot();
         let finalization_distance = E::slots_per_epoch() * 2;

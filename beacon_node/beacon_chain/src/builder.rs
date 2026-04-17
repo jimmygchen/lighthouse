@@ -1103,7 +1103,7 @@ where
             execution_manager,
         };
 
-        let head = beacon_chain.head_snapshot();
+        let head = beacon_chain.canonical_head.head_snapshot();
 
         // Only perform the check if it was configured.
         if let Some(wss_checkpoint) = beacon_chain.config.weak_subjectivity_checkpoint
@@ -1361,7 +1361,7 @@ mod test {
             .build()
             .expect("should build");
 
-        let head = chain.head_snapshot();
+        let head = chain.canonical_head.head_snapshot();
 
         let mut state = head.beacon_state.clone();
         let block = &head.beacon_block;

@@ -202,12 +202,13 @@ async fn state_advance_timer<T: BeaconChainTypes>(
         executor.spawn(
             async move {
                 // Don't run fork choice during sync.
-                if beacon_chain.best_slot() + MAX_FORK_CHOICE_DISTANCE < current_slot {
+                if beacon_chain.canonical_head.best_slot() + MAX_FORK_CHOICE_DISTANCE < current_slot
+                {
                     return;
                 }
 
                 // Re-compute the head, dequeuing attestations for the current slot early.
-                beacon_chain.recompute_head_at_slot(next_slot).await;
+                crate::canonical_head::recompute_head_at_slot(&beacon_chain, next_slot).await;
 
                 // Prepare proposers so that the node can send payload attributes in the case where
                 // it decides to abandon a proposer boost re-org.
@@ -263,7 +264,7 @@ fn advance_head<T: BeaconChainTypes>(beacon_chain: &Arc<BeaconChain<T>>) -> Resu
     //
     // Fork-choice is not run *before* this function to avoid unnecessary calls whilst syncing.
     {
-        let head_slot = beacon_chain.best_slot();
+        let head_slot = beacon_chain.canonical_head.best_slot();
 
         // Don't run this when syncing or if lagging too far behind.
         if head_slot + MAX_ADVANCE_DISTANCE < current_slot {

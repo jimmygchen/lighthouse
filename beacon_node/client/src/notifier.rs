@@ -137,7 +137,7 @@ pub fn spawn_notifier<T: BeaconChainTypes>(
             metrics::set_gauge(&metrics::NOTIFIER_HEAD_SLOT, head_slot.as_u64() as i64);
 
             let current_slot =
-                match beacon_beacon_chain::state_query::current_slot(&chain.slot_clock) {
+                match beacon_chain::state_query::current_slot(&beacon_chain.slot_clock) {
                     Ok(slot) => slot,
                     Err(e) => {
                         error!(error = ?e, "Unable to read current slot");

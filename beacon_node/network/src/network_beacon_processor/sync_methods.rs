@@ -211,7 +211,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                     None,
                 );
 
-                self.chain.recompute_head_at_current_slot().await;
+                beacon_chain::canonical_head::recompute_head_at_current_slot(&self.chain).await;
             }
             Ok(AvailabilityProcessingStatus::MissingComponents(..)) => {
                 // Block is valid, we can now attempt fetching blobs from EL using version hashes
@@ -321,7 +321,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                     block_hash = %hash,
                     "Block components retrieved"
                 );
-                self.chain.recompute_head_at_current_slot().await;
+                beacon_chain::canonical_head::recompute_head_at_current_slot(&self.chain).await;
             }
             Ok(AvailabilityProcessingStatus::MissingComponents(_, _)) => {
                 debug!(
@@ -401,7 +401,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                         block_hash = %hash,
                         "Block components retrieved"
                     );
-                    self.chain.recompute_head_at_current_slot().await;
+                    beacon_chain::canonical_head::recompute_head_at_current_slot(&self.chain).await;
                 }
                 AvailabilityProcessingStatus::MissingComponents(_, _) => {
                     debug!(
@@ -705,7 +705,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             ChainSegmentResult::Successful { imported_blocks } => {
                 metrics::inc_counter(&metrics::BEACON_PROCESSOR_CHAIN_SEGMENT_SUCCESS_TOTAL);
                 if !imported_blocks.is_empty() {
-                    self.chain.recompute_head_at_current_slot().await;
+                    beacon_chain::canonical_head::recompute_head_at_current_slot(&self.chain).await;
                 }
                 (imported_blocks.len(), Ok(()))
             }
@@ -716,7 +716,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                 metrics::inc_counter(&metrics::BEACON_PROCESSOR_CHAIN_SEGMENT_FAILED_TOTAL);
                 let r = self.handle_failed_chain_segment(error);
                 if !imported_blocks.is_empty() {
-                    self.chain.recompute_head_at_current_slot().await;
+                    beacon_chain::canonical_head::recompute_head_at_current_slot(&self.chain).await;
                 }
                 (imported_blocks.len(), r)
             }

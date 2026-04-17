@@ -603,19 +603,15 @@ pub async fn proposer_boost_re_org_test(
 
         // Simulate the scheduled call to prepare proposers at 8 seconds into the slot.
         harness.advance_to_slot_lookahead(next_slot, payload_lookahead);
-        harness
-            .chain
-            .prepare_beacon_proposer(current_slot)
+        beacon_chain::execution_methods::prepare_beacon_proposer(&harness.chain, current_slot)
             .await
             .unwrap();
 
         // Simulate the scheduled call to fork choice + prepare proposers 500ms before the
         // next slot.
         harness.advance_to_slot_lookahead(next_slot, fork_choice_lookahead);
-        harness.chain.recompute_head_at_slot(next_slot).await;
-        harness
-            .chain
-            .prepare_beacon_proposer(current_slot)
+        beacon_chain::canonical_head::recompute_head_at_slot(&harness.chain, next_slot).await;
+        beacon_chain::execution_methods::prepare_beacon_proposer(&harness.chain, current_slot)
             .await
             .unwrap();
 

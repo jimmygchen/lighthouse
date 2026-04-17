@@ -355,7 +355,7 @@ async fn randomised_skips() {
         }
     }
 
-    let state = &harness.chain.head_snapshot().beacon_state;
+    let state = &harness.chain.canonical_head.head_snapshot().beacon_state;
 
     assert_eq!(
         state.slot(),
@@ -436,6 +436,7 @@ async fn randao_genesis_storage() {
     // Check we have a non-trivial genesis value
     let genesis_value = *harness
         .chain
+        .canonical_head
         .head_snapshot()
         .beacon_state
         .get_randao_mix(Epoch::new(0))
@@ -454,6 +455,7 @@ async fn randao_genesis_storage() {
     assert!(
         harness
             .chain
+            .canonical_head
             .head_snapshot()
             .beacon_state
             .randao_mixes()
@@ -473,6 +475,7 @@ async fn randao_genesis_storage() {
     assert!(
         !harness
             .chain
+            .canonical_head
             .head_snapshot()
             .beacon_state
             .randao_mixes()
@@ -539,7 +542,7 @@ async fn epoch_boundary_state_attestation_processing() {
             )
             .await;
 
-        let head = harness.chain.head_snapshot();
+        let head = harness.chain.canonical_head.head_snapshot();
         late_attestations.extend(harness.get_single_attestations(
             &AttestationStrategy::SomeValidators(late_validators.clone()),
             &head.beacon_state,
@@ -990,7 +993,7 @@ async fn multiple_attestations_per_block() {
         )
         .await;
 
-    let head = harness.chain.head_snapshot();
+    let head = harness.chain.canonical_head.head_snapshot();
 
     let committees_per_slot = head
         .beacon_state
@@ -2976,10 +2979,10 @@ async fn reproduction_unaligned_checkpoint_sync_pruned_payload() {
 
     assert_ne!(
         wss_block_slot,
-        chain.head_snapshot().beacon_state.slot(),
+        chain.canonical_head.head_snapshot().beacon_state.slot(),
         "Test invalid: Checkpoint was aligned (Slot {} == Slot {}). The test did not trigger the unaligned edge case.",
         wss_block_slot,
-        chain.head_snapshot().beacon_state.slot()
+        chain.canonical_head.head_snapshot().beacon_state.slot()
     );
 
     let payload_exists = chain
@@ -3171,7 +3174,7 @@ async fn weak_subjectivity_sync_test(
             )
             .await
             .unwrap();
-        beacon_chain.recompute_head_at_current_slot().await;
+        beacon_chain::canonical_head::recompute_head_at_current_slot(&beacon_chain).await;
 
         // Check that the new block's state can be loaded correctly.
         let mut state = beacon_chain
@@ -3852,7 +3855,7 @@ async fn process_blocks_and_attestations_for_unaligned_checkpoint() {
         )
         .await
         .unwrap();
-    harness.chain.recompute_head_at_current_slot().await;
+    beacon_chain::canonical_head::recompute_head_at_current_slot(&harness.chain).await;
     assert_ne!(harness.head_block_root(), valid_fork_block.canonical_root());
 
     // Attestations to the split block in the next 2 epochs should be processed successfully.
@@ -3922,6 +3925,7 @@ async fn finalizes_after_resuming_from_db() {
     assert!(
         harness
             .chain
+            .canonical_head
             .head_snapshot()
             .beacon_state
             .finalized_checkpoint()
@@ -3967,7 +3971,11 @@ async fn finalizes_after_resuming_from_db() {
         )
         .await;
 
-    let state = &resumed_harness.chain.head_snapshot().beacon_state;
+    let state = &resumed_harness
+        .chain
+        .canonical_head
+        .head_snapshot()
+        .beacon_state;
     assert_eq!(
         state.slot(),
         num_blocks_produced,
@@ -5284,7 +5292,7 @@ async fn test_missing_columns_after_cgc_change() {
         .mock_execution_layer()
         .build();
 
-    let state = harness.chain.head_beacon_state_cloned();
+    let state = harness.chain.canonical_head.head_beacon_state_cloned();
 
     if !state.fork_name_unchecked().fulu_enabled() {
         return;
@@ -5357,7 +5365,7 @@ async fn test_safely_backfill_data_column_custody_info() {
         .mock_execution_layer()
         .build();
 
-    let state = harness.chain.head_beacon_state_cloned();
+    let state = harness.chain.canonical_head.head_beacon_state_cloned();
 
     if !state.fork_name_unchecked().fulu_enabled() {
         return;
@@ -5394,7 +5402,13 @@ async fn test_safely_backfill_data_column_custody_info() {
         )
         .await;
 
-    let head_slot = harness.chain.head().snapshot.beacon_block.slot();
+    let head_slot = harness
+        .chain
+        .canonical_head
+        .cached_head()
+        .snapshot
+        .beacon_block
+        .slot();
 
     harness
         .chain
@@ -5442,8 +5456,8 @@ async fn test_safely_backfill_data_column_custody_info() {
 fn assert_chains_pretty_much_the_same<T: BeaconChainTypes>(a: &BeaconChain<T>, b: &BeaconChain<T>) {
     assert_eq!(a.spec, b.spec, "spec should be equal");
     assert_eq!(a.op_pool, b.op_pool, "op_pool should be equal");
-    let a_head = a.head_snapshot();
-    let b_head = b.head_snapshot();
+    let a_head = a.canonical_head.head_snapshot();
+    let b_head = b.canonical_head.head_snapshot();
     assert_eq!(
         a_head.beacon_block_root, b_head.beacon_block_root,
         "head block roots should be equal"
@@ -5487,7 +5501,7 @@ fn assert_chains_pretty_much_the_same<T: BeaconChainTypes>(a: &BeaconChain<T>, b
 
 /// Check that the head state's slot matches `expected_slot`.
 fn check_slot(harness: &TestHarness, expected_slot: u64) {
-    let state = &harness.chain.head_snapshot().beacon_state;
+    let state = &harness.chain.canonical_head.head_snapshot().beacon_state;
 
     assert_eq!(
         state.slot(),
@@ -5498,7 +5512,7 @@ fn check_slot(harness: &TestHarness, expected_slot: u64) {
 
 /// Check that the chain has finalized under best-case assumptions, and check the head slot.
 fn check_finalization(harness: &TestHarness, expected_slot: u64) {
-    let state = &harness.chain.head_snapshot().beacon_state;
+    let state = &harness.chain.canonical_head.head_snapshot().beacon_state;
 
     check_slot(harness, expected_slot);
 
@@ -5948,6 +5962,7 @@ fn check_split_slot(
     assert_eq!(
         harness
             .chain
+            .canonical_head
             .head_snapshot()
             .beacon_state
             .finalized_checkpoint()

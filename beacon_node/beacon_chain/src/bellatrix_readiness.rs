@@ -28,7 +28,7 @@ pub enum GenesisExecutionPayloadStatus {
 pub async fn check_genesis_execution_payload_is_correct<T: BeaconChainTypes>(
     chain: &BeaconChain<T>,
 ) -> Result<GenesisExecutionPayloadStatus, Error> {
-    let head_snapshot = chain.head_snapshot();
+    let head_snapshot = chain.canonical_head.head_snapshot();
     let genesis_state = &head_snapshot.beacon_state;
 
     if genesis_state.slot() != 0 {

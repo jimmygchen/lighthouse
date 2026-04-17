@@ -317,7 +317,7 @@ async fn test_rewards_base_multi_inclusion() {
 
     harness.extend_slots(2).await;
 
-    let prev_block = harness.chain.head_beacon_block();
+    let prev_block = harness.chain.canonical_head.head_beacon_block();
 
     harness.extend_slots(1).await;
 

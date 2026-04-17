@@ -185,10 +185,10 @@ pub async fn gossip_full_pass() {
 
     assert!(response.is_ok());
     assert!(
-        tester
-            .harness
-            .chain
-            .block_is_known_to_fork_choice(&block.canonical_root())
+        beacon_chain::execution_methods::block_is_known_to_fork_choice(
+            &tester.harness.chain,
+            &block.canonical_root()
+        )
     );
 }
 
@@ -233,10 +233,10 @@ pub async fn gossip_full_pass_ssz() {
 
     assert!(response.is_ok());
     assert!(
-        tester
-            .harness
-            .chain
-            .block_is_known_to_fork_choice(&block_contents.signed_block().canonical_root())
+        beacon_chain::execution_methods::block_is_known_to_fork_choice(
+            &tester.harness.chain,
+            &block_contents.signed_block().canonical_root()
+        )
     );
 }
 
@@ -421,10 +421,10 @@ pub async fn consensus_partial_pass_only_consensus() {
 
     assert!(publication_result.is_ok(), "{publication_result:?}");
     assert!(
-        tester
-            .harness
-            .chain
-            .block_is_known_to_fork_choice(&block_b_root)
+        beacon_chain::execution_methods::block_is_known_to_fork_choice(
+            &tester.harness.chain,
+            &block_b_root
+        )
     );
 }
 
@@ -468,10 +468,10 @@ pub async fn consensus_full_pass() {
 
     assert!(response.is_ok());
     assert!(
-        tester
-            .harness
-            .chain
-            .block_is_known_to_fork_choice(&block.canonical_root())
+        beacon_chain::execution_methods::block_is_known_to_fork_choice(
+            &tester.harness.chain,
+            &block.canonical_root()
+        )
     );
 }
 
@@ -593,10 +593,10 @@ pub async fn equivocation_consensus_early_equivocation() {
             .is_ok()
     );
     assert!(
-        tester
-            .harness
-            .chain
-            .block_is_known_to_fork_choice(&block_a.canonical_root())
+        beacon_chain::execution_methods::block_is_known_to_fork_choice(
+            &tester.harness.chain,
+            &block_a.canonical_root()
+        )
     );
 
     /* submit `block_b` which should induce equivocation */
@@ -791,10 +791,10 @@ pub async fn equivocation_full_pass() {
 
     assert!(response.is_ok());
     assert!(
-        tester
-            .harness
-            .chain
-            .block_is_known_to_fork_choice(&block.canonical_root())
+        beacon_chain::execution_methods::block_is_known_to_fork_choice(
+            &tester.harness.chain,
+            &block.canonical_root()
+        )
     );
 }
 
@@ -958,10 +958,10 @@ pub async fn blinded_gossip_full_pass() {
     assert!(response.is_ok());
     assert_eq!(response.unwrap().status(), StatusCode::OK);
     assert!(
-        tester
-            .harness
-            .chain
-            .block_is_known_to_fork_choice(&blinded_block.canonical_root())
+        beacon_chain::execution_methods::block_is_known_to_fork_choice(
+            &tester.harness.chain,
+            &blinded_block.canonical_root()
+        )
     );
 }
 
@@ -1003,10 +1003,10 @@ pub async fn blinded_gossip_full_pass_ssz() {
     assert!(response.is_ok());
     assert_eq!(response.unwrap().status(), StatusCode::OK);
     assert!(
-        tester
-            .harness
-            .chain
-            .block_is_known_to_fork_choice(&blinded_block.canonical_root())
+        beacon_chain::execution_methods::block_is_known_to_fork_choice(
+            &tester.harness.chain,
+            &blinded_block.canonical_root()
+        )
     );
 }
 
@@ -1192,10 +1192,10 @@ pub async fn blinded_consensus_full_pass() {
 
     assert!(response.is_ok());
     assert!(
-        tester
-            .harness
-            .chain
-            .block_is_known_to_fork_choice(&blinded_block.canonical_root())
+        beacon_chain::execution_methods::block_is_known_to_fork_choice(
+            &tester.harness.chain,
+            &blinded_block.canonical_root()
+        )
     );
 }
 
@@ -1330,10 +1330,10 @@ pub async fn blinded_equivocation_consensus_early_equivocation() {
         .await
         .unwrap();
     assert!(
-        tester
-            .harness
-            .chain
-            .block_is_known_to_fork_choice(&block_a.canonical_root())
+        beacon_chain::execution_methods::block_is_known_to_fork_choice(
+            &tester.harness.chain,
+            &block_a.canonical_root()
+        )
     );
 
     /* submit `block_b` which should induce equivocation */
@@ -1566,10 +1566,10 @@ pub async fn blinded_equivocation_full_pass() {
 
     assert!(response.is_ok());
     assert!(
-        tester
-            .harness
-            .chain
-            .block_is_known_to_fork_choice(&block.canonical_root())
+        beacon_chain::execution_methods::block_is_known_to_fork_choice(
+            &tester.harness.chain,
+            &block.canonical_root()
+        )
     );
 }
 
@@ -1618,10 +1618,10 @@ pub async fn block_seen_on_gossip_without_blobs_or_columns() {
 
     // It should not yet be added to fork choice because blobs have not been seen.
     assert!(
-        !tester
-            .harness
-            .chain
-            .block_is_known_to_fork_choice(&block.canonical_root())
+        !beacon_chain::execution_methods::block_is_known_to_fork_choice(
+            &tester.harness.chain,
+            &block.canonical_root()
+        )
     );
 
     // Post the block *and* blobs to the HTTP API.
@@ -1636,10 +1636,10 @@ pub async fn block_seen_on_gossip_without_blobs_or_columns() {
     // This should result in the block being fully imported.
     response.unwrap();
     assert!(
-        tester
-            .harness
-            .chain
-            .block_is_known_to_fork_choice(&block.canonical_root())
+        beacon_chain::execution_methods::block_is_known_to_fork_choice(
+            &tester.harness.chain,
+            &block.canonical_root()
+        )
     );
 }
 
@@ -1710,10 +1710,10 @@ pub async fn block_seen_on_gossip_with_some_blobs_or_columns() {
 
     // It should not yet be added to fork choice because all blobs have not been seen.
     assert!(
-        !tester
-            .harness
-            .chain
-            .block_is_known_to_fork_choice(&block.canonical_root())
+        !beacon_chain::execution_methods::block_is_known_to_fork_choice(
+            &tester.harness.chain,
+            &block.canonical_root()
+        )
     );
 
     // Post the block *and* all blobs to the HTTP API.
@@ -1728,10 +1728,10 @@ pub async fn block_seen_on_gossip_with_some_blobs_or_columns() {
     // This should result in the block being fully imported.
     response.unwrap();
     assert!(
-        tester
-            .harness
-            .chain
-            .block_is_known_to_fork_choice(&block.canonical_root())
+        beacon_chain::execution_methods::block_is_known_to_fork_choice(
+            &tester.harness.chain,
+            &block.canonical_root()
+        )
     );
 }
 
@@ -1785,10 +1785,10 @@ pub async fn blobs_or_columns_seen_on_gossip_without_block() {
 
     // It should not yet be added to fork choice because the block has not been seen.
     assert!(
-        !tester
-            .harness
-            .chain
-            .block_is_known_to_fork_choice(&block.canonical_root())
+        !beacon_chain::execution_methods::block_is_known_to_fork_choice(
+            &tester.harness.chain,
+            &block.canonical_root()
+        )
     );
 
     // Post the block *and* all blobs to the HTTP API.
@@ -1803,10 +1803,10 @@ pub async fn blobs_or_columns_seen_on_gossip_without_block() {
     // This should result in the block being fully imported.
     response.unwrap();
     assert!(
-        tester
-            .harness
-            .chain
-            .block_is_known_to_fork_choice(&block.canonical_root())
+        beacon_chain::execution_methods::block_is_known_to_fork_choice(
+            &tester.harness.chain,
+            &block.canonical_root()
+        )
     );
 }
 
@@ -1860,10 +1860,10 @@ async fn blobs_or_columns_seen_on_gossip_without_block_and_no_http_blobs_or_colu
 
     // It should not yet be added to fork choice because the block has not been seen.
     assert!(
-        !tester
-            .harness
-            .chain
-            .block_is_known_to_fork_choice(&block.canonical_root())
+        !beacon_chain::execution_methods::block_is_known_to_fork_choice(
+            &tester.harness.chain,
+            &block.canonical_root()
+        )
     );
 
     // Post just the block to the HTTP API (blob lists are empty).
@@ -1881,10 +1881,10 @@ async fn blobs_or_columns_seen_on_gossip_without_block_and_no_http_blobs_or_colu
     // This should result in the block being fully imported.
     response.unwrap();
     assert!(
-        tester
-            .harness
-            .chain
-            .block_is_known_to_fork_choice(&block.canonical_root())
+        beacon_chain::execution_methods::block_is_known_to_fork_choice(
+            &tester.harness.chain,
+            &block.canonical_root()
+        )
     );
 }
 
@@ -1938,10 +1938,10 @@ async fn slashable_blobs_or_columns_seen_on_gossip_cause_failure() {
 
     // It should not yet be added to fork choice because block B has not been seen.
     assert!(
-        !tester
-            .harness
-            .chain
-            .block_is_known_to_fork_choice(&block_b.canonical_root())
+        !beacon_chain::execution_methods::block_is_known_to_fork_choice(
+            &tester.harness.chain,
+            &block_b.canonical_root()
+        )
     );
 
     // Post block A *and* all its blobs to the HTTP API.
@@ -1956,10 +1956,10 @@ async fn slashable_blobs_or_columns_seen_on_gossip_cause_failure() {
     // This should not result in block A being fully imported.
     response.unwrap_err();
     assert!(
-        !tester
-            .harness
-            .chain
-            .block_is_known_to_fork_choice(&block_a.canonical_root())
+        !beacon_chain::execution_methods::block_is_known_to_fork_choice(
+            &tester.harness.chain,
+            &block_a.canonical_root()
+        )
     );
 }
 
@@ -2024,10 +2024,10 @@ pub async fn duplicate_block_status_code() {
     // This should result in the block being fully imported.
     response.unwrap();
     assert!(
-        tester
-            .harness
-            .chain
-            .block_is_known_to_fork_choice(&block.canonical_root())
+        beacon_chain::execution_methods::block_is_known_to_fork_choice(
+            &tester.harness.chain,
+            &block.canonical_root()
+        )
     );
 
     // Post again.

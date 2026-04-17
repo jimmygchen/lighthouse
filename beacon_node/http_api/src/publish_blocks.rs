@@ -574,7 +574,7 @@ async fn post_block_import_logging_and_response<T: BeaconChainTypes>(
 
             // Update the head since it's likely this block will become the new
             // head.
-            chain.recompute_head_at_current_slot().await;
+            beacon_chain::canonical_head::recompute_head_at_current_slot(&chain).await;
 
             // Only perform late-block logging here if the block is local. For
             // blocks built with builders we consider the broadcast time to be

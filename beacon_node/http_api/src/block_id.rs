@@ -72,9 +72,9 @@ impl BlockId {
                 Ok((justified_checkpoint.root, execution_optimistic, false))
             }
             CoreBlockId::Slot(slot) => {
-                let execution_optimistic = chain
-                    .is_optimistic_or_invalid_head()
-                    .map_err(warp_utils::reject::unhandled_error)?;
+                let execution_optimistic =
+                    beacon_chain::execution_methods::is_optimistic_or_invalid_head(chain)
+                        .map_err(warp_utils::reject::unhandled_error)?;
                 let root = beacon_chain::state_query::block_root_at_slot(
                     &chain.store,
                     &chain.canonical_head,

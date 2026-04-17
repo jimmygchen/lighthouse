@@ -1132,7 +1132,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                     %block_root,
                     "Gossipsub blob processed - imported fully available block"
                 );
-                self.chain.recompute_head_at_current_slot().await;
+                beacon_chain::canonical_head::recompute_head_at_current_slot(&self.chain).await;
 
                 metrics::set_gauge(
                     &metrics::BEACON_BLOB_DELAY_FULL_VERIFICATION,
@@ -1207,7 +1207,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                         %block_root,
                         "Gossipsub data column processed, imported fully available block"
                     );
-                    self.chain.recompute_head_at_current_slot().await;
+                    beacon_chain::canonical_head::recompute_head_at_current_slot(&self.chain).await;
 
                     metrics::set_gauge(
                         &metrics::BEACON_BLOB_DELAY_FULL_VERIFICATION,
@@ -1704,7 +1704,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                     "Gossipsub block processed"
                 );
 
-                self.chain.recompute_head_at_current_slot().await;
+                beacon_chain::canonical_head::recompute_head_at_current_slot(&self.chain).await;
 
                 metrics::set_gauge(
                     &metrics::BEACON_BLOCK_DELAY_FULL_VERIFICATION,
@@ -1797,7 +1797,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         let validator_index = voluntary_exit.message.validator_index;
 
         // Fetch state context for verification (moved from BeaconChain delegation wrapper).
-        let head_snapshot = self.chain.head().snapshot;
+        let head_snapshot = self.chain.canonical_head.cached_head().snapshot;
         let head_state = &head_snapshot.beacon_state;
         let wall_clock_epoch =
             match beacon_chain::state_query::current_epoch::<T::EthSpec, _>(&self.chain.slot_clock)
@@ -2081,7 +2081,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                 return;
             }
         };
-        let head_snapshot = self.chain.head().snapshot;
+        let head_snapshot = self.chain.canonical_head.cached_head().snapshot;
         let head_state = &head_snapshot.beacon_state;
 
         let change = match self

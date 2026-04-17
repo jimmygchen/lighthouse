@@ -35,14 +35,14 @@ pub fn sync_committee_duties<T: BeaconChainTypes>(
 
     // Even when computing duties from state, any block roots pulled using the request epoch are
     // still dependent on the head. So using `is_optimistic_head` is fine for both cases.
-    let execution_optimistic = chain
-        .is_optimistic_or_invalid_head()
-        .map_err(warp_utils::reject::unhandled_error)?;
+    let execution_optimistic =
+        beacon_chain::execution_methods::is_optimistic_or_invalid_head(chain)
+            .map_err(warp_utils::reject::unhandled_error)?;
 
     // Try using the head's sync committees to satisfy the request. This should be sufficient for
     // the vast majority of requests. Rather than checking if we think the request will succeed in a
     // way prone to data races, we attempt the request immediately and check the error code.
-    match chain.with_head(|head| {
+    match chain.canonical_head.with_head(|head| {
         chain.sync_committee_manager.sync_committee_duties(
             request_epoch,
             request_indices,
@@ -337,7 +337,7 @@ pub fn get_subnet_positions_for_sync_committee_message<T: BeaconChainTypes>(
             sync_message.validator_index as usize,
         ))?;
     let sync_committee = {
-        let head_state = &chain.head_snapshot().beacon_state;
+        let head_state = &chain.canonical_head.head_snapshot().beacon_state;
         chain.sync_committee_manager.sync_committee_at_next_slot(
             sync_message.get_slot(),
             head_state,

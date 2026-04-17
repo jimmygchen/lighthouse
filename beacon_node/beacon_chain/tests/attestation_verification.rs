@@ -121,7 +121,7 @@ fn get_harness_capella_spec(
 fn get_valid_unaggregated_attestation<T: BeaconChainTypes>(
     chain: &BeaconChain<T>,
 ) -> (SingleAttestation, SecretKey, SubnetId) {
-    let head = chain.head_snapshot();
+    let head = chain.canonical_head.head_snapshot();
     let current_slot = chain.slot().expect("should get slot");
 
     let mut valid_attestation = chain
@@ -184,7 +184,7 @@ fn get_valid_aggregated_attestation<T: BeaconChainTypes>(
     chain: &BeaconChain<T>,
     aggregate: Attestation<T::EthSpec>,
 ) -> (SignedAggregateAndProof<T::EthSpec>, usize, SecretKey) {
-    let head = chain.head_snapshot();
+    let head = chain.canonical_head.head_snapshot();
     let state = &head.beacon_state;
     let current_slot = chain.slot().expect("should get slot");
 
@@ -239,7 +239,7 @@ fn get_non_aggregator<T: BeaconChainTypes>(
     chain: &BeaconChain<T>,
     aggregate: AttestationRef<T::EthSpec>,
 ) -> (usize, SecretKey) {
-    let head = chain.head_snapshot();
+    let head = chain.canonical_head.head_snapshot();
     let state = &head.beacon_state;
     let current_slot = chain.slot().expect("should get slot");
 
@@ -319,7 +319,7 @@ impl GossipTester {
         let (valid_attestation, attester_sk, attestation_subnet_id) =
             get_valid_unaggregated_attestation(&harness.chain);
 
-        let head = harness.chain.head_snapshot();
+        let head = harness.chain.canonical_head.head_snapshot();
         let state = &head.beacon_state;
         let committee = state
             .get_beacon_committee(
@@ -748,7 +748,7 @@ async fn aggregated_gossip_verification() {
                 let committee_len = tester
                     .harness
                     .chain
-                    .head_snapshot()
+                    .canonical_head.head_snapshot()
                     .beacon_state
                     .get_beacon_committee(tester.slot(), a.message().aggregate().committee_index().expect("should get committee index"))
                     .expect("should get committees")
@@ -995,7 +995,7 @@ async fn unaggregated_gossip_verification() {
                 let committee_index = tester
                     .harness
                     .chain
-                    .head_snapshot()
+                    .canonical_head.head_snapshot()
                     .beacon_state
                     .get_committee_count_at_slot(a.data.slot)
                     .unwrap();
@@ -1378,6 +1378,7 @@ async fn attestation_to_finalized_block() {
 
     let finalized_checkpoint = harness
         .chain
+        .canonical_head
         .with_head(|head| Ok::<_, BeaconChainError>(head.beacon_state.finalized_checkpoint()))
         .unwrap();
     assert!(finalized_checkpoint.epoch > 0);
@@ -1473,7 +1474,7 @@ async fn verify_aggregate_for_gossip_doppelganger_detection() {
 
     let (valid_attestation, _, _) = get_valid_unaggregated_attestation(&harness.chain);
 
-    let head = harness.chain.head_snapshot();
+    let head = harness.chain.canonical_head.head_snapshot();
     let state = &head.beacon_state;
     let committee = state
         .get_beacon_committee(
@@ -1839,7 +1840,7 @@ async fn gloas_unaggregated_attestation_same_slot_index_must_be_zero() {
         .await;
 
     let current_slot = harness.chain.slot().expect("should get slot");
-    let head = harness.chain.head_snapshot();
+    let head = harness.chain.canonical_head.head_snapshot();
 
     // Verify head block is in the current slot
     assert_eq!(
@@ -1916,7 +1917,7 @@ async fn gloas_aggregated_attestation_same_slot_index_must_be_zero() {
         .await;
 
     let current_slot = harness.chain.slot().expect("should get slot");
-    let head = harness.chain.head_snapshot();
+    let head = harness.chain.canonical_head.head_snapshot();
 
     // Verify head block is in the current slot
     assert_eq!(

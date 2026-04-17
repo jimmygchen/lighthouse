@@ -118,7 +118,7 @@ pub async fn process_execution_payload_envelope<T: BeaconChainTypes>(
             // TODO(gloas) do we need to send a `PayloadImported` event to the reprocess queue?
             // TODO(gloas) do we need to recompute head?
             // should canonical_head return the block and the payload now?
-            chain_outer.recompute_head_at_current_slot().await;
+            crate::canonical_head::recompute_head_at_current_slot(&chain_outer).await;
 
             metrics::inc_counter(&metrics::ENVELOPE_PROCESSING_SUCCESSES);
 

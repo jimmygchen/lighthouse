@@ -181,7 +181,7 @@ impl<T: BeaconChainTypes> SlasherService<T> {
 
         for slashing in attester_slashings {
             // Verify slashing signature.
-            let verified_slashing = match beacon_chain.with_head(|head| {
+            let verified_slashing = match beacon_chain.canonical_head.with_head(|head| {
                 Ok::<_, BeaconChainError>(
                     slashing
                         .clone()
@@ -247,7 +247,7 @@ impl<T: BeaconChainTypes> SlasherService<T> {
         let proposer_slashings = slasher.get_proposer_slashings();
 
         for slashing in proposer_slashings {
-            let verified_slashing = match beacon_chain.with_head(|head| {
+            let verified_slashing = match beacon_chain.canonical_head.with_head(|head| {
                 Ok(slashing
                     .clone()
                     .validate(&head.beacon_state, &beacon_chain.spec)?)
@@ -299,9 +299,13 @@ impl<T: BeaconChainTypes> SlasherService<T> {
         network_sender: &UnboundedSender<NetworkMessage<T::EthSpec>>,
         slashing: AttesterSlashing<T::EthSpec>,
     ) -> Result<(), String> {
-        let wall_clock_state = beacon_chain
-            .wall_clock_state()
-            .map_err(|e| format!("gossip verification error: {:?}", e))?;
+        let wall_clock_state = beacon_chain::state_query::wall_clock_state(
+            &beacon_chain.store,
+            &beacon_chain.canonical_head,
+            &beacon_chain.spec,
+            &beacon_chain.slot_clock,
+        )
+        .map_err(|e| format!("gossip verification error: {:?}", e))?;
         let outcome = beacon_chain
             .operations
             .verify_attester_slashing(slashing, &wall_clock_state)
@@ -324,9 +328,13 @@ impl<T: BeaconChainTypes> SlasherService<T> {
         network_sender: &UnboundedSender<NetworkMessage<T::EthSpec>>,
         slashing: ProposerSlashing,
     ) -> Result<(), String> {
-        let wall_clock_state = beacon_chain
-            .wall_clock_state()
-            .map_err(|e| format!("gossip verification error: {:?}", e))?;
+        let wall_clock_state = beacon_chain::state_query::wall_clock_state(
+            &beacon_chain.store,
+            &beacon_chain.canonical_head,
+            &beacon_chain.spec,
+            &beacon_chain.slot_clock,
+        )
+        .map_err(|e| format!("gossip verification error: {:?}", e))?;
         let outcome = beacon_chain
             .operations
             .verify_proposer_slashing(slashing, &wall_clock_state)

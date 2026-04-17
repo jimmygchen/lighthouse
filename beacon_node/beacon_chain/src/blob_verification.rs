@@ -438,7 +438,8 @@ pub fn validate_blob_sidecar_for_gossip<T: BeaconChainTypes, O: ObservationStrat
 
     // Verify that the sidecar slot is greater than the latest finalized slot
     let latest_finalized_slot = chain
-        .head()
+        .canonical_head
+        .cached_head()
         .finalized_checkpoint()
         .epoch
         .start_slot(T::EthSpec::slots_per_epoch());

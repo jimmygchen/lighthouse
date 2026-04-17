@@ -431,7 +431,10 @@ impl<T: BeaconChainTypes> ChainCollection<T> {
 
         let is_outdated = |target_slot: &Slot, target_root: &Hash256| {
             target_slot <= &local_finalized_slot
-                || beacon_chain.block_is_known_to_fork_choice(target_root)
+                || beacon_chain::execution_methods::block_is_known_to_fork_choice(
+                    beacon_chain,
+                    target_root,
+                )
         };
 
         // Retain only head peers that remain relevant

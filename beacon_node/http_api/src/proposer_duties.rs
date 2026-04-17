@@ -162,9 +162,9 @@ fn try_proposer_duties_from_cache<T: BeaconChainTypes>(
             .map_err(warp_utils::reject::beacon_state_error)?,
         DependentRootSelection::True => head_decision_root,
     };
-    let execution_optimistic = chain
-        .is_optimistic_or_invalid_head_block(head_block)
-        .map_err(warp_utils::reject::unhandled_error)?;
+    let execution_optimistic =
+        beacon_chain::execution_methods::is_optimistic_or_invalid_head_block(chain, head_block)
+            .map_err(warp_utils::reject::unhandled_error)?;
 
     chain
         .beacon_proposer_cache

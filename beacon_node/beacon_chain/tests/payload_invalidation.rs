@@ -102,7 +102,7 @@ impl InvalidPayloadRig {
     }
 
     async fn recompute_head(&self) {
-        self.harness.chain.recompute_head_at_current_slot().await;
+        beacon_chain::canonical_head::recompute_head_at_current_slot(&self.harness.chain).await;
     }
 
     fn cached_head(&self) -> CachedHead<E> {
@@ -194,7 +194,7 @@ impl InvalidPayloadRig {
     ) -> Hash256 {
         let mock_execution_layer = self.harness.mock_execution_layer.as_ref().unwrap();
 
-        let head = self.harness.chain.head_snapshot();
+        let head = self.harness.chain.canonical_head.head_snapshot();
         let state = head.beacon_state.clone();
         let slot = slot_override.unwrap_or(state.slot() + 1);
         let ((block, blobs), post_state) = self.harness.make_block(state, slot).await;
@@ -348,11 +348,12 @@ impl InvalidPayloadRig {
     }
 
     async fn invalidate_manually(&self, block_root: Hash256) {
-        self.harness
-            .chain
-            .process_invalid_execution_payload(&InvalidationOperation::InvalidateOne { block_root })
-            .await
-            .unwrap();
+        beacon_chain::execution_methods::process_invalid_execution_payload(
+            &self.harness.chain,
+            &InvalidationOperation::InvalidateOne { block_root },
+        )
+        .await
+        .unwrap();
     }
 
     fn assert_get_head_error_contains(&self, s: &str) {
@@ -999,7 +1000,7 @@ async fn payload_preparation() {
     rig.import_block(Payload::Valid).await;
 
     let el = rig.execution_layer();
-    let head = rig.harness.chain.head_snapshot();
+    let head = rig.harness.chain.canonical_head.head_snapshot();
     let current_slot = rig.harness.chain.slot().unwrap();
     assert_eq!(head.beacon_state.slot(), 1);
     assert_eq!(current_slot, 1);
@@ -1029,11 +1030,12 @@ async fn payload_preparation() {
         next_slot,
         rig.harness.chain.config.prepare_payload_lookahead,
     );
-    rig.harness
-        .chain
-        .prepare_beacon_proposer(rig.harness.chain.slot().unwrap())
-        .await
-        .unwrap();
+    beacon_chain::execution_methods::prepare_beacon_proposer(
+        &rig.harness.chain,
+        rig.harness.chain.slot().unwrap(),
+    )
+    .await
+    .unwrap();
 
     let payload_attributes = PayloadAttributes::new(
         rig.harness
@@ -1130,7 +1132,7 @@ async fn attesting_to_optimistic_head() {
 
     let root = rig.import_block(Payload::Syncing).await;
 
-    let head = rig.harness.chain.head_snapshot();
+    let head = rig.harness.chain.canonical_head.head_snapshot();
     let slot = head.beacon_block.slot();
     assert_eq!(
         head.beacon_block_root, root,

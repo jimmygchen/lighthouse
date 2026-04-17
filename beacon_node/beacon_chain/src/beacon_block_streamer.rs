@@ -782,7 +782,7 @@ mod tests {
         // finish rest of epochs
         harness.extend_slots(num_epochs * slots_per_epoch).await;
 
-        let head = harness.chain.head_snapshot();
+        let head = harness.chain.canonical_head.head_snapshot();
         let state = &head.beacon_state;
 
         assert_eq!(

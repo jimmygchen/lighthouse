@@ -1981,7 +1981,7 @@ pub static LIGHT_CLIENT_SERVER_CACHE_PROCESSING_SUCCESSES: LazyLock<Result<IntCo
 /// Scrape the `beacon_chain` for metrics that are not constantly updated (e.g., the present slot,
 /// head state info, etc) and update the Prometheus `DEFAULT_REGISTRY`.
 pub fn scrape_for_metrics<T: BeaconChainTypes>(beacon_chain: &BeaconChain<T>) {
-    let _ = beacon_chain.with_head(|head| {
+    let _ = beacon_chain.canonical_head.with_head(|head| {
         scrape_head_state(&head.beacon_state, head.beacon_state_root());
         Ok::<_, BeaconChainError>(())
     });

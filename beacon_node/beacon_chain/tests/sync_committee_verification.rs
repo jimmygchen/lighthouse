@@ -56,7 +56,11 @@ fn get_valid_sync_committee_message(
     relative_sync_committee: RelativeSyncCommittee,
     message_index: usize,
 ) -> (SyncCommitteeMessage, usize, SecretKey, SyncSubnetId) {
-    let head_block_root = harness.chain.head_snapshot().beacon_block_root;
+    let head_block_root = harness
+        .chain
+        .canonical_head
+        .head_snapshot()
+        .beacon_block_root;
     get_valid_sync_committee_message_for_block(
         harness,
         slot,
@@ -76,7 +80,7 @@ fn get_valid_sync_committee_message_for_block(
     message_index: usize,
     block_root: Hash256,
 ) -> (SyncCommitteeMessage, usize, SecretKey, SyncSubnetId) {
-    let head_state = harness.chain.head_beacon_state_cloned();
+    let head_state = harness.chain.canonical_head.head_beacon_state_cloned();
     let (signature, _) = harness
         .make_sync_committee_messages(&head_state, block_root, slot, relative_sync_committee)
         .first()
@@ -99,9 +103,13 @@ fn get_valid_sync_contribution(
     harness: &BeaconChainHarness<EphemeralHarnessType<E>>,
     relative_sync_committee: RelativeSyncCommittee,
 ) -> (SignedContributionAndProof<E>, usize, SecretKey) {
-    let head_state = harness.chain.head_beacon_state_cloned();
+    let head_state = harness.chain.canonical_head.head_beacon_state_cloned();
 
-    let head_block_root = harness.chain.head_snapshot().beacon_block_root;
+    let head_block_root = harness
+        .chain
+        .canonical_head
+        .head_snapshot()
+        .beacon_block_root;
     let sync_contributions = harness.make_sync_contributions(
         &head_state,
         head_block_root,
@@ -131,7 +139,7 @@ fn get_non_aggregator(
     harness: &BeaconChainHarness<EphemeralHarnessType<E>>,
     slot: Slot,
 ) -> (usize, SecretKey) {
-    let state = &harness.chain.head_snapshot().beacon_state;
+    let state = &harness.chain.canonical_head.head_snapshot().beacon_state;
     let sync_subcommittee_size = E::sync_committee_size()
         .safe_div(SYNC_COMMITTEE_SUBNET_COUNT as usize)
         .expect("should determine sync subcommittee size");
@@ -530,7 +538,12 @@ async fn unaggregated_gossip_verification() {
 
     let (valid_sync_committee_message, expected_validator_index, validator_sk, subnet_id) =
         get_valid_sync_committee_message(&harness, current_slot, RelativeSyncCommittee::Current, 0);
-    let parent_root = harness.chain.head_snapshot().beacon_block.parent_root();
+    let parent_root = harness
+        .chain
+        .canonical_head
+        .head_snapshot()
+        .beacon_block
+        .parent_root();
     let (valid_sync_committee_message_to_parent, _, _, _) =
         get_valid_sync_committee_message_for_block(
             &harness,

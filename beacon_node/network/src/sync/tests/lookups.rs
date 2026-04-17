@@ -1177,7 +1177,7 @@ impl TestRig {
                 .await
                 .unwrap();
         }
-        self.harness.chain.recompute_head_at_current_slot().await;
+        beacon_chain::canonical_head::recompute_head_at_current_slot(&self.harness.chain).await;
     }
 
     /// Import a block directly into the chain without going through lookup sync
@@ -1200,7 +1200,7 @@ impl TestRig {
             .await
             .unwrap();
 
-        self.harness.chain.recompute_head_at_current_slot().await;
+        beacon_chain::canonical_head::recompute_head_at_current_slot(&self.harness.chain).await;
     }
 
     fn trigger_with_last_unknown_block_parent(&mut self) {
@@ -1234,7 +1234,7 @@ impl TestRig {
     // Post-test assertions
 
     pub(super) fn head_slot(&self) -> Slot {
-        self.harness.chain.head().head_slot()
+        self.harness.chain.canonical_head.cached_head().head_slot()
     }
 
     pub(super) fn assert_head_slot(&self, slot: u64) {

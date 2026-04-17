@@ -103,7 +103,7 @@ fn get_harness_semi_supernode(
 fn massive_skips() {
     let harness = get_harness(8);
     let spec = &harness.chain.spec;
-    let mut state = harness.chain.head_beacon_state_cloned();
+    let mut state = harness.chain.canonical_head.head_beacon_state_cloned();
 
     // Run per_slot_processing until it returns an error.
     let error = loop {
@@ -197,7 +197,7 @@ async fn iterators() {
         )
     });
 
-    let head = harness.chain.head_snapshot();
+    let head = harness.chain.canonical_head.head_snapshot();
 
     assert_eq!(
         *block_roots.last().expect("should have some block roots"),
@@ -248,7 +248,7 @@ async fn find_reorgs() {
         )
         .await;
 
-    let head = harness.chain.head_snapshot();
+    let head = harness.chain.canonical_head.head_snapshot();
     let head_state = &head.beacon_state;
     let head_slot = head_state.slot();
     let genesis_state = harness
@@ -275,7 +275,11 @@ async fn find_reorgs() {
         find_reorg_slot(
             &harness.chain,
             head_state,
-            harness.chain.head_beacon_block().canonical_root()
+            harness
+                .chain
+                .canonical_head
+                .head_beacon_block()
+                .canonical_root()
         ),
         head_slot
     );
@@ -331,7 +335,7 @@ async fn chooses_fork() {
 
     assert_ne!(honest_head, faulty_head, "forks should be distinct");
 
-    let head = harness.chain.head_snapshot();
+    let head = harness.chain.canonical_head.head_snapshot();
     let state = &head.beacon_state;
 
     assert_eq!(
@@ -341,7 +345,11 @@ async fn chooses_fork() {
     );
 
     assert_eq!(
-        harness.chain.head_snapshot().beacon_block_root,
+        harness
+            .chain
+            .canonical_head
+            .head_snapshot()
+            .beacon_block_root,
         honest_head,
         "the honest chain should be the canonical chain"
     );
@@ -361,7 +369,7 @@ async fn finalizes_with_full_participation() {
         )
         .await;
 
-    let head = harness.chain.head_snapshot();
+    let head = harness.chain.canonical_head.head_snapshot();
     let state = &head.beacon_state;
 
     assert_eq!(
@@ -403,7 +411,7 @@ async fn finalizes_with_two_thirds_participation() {
         )
         .await;
 
-    let head = harness.chain.head_snapshot();
+    let head = harness.chain.canonical_head.head_snapshot();
     let state = &head.beacon_state;
 
     assert_eq!(
@@ -451,7 +459,7 @@ async fn does_not_finalize_with_less_than_two_thirds_participation() {
         )
         .await;
 
-    let head = harness.chain.head_snapshot();
+    let head = harness.chain.canonical_head.head_snapshot();
     let state = &head.beacon_state;
 
     assert_eq!(
@@ -490,7 +498,7 @@ async fn does_not_finalize_without_attestation() {
         )
         .await;
 
-    let head = harness.chain.head_snapshot();
+    let head = harness.chain.canonical_head.head_snapshot();
     let state = &head.beacon_state;
 
     assert_eq!(
@@ -561,7 +569,7 @@ async fn unaggregated_attestations_added_to_fork_choice_some_none() {
         )
         .await;
 
-    let head = harness.chain.head_snapshot();
+    let head = harness.chain.canonical_head.head_snapshot();
     let state = &head.beacon_state;
     let mut fork_choice = harness.chain.canonical_head.fork_choice_write_lock();
 
@@ -624,7 +632,7 @@ async fn attestations_with_increasing_slots() {
             )
             .await;
 
-        let head = harness.chain.head_snapshot();
+        let head = harness.chain.canonical_head.head_snapshot();
         let head_state_root = head.beacon_state_root();
 
         attestations.extend(harness.get_single_attestations(
@@ -677,7 +685,7 @@ async fn unaggregated_attestations_added_to_fork_choice_all_updated() {
         )
         .await;
 
-    let head = harness.chain.head_snapshot();
+    let head = harness.chain.canonical_head.head_snapshot();
     let state = &head.beacon_state;
     let mut fork_choice = harness.chain.canonical_head.fork_choice_write_lock();
 
@@ -745,18 +753,32 @@ async fn run_skip_slot_test(skip_slots: u64) {
         .await;
 
     assert_eq!(
-        harness_a.chain.head_snapshot().beacon_block.slot(),
+        harness_a
+            .chain
+            .canonical_head
+            .head_snapshot()
+            .beacon_block
+            .slot(),
         Slot::new(skip_slots + 1)
     );
     assert_eq!(
-        harness_b.chain.head_snapshot().beacon_block.slot(),
+        harness_b
+            .chain
+            .canonical_head
+            .head_snapshot()
+            .beacon_block
+            .slot(),
         Slot::new(0)
     );
 
     let status = harness_b
         .chain
         .process_block(
-            harness_a.chain.head_snapshot().beacon_block_root,
+            harness_a
+                .chain
+                .canonical_head
+                .head_snapshot()
+                .beacon_block_root,
             harness_a.get_head_block(),
             NotifyExecutionLayer::Yes,
             BlockImportSource::Lookup,
@@ -767,12 +789,24 @@ async fn run_skip_slot_test(skip_slots: u64) {
 
     let root: Hash256 = status.try_into().unwrap();
 
-    assert_eq!(root, harness_a.chain.head_snapshot().beacon_block_root);
+    assert_eq!(
+        root,
+        harness_a
+            .chain
+            .canonical_head
+            .head_snapshot()
+            .beacon_block_root
+    );
 
-    harness_b.chain.recompute_head_at_current_slot().await;
+    beacon_chain::canonical_head::recompute_head_at_current_slot(&harness_b.chain).await;
 
     assert_eq!(
-        harness_b.chain.head_snapshot().beacon_block.slot(),
+        harness_b
+            .chain
+            .canonical_head
+            .head_snapshot()
+            .beacon_block
+            .slot(),
         Slot::new(skip_slots + 1)
     );
 }
@@ -791,6 +825,7 @@ async fn block_roots_skip_slot_behaviour() {
     // Test should be longer than the block roots to ensure a DB lookup is triggered.
     let chain_length = harness
         .chain
+        .canonical_head
         .head_snapshot()
         .beacon_state
         .block_roots()
@@ -924,7 +959,12 @@ async fn block_roots_skip_slot_behaviour() {
 
     let future_slot = harness.chain.slot().unwrap() + 1;
     assert_eq!(
-        harness.chain.head_snapshot().beacon_block.slot(),
+        harness
+            .chain
+            .canonical_head
+            .head_snapshot()
+            .beacon_block
+            .slot(),
         future_slot - 2,
         "test precondition"
     );
@@ -974,7 +1014,7 @@ async fn pseudo_finalize_test_generic(
 
     harness.advance_slot();
 
-    let head = harness.chain.head_snapshot();
+    let head = harness.chain.canonical_head.head_snapshot();
     let state = &head.beacon_state;
     let split = harness.chain.store.get_split_info();
 
@@ -1039,7 +1079,7 @@ async fn pseudo_finalize_test_generic(
 
     harness.advance_slot();
 
-    let head = harness.chain.head_snapshot();
+    let head = harness.chain.canonical_head.head_snapshot();
     let state = &head.beacon_state;
     let split = harness.chain.store.get_split_info();
 

@@ -825,7 +825,7 @@ where
     }
 
     pub fn get_head_block(&self) -> RangeSyncBlock<E> {
-        let block = self.chain.head_beacon_block();
+        let block = self.chain.canonical_head.head_beacon_block();
         let block_root = block.canonical_root();
         self.build_range_sync_block_from_store_blobs(Some(block_root), block)
     }
@@ -866,7 +866,7 @@ where
     }
 
     pub fn get_current_state(&self) -> BeaconState<E> {
-        self.chain.head_beacon_state_cloned()
+        self.chain.canonical_head.head_beacon_state_cloned()
     }
 
     pub fn get_timestamp_at_slot(&self) -> u64 {
@@ -875,7 +875,7 @@ where
     }
 
     pub fn get_current_state_and_root(&self) -> (BeaconState<E>, Hash256) {
-        let head = self.chain.head_snapshot();
+        let head = self.chain.canonical_head.head_snapshot();
         let state_root = head.beacon_state_root();
         (head.beacon_state.clone(), state_root)
     }
@@ -1356,7 +1356,7 @@ where
         )
         .await
         .unwrap_or_else(|e| panic!("import failed at slot {}: {e:?}", slot));
-        self.chain.recompute_head_at_current_slot().await;
+        crate::canonical_head::recompute_head_at_current_slot(&self.chain).await;
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -2330,7 +2330,12 @@ where
         validator_index: u64,
         slot_override: Option<Slot>,
     ) -> ProposerSlashing {
-        let mut block_header_1 = self.chain.head_beacon_block().message().block_header();
+        let mut block_header_1 = self
+            .chain
+            .canonical_head
+            .head_beacon_block()
+            .message()
+            .block_header();
         block_header_1.proposer_index = validator_index;
         if let Some(slot) = slot_override {
             block_header_1.slot = slot;
@@ -2427,7 +2432,7 @@ where
         address: Address,
     ) -> Result<(), String> {
         let signed_bls_change = self.make_bls_to_execution_change(validator_index, address);
-        let head_snapshot = self.chain.head().snapshot;
+        let head_snapshot = self.chain.canonical_head.cached_head().snapshot;
         let head_state = &head_snapshot.beacon_state;
         let is_post_capella = self
             .chain
@@ -2675,7 +2680,7 @@ where
             .expect("block blobs are available")
         };
 
-        self.chain.recompute_head_at_current_slot().await;
+        crate::canonical_head::recompute_head_at_current_slot(&self.chain).await;
         Ok(block_hash)
     }
 
@@ -2721,7 +2726,7 @@ where
             .expect("block blobs are available")
         };
 
-        self.chain.recompute_head_at_current_slot().await;
+        crate::canonical_head::recompute_head_at_current_slot(&self.chain).await;
         Ok(block_hash)
     }
 
@@ -3623,7 +3628,12 @@ where
         honest_fork_blocks: usize,
         faulty_fork_blocks: usize,
     ) -> (Hash256, Hash256) {
-        let initial_head_slot = self.chain.head_snapshot().beacon_block.slot();
+        let initial_head_slot = self
+            .chain
+            .canonical_head
+            .head_snapshot()
+            .beacon_block
+            .slot();
 
         // Move to the next slot so we may produce some more blocks on the head.
         self.advance_slot();

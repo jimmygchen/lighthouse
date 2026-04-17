@@ -1472,7 +1472,7 @@ fn import_block_update_validator_monitor<T: BeaconChainTypes>(
         let duty_epoch = block.epoch();
 
         match {
-            let head_state = &chain.head_snapshot().beacon_state;
+            let head_state = &chain.canonical_head.head_snapshot().beacon_state;
             chain.sync_committee_manager.sync_committee_at_epoch(
                 duty_epoch,
                 head_state,

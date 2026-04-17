@@ -195,7 +195,7 @@ impl TestRig {
         beacon_processor_config: BeaconProcessorConfig,
         spec: Arc<ChainSpec>,
     ) -> Self {
-        let head = harness.chain.head_snapshot();
+        let head = harness.chain.canonical_head.head_snapshot();
 
         assert_eq!(
             beacon_chain::state_query::current_slot(&harness.chain.slot_clock).unwrap(),
@@ -396,11 +396,11 @@ impl TestRig {
     }
 
     pub async fn recompute_head(&self) {
-        self.chain.recompute_head_at_current_slot().await
+        beacon_chain::canonical_head::recompute_head_at_current_slot(&self.chain).await
     }
 
     pub fn head_root(&self) -> Hash256 {
-        self.chain.head_snapshot().beacon_block_root
+        self.chain.canonical_head.head_snapshot().beacon_block_root
     }
 
     pub fn enqueue_gossip_block(&self) {

@@ -864,7 +864,7 @@ mod test {
         Cold: ItemStore<E>,
     {
         let chain = &harness.chain;
-        let head = chain.head_snapshot();
+        let head = chain.canonical_head.head_snapshot();
         let parent_state = head.beacon_state.clone();
 
         let target_slot =

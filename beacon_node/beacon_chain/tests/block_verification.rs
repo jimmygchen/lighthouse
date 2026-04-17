@@ -333,7 +333,7 @@ async fn chain_segment_full_segment() {
         .into_block_error()
         .expect("should import chain segment");
 
-    harness.chain.recompute_head_at_current_slot().await;
+    beacon_chain::canonical_head::recompute_head_at_current_slot(&harness.chain).await;
 
     assert_eq!(
         harness.head_block_root(),
@@ -368,7 +368,7 @@ async fn chain_segment_varying_chunk_size() {
                 .unwrap_or_else(|_| panic!("should import chain segment of len {}", chunk_size));
         }
 
-        harness.chain.recompute_head_at_current_slot().await;
+        beacon_chain::canonical_head::recompute_head_at_current_slot(&harness.chain).await;
 
         assert_eq!(
             harness.head_block_root(),
@@ -542,7 +542,7 @@ async fn assert_invalid_signature(
     );
 
     // Call fork choice to update cached head (including finalization).
-    harness.chain.recompute_head_at_current_slot().await;
+    beacon_chain::canonical_head::recompute_head_at_current_slot(&harness.chain).await;
 
     // Ensure the block will be rejected if imported on its own (without gossip checking).
     let ancestor_blocks = chain_segment
@@ -559,7 +559,7 @@ async fn assert_invalid_signature(
         .chain
         .process_chain_segment(ancestor_blocks, NotifyExecutionLayer::Yes)
         .await;
-    harness.chain.recompute_head_at_current_slot().await;
+    beacon_chain::canonical_head::recompute_head_at_current_slot(&harness.chain).await;
 
     let process_res = harness
         .chain
@@ -1102,7 +1102,7 @@ async fn block_gossip_verification() {
     }
 
     // Recompute the head to ensure we cache the latest view of fork choice.
-    harness.chain.recompute_head_at_current_slot().await;
+    beacon_chain::canonical_head::recompute_head_at_current_slot(&harness.chain).await;
 
     /*
      * This test ensures that:

@@ -814,7 +814,8 @@ fn verify_slot_greater_than_latest_finalized_slot<T: BeaconChainTypes>(
     column_slot: Slot,
 ) -> Result<(), GossipDataColumnError> {
     let latest_finalized_slot = chain
-        .head()
+        .canonical_head
+        .cached_head()
         .finalized_checkpoint()
         .epoch
         .start_slot(T::EthSpec::slots_per_epoch());

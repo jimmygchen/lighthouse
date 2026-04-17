@@ -417,7 +417,10 @@ impl<T: BeaconChainTypes> SyncManager<T> {
                     // unknown and ahead of ours, so we don't check for that root here.
                     //
                     // TODO: This fork-choice check is potentially duplicated, review code
-                    if !self.chain.block_is_known_to_fork_choice(&remote.head_root) {
+                    if !beacon_chain::execution_methods::block_is_known_to_fork_choice(
+                        &self.chain,
+                        &remote.head_root,
+                    ) {
                         self.handle_unknown_block_root(peer_id, remote.head_root);
                     }
                 }
@@ -614,7 +617,7 @@ impl<T: BeaconChainTypes> SyncManager<T> {
                     // advanced and will produce a head chain on re-status. Otherwise it will shift
                     // to being synced
                     let mut sync_state = {
-                        let head = self.chain.best_slot();
+                        let head = self.chain.canonical_head.best_slot();
                         let current_slot =
                             beacon_chain::state_query::current_slot(&self.chain.slot_clock)
                                 .unwrap_or_else(|_| Slot::new(0));

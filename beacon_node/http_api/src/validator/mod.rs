@@ -507,7 +507,7 @@ pub fn post_validator_register_validator<T: BeaconChainTypes>(
                             "Received register validator request"
                         );
 
-                        let head_snapshot = chain.head_snapshot();
+                        let head_snapshot = chain.canonical_head.head_snapshot();
                         let spec = &chain.spec;
 
                         let (preparation_data, filtered_registration_data): (
@@ -569,15 +569,17 @@ pub fn post_validator_register_validator<T: BeaconChainTypes>(
                         // Call prepare beacon proposer blocking with the latest update in order to make
                         // sure we have a local payload to fall back to in the event of the blinded block
                         // flow failing.
-                        chain
-                            .prepare_beacon_proposer(current_slot)
-                            .await
-                            .map_err(|e| {
-                                warp_utils::reject::custom_bad_request(format!(
-                                    "error updating proposer preparations: {:?}",
-                                    e
-                                ))
-                            })?;
+                        beacon_chain::execution_methods::prepare_beacon_proposer(
+                            &chain,
+                            current_slot,
+                        )
+                        .await
+                        .map_err(|e| {
+                            warp_utils::reject::custom_bad_request(format!(
+                                "error updating proposer preparations: {:?}",
+                                e
+                            ))
+                        })?;
 
                         info!(
                             count = filtered_registration_data.len(),
@@ -716,15 +718,17 @@ pub fn post_validator_prepare_beacon_proposer<T: BeaconChainTypes>(
                         .fork_name_at_slot::<T::EthSpec>(next_slot)
                         .gloas_enabled()
                     {
-                        chain
-                            .prepare_beacon_proposer(current_slot)
-                            .await
-                            .map_err(|e| {
-                                warp_utils::reject::custom_bad_request(format!(
-                                    "error updating proposer preparations: {:?}",
-                                    e
-                                ))
-                            })?;
+                        beacon_chain::execution_methods::prepare_beacon_proposer(
+                            &chain,
+                            current_slot,
+                        )
+                        .await
+                        .map_err(|e| {
+                            warp_utils::reject::custom_bad_request(format!(
+                                "error updating proposer preparations: {:?}",
+                                e
+                            ))
+                        })?;
                     }
 
                     if chain.spec.is_peer_das_scheduled() {

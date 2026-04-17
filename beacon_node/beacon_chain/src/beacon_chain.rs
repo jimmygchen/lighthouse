@@ -674,11 +674,11 @@ pub async fn per_slot_task<T: BeaconChainTypes>(chain: &Arc<BeaconChain<T>>) {
         chain.gossip_verified_payload_bid_cache.prune(slot);
         chain.gossip_verified_proposer_preferences_cache.prune(slot);
 
-        if chain.best_slot() + MAX_PER_SLOT_FORK_CHOICE_DISTANCE < slot {
+        if chain.canonical_head.best_slot() + MAX_PER_SLOT_FORK_CHOICE_DISTANCE < slot {
             return;
         }
 
-        chain.recompute_head_at_current_slot().await;
+        crate::canonical_head::recompute_head_at_current_slot(&chain).await;
 
         let chain_clone = chain.clone();
         chain.task_executor.clone().spawn_blocking(
@@ -918,7 +918,7 @@ pub fn get_light_client_bootstrap<T: BeaconChainTypes>(
     chain: &BeaconChain<T>,
     block_root: &Hash256,
 ) -> Result<Option<(LightClientBootstrap<T::EthSpec>, ForkName)>, Error> {
-    let head_state = &chain.head().snapshot.beacon_state;
+    let head_state = &chain.canonical_head.cached_head().snapshot.beacon_state;
     let finalized_period = head_state
         .finalized_checkpoint()
         .epoch

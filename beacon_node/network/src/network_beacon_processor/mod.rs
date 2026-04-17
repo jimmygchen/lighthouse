@@ -942,7 +942,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                         %block_root,
                         "Block components retrieved from EL"
                     );
-                    self.chain.recompute_head_at_current_slot().await;
+                    beacon_chain::canonical_head::recompute_head_at_current_slot(&self.chain).await;
                 }
                 AvailabilityProcessingStatus::MissingComponents(_, _) => {
                     debug!(
@@ -993,7 +993,8 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                             block_hash = %hash,
                             "Block components available via reconstruction"
                         );
-                        self.chain.recompute_head_at_current_slot().await;
+                        beacon_chain::canonical_head::recompute_head_at_current_slot(&self.chain)
+                            .await;
                     }
                     AvailabilityProcessingStatus::MissingComponents(_, _) => {
                         debug!(

@@ -28,7 +28,10 @@ impl RangeSyncType {
         //    not seen the finalized hash before.
 
         if remote_info.finalized_epoch > local_info.finalized_epoch
-            && !chain.block_is_known_to_fork_choice(&remote_info.finalized_root)
+            && !beacon_chain::execution_methods::block_is_known_to_fork_choice(
+                chain,
+                &remote_info.finalized_root,
+            )
         {
             RangeSyncType::Finalized
         } else {

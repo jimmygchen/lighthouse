@@ -35,6 +35,7 @@ pub fn get_validator_count<T: BeaconChainTypes>(
     let mut exited_slashed = 0;
 
     chain
+        .canonical_head
         .with_head(|head| {
             let state = &head.beacon_state;
             let epoch = state.current_epoch();

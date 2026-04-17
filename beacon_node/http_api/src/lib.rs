@@ -1827,7 +1827,8 @@ pub fn serve<T: BeaconChainTypes>(
                             )),
                         })?;
                     let execution_optimistic =
-                        chain.is_optimistic_or_invalid_head().unwrap_or_default();
+                        beacon_chain::execution_methods::is_optimistic_or_invalid_head(&chain)
+                            .unwrap_or_default();
 
                     let finalized = epoch + 2
                         <= chain
@@ -2334,8 +2335,10 @@ pub fn serve<T: BeaconChainTypes>(
 
                     task_spawner
                         .blocking_response_task(Priority::P0, move || {
-                            let is_optimistic = chain
-                                .is_optimistic_or_invalid_head()
+                            let is_optimistic =
+                                beacon_chain::execution_methods::is_optimistic_or_invalid_head(
+                                    &chain,
+                                )
                                 .map_err(warp_utils::reject::unhandled_error)?;
 
                             let is_syncing = !network_globals.sync_state.read().is_synced();

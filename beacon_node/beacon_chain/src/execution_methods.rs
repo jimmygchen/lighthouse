@@ -124,7 +124,7 @@ pub async fn process_invalid_execution_payload<T: BeaconChainTypes>(
 
     // Run fork choice since it's possible that the payload invalidation might result in a new
     // head.
-    chain.recompute_head_at_current_slot().await;
+    crate::canonical_head::recompute_head_at_current_slot(chain).await;
 
     // Obtain the justified root from fork choice.
     //

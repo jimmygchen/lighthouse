@@ -279,7 +279,7 @@ async fn early_attester_cache_old_request() {
         )
         .await;
 
-    let head = harness.chain.head_snapshot();
+    let head = harness.chain.canonical_head.head_snapshot();
     assert_eq!(head.beacon_block.slot(), 2);
     let head_proto_block = harness
         .chain
