@@ -49,9 +49,14 @@ async fn produces_attestations_from_attestation_simulator_service() {
         }
         // Set the state to the current slot
         let slot = Slot::from(slot);
-        let mut state = chain
-            .state_at_slot(slot, StateSkipConfig::WithStateRoots)
-            .expect("should get state");
+        let mut state = beacon_chain::state_query::state_at_slot(
+            &chain.store,
+            &chain.canonical_head,
+            &chain.spec,
+            slot,
+            StateSkipConfig::WithStateRoots,
+        )
+        .expect("should get state");
 
         // Prebuild the committee cache for the current epoch
         state
@@ -59,7 +64,10 @@ async fn produces_attestations_from_attestation_simulator_service() {
             .unwrap();
 
         // Produce an unaggragetated attestation
-        produce_unaggregated_attestation(chain.clone(), chain.slot().unwrap());
+        produce_unaggregated_attestation(
+            chain.clone(),
+            beacon_chain::state_query::current_slot(&chain.slot_clock).unwrap(),
+        );
 
         // Verify that the ua is stored in validator monitor
         let validator_monitor = chain.validator_monitor.read();
@@ -137,9 +145,14 @@ async fn produces_attestations() {
         }
 
         let slot = Slot::from(slot);
-        let mut state = chain
-            .state_at_slot(slot, StateSkipConfig::WithStateRoots)
-            .expect("should get state");
+        let mut state = beacon_chain::state_query::state_at_slot(
+            &chain.store,
+            &chain.canonical_head,
+            &chain.spec,
+            slot,
+            StateSkipConfig::WithStateRoots,
+        )
+        .expect("should get state");
 
         let block_slot = if slot <= num_blocks_produced {
             slot
@@ -147,10 +160,17 @@ async fn produces_attestations() {
             Slot::from(num_blocks_produced)
         };
 
-        let blinded_block = chain
-            .block_at_slot(block_slot, WhenSlotSkipped::Prev)
-            .expect("should get block")
-            .expect("block should not be skipped");
+        let blinded_block = beacon_chain::state_query::block_at_slot(
+            &chain.store,
+            &chain.canonical_head,
+            &chain.spec,
+            &chain.slot_clock,
+            chain.genesis_block_root,
+            block_slot,
+            WhenSlotSkipped::Prev,
+        )
+        .expect("should get block")
+        .expect("block should not be skipped");
         let block_root = blinded_block.message().tree_hash_root();
         let block = chain
             .store
@@ -240,10 +260,12 @@ async fn produces_attestations() {
                     .get_block(&block_root)
                     .unwrap();
                 chain
+                    .attestation_manager
                     .early_attester_cache
                     .add_head_block(block_root, &available_block, proto_block, &state)
                     .unwrap();
                 chain
+                    .attestation_manager
                     .early_attester_cache
                     .try_attest(slot, index, &chain.spec)
                     .unwrap()
@@ -297,6 +319,7 @@ async fn early_attester_cache_old_request() {
 
     harness
         .chain
+        .attestation_manager
         .early_attester_cache
         .add_head_block(
             head.beacon_block_root,

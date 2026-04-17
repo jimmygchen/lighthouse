@@ -946,7 +946,7 @@ async fn data_column_reconstruction_at_slot_start() {
         .set_current_time(slot_start - rig.chain.spec.maximum_gossip_clock_disparity());
 
     assert_eq!(
-        rig.beacon_chain::state_query::current_slot(&chain.slot_clock).unwrap(),
+        beacon_chain::state_query::current_slot(&rig.chain.slot_clock).unwrap(),
         rig.next_block.slot() - 1,
         "chain should be at the correct slot"
     );
@@ -1037,7 +1037,7 @@ async fn data_column_reconstruction_at_next_slot() {
         .set_current_time(slot_start - rig.chain.spec.maximum_gossip_clock_disparity());
 
     assert_eq!(
-        rig.beacon_chain::state_query::current_slot(&chain.slot_clock).unwrap(),
+        beacon_chain::state_query::current_slot(&rig.chain.slot_clock).unwrap(),
         rig.next_block.slot() - 1,
         "chain should be at the correct slot"
     );
@@ -1087,7 +1087,7 @@ async fn import_gossip_block_acceptably_early() {
         .set_current_time(slot_start - rig.chain.spec.maximum_gossip_clock_disparity());
 
     assert_eq!(
-        rig.beacon_chain::state_query::current_slot(&chain.slot_clock).unwrap(),
+        beacon_chain::state_query::current_slot(&rig.chain.slot_clock).unwrap(),
         rig.next_block.slot() - 1,
         "chain should be at the correct slot"
     );
@@ -1151,7 +1151,7 @@ async fn import_gossip_block_unacceptably_early() {
     );
 
     assert_eq!(
-        rig.beacon_chain::state_query::current_slot(&chain.slot_clock).unwrap(),
+        beacon_chain::state_query::current_slot(&rig.chain.slot_clock).unwrap(),
         rig.next_block.slot() - 1,
         "chain should be at the correct slot"
     );
@@ -1232,7 +1232,7 @@ async fn import_gossip_block_at_current_slot() {
     let mut rig = TestRig::new(SMALL_CHAIN).await;
 
     assert_eq!(
-        rig.beacon_chain::state_query::current_slot(&chain.slot_clock).unwrap(),
+        beacon_chain::state_query::current_slot(&rig.chain.slot_clock).unwrap(),
         rig.next_block.slot(),
         "chain should be at the correct slot"
     );

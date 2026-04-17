@@ -221,13 +221,13 @@ impl<E: EthSpec> OperationsManager<E> {
 
 impl<E: EthSpec> Drop for OperationsManager<E> {
     fn drop(&mut self) {
-        if let Some(persist_fn) = &self.persist_fn {
-            if let Err(e) = persist_fn(&self.op_pool) {
-                error!(
-                    error = ?e,
-                    "Failed to persist op pool on OperationsManager drop"
-                );
-            }
+        if let Some(persist_fn) = &self.persist_fn
+            && let Err(e) = persist_fn(&self.op_pool)
+        {
+            error!(
+                error = ?e,
+                "Failed to persist op pool on OperationsManager drop"
+            );
         }
     }
 }

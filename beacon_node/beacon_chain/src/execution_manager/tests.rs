@@ -223,8 +223,7 @@ fn given_invalid_justified_checkpoint_when_handled_then_shutdown_sent_and_error_
     let exec_hash = Some(ExecutionBlockHash::zero());
 
     // When handle_invalid_justified_checkpoint is called
-    let result =
-        handle_invalid_justified_checkpoint::<T>(&mut shutdown_tx, justified_root, exec_hash);
+    let result = handle_invalid_justified_checkpoint(&mut shutdown_tx, justified_root, exec_hash);
 
     // Then the result is an error with JustifiedPayloadInvalid
     assert!(
@@ -257,7 +256,7 @@ fn given_invalid_justified_checkpoint_without_exec_hash_when_handled_then_error_
     let justified_root = Hash256::repeat_byte(0xcd);
 
     // When handle_invalid_justified_checkpoint is called with None exec hash
-    let result = handle_invalid_justified_checkpoint::<T>(&mut shutdown_tx, justified_root, None);
+    let result = handle_invalid_justified_checkpoint(&mut shutdown_tx, justified_root, None);
 
     // Then the error carries None for execution_block_hash
     assert!(result.is_err());

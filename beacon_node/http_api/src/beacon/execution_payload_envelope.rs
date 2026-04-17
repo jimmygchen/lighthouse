@@ -5,7 +5,7 @@ use crate::version::{
     ResponseIncludesVersion, add_consensus_version_header, add_ssz_content_type_header,
     execution_optimistic_finalized_beacon_response,
 };
-use beacon_chain::{BeaconChainError, BeaconChainTypes, BeaconComponents};
+use beacon_chain::{BeaconChainTypes, BeaconComponents};
 use bytes::Bytes;
 use eth2::types as api_types;
 use eth2::{CONTENT_TYPE_HEADER, SSZ_CONTENT_TYPE_HEADER};

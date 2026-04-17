@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="color-scheme" content="dark">
-<title>BeaconChain, Rearchitected</title>
+<title>BeaconChain, Refactored</title>
 <style>
   :root {
     --bg: #0f1117;
@@ -364,10 +364,10 @@
 
 <!-- ════════════ HERO ════════════ -->
 <div class="hero">
-  <h1>BeaconChain, Rearchitected</h1>
+  <h1>BeaconChain, Refactored</h1>
   <p class="subtitle">
-    Designed for fast iteration and human-AI collaboration &mdash;
-    without compromising correctness, performance, or liveness.
+    Decomposing <code>BeaconChain&lt;T&gt;</code> into testable components &mdash;
+    designed for fast iteration and human-AI collaboration.
   </p>
   <div class="scroll-hint" aria-hidden="true">&#8595;</div>
 </div>
@@ -382,6 +382,7 @@
     <li><a href="#casestudy">Case Study</a></li>
     <li><a href="#specs">Spec-Driven Dev</a></li>
     <li><a href="#reference">Reference</a></li>
+    <li><a href="#results">Results</a></li>
     <li><a href="#cheatsheet">Cheat Sheet</a></li>
   </ul>
 </nav>
@@ -946,6 +947,178 @@
   </details>
 </section>
 
+<!-- ════════════ WHAT WE LEARNED ════════════ -->
+<section id="results">
+  <h2 class="fade-in">Results <span class="badge">Status</span></h2>
+  <p class="lead fade-in">
+    Seven components extracted, ~2,000 lines of new unit tests, full CI green,
+    and a local testnet that produces blocks and finalises. The top-level type
+    shrank from 7,317 to 1,025 lines and lost its 200+ methods. Two scoped
+    orchestrators and a slim top-level type are the next steps.
+  </p>
+
+  <div class="compare fade-in">
+    <div class="compare-card after">
+      <h3>What worked</h3>
+      <ul class="bullet-list">
+        <li>
+          <strong>Seven components extracted; four cohesive.</strong>
+          <code>OperationsManager</code>, <code>AttestationManager</code>,
+          <code>SyncCommitteeManager</code>, and <code>ValidatorQueryService</code>
+          came out as self-contained units with clear ownership of their observed
+          sets and pools. <code>DataAvailabilityManager</code>,
+          <code>ExecutionManager</code>, <code>BlockImportState</code> extracted
+          too but are thinner wrappers.
+        </li>
+        <li>
+          <strong>~2,000 lines of new unit tests</strong> against those components,
+          written <em>without</em> <code>BeaconChainHarness</code>. This is the
+          concrete contributor-velocity win &mdash; tests that construct components
+          directly, pass in state, and assert results.
+        </li>
+        <li>
+          <strong>Proved the seams.</strong> Once components owned their observed
+          sets and pools, the shape of a scoped <code>BlockImporter&lt;T&gt;</code> /
+          <code>BlockProducer&lt;T&gt;</code> became obvious &mdash; which is the
+          active follow-up work.
+        </li>
+        <li>
+          <strong>Top-level file shrank from 7,317 to 1,025 lines.</strong>
+          <code>beacon_chain.rs</code> &rarr; <code>beacon_components.rs</code>.
+          The remainder is struct definition, builder plumbing, and a few
+          cross-component helpers.
+        </li>
+      </ul>
+    </div>
+
+    <div class="compare-card before">
+      <h3>What to revise (in progress)</h3>
+      <ul class="bullet-list">
+        <li>
+          <strong><code>BeaconComponents&lt;T&gt;</code> has ~40 <code>pub</code> fields.</strong>
+          Zero methods, but the coupling is unchanged &mdash; every caller that
+          used to say <code>chain.field</code> still says <code>components.field</code>.
+          Being fixed by slimming to <code>BeaconSystem&lt;T&gt;</code> with only
+          <code>Arc&lt;Component&gt;</code> fields.
+        </li>
+        <li>
+          <strong>254+ call sites build <code>*Context</code> literals.</strong>
+          In <code>block_production/mod.rs</code>, a 12-field
+          <code>BlockProductionContext</code> literal is constructed four times in
+          one function. Being fixed by extracting <code>BlockImporter&lt;T&gt;</code>
+          and <code>BlockProducer&lt;T&gt;</code> as scoped structs that own their
+          <code>Arc</code>s.
+        </li>
+        <li>
+          <strong>Duplicate <code>Arc</code> paths to the same data.</strong>
+          <code>chain.op_pool</code> and
+          <code>chain.operations_manager.op_pool</code> resolve to the same pool,
+          with <code>// migrate later</code> markers. Being fixed by routing all
+          callers through the owning component.
+        </li>
+        <li>
+          <strong>Orchestrator files didn't shrink, just moved.</strong>
+          <code>block_import_methods.rs</code> is 2,022 lines,
+          <code>block_production/mod.rs</code> is 1,692. Being fixed by folding
+          them into <code>impl BlockImporter&lt;T&gt;</code> /
+          <code>impl BlockProducer&lt;T&gt;</code>.
+        </li>
+        <li>
+          <strong>Trading <code>&amp;self</code> for <code>&amp;chain + 12-field struct</code> was lateral.</strong>
+          Rust's idiomatic DI is <em>struct holds its Arcs, methods use <code>&amp;self</code></em> &mdash;
+          constructor injection. The follow-up work moves to that pattern.
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <h3 class="fade-in" style="margin-top:2.5rem; font-size:1.1rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-muted);">Key metrics</h3>
+
+  <div class="fade-in" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px,1fr)); gap:1rem; margin:1rem 0 0;">
+    <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card);">
+      <div style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">Top-level file</div>
+      <div style="font-size:1.6rem; font-weight:700; margin-top:0.3rem;">
+        <span style="color:var(--accent5);">7,317</span>
+        <span style="color:var(--text-muted);">&rarr;</span>
+        <span style="color:var(--accent2);">1,025</span>
+      </div>
+      <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.35rem;">lines &mdash; <code>beacon_chain.rs</code> &rarr; <code>beacon_components.rs</code></div>
+    </div>
+
+    <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card);">
+      <div style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">Top-level methods</div>
+      <div style="font-size:1.6rem; font-weight:700; margin-top:0.3rem;">
+        <span style="color:var(--accent5);">200+</span>
+        <span style="color:var(--text-muted);">&rarr;</span>
+        <span style="color:var(--accent2);">0</span>
+      </div>
+      <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.35rem;">logic moved into components and scoped orchestrators</div>
+    </div>
+
+    <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card);">
+      <div style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">Components extracted</div>
+      <div style="font-size:1.6rem; font-weight:700; margin-top:0.3rem; color:var(--accent);">7</div>
+      <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.35rem;">each owns its state &middot; unit-testable without harness</div>
+    </div>
+
+    <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card);">
+      <div style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">New unit tests</div>
+      <div style="font-size:1.6rem; font-weight:700; margin-top:0.3rem; color:var(--accent2);">~2,000</div>
+      <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.35rem;">lines &middot; no <code>BeaconChainHarness</code> required</div>
+    </div>
+  </div>
+
+  <h3 class="fade-in" style="margin-top:2.5rem; font-size:1.1rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-muted);">Verification</h3>
+
+  <div class="fade-in" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px,1fr)); gap:1rem; margin:1rem 0 0;">
+    <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card);">
+      <div style="display:flex; align-items:baseline; gap:0.5rem;">
+        <span style="width:0.6em; height:0.6em; border-radius:50%; background:var(--accent2); display:inline-block;"></span>
+        <strong style="font-size:0.9rem;">CI</strong>
+      </div>
+      <div style="font-size:0.8rem; color:var(--text-muted); margin-top:0.5rem;">
+        <code>cargo check --workspace --tests</code> green &middot;
+        <code>make lint</code> clean &middot;
+        <code>cargo fmt</code> applied.
+      </div>
+    </div>
+
+    <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card);">
+      <div style="display:flex; align-items:baseline; gap:0.5rem;">
+        <span style="width:0.6em; height:0.6em; border-radius:50%; background:var(--accent2); display:inline-block;"></span>
+        <strong style="font-size:0.9rem;">Kurtosis local testnet</strong>
+      </div>
+      <div style="font-size:0.8rem; color:var(--text-muted); margin-top:0.5rem;">
+        4-node BN mesh, slot 899&ndash;2310 (~70 min). 1,398 proposals over 1,411
+        slots (&ge;99% coverage). 0 errors, 0 panics, 0 reorgs. Block publish
+        delay avg ~2 ms, import delay avg ~80 ms.
+      </div>
+    </div>
+
+    <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card); opacity:0.7;" data-coverage-placeholder>
+      <div style="display:flex; align-items:baseline; gap:0.5rem;">
+        <span style="width:0.6em; height:0.6em; border-radius:50%; background:var(--text-muted); display:inline-block;"></span>
+        <strong style="font-size:0.9rem;">Coverage</strong>
+      </div>
+      <div style="font-size:0.8rem; color:var(--text-muted); margin-top:0.5rem;">
+        Branch coverage build in progress. Numbers and the link to the full
+        report will land here.
+      </div>
+    </div>
+
+    <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card); opacity:0.7;" data-tests-placeholder>
+      <div style="display:flex; align-items:baseline; gap:0.5rem;">
+        <span style="width:0.6em; height:0.6em; border-radius:50%; background:var(--text-muted); display:inline-block;"></span>
+        <strong style="font-size:0.9rem;">Full test suite</strong>
+      </div>
+      <div style="font-size:0.8rem; color:var(--text-muted); margin-top:0.5rem;">
+        <code>make test-beacon-chain</code> result will land here once the
+        orchestrator extractions complete.
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- ════════════ CHEAT SHEET ════════════ -->
 <section id="cheatsheet">
   <h2 class="fade-in">Quick Reference <span class="badge">Cheat Sheet</span></h2>
@@ -1001,7 +1174,7 @@
 </section>
 
 <footer>
-  <p>Lighthouse &mdash; BeaconChain, Rearchitected</p>
+  <p>Lighthouse &mdash; BeaconChain, Refactored</p>
 </footer>
 
 <script>

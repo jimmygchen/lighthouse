@@ -1,5 +1,6 @@
 use crate::attestation_manager::AttestationManager;
 use crate::beacon_proposer_cache::BeaconProposerCache;
+use crate::block_importer::BlockImporter;
 use crate::block_times_cache::BlockTimesCache;
 use crate::block_verification::BlockError;
 use crate::block_verification_types::RangeSyncBlock;
@@ -396,6 +397,8 @@ pub struct BeaconComponents<T: BeaconChainTypes> {
     /// Component managing execution layer integration, proposer cache, and
     /// fork choice signalling.
     pub execution_manager: Arc<ExecutionManager<T>>,
+    /// Component handling block, blob, and data-column import.
+    pub block_importer: Arc<BlockImporter<T>>,
 }
 
 pub enum BeaconBlockResponseWrapper<E: EthSpec> {
@@ -680,7 +683,7 @@ pub async fn per_slot_task<T: BeaconChainTypes>(chain: &Arc<BeaconComponents<T>>
             return;
         }
 
-        crate::canonical_head::recompute_head_at_current_slot(&chain).await;
+        crate::canonical_head::recompute_head_at_current_slot(chain).await;
 
         let chain_clone = chain.clone();
         chain.task_executor.clone().spawn_blocking(

@@ -17,9 +17,8 @@ pub mod gloas;
 /// Context struct for block production free functions.
 ///
 /// Holds references to the `BeaconComponents` fields that block production depends on.
-/// Public entry points construct this from an `Arc<BeaconComponents<T>>` via
-/// [`block_production_context_from_chain`].
-pub(crate) struct BlockProductionContext<'a, T: BeaconChainTypes> {
+/// Callers construct this inline at the call site from individual component refs.
+pub struct BlockProductionContext<'a, T: BeaconChainTypes> {
     pub canonical_head: &'a CanonicalHead<T>,
     pub store: &'a crate::BeaconStore<T>,
     pub attestation_manager: &'a AttestationManager<T::EthSpec>,
@@ -33,29 +32,6 @@ pub(crate) struct BlockProductionContext<'a, T: BeaconChainTypes> {
     pub beacon_proposer_cache:
         &'a Arc<parking_lot::Mutex<crate::beacon_proposer_cache::BeaconProposerCache>>,
     pub genesis_block_root: Hash256,
-}
-
-/// Construct a `BlockProductionContext` from a `BeaconComponents` reference.
-///
-/// Helper used by free functions in this module. External callers should
-/// construct the context from individual component refs.
-fn block_production_context_from_chain<T: BeaconChainTypes>(
-    chain: &Arc<BeaconComponents<T>>,
-) -> BlockProductionContext<'_, T> {
-    BlockProductionContext {
-        canonical_head: &chain.canonical_head,
-        store: &chain.store,
-        attestation_manager: &chain.attestation_manager,
-        execution_manager: &chain.execution_manager,
-        execution_layer: chain.execution_layer.as_ref(),
-        op_pool: &chain.op_pool,
-        spec: &chain.spec,
-        slot_clock: &chain.slot_clock,
-        config: &chain.config,
-        block_times_cache: &chain.block_times_cache,
-        beacon_proposer_cache: &chain.beacon_proposer_cache,
-        genesis_block_root: chain.genesis_block_root,
-    }
 }
 
 /// Check if the block with `block_root` was observed after the attestation deadline of `slot`.
@@ -82,7 +58,20 @@ pub(crate) fn load_state_for_block_production<T: BeaconChainTypes>(
     chain: &Arc<BeaconComponents<T>>,
     slot: Slot,
 ) -> Result<(BeaconState<T::EthSpec>, Option<Hash256>), BlockProductionError> {
-    let ctx = block_production_context_from_chain(chain);
+    let ctx = BlockProductionContext {
+        canonical_head: &chain.canonical_head,
+        store: &chain.store,
+        attestation_manager: &chain.attestation_manager,
+        execution_manager: &chain.execution_manager,
+        execution_layer: chain.execution_layer.as_ref(),
+        op_pool: &chain.op_pool,
+        spec: &chain.spec,
+        slot_clock: &chain.slot_clock,
+        config: &chain.config,
+        block_times_cache: &chain.block_times_cache,
+        beacon_proposer_cache: &chain.beacon_proposer_cache,
+        genesis_block_root: chain.genesis_block_root,
+    };
 
     let fork_choice_timer = metrics::start_timer(&metrics::BLOCK_PRODUCTION_FORK_CHOICE_TIMES);
     wait_for_fork_choice_before_block_production(chain, slot)?;
@@ -386,45 +375,6 @@ pub async fn produce_block_with_verification<T: BeaconChainTypes>(
     .await
 }
 
-/// Get the proposer index and `prev_randao` value for a proposal at slot `proposal_slot`.
-///
-/// Thin wrapper that constructs a [`BlockProductionContext`] from a [`BeaconComponents`] and
-/// delegates to the free function [`get_pre_payload_attributes`].
-pub(crate) fn get_pre_payload_attributes_from_chain<T: BeaconChainTypes>(
-    chain: &Arc<BeaconComponents<T>>,
-    proposal_slot: Slot,
-    proposer_head: Hash256,
-    cached_head: &CachedHead<T::EthSpec>,
-) -> Result<Option<PrePayloadAttributes>, Error> {
-    let ctx = block_production_context_from_chain(chain);
-    get_pre_payload_attributes(&ctx, proposal_slot, proposer_head, cached_head)
-}
-
-/// Compute expected withdrawals for a proposal.
-///
-/// Thin wrapper that constructs a [`BlockProductionContext`] from a [`BeaconComponents`] and
-/// delegates to [`get_expected_withdrawals_for_proposal`].
-pub(crate) fn get_expected_withdrawals_from_chain<T: BeaconChainTypes>(
-    chain: &Arc<BeaconComponents<T>>,
-    forkchoice_update_params: &ForkchoiceUpdateParameters,
-    proposal_slot: Slot,
-) -> Result<Withdrawals<T::EthSpec>, Error> {
-    let ctx = block_production_context_from_chain(chain);
-    get_expected_withdrawals_for_proposal(&ctx, forkchoice_update_params, proposal_slot)
-}
-
-/// Determine whether a fork choice update to the execution layer should be overridden.
-///
-/// Thin wrapper that constructs a [`BlockProductionContext`] from a [`BeaconComponents`] and
-/// delegates to [`overridden_forkchoice_update_params_fn`].
-pub(crate) fn overridden_forkchoice_update_params_from_chain<T: BeaconChainTypes>(
-    chain: &Arc<BeaconComponents<T>>,
-    canonical_forkchoice_params: ForkchoiceUpdateParameters,
-) -> Result<ForkchoiceUpdateParameters, Error> {
-    let ctx = block_production_context_from_chain(chain);
-    overridden_forkchoice_update_params_fn(&ctx, canonical_forkchoice_params)
-}
-
 /// Produce a block for some `slot` upon the given `state`.
 ///
 /// Typically the `produce_block_with_verification` function should be used, instead of calling
@@ -462,7 +412,20 @@ pub async fn produce_block_on_state<T: BeaconChainTypes>(
         .task_executor
         .spawn_blocking_handle(
             move || {
-                let ctx = block_production_context_from_chain(&chain_clone);
+                let ctx = BlockProductionContext {
+                    canonical_head: &chain_clone.canonical_head,
+                    store: &chain_clone.store,
+                    attestation_manager: &chain_clone.attestation_manager,
+                    execution_manager: &chain_clone.execution_manager,
+                    execution_layer: chain_clone.execution_layer.as_ref(),
+                    op_pool: &chain_clone.op_pool,
+                    spec: &chain_clone.spec,
+                    slot_clock: &chain_clone.slot_clock,
+                    config: &chain_clone.config,
+                    block_times_cache: &chain_clone.block_times_cache,
+                    beacon_proposer_cache: &chain_clone.beacon_proposer_cache,
+                    genesis_block_root: chain_clone.genesis_block_root,
+                };
                 produce_partial_beacon_block(
                     &ctx,
                     &chain_clone,
@@ -503,7 +466,20 @@ pub async fn produce_block_on_state<T: BeaconChainTypes>(
                     .task_executor
                     .spawn_blocking_handle(
                         move || {
-                            let ctx = block_production_context_from_chain(&chain_clone);
+                            let ctx = BlockProductionContext {
+                                canonical_head: &chain_clone.canonical_head,
+                                store: &chain_clone.store,
+                                attestation_manager: &chain_clone.attestation_manager,
+                                execution_manager: &chain_clone.execution_manager,
+                                execution_layer: chain_clone.execution_layer.as_ref(),
+                                op_pool: &chain_clone.op_pool,
+                                spec: &chain_clone.spec,
+                                slot_clock: &chain_clone.slot_clock,
+                                config: &chain_clone.config,
+                                block_times_cache: &chain_clone.block_times_cache,
+                                beacon_proposer_cache: &chain_clone.beacon_proposer_cache,
+                                genesis_block_root: chain_clone.genesis_block_root,
+                            };
                             complete_partial_beacon_block(
                                 &ctx,
                                 &chain_clone,
@@ -526,7 +502,20 @@ pub async fn produce_block_on_state<T: BeaconChainTypes>(
                     .task_executor
                     .spawn_blocking_handle(
                         move || {
-                            let ctx = block_production_context_from_chain(&chain_clone);
+                            let ctx = BlockProductionContext {
+                                canonical_head: &chain_clone.canonical_head,
+                                store: &chain_clone.store,
+                                attestation_manager: &chain_clone.attestation_manager,
+                                execution_manager: &chain_clone.execution_manager,
+                                execution_layer: chain_clone.execution_layer.as_ref(),
+                                op_pool: &chain_clone.op_pool,
+                                spec: &chain_clone.spec,
+                                slot_clock: &chain_clone.slot_clock,
+                                config: &chain_clone.config,
+                                block_times_cache: &chain_clone.block_times_cache,
+                                beacon_proposer_cache: &chain_clone.beacon_proposer_cache,
+                                genesis_block_root: chain_clone.genesis_block_root,
+                            };
                             complete_partial_beacon_block(
                                 &ctx,
                                 &chain_clone,
@@ -550,7 +539,20 @@ pub async fn produce_block_on_state<T: BeaconChainTypes>(
             .task_executor
             .spawn_blocking_handle(
                 move || {
-                    let ctx = block_production_context_from_chain(&chain_clone);
+                    let ctx = BlockProductionContext {
+                        canonical_head: &chain_clone.canonical_head,
+                        store: &chain_clone.store,
+                        attestation_manager: &chain_clone.attestation_manager,
+                        execution_manager: &chain_clone.execution_manager,
+                        execution_layer: chain_clone.execution_layer.as_ref(),
+                        op_pool: &chain_clone.op_pool,
+                        spec: &chain_clone.spec,
+                        slot_clock: &chain_clone.slot_clock,
+                        config: &chain_clone.config,
+                        block_times_cache: &chain_clone.block_times_cache,
+                        beacon_proposer_cache: &chain_clone.beacon_proposer_cache,
+                        genesis_block_root: chain_clone.genesis_block_root,
+                    };
                     complete_partial_beacon_block(
                         &ctx,
                         &chain_clone,
@@ -757,7 +759,7 @@ pub(crate) fn get_expected_withdrawals_for_proposal<T: BeaconChainTypes>(
 /// This function uses heuristics that align quite closely but not exactly with the re-org
 /// conditions set out in `get_state_for_re_org` and `get_proposer_head`. The differences are
 /// documented below.
-fn overridden_forkchoice_update_params_fn<T: BeaconChainTypes>(
+pub fn overridden_forkchoice_update_params_fn<T: BeaconChainTypes>(
     ctx: &BlockProductionContext<'_, T>,
     canonical_forkchoice_params: ForkchoiceUpdateParameters,
 ) -> Result<ForkchoiceUpdateParameters, Error> {
@@ -909,7 +911,7 @@ fn overridden_forkchoice_update_params_or_failure_reason_fn<T: BeaconChainTypes>
     // attestations for it. We also can't dequeue attestations for the block during the
     // current slot, which would be necessary for determining its weight.
     let head_block_late =
-        block_observed_after_attestation_deadline(&ctx, head_block_root, head_slot);
+        block_observed_after_attestation_deadline(ctx, head_block_root, head_slot);
     if !head_block_late {
         return Err(Box::new(DoNotReOrg::HeadNotLate.into()));
     }

@@ -78,6 +78,7 @@ async fn rpc_blobs_with_invalid_header_signature() {
     harness.advance_slot();
     let availability = harness
         .chain
+        .block_importer
         .process_block(
             block_root,
             LookupBlock::new(signed_block.clone()),
@@ -109,6 +110,7 @@ async fn rpc_blobs_with_invalid_header_signature() {
 
     let err = harness
         .chain
+        .block_importer
         .process_rpc_blobs(slot, block_root, blob_sidecars)
         .await
         .unwrap_err();

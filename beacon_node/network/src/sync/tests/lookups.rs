@@ -1167,6 +1167,7 @@ impl TestRig {
             let block_root = rpc_block.canonical_root();
             self.harness
                 .chain
+                .block_importer
                 .process_block(
                     block_root,
                     rpc_block,
@@ -1190,6 +1191,7 @@ impl TestRig {
 
         self.harness
             .chain
+            .block_importer
             .process_block(
                 block_root,
                 range_sync_block,
@@ -1723,6 +1725,7 @@ impl TestRig {
         let lookup_block = LookupBlock::new(block);
         self.harness
             .chain
+            .block_importer
             .process_block(
                 lookup_block.block_root(),
                 lookup_block,

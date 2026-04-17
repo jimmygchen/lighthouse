@@ -8,6 +8,7 @@ use crate::beacon_components::{
     BeaconChainTypes, INVALID_JUSTIFIED_PAYLOAD_SHUTDOWN_REASON, OverrideForkchoiceUpdate,
     PrePayloadAttributes,
 };
+use crate::block_production::BlockProductionContext;
 use crate::errors::BeaconChainError as Error;
 use crate::events::ServerSentEventHandler;
 use crate::{BeaconChainError, BeaconComponents};
@@ -30,7 +31,7 @@ use types::*;
 /// Send a shutdown signal when the justified checkpoint is detected as invalid.
 ///
 /// Returns `Err` to halt upstream processing after the shutdown is triggered.
-pub(crate) fn handle_invalid_justified_checkpoint<T: BeaconChainTypes>(
+pub(crate) fn handle_invalid_justified_checkpoint(
     shutdown_sender: &mut Sender<ShutdownReason>,
     justified_root: Hash256,
     execution_block_hash: Option<ExecutionBlockHash>,
@@ -146,7 +147,7 @@ pub async fn process_invalid_execution_payload<T: BeaconChainTypes>(
     if justified_block.execution_status.is_invalid() {
         // Delegate to the free function for shutdown signalling.
         let mut shutdown_sender = chain.shutdown_sender.clone();
-        return handle_invalid_justified_checkpoint::<T>(
+        return handle_invalid_justified_checkpoint(
             &mut shutdown_sender,
             justified_block.root,
             justified_block.execution_status.block_hash(),
@@ -226,18 +227,30 @@ pub async fn prepare_beacon_proposer<T: BeaconChainTypes>(
             }
 
             let canonical_fcu_params = cached_head.forkchoice_update_parameters();
-            let fcu_params =
-                crate::block_production::overridden_forkchoice_update_params_from_chain(
-                    &inner_chain,
-                    canonical_fcu_params,
-                )?;
-            let pre_payload_attributes =
-                crate::block_production::get_pre_payload_attributes_from_chain(
-                    &inner_chain,
-                    prepare_slot,
-                    fcu_params.head_root,
-                    &cached_head,
-                )?;
+            let ctx = BlockProductionContext {
+                canonical_head: &inner_chain.canonical_head,
+                store: &inner_chain.store,
+                attestation_manager: &inner_chain.attestation_manager,
+                execution_manager: &inner_chain.execution_manager,
+                execution_layer: inner_chain.execution_layer.as_ref(),
+                op_pool: &inner_chain.op_pool,
+                spec: &inner_chain.spec,
+                slot_clock: &inner_chain.slot_clock,
+                config: &inner_chain.config,
+                block_times_cache: &inner_chain.block_times_cache,
+                beacon_proposer_cache: &inner_chain.beacon_proposer_cache,
+                genesis_block_root: inner_chain.genesis_block_root,
+            };
+            let fcu_params = crate::block_production::overridden_forkchoice_update_params_fn(
+                &ctx,
+                canonical_fcu_params,
+            )?;
+            let pre_payload_attributes = crate::block_production::get_pre_payload_attributes(
+                &ctx,
+                prepare_slot,
+                fcu_params.head_root,
+                &cached_head,
+            )?;
             Ok::<_, Error>(Some((fcu_params, pre_payload_attributes)))
         },
         "prepare_beacon_proposer_head_read",
@@ -278,8 +291,22 @@ pub async fn prepare_beacon_proposer<T: BeaconChainTypes>(
             crate::beacon_components::spawn_blocking_handle(
                 &chain.task_executor,
                 move || {
-                    crate::block_production::get_expected_withdrawals_from_chain(
-                        &inner_chain,
+                    let ctx = BlockProductionContext {
+                        canonical_head: &inner_chain.canonical_head,
+                        store: &inner_chain.store,
+                        attestation_manager: &inner_chain.attestation_manager,
+                        execution_manager: &inner_chain.execution_manager,
+                        execution_layer: inner_chain.execution_layer.as_ref(),
+                        op_pool: &inner_chain.op_pool,
+                        spec: &inner_chain.spec,
+                        slot_clock: &inner_chain.slot_clock,
+                        config: &inner_chain.config,
+                        block_times_cache: &inner_chain.block_times_cache,
+                        beacon_proposer_cache: &inner_chain.beacon_proposer_cache,
+                        genesis_block_root: inner_chain.genesis_block_root,
+                    };
+                    crate::block_production::get_expected_withdrawals_for_proposal(
+                        &ctx,
                         &forkchoice_update_params,
                         prepare_slot,
                     )
@@ -396,10 +423,21 @@ pub async fn update_execution_engine_forkchoice<T: BeaconChainTypes>(
         crate::beacon_components::spawn_blocking_handle(
             &chain.task_executor,
             move || {
-                crate::block_production::overridden_forkchoice_update_params_from_chain(
-                    &inner_chain,
-                    input_params,
-                )
+                let ctx = BlockProductionContext {
+                    canonical_head: &inner_chain.canonical_head,
+                    store: &inner_chain.store,
+                    attestation_manager: &inner_chain.attestation_manager,
+                    execution_manager: &inner_chain.execution_manager,
+                    execution_layer: inner_chain.execution_layer.as_ref(),
+                    op_pool: &inner_chain.op_pool,
+                    spec: &inner_chain.spec,
+                    slot_clock: &inner_chain.slot_clock,
+                    config: &inner_chain.config,
+                    block_times_cache: &inner_chain.block_times_cache,
+                    beacon_proposer_cache: &inner_chain.beacon_proposer_cache,
+                    genesis_block_root: inner_chain.genesis_block_root,
+                };
+                crate::block_production::overridden_forkchoice_update_params_fn(&ctx, input_params)
             },
             "update_execution_engine_forkchoice_override",
         )

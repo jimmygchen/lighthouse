@@ -300,15 +300,15 @@ pub fn process_sync_committee_signatures<T: BeaconChainTypes>(
             }
         }
 
-        if let Some(verified) = verified_for_pool {
-            if let Err(e) = add_to_naive_sync_aggregation_pool(chain, verified) {
-                error!(
-                    error = ?e,
-                    slot = %sync_committee_signature.slot,
-                    validator_index = sync_committee_signature.validator_index,
-                    "Unable to add sync committee signature to pool"
-                );
-            }
+        if let Some(verified) = verified_for_pool
+            && let Err(e) = add_to_naive_sync_aggregation_pool(chain, verified)
+        {
+            error!(
+                error = ?e,
+                slot = %sync_committee_signature.slot,
+                validator_index = sync_committee_signature.validator_index,
+                "Unable to add sync committee signature to pool"
+            );
         }
     }
 
@@ -404,7 +404,7 @@ pub fn process_signed_contribution_and_proofs<T: BeaconChainTypes>(
         let subcommittee_index = contribution.message.contribution.subcommittee_index;
         let contribution_slot = contribution.message.contribution.slot;
 
-        match {
+        let res = {
             beacon_chain::metrics::inc_counter(
                 &beacon_chain::metrics::SYNC_CONTRIBUTION_PROCESSING_REQUESTS,
             );
@@ -437,7 +437,8 @@ pub fn process_signed_contribution_and_proofs<T: BeaconChainTypes>(
                     &beacon_chain::metrics::SYNC_CONTRIBUTION_PROCESSING_SUCCESSES,
                 );
             })
-        } {
+        };
+        match res {
             Ok(verified_contribution) => {
                 publish_pubsub_message(
                     &network_tx,

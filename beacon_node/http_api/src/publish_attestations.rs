@@ -160,7 +160,7 @@ fn verify_and_publish_attestation<T: BeaconChainTypes>(
             beacon_chain::AttestationFromBlock::False,
             &chain.spec,
         )
-        .map_err(|e| beacon_chain::BeaconChainError::from(e));
+        .map_err(beacon_chain::BeaconChainError::from);
     let naive_aggregation_result: Result<(), AttestationError> = chain
         .attestation_manager
         .add_to_naive_aggregation_pool(verified_attestation.attestation())

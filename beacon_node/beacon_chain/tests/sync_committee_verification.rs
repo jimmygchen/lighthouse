@@ -20,9 +20,31 @@ use types::{
     SyncSubnetId,
 };
 
+use beacon_chain::{
+    BeaconChainTypes, BeaconComponents,
+    sync_committee_verification::{
+        SyncCommitteeVerificationContext, VerifiedSyncCommitteeMessage, VerifiedSyncContribution,
+    },
+};
+
 pub type E = MainnetEthSpec;
 
 pub const VALIDATOR_COUNT: usize = 256;
+
+/// Build a `SyncCommitteeVerificationContext` borrowing from the given chain.
+fn sync_ctx<'a, T: BeaconChainTypes>(
+    chain: &'a BeaconComponents<T>,
+) -> SyncCommitteeVerificationContext<'a, T> {
+    SyncCommitteeVerificationContext {
+        canonical_head: &chain.canonical_head,
+        sync_committee_manager: &chain.sync_committee_manager,
+        validator_query: &chain.validator_query,
+        store: &chain.store,
+        slot_clock: &chain.slot_clock,
+        spec: &chain.spec,
+        genesis_validators_root: chain.genesis_validators_root,
+    }
+}
 
 // When set to true, cache any states fetched from the db.
 pub const CACHE_STATE_IN_TESTS: bool = true;
@@ -200,7 +222,8 @@ async fn aggregated_gossip_verification() {
         )
         .await;
 
-    let current_slot = harness.chain.slot().expect("should get slot");
+    let current_slot = beacon_chain::state_query::current_slot(&harness.chain.slot_clock)
+        .expect("should get slot");
 
     let (valid_aggregate, aggregator_index, aggregator_sk) =
         get_valid_sync_contribution(&harness, RelativeSyncCommittee::Current);
@@ -209,9 +232,10 @@ async fn aggregated_gossip_verification() {
             ($desc: tt, $attn_getter: expr, $($error: pat_param) |+ $( if $guard: expr )?) => {
                 assert!(
                     matches!(
-                        harness
-                            .chain
-                            .verify_sync_contribution_for_gossip($attn_getter)
+                        VerifiedSyncContribution::verify(
+                            $attn_getter,
+                            &sync_ctx(&harness.chain),
+                        )
                             .err()
                             .expect(&format!(
                                 "{} should error during verify_sync_contribution_for_gossip",
@@ -443,9 +467,7 @@ async fn aggregated_gossip_verification() {
 
     // NOTE: from here on, the tests are stateful, and rely on the valid sync contribution having been
     // seen. A refactor to give each test case its own state might be nice at some point
-    harness
-        .chain
-        .verify_sync_contribution_for_gossip(valid_aggregate.clone())
+    VerifiedSyncContribution::verify(valid_aggregate.clone(), &sync_ctx(&harness.chain))
         .expect("should verify sync contribution");
 
     /*
@@ -534,7 +556,8 @@ async fn unaggregated_gossip_verification() {
         )
         .await;
 
-    let current_slot = harness.chain.slot().expect("should get slot");
+    let current_slot = beacon_chain::state_query::current_slot(&harness.chain.slot_clock)
+        .expect("should get slot");
 
     let (valid_sync_committee_message, expected_validator_index, validator_sk, subnet_id) =
         get_valid_sync_committee_message(&harness, current_slot, RelativeSyncCommittee::Current, 0);
@@ -572,9 +595,11 @@ async fn unaggregated_gossip_verification() {
             ($desc: tt, $attn_getter: expr, $subnet_getter: expr, $($error: pat_param) |+ $( if $guard: expr )?) => {
                 assert!(
                     matches!(
-                        harness
-                            .chain
-                            .verify_sync_committee_message_for_gossip($attn_getter, $subnet_getter)
+                        VerifiedSyncCommitteeMessage::verify(
+                            $attn_getter,
+                            $subnet_getter,
+                            &sync_ctx(&harness.chain),
+                        )
                             .err()
                             .expect(&format!(
                                 "{} should error during verify_sync_committee_message_for_gossip",
@@ -676,13 +701,12 @@ async fn unaggregated_gossip_verification() {
     let head_root = valid_sync_committee_message.beacon_block_root;
     let parent_root = valid_sync_committee_message_to_parent.beacon_block_root;
 
-    let verifed_message_to_parent = harness
-        .chain
-        .verify_sync_committee_message_for_gossip(
-            valid_sync_committee_message_to_parent.clone(),
-            subnet_id,
-        )
-        .expect("valid sync message to parent should be verified");
+    let verifed_message_to_parent = VerifiedSyncCommitteeMessage::verify(
+        valid_sync_committee_message_to_parent.clone(),
+        subnet_id,
+        &sync_ctx(&harness.chain),
+    )
+    .expect("valid sync message to parent should be verified");
     // Add the aggregate to the pool.
     harness
         .chain
@@ -709,10 +733,12 @@ async fn unaggregated_gossip_verification() {
         if validator_index == expected_validator_index as u64 && slot == current_slot && prev_root == parent_root && new_root == parent_root
     );
 
-    let verified_message_to_head = harness
-        .chain
-        .verify_sync_committee_message_for_gossip(valid_sync_committee_message.clone(), subnet_id)
-        .expect("valid sync message to the head should be verified");
+    let verified_message_to_head = VerifiedSyncCommitteeMessage::verify(
+        valid_sync_committee_message.clone(),
+        subnet_id,
+        &sync_ctx(&harness.chain),
+    )
+    .expect("valid sync message to the head should be verified");
     // Add the aggregate to the pool.
     harness
         .chain
@@ -776,7 +802,7 @@ async fn unaggregated_gossip_verification() {
         chain.op_pool.insert_sync_contribution(aggregate).unwrap();
 
         // Load the block and state for the given root.
-        let block = beacon_chain::get_block(
+        let block = beacon_chain::get_block::<EphemeralHarnessType<E>>(
             &chain.store,
             chain.execution_layer.as_ref(),
             &chain.spec,

@@ -386,6 +386,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
     }
 
     /// Handle a `BlobsByRoot` request from the peer.
+    #[allow(clippy::result_large_err)]
     fn handle_blobs_by_root_request_inner(
         &self,
         peer_id: PeerId,

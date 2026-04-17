@@ -65,13 +65,13 @@ pub struct AttestationManager<E: EthSpec> {
     /// Pool of unaggregated attestations for naive aggregation.
     pub naive_aggregation_pool: RwLock<NaiveAggregationPool<AggregatedAttestationMap<E>>>,
     /// Tracks aggregate attestations that have been observed.
-    pub(crate) observed_attestations: RwLock<ObservedAggregateAttestations<E>>,
+    pub observed_attestations: RwLock<ObservedAggregateAttestations<E>>,
     /// Tracks validators that have sent gossip attestations.
-    pub(crate) observed_gossip_attesters: RwLock<ObservedAttesters<E>>,
+    pub observed_gossip_attesters: RwLock<ObservedAttesters<E>>,
     /// Tracks validators whose attestations have been included in blocks.
-    pub(crate) observed_block_attesters: RwLock<ObservedAttesters<E>>,
+    pub observed_block_attesters: RwLock<ObservedAttesters<E>>,
     /// Tracks aggregators that have produced signed aggregates.
-    pub(crate) observed_aggregators: RwLock<ObservedAggregators<E>>,
+    pub observed_aggregators: RwLock<ObservedAggregators<E>>,
     /// Cache for producing attestations when the head block is still being imported.
     pub early_attester_cache: EarlyAttesterCache<E>,
     /// Cache of committee shufflings keyed by shuffling ID.

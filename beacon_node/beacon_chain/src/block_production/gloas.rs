@@ -32,7 +32,7 @@ use types::{
     SignedVoluntaryExit, Slot, SyncAggregate, Withdrawal, Withdrawals,
 };
 
-use super::block_production_context_from_chain;
+use super::BlockProductionContext;
 use crate::{
     BeaconChainError, BeaconChainTypes, BeaconComponents, BlockProductionError,
     ProduceBlockVerification, beacon_components::shuffling_is_compatible_with_fork_choice,
@@ -208,7 +208,20 @@ fn produce_partial_beacon_block_gloas<T: BeaconChainTypes>(
         });
     }
 
-    let ctx = block_production_context_from_chain(chain);
+    let ctx = BlockProductionContext {
+        canonical_head: &chain.canonical_head,
+        store: &chain.store,
+        attestation_manager: &chain.attestation_manager,
+        execution_manager: &chain.execution_manager,
+        execution_layer: chain.execution_layer.as_ref(),
+        op_pool: &chain.op_pool,
+        spec: &chain.spec,
+        slot_clock: &chain.slot_clock,
+        config: &chain.config,
+        block_times_cache: &chain.block_times_cache,
+        beacon_proposer_cache: &chain.beacon_proposer_cache,
+        genesis_block_root: chain.genesis_block_root,
+    };
 
     let slot_timer = metrics::start_timer(&metrics::BLOCK_PRODUCTION_SLOT_PROCESS_TIMES);
 

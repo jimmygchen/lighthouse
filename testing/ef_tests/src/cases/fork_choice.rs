@@ -1,6 +1,6 @@
 use super::*;
 use crate::decode::{ssz_decode_file, ssz_decode_file_with, ssz_decode_state, yaml_decode_file};
-use ::fork_choice::{PayloadVerificationStatus, ProposerHeadError};
+use ::fork_choice::{AttestationFromBlock, PayloadVerificationStatus, ProposerHeadError};
 use beacon_chain::beacon_proposer_cache::compute_proposer_duties_from_head;
 use beacon_chain::blob_verification::GossipBlobError;
 use beacon_chain::block_verification_types::LookupBlock;
@@ -540,7 +540,9 @@ impl<E: EthSpec> Tester<E> {
 
     fn find_head(&self) -> Result<CachedHead<E>, Error> {
         let chain = self.harness.chain.clone();
-        self.block_on_dangerous(chain.recompute_head_at_current_slot())?;
+        self.block_on_dangerous(
+            beacon_chain::canonical_head::recompute_head_at_current_slot(&chain),
+        )?;
         Ok(self.harness.chain.canonical_head.cached_head())
     }
 
@@ -552,7 +554,10 @@ impl<E: EthSpec> Tester<E> {
 
         // Compute the slot time manually to ensure the slot clock is correct.
         let slot = self.tick_to_slot(tick).unwrap();
-        assert_eq!(slot, self.harness.chain.slot().unwrap());
+        assert_eq!(
+            slot,
+            beacon_chain::state_query::current_slot(&self.harness.chain.slot_clock).unwrap()
+        );
 
         self.harness
             .chain
@@ -589,6 +594,7 @@ impl<E: EthSpec> Tester<E> {
             let result = self.block_on_dangerous(
                 self.harness
                     .chain
+                    .block_importer
                     .process_gossip_data_columns(gossip_verified_data_columns, || Ok(())),
             )?;
             if valid {
@@ -598,7 +604,7 @@ impl<E: EthSpec> Tester<E> {
 
         let block = Arc::new(block);
         let result: Result<Result<Hash256, ()>, _> = self
-            .block_on_dangerous(self.harness.chain.process_block(
+            .block_on_dangerous(self.harness.chain.block_importer.process_block(
                 block_root,
                 LookupBlock::new(block.clone()),
                 NotifyExecutionLayer::Yes,
@@ -690,8 +696,9 @@ impl<E: EthSpec> Tester<E> {
                         }
                         Err(_) => GossipVerifiedBlob::__assumed_valid(blob_sidecar),
                     };
-                let result =
-                    self.block_on_dangerous(self.harness.chain.process_gossip_blob(blob))?;
+                let result = self.block_on_dangerous(
+                    self.harness.chain.block_importer.process_gossip_blob(blob),
+                )?;
                 if valid {
                     assert!(result.is_ok());
                 }
@@ -700,7 +707,7 @@ impl<E: EthSpec> Tester<E> {
 
         let block = Arc::new(block);
         let result: Result<Result<Hash256, ()>, _> = self
-            .block_on_dangerous(self.harness.chain.process_block(
+            .block_on_dangerous(self.harness.chain.block_importer.process_block(
                 block_root,
                 LookupBlock::new(block.clone()),
                 NotifyExecutionLayer::Yes,
@@ -747,6 +754,7 @@ impl<E: EthSpec> Tester<E> {
         if let Some(parent_block) = self
             .harness
             .chain
+            .store
             .get_blinded_block(&block.parent_root())
             .unwrap()
         {
@@ -755,6 +763,7 @@ impl<E: EthSpec> Tester<E> {
             let mut state = self
                 .harness
                 .chain
+                .store
                 .get_state(
                     &parent_state_root,
                     Some(parent_block.slot()),
@@ -784,7 +793,8 @@ impl<E: EthSpec> Tester<E> {
                 .canonical_head
                 .fork_choice_write_lock()
                 .on_block(
-                    self.harness.chain.slot().unwrap(),
+                    beacon_chain::state_query::current_slot(&self.harness.chain.slot_clock)
+                        .unwrap(),
                     block.message(),
                     block_root,
                     block_delay,
@@ -805,11 +815,23 @@ impl<E: EthSpec> Tester<E> {
     }
 
     pub fn process_attestation(&self, attestation: &Attestation<E>) -> Result<(), Error> {
-        let (indexed_attestation, _) = obtain_indexed_attestation_and_committees_per_slot(
-            &self.harness.chain,
-            attestation.to_ref(),
-        )
-        .map_err(|e| Error::InternalError(format!("attestation indexing failed with {:?}", e)))?;
+        let ctx = beacon_chain::attestation_verification::AttestationVerificationContext {
+            canonical_head: &self.harness.chain.canonical_head,
+            attestation_manager: &self.harness.chain.attestation_manager,
+            validator_query: &self.harness.chain.validator_query,
+            store: &self.harness.chain.store,
+            slot_clock: &self.harness.chain.slot_clock,
+            spec: &self.harness.chain.spec,
+            config: &self.harness.chain.config,
+            genesis_validators_root: self.harness.chain.genesis_validators_root,
+            slasher: self.harness.chain.slasher.as_deref(),
+            pre_finalization_block_cache: &self.harness.chain.pre_finalization_block_cache,
+        };
+        let (indexed_attestation, _) =
+            obtain_indexed_attestation_and_committees_per_slot(&ctx, attestation.to_ref())
+                .map_err(|e| {
+                    Error::InternalError(format!("attestation indexing failed with {:?}", e))
+                })?;
         let verified_attestation: ManuallyVerifiedAttestation<EphemeralHarnessType<E>> =
             ManuallyVerifiedAttestation {
                 attestation,
@@ -818,8 +840,17 @@ impl<E: EthSpec> Tester<E> {
 
         self.harness
             .chain
-            .apply_attestation_to_fork_choice(&verified_attestation)
-            .map_err(|e| Error::InternalError(format!("attestation import failed with {:?}", e)))
+            .canonical_head
+            .fork_choice_write_lock()
+            .on_attestation(
+                beacon_chain::state_query::current_slot(&self.harness.chain.slot_clock)
+                    .map_err(|e| Error::InternalError(format!("slot read failed: {:?}", e)))?,
+                verified_attestation.indexed_attestation().to_ref(),
+                AttestationFromBlock::False,
+                &self.harness.chain.spec,
+            )
+            .map_err(|e| Error::InternalError(format!("attestation import failed with {:?}", e)))?;
+        Ok(())
     }
 
     pub fn process_attester_slashing(&self, attester_slashing: AttesterSlashingRef<E>) {
@@ -856,9 +887,10 @@ impl<E: EthSpec> Tester<E> {
     }
 
     pub fn check_time(&self, expected_time: u64) -> Result<(), Error> {
-        let slot = self.harness.chain.slot().map_err(|e| {
-            Error::InternalError(format!("reading current slot failed with {:?}", e))
-        })?;
+        let slot = beacon_chain::state_query::current_slot(&self.harness.chain.slot_clock)
+            .map_err(|e| {
+                Error::InternalError(format!("reading current slot failed with {:?}", e))
+            })?;
         let expected_slot = self.tick_to_slot(expected_time)?;
         check_equal("time", slot, expected_slot)
     }
@@ -973,7 +1005,7 @@ impl<E: EthSpec> Tester<E> {
         expected_proposer_head: Hash256,
     ) -> Result<(), Error> {
         let mut fc = self.harness.chain.canonical_head.fork_choice_write_lock();
-        let slot = self.harness.chain.slot().unwrap();
+        let slot = beacon_chain::state_query::current_slot(&self.harness.chain.slot_clock).unwrap();
         let (canonical_head, _) = fc.get_head(slot, &self.harness.spec).unwrap();
         let proposer_head_result = fc.get_proposer_head(
             slot,
@@ -1087,11 +1119,26 @@ impl<E: EthSpec> Tester<E> {
 
         // Check forkchoice override.
         let canonical_fcu_params = cached_head.forkchoice_update_parameters();
-        let fcu_params = self
-            .harness
-            .chain
-            .overridden_forkchoice_update_params(canonical_fcu_params)
-            .unwrap();
+        let chain = &self.harness.chain;
+        let ctx = beacon_chain::block_production::BlockProductionContext {
+            canonical_head: &chain.canonical_head,
+            store: &chain.store,
+            attestation_manager: &chain.attestation_manager,
+            execution_manager: &chain.execution_manager,
+            execution_layer: chain.execution_layer.as_ref(),
+            op_pool: &chain.op_pool,
+            spec: &chain.spec,
+            slot_clock: &chain.slot_clock,
+            config: &chain.config,
+            block_times_cache: &chain.block_times_cache,
+            beacon_proposer_cache: &chain.beacon_proposer_cache,
+            genesis_block_root: chain.genesis_block_root,
+        };
+        let fcu_params = beacon_chain::block_production::overridden_forkchoice_update_params_fn(
+            &ctx,
+            canonical_fcu_params,
+        )
+        .unwrap();
 
         check_equal(
             "should_override_forkchoice_update",

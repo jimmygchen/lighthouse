@@ -217,7 +217,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         allow_reprocess: bool,
         seen_timestamp: Duration,
     ) {
-        let result = match {
+        let res = {
             beacon_chain::metrics::inc_counter(
                 &beacon_chain::metrics::UNAGGREGATED_ATTESTATION_PROCESSING_REQUESTS,
             );
@@ -246,7 +246,8 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                     &beacon_chain::metrics::UNAGGREGATED_ATTESTATION_PROCESSING_SUCCESSES,
                 );
             })
-        } {
+        };
+        let result = match res {
             Ok(verified_attestation) => {
                 let attestation =
                     Box::new(verified_attestation.attestation().clone_as_attestation());
@@ -278,7 +279,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             .iter()
             .map(|package| (package.attestation.as_ref(), Some(package.subnet_id)));
 
-        let results = match {
+        let res = {
             let ctx = beacon_chain::attestation_verification::AttestationVerificationContext {
                 canonical_head: &self.chain.canonical_head,
                 attestation_manager: &self.chain.attestation_manager,
@@ -295,7 +296,8 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                 attestations_and_subnets,
                 &ctx,
             )
-        } {
+        };
+        let results = match res {
             Ok(results) => results,
             Err(e) => {
                 error!(
@@ -485,7 +487,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
     ) {
         let beacon_block_root = aggregate.message().aggregate().data().beacon_block_root;
 
-        let result = match {
+        let res = {
             beacon_chain::metrics::inc_counter(
                 &beacon_chain::metrics::AGGREGATED_ATTESTATION_PROCESSING_REQUESTS,
             );
@@ -519,7 +521,8 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                     &beacon_chain::metrics::AGGREGATED_ATTESTATION_PROCESSING_SUCCESSES,
                 );
             })
-        } {
+        };
+        let result = match res {
             Ok(verified_aggregate) => Ok(VerifiedAggregate {
                 indexed_attestation: verified_aggregate.into_indexed_attestation(),
                 signed_aggregate: aggregate,
@@ -547,7 +550,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
     ) {
         let aggregates = packages.iter().map(|package| package.aggregate.as_ref());
 
-        let results = match {
+        let res = {
             let ctx = beacon_chain::attestation_verification::AttestationVerificationContext {
                 canonical_head: &self.chain.canonical_head,
                 attestation_manager: &self.chain.attestation_manager,
@@ -563,7 +566,8 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             beacon_chain::attestation_verification::batch_verify_aggregated_attestations(
                 aggregates, &ctx,
             )
-        } {
+        };
+        let results = match res {
             Ok(results) => results,
             Err(e) => {
                 error!(
@@ -756,7 +760,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             &metrics::BEACON_DATA_COLUMN_GOSSIP_SLOT_START_DELAY_TIME,
             delay,
         );
-        match {
+        let res = {
             beacon_chain::metrics::inc_counter(
                 &beacon_chain::metrics::DATA_COLUMN_SIDECAR_PROCESSING_REQUESTS,
             );
@@ -773,7 +777,8 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                     &beacon_chain::metrics::DATA_COLUMN_SIDECAR_PROCESSING_SUCCESSES,
                 );
             })
-        } {
+        };
+        match res {
             Ok(gossip_verified_data_column) => {
                 metrics::inc_counter(
                     &metrics::BEACON_PROCESSOR_GOSSIP_DATA_COLUMN_SIDECAR_VERIFIED_TOTAL,
@@ -945,7 +950,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         let delay = get_slot_delay_ms(seen_duration, slot, &self.chain.slot_clock);
         // Log metrics to track delay from other nodes on the network.
         metrics::set_gauge(&metrics::BEACON_BLOB_DELAY_GOSSIP, delay.as_millis() as i64);
-        match {
+        let res = {
             beacon_chain::metrics::inc_counter(
                 &beacon_chain::metrics::BLOBS_SIDECAR_PROCESSING_REQUESTS,
             );
@@ -962,7 +967,8 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                     &beacon_chain::metrics::BLOBS_SIDECAR_PROCESSING_SUCCESSES,
                 );
             })
-        } {
+        };
+        match res {
             Ok(gossip_verified_blob) => {
                 metrics::inc_counter(&metrics::BEACON_PROCESSOR_GOSSIP_BLOB_VERIFIED_TOTAL);
 
@@ -1121,9 +1127,11 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         let blob_slot = verified_blob.slot();
         let blob_index = verified_blob.id().index;
 
-        let result =
-            beacon_chain::block_import_methods::process_gossip_blob(&self.chain, verified_blob)
-                .await;
+        let result = self
+            .chain
+            .block_importer
+            .process_gossip_blob(verified_blob)
+            .await;
         register_process_result_metrics(&result, metrics::BlockSource::Gossip, "blob");
 
         match &result {
@@ -1192,12 +1200,11 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         let data_column_slot = verified_data_column.slot();
         let data_column_index = verified_data_column.index();
 
-        let result = beacon_chain::block_import_methods::process_gossip_data_columns(
-            &self.chain,
-            vec![verified_data_column],
-            || Ok(()),
-        )
-        .await;
+        let result = self
+            .chain
+            .block_importer
+            .process_gossip_data_columns(vec![verified_data_column], || Ok(()))
+            .await;
         register_process_result_metrics(&result, metrics::BlockSource::Gossip, "data_column");
 
         match &result {
@@ -1368,9 +1375,11 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             get_block_delay_ms(seen_duration, block.message(), &self.chain.slot_clock);
         // Log metrics to track delay from other nodes on the network.
 
-        let verification_result =
-            beacon_chain::block_import_methods::verify_block_for_gossip(&self.chain, block.clone())
-                .await;
+        let verification_result = self
+            .chain
+            .block_importer
+            .verify_block_for_gossip(block.clone())
+            .await;
 
         let block_root = if let Ok(verified_block) = &verification_result {
             metrics::set_gauge(
@@ -1667,15 +1676,17 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             );
         }
 
-        let result = beacon_chain::block_import_methods::process_block(
-            &self.chain,
-            block_root,
-            verified_block,
-            NotifyExecutionLayer::Yes,
-            BlockImportSource::Gossip,
-            || Ok(()),
-        )
-        .await;
+        let result = self
+            .chain
+            .block_importer
+            .process_block(
+                block_root,
+                verified_block,
+                NotifyExecutionLayer::Yes,
+                BlockImportSource::Gossip,
+                || Ok(()),
+            )
+            .await;
         register_process_result_metrics(&result, metrics::BlockSource::Gossip, "block");
 
         match &result {
@@ -2178,7 +2189,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         seen_timestamp: Duration,
     ) {
         let message_slot = sync_signature.slot;
-        let sync_signature = match {
+        let res = {
             beacon_chain::metrics::inc_counter(
                 &beacon_chain::metrics::SYNC_MESSAGE_PROCESSING_REQUESTS,
             );
@@ -2205,7 +2216,8 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                     &beacon_chain::metrics::SYNC_MESSAGE_PROCESSING_SUCCESSES,
                 );
             })
-        } {
+        };
+        let sync_signature = match res {
             Ok(sync_signature) => sync_signature,
             Err(e) => {
                 self.handle_sync_committee_message_failure(
@@ -2265,7 +2277,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         seen_timestamp: Duration,
     ) {
         let contribution_slot = sync_contribution.message.contribution.slot;
-        let sync_contribution = match {
+        let res = {
             beacon_chain::metrics::inc_counter(
                 &beacon_chain::metrics::SYNC_CONTRIBUTION_PROCESSING_REQUESTS,
             );
@@ -2298,7 +2310,8 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                     &beacon_chain::metrics::SYNC_CONTRIBUTION_PROCESSING_SUCCESSES,
                 );
             })
-        } {
+        };
+        let sync_contribution = match res {
             Ok(sync_contribution) => sync_contribution,
             Err(e) => {
                 // Report the failure to gossipsub
@@ -3641,6 +3654,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         }
     }
 
+    #[allow(clippy::result_large_err)]
     async fn process_gossip_unverified_execution_payload_envelope(
         self: &Arc<Self>,
         message_id: MessageId,

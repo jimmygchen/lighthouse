@@ -658,10 +658,13 @@ where
         };
 
         let chain = builder.build().expect("should build");
+        let chain = Arc::new(chain);
+        // Install the weak back-reference from the block importer to the parent components.
+        chain.block_importer.set_parent(&chain);
 
         BeaconChainHarness {
             spec: chain.spec.clone(),
-            chain: Arc::new(chain),
+            chain,
             validator_keypairs,
             withdrawal_keypairs: self.withdrawal_keypairs,
             shutdown_receiver: Arc::new(Mutex::new(shutdown_receiver)),
@@ -1346,16 +1349,17 @@ where
         let block_root = signed_block.canonical_root();
         let lookup_block = LookupBlock::new(Arc::new(signed_block));
         self.chain.slot_clock.set_slot(slot.as_u64());
-        crate::block_import_methods::process_block(
-            &self.chain,
-            block_root,
-            lookup_block,
-            NotifyExecutionLayer::No,
-            BlockImportSource::Lookup,
-            || Ok(()),
-        )
-        .await
-        .unwrap_or_else(|e| panic!("import failed at slot {}: {e:?}", slot));
+        self.chain
+            .block_importer
+            .process_block(
+                block_root,
+                lookup_block,
+                NotifyExecutionLayer::No,
+                BlockImportSource::Lookup,
+                || Ok(()),
+            )
+            .await
+            .unwrap_or_else(|e| panic!("import failed at slot {}: {e:?}", slot));
         crate::canonical_head::recompute_head_at_current_slot(&self.chain).await;
     }
 
@@ -1968,8 +1972,6 @@ where
                                     .unwrap_or(false)
                             })
                             .copied()?;
-
-                        let fork_name = self.spec.fork_name_at_slot::<E>(slot);
 
                         let aggregate = self
                             .chain
@@ -2654,30 +2656,32 @@ where
             .is_ok_and(|c| !c.is_empty());
         let is_available = !has_blob_commitments || blob_items.is_some();
         let block_hash: SignedBeaconBlockHash = if !is_available {
-            crate::block_import_methods::process_block(
-                &self.chain,
-                block_root,
-                LookupBlock::new(block),
-                NotifyExecutionLayer::Yes,
-                BlockImportSource::Lookup,
-                || Ok(()),
-            )
-            .await?
-            .try_into()
-            .expect("block blobs are available")
+            self.chain
+                .block_importer
+                .process_block(
+                    block_root,
+                    LookupBlock::new(block),
+                    NotifyExecutionLayer::Yes,
+                    BlockImportSource::Lookup,
+                    || Ok(()),
+                )
+                .await?
+                .try_into()
+                .expect("block blobs are available")
         } else {
             let range_sync_block = self.build_range_sync_block_from_blobs(block, blob_items)?;
-            crate::block_import_methods::process_block(
-                &self.chain,
-                block_root,
-                range_sync_block,
-                NotifyExecutionLayer::Yes,
-                BlockImportSource::RangeSync,
-                || Ok(()),
-            )
-            .await?
-            .try_into()
-            .expect("block blobs are available")
+            self.chain
+                .block_importer
+                .process_block(
+                    block_root,
+                    range_sync_block,
+                    NotifyExecutionLayer::Yes,
+                    BlockImportSource::RangeSync,
+                    || Ok(()),
+                )
+                .await?
+                .try_into()
+                .expect("block blobs are available")
         };
 
         crate::canonical_head::recompute_head_at_current_slot(&self.chain).await;
@@ -2701,29 +2705,31 @@ where
         let is_available = !has_blob_commitments || blob_items.is_some();
         let block_hash: SignedBeaconBlockHash = if is_available {
             let range_sync_block = self.build_range_sync_block_from_blobs(block, blob_items)?;
-            crate::block_import_methods::process_block(
-                &self.chain,
-                block_root,
-                range_sync_block,
-                NotifyExecutionLayer::Yes,
-                BlockImportSource::RangeSync,
-                || Ok(()),
-            )
-            .await?
-            .try_into()
-            .expect("block blobs are available")
+            self.chain
+                .block_importer
+                .process_block(
+                    block_root,
+                    range_sync_block,
+                    NotifyExecutionLayer::Yes,
+                    BlockImportSource::RangeSync,
+                    || Ok(()),
+                )
+                .await?
+                .try_into()
+                .expect("block blobs are available")
         } else {
-            crate::block_import_methods::process_block(
-                &self.chain,
-                block_root,
-                LookupBlock::new(block),
-                NotifyExecutionLayer::Yes,
-                BlockImportSource::Lookup,
-                || Ok(()),
-            )
-            .await?
-            .try_into()
-            .expect("block blobs are available")
+            self.chain
+                .block_importer
+                .process_block(
+                    block_root,
+                    LookupBlock::new(block),
+                    NotifyExecutionLayer::Yes,
+                    BlockImportSource::Lookup,
+                    || Ok(()),
+                )
+                .await?
+                .try_into()
+                .expect("block blobs are available")
         };
 
         crate::canonical_head::recompute_head_at_current_slot(&self.chain).await;
@@ -3770,13 +3776,11 @@ where
                 .unwrap();
 
             if !verified_columns.is_empty() {
-                crate::block_import_methods::process_gossip_data_columns(
-                    &self.chain,
-                    verified_columns,
-                    || Ok(()),
-                )
-                .await
-                .unwrap();
+                self.chain
+                    .block_importer
+                    .process_gossip_data_columns(verified_columns, || Ok(()))
+                    .await
+                    .unwrap();
             }
         } else {
             for (i, (kzg_proof, blob)) in proofs.into_iter().zip(blobs).enumerate() {
@@ -3784,7 +3788,9 @@ where
                     Arc::new(BlobSidecar::new(i, blob.clone(), block, *kzg_proof).unwrap());
                 let gossip_blob = GossipVerifiedBlob::new(sidecar, i as u64, &self.chain)
                     .expect("should obtain gossip verified blob");
-                crate::block_import_methods::process_gossip_blob(&self.chain, gossip_blob)
+                self.chain
+                    .block_importer
+                    .process_gossip_blob(gossip_blob)
                     .await
                     .expect("should import valid gossip verified blob");
             }

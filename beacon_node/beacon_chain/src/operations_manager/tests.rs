@@ -338,12 +338,11 @@ fn proposer_slashing_verify_and_import() {
     assert!(matches!(outcome, ObservationOutcome::AlreadyKnown));
 
     // Import the verified slashing.
-    let verified = match manager
+    let ObservationOutcome::New(verified) = manager
         .verify_proposer_slashing(make_proposer_slashing(&keypairs, &state, 1, &spec), &state)
         .expect("should verify different validator")
-    {
-        ObservationOutcome::New(v) => v,
-        _ => panic!("should be new"),
+    else {
+        panic!("should be new")
     };
     let returned = manager.import_proposer_slashing(verified);
     assert_eq!(
@@ -380,12 +379,11 @@ fn attester_slashing_verify_and_import() {
 
     // Import.
     let slashing_2 = make_attester_slashing(&keypairs, &state, vec![2, 3], &spec);
-    let verified = match manager
+    let ObservationOutcome::New(verified) = manager
         .verify_attester_slashing(slashing_2, &state)
         .expect("should verify different indices")
-    {
-        ObservationOutcome::New(v) => v,
-        _ => panic!("should be new"),
+    else {
+        panic!("should be new")
     };
     manager.import_attester_slashing(verified);
 

@@ -53,6 +53,7 @@ async fn build_state<E: EthSpec>(validator_count: usize) -> BeaconState<E> {
     get_harness(validator_count, Slot::new(0))
         .await
         .chain
+        .canonical_head
         .head_beacon_state_cloned()
 }
 

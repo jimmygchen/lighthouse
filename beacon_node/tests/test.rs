@@ -44,12 +44,18 @@ fn http_server_genesis_state() {
         .unwrap()
         .into_data();
 
-    let mut db_state = node
+    let chain = node
         .client
         .beacon_chain()
-        .expect("client should have beacon chain")
-        .state_at_slot(Slot::new(0), StateSkipConfig::WithStateRoots)
-        .expect("should find state");
+        .expect("client should have beacon chain");
+    let mut db_state = beacon_chain::state_query::state_at_slot(
+        &chain.store,
+        &chain.canonical_head,
+        &chain.spec,
+        Slot::new(0),
+        StateSkipConfig::WithStateRoots,
+    )
+    .expect("should find state");
     db_state.drop_all_caches().unwrap();
 
     assert_eq!(

@@ -66,7 +66,8 @@ fn verify_voluntary_exit_for_gossip(
 ) -> Result<ObservationOutcome<SignedVoluntaryExit, E>, BeaconChainError> {
     let head_snapshot = harness.chain.canonical_head.cached_head().snapshot;
     let head_state = &head_snapshot.beacon_state;
-    let wall_clock_epoch = harness.chain.epoch()?;
+    let wall_clock_epoch =
+        beacon_chain::state_query::current_epoch::<E, _>(&harness.chain.slot_clock)?;
     harness
         .chain
         .operations
@@ -79,7 +80,12 @@ fn verify_proposer_slashing_for_gossip(
     harness: &TestHarness,
     proposer_slashing: ProposerSlashing,
 ) -> Result<ObservationOutcome<ProposerSlashing, E>, BeaconChainError> {
-    let wall_clock_state = harness.chain.wall_clock_state()?;
+    let wall_clock_state = beacon_chain::state_query::wall_clock_state(
+        &harness.chain.store,
+        &harness.chain.canonical_head,
+        &harness.chain.spec,
+        &harness.chain.slot_clock,
+    )?;
     harness
         .chain
         .operations
@@ -92,7 +98,12 @@ fn verify_attester_slashing_for_gossip(
     harness: &TestHarness,
     attester_slashing: AttesterSlashing<E>,
 ) -> Result<ObservationOutcome<AttesterSlashing<E>, E>, BeaconChainError> {
-    let wall_clock_state = harness.chain.wall_clock_state()?;
+    let wall_clock_state = beacon_chain::state_query::wall_clock_state(
+        &harness.chain.store,
+        &harness.chain.canonical_head,
+        &harness.chain.spec,
+        &harness.chain.slot_clock,
+    )?;
     harness
         .chain
         .operations

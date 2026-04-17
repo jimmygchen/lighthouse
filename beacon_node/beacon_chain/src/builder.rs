@@ -5,6 +5,8 @@ use crate::beacon_components::{
     BEACON_CHAIN_DB_KEY, CanonicalHead, LightClientProducerEvent, OP_POOL_DB_KEY,
 };
 use crate::beacon_proposer_cache::BeaconProposerCache;
+use crate::block_importer::BlockImporter;
+use crate::block_times_cache::BlockTimesCache;
 use crate::custody_context::NodeCustodyType;
 use crate::data_availability_checker::DataAvailabilityChecker;
 use crate::data_availability_manager::DataAvailabilityManager;
@@ -1049,6 +1051,33 @@ where
         );
         let sync_committee_manager = SyncCommitteeManager::new(self.spec.clone(), op_pool.clone());
 
+        let shutdown_sender = self
+            .shutdown_sender
+            .ok_or("Cannot build without a shutdown sender.")?;
+
+        // Clone chain config into an `Arc` for sharing with `BlockImporter`. The immutable
+        // configuration is read concurrently by multiple subsystems; the `Arc` wraps a single
+        // immutable snapshot.
+        let chain_config_arc = Arc::new(self.chain_config.clone());
+
+        // Shared caches/handles used by both `BlockImporter` and `BeaconComponents`.
+        let block_times_cache: Arc<RwLock<BlockTimesCache>> =
+            Arc::new(RwLock::new(Default::default()));
+
+        let block_importer = Arc::new(BlockImporter::new(
+            self.spec.clone(),
+            store.clone(),
+            data_availability_checker.clone(),
+            block_times_cache.clone(),
+            self.slasher.clone(),
+            self.light_client_server_tx.clone(),
+            chain_config_arc.clone(),
+            slot_clock.clone(),
+            genesis_block_root,
+            task_executor.clone(),
+            shutdown_sender.clone(),
+        ));
+
         let beacon_chain = BeaconComponents {
             spec: self.spec.clone(),
             config: self.chain_config,
@@ -1080,7 +1109,7 @@ where
             fork_choice_signal_rx,
             event_handler: self.event_handler,
             beacon_proposer_cache,
-            block_times_cache: <_>::default(),
+            block_times_cache: block_times_cache.clone(),
             envelope_times_cache: <_>::default(),
             pre_finalization_block_cache: <_>::default(),
             gossip_verified_payload_bid_cache: <_>::default(),
@@ -1088,9 +1117,7 @@ where
             validator_query: ValidatorQueryService::new(validator_pubkey_cache),
             light_client_server_cache: LightClientServerCache::new(),
             light_client_server_tx: self.light_client_server_tx,
-            shutdown_sender: self
-                .shutdown_sender
-                .ok_or("Cannot build without a shutdown sender.")?,
+            shutdown_sender,
             graffiti_calculator: GraffitiCalculator::new(
                 self.beacon_graffiti,
                 self.execution_layer,
@@ -1104,6 +1131,7 @@ where
             rng: rng.clone(),
             data_availability_manager,
             execution_manager,
+            block_importer,
         };
 
         let head = beacon_chain.canonical_head.head_snapshot();

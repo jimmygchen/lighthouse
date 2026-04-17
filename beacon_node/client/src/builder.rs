@@ -837,7 +837,10 @@ where
             .build()
             .map_err(|e| format!("Failed to build beacon chain: {}", e))?;
 
-        self.beacon_chain = Some(Arc::new(chain));
+        let chain = Arc::new(chain);
+        // Install the weak back-reference from the block importer to the parent components.
+        chain.block_importer.set_parent(&chain);
+        self.beacon_chain = Some(chain);
         self.beacon_chain_builder = None;
 
         // a beacon chain requires a timer

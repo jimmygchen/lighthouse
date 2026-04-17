@@ -925,7 +925,7 @@ pub fn post_validator_aggregate_and_proofs<T: BeaconChainTypes>(
 
                     // Verify that all messages in the post are valid before processing further
                     for (index, aggregate) in aggregates.iter().enumerate() {
-                        match {
+                        let res = {
                             beacon_chain::metrics::inc_counter(&beacon_chain::metrics::AGGREGATED_ATTESTATION_PROCESSING_REQUESTS);
                             let _timer = beacon_chain::metrics::start_timer(&beacon_chain::metrics::AGGREGATED_ATTESTATION_GOSSIP_VERIFICATION_TIMES);
                             let ctx = beacon_chain::attestation_verification::AttestationVerificationContext {
@@ -951,7 +951,7 @@ pub fn post_validator_aggregate_and_proofs<T: BeaconChainTypes>(
                                     }
                                     beacon_chain::metrics::inc_counter(&beacon_chain::metrics::AGGREGATED_ATTESTATION_PROCESSING_SUCCESSES);
                                 })
-                        } {
+                        }; match res {
                             Ok(verified_aggregate) => {
                                 messages.push(PubsubMessage::AggregateAndProofAttestation(Box::new(
                                     verified_aggregate.aggregate().clone(),

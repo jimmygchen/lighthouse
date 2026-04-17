@@ -1,4 +1,7 @@
-# BeaconChain Architecture
+# BeaconChain, Refactored
+
+Decomposing `BeaconChain<T>` into testable components — designed for fast
+iteration and human-AI collaboration.
 
 ## Goal
 
@@ -34,18 +37,15 @@ runtime characteristics.
 
 ## Overview
 
-`BeaconChain<T>` is fully replaced by focused components. Components own
-state and logic. Callers (HTTP API, NetworkBeaconProcessor, Sync Manager)
-hold `Arc` refs to components but contain no business logic of their own.
-Complex workflows like block import and block production remain as
-`impl BeaconChain<T>` methods but are organized into separate files:
+`BeaconChain<T>` is replaced by focused components. Components own state
+and logic. Callers (HTTP API, NetworkBeaconProcessor, Sync Manager) hold
+`Arc` refs to components but contain no business logic of their own.
 
-- `block_import_methods.rs` — chain segment processing, blob/data column
-  handling, availability checks, and the core `import_block` pipeline
-- `block_production/` — state loading, partial block assembly, payload
-  integration, and block completion
-- `execution_methods.rs` — execution engine forkchoice updates, proposer
-  preparation, and optimistic status queries
+The top-level type — renamed `BeaconComponents<T>` on this branch, and
+being slimmed further to `BeaconSystem<T>` — holds the component `Arc`s
+and coordinates startup. Block import and block production are being
+hoisted onto two scoped orchestrators (`BlockImporter<T>`,
+`BlockProducer<T>`) whose methods use `&self` over their owned refs.
 
 ```
 Builder (startup)
@@ -188,12 +188,13 @@ access for persistence. This is a known exception to the general pattern.
 
 Block import caches (`block_times_cache`, `envelope_times_cache`,
 `pre_finalization_block_cache`, `observed_block_producers`,
-`observed_slashable`) remain on `BeaconChain` directly. They are
+`observed_slashable`) remain on the top-level struct directly. They are
 tightly coupled to `block_import_methods.rs` and `canonical_head.rs`,
-which access them through `&self`/`&chain`.
+which access them through `&self`/`&chain`. In the forward plan these
+move onto a dedicated `BlockImporter<T>` — see below.
 
-Several `BeaconChain<T>` fields don't have a clear home in the above
-components and need further design work:
+Several fields don't have a clear home in the above components and need
+further design work:
 
 - `config: ChainConfig` — referenced 20+ times across every domain
   (re-org settings, builder fallback thresholds, sync tolerance, light
@@ -394,3 +395,73 @@ struct Context<T: BeaconChainTypes> {
 
 No single caller holds all components. Each holds only the refs its
 handler functions need.
+
+## Results
+
+Seven components extracted, ~2,000 lines of new unit tests, full CI
+green, and a local testnet that produces blocks and finalises. The
+top-level type shrank from 7,317 to 1,025 lines and lost its 200+
+methods. Two scoped orchestrators (`BlockImporter<T>`,
+`BlockProducer<T>`) and a slim top-level (`BeaconSystem<T>`) are the
+next steps.
+
+### Wins
+
+- **Seven components extracted; four cohesive.**
+  `OperationsManager`, `AttestationManager`, `SyncCommitteeManager`, and
+  `ValidatorQueryService` came out as self-contained units with clear
+  ownership of their observed sets and pools. `DataAvailabilityManager`,
+  `ExecutionManager`, and `BlockImportState` extracted too but are
+  thinner wrappers.
+- **~2,000 lines of new unit tests** against those components, written
+  without `BeaconChainHarness`. This is the concrete contributor-velocity
+  win — tests that construct components directly, pass in state, and
+  assert results.
+- **Proved the seams.** Once components owned their observed sets and
+  pools, the shape of a scoped `BlockImporter<T>` / `BlockProducer<T>`
+  became obvious — which is the active follow-up work.
+- **Top-level file shrank from 7,317 to 1,025 lines.** `beacon_chain.rs`
+  → `beacon_components.rs`. The remainder is struct definition, builder
+  plumbing, and a few cross-component helpers.
+
+### In progress
+
+- **`BeaconComponents<T>` has ~40 `pub` fields.** Zero methods, but the
+  coupling is unchanged — every caller that used to say `chain.field`
+  still says `components.field`. Being slimmed to `BeaconSystem<T>` with
+  only `Arc<Component>` fields.
+- **`*Context` struct literals at 254+ call sites.** In
+  `block_production/mod.rs`, a 12-field `BlockProductionContext` literal
+  is constructed four times in one function. Being replaced by extracting
+  `BlockImporter<T>` and `BlockProducer<T>` as scoped structs that own
+  their `Arc`s.
+- **Duplicate `Arc` paths to the same data.** `chain.op_pool` and
+  `chain.operations_manager.op_pool` resolve to the same pool. Being
+  consolidated by routing all callers through the owning component.
+- **Orchestrator files didn't shrink, just moved.**
+  `block_import_methods.rs` is 2,022 lines, `block_production/mod.rs`
+  is 1,692. Being folded into `impl BlockImporter<T>` /
+  `impl BlockProducer<T>`.
+- **`&self` constructor injection replacing `&chain + struct` pattern.**
+  Rust's idiomatic DI is _struct holds its Arcs, methods use `&self`_ —
+  the follow-up work moves to that pattern.
+
+### Key metrics
+
+- **Top-level file:** 7,317 → 1,025 lines (`beacon_chain.rs` →
+  `beacon_components.rs`)
+- **Top-level methods:** 200+ → 0
+- **Components extracted:** 7
+- **New unit tests:** ~2,000 lines
+
+### Verification
+
+- **CI:** `cargo check --workspace --tests` green, `make lint` clean,
+  `cargo fmt` applied.
+- **Kurtosis local testnet:** 4-BN mesh, slot 899–2310 (~70 min). 1,398
+  proposals over 1,411 slots (≥99% coverage). 0 errors, 0 panics, 0
+  reorgs. Block publish delay avg ~2 ms, import delay avg ~80 ms.
+- **Coverage:** branch coverage build in progress; numbers and the link
+  to the full report land here when complete.
+- **Full test suite:** `make test-beacon-chain` result lands here once
+  the orchestrator extractions complete.

@@ -173,6 +173,7 @@ pub enum Error {
 
 /// Implemented for items in the `NaiveAggregationPool`. Requires that items implement `SlotData`,
 /// which means they have an associated slot. This handles aggregation of items that are inserted.
+#[allow(clippy::len_without_is_empty)]
 pub trait AggregateMap
 where
     for<'a> <Self::Value as AsReference>::Reference<'a>: SlotData,

@@ -57,7 +57,7 @@ fn add_to_naive_sync_aggregation_pool_stores_contribution() {
         slot,
         beacon_block_root: block_root,
         validator_index: 0,
-        signature: bls::Signature::empty().into(),
+        signature: bls::Signature::empty(),
     };
 
     let subnet_id = SyncSubnetId::new(0);
@@ -102,7 +102,7 @@ fn add_to_naive_sync_aggregation_pool_aggregates_multiple_positions() {
         slot,
         beacon_block_root: block_root,
         validator_index: 0,
-        signature: bls::Signature::empty().into(),
+        signature: bls::Signature::empty(),
     };
     let mut positions1 = HashMap::new();
     positions1.insert(subnet_id, vec![0]);
@@ -116,7 +116,7 @@ fn add_to_naive_sync_aggregation_pool_aggregates_multiple_positions() {
         slot,
         beacon_block_root: block_root,
         validator_index: 1,
-        signature: bls::Signature::empty().into(),
+        signature: bls::Signature::empty(),
     };
     let mut positions2 = HashMap::new();
     positions2.insert(subnet_id, vec![1]);

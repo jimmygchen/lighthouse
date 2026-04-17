@@ -75,7 +75,7 @@ where
                     signed_aggregate,
                     &fork,
                     chain.genesis_validators_root,
-                    &chain.spec,
+                    chain.spec,
                 )
                 .map_err(BeaconChainError::SignatureSetError)?,
             );
@@ -85,7 +85,7 @@ where
                     signed_aggregate,
                     &fork,
                     chain.genesis_validators_root,
-                    &chain.spec,
+                    chain.spec,
                 )
                 .map_err(BeaconChainError::SignatureSetError)?,
             );
@@ -96,7 +96,7 @@ where
                     indexed_attestation,
                     &fork,
                     chain.genesis_validators_root,
-                    &chain.spec,
+                    chain.spec,
                 )
                 .map_err(BeaconChainError::SignatureSetError)?,
             );
@@ -181,7 +181,7 @@ where
                 indexed_attestation,
                 &fork,
                 chain.genesis_validators_root,
-                &chain.spec,
+                chain.spec,
             )
             .map_err(BeaconChainError::SignatureSetError)?;
 

@@ -107,7 +107,9 @@ impl<T: BeaconChainTypes> FetchBlobsBeaconAdapter<T> {
         block_root: Hash256,
         blobs: EngineGetBlobsOutput<T>,
     ) -> Result<AvailabilityProcessingStatus, FetchEngineBlobError> {
-        crate::block_import_methods::process_engine_blobs(&self.chain, slot, block_root, blobs)
+        self.chain
+            .block_importer
+            .process_engine_blobs(slot, block_root, blobs)
             .await
             .map_err(FetchEngineBlobError::BlobProcessingError)
     }

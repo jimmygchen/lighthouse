@@ -170,10 +170,16 @@ impl InvalidPayloadRig {
     }
 
     fn block_root_at_slot(&self, slot: Slot) -> Option<Hash256> {
-        self.harness
-            .chain
-            .block_root_at_slot(slot, WhenSlotSkipped::None)
-            .unwrap()
+        beacon_chain::state_query::block_root_at_slot(
+            &self.harness.chain.store,
+            &self.harness.chain.canonical_head,
+            &self.harness.chain.spec,
+            &self.harness.chain.slot_clock,
+            self.harness.chain.genesis_block_root,
+            slot,
+            WhenSlotSkipped::None,
+        )
+        .unwrap()
     }
 
     fn validate_manually(&self, block_root: Hash256) {
@@ -332,6 +338,7 @@ impl InvalidPayloadRig {
                     assert!(
                         self.harness
                             .chain
+                            .store
                             .get_blinded_block(&block_root)
                             .unwrap()
                             .is_none(),
@@ -362,8 +369,10 @@ impl InvalidPayloadRig {
             .chain
             .canonical_head
             .fork_choice_write_lock()
-            .get_head(self.harness.chain.slot().unwrap(), &self.harness.chain.spec)
-        {
+            .get_head(
+                beacon_chain::state_query::current_slot(&self.harness.chain.slot_clock).unwrap(),
+                &self.harness.chain.spec,
+            ) {
             Err(ForkChoiceError::ProtoArrayStringError(e)) if e.contains(s) => (),
             other => panic!("expected {} error, got {:?}", s, other),
         };
@@ -489,6 +498,7 @@ async fn justified_checkpoint_becomes_invalid() {
     let parent_root_of_justified = rig
         .harness
         .chain
+        .store
         .get_blinded_block(&justified_checkpoint.root)
         .unwrap()
         .unwrap()
@@ -680,18 +690,22 @@ async fn invalidates_all_descendants() {
     // Apply a block which conflicts with the canonical chain.
     let fork_slot = Slot::new(4 * E::slots_per_epoch() + 3);
     let fork_parent_slot = fork_slot - 1;
-    let fork_parent_state = rig
-        .harness
-        .chain
-        .state_at_slot(fork_parent_slot, StateSkipConfig::WithStateRoots)
-        .unwrap();
+    let fork_parent_state = beacon_chain::state_query::state_at_slot(
+        &rig.harness.chain.store,
+        &rig.harness.chain.canonical_head,
+        &rig.harness.chain.spec,
+        fork_parent_slot,
+        StateSkipConfig::WithStateRoots,
+    )
+    .unwrap();
     assert_eq!(fork_parent_state.slot(), fork_parent_slot);
     let ((fork_block, _), _fork_post_state) =
         rig.harness.make_block(fork_parent_state, fork_slot).await;
     let fork_lookup_block = LookupBlock::new(fork_block.clone());
-    let fork_block_root = rig
+    let fork_block_root: Hash256 = rig
         .harness
         .chain
+        .block_importer
         .process_block(
             fork_lookup_block.block_root(),
             fork_lookup_block,
@@ -708,12 +722,17 @@ async fn invalidates_all_descendants() {
     // The latest valid hash will be set to the grandparent of the fork block. This means that the
     // parent of the fork block will become invalid.
     let latest_valid_slot = fork_parent_slot - 1;
-    let latest_valid_root = rig
-        .harness
-        .chain
-        .block_root_at_slot(latest_valid_slot, WhenSlotSkipped::None)
-        .unwrap()
-        .unwrap();
+    let latest_valid_root = beacon_chain::state_query::block_root_at_slot(
+        &rig.harness.chain.store,
+        &rig.harness.chain.canonical_head,
+        &rig.harness.chain.spec,
+        &rig.harness.chain.slot_clock,
+        rig.harness.chain.genesis_block_root,
+        latest_valid_slot,
+        WhenSlotSkipped::None,
+    )
+    .unwrap()
+    .unwrap();
     assert!(blocks.contains(&latest_valid_root));
     let latest_valid_hash = rig.block_hash(latest_valid_root);
 
@@ -784,19 +803,23 @@ async fn switches_heads() {
     // Apply a block which conflicts with the canonical chain.
     let fork_slot = Slot::new(4 * E::slots_per_epoch() + 3);
     let fork_parent_slot = fork_slot - 1;
-    let fork_parent_state = rig
-        .harness
-        .chain
-        .state_at_slot(fork_parent_slot, StateSkipConfig::WithStateRoots)
-        .unwrap();
+    let fork_parent_state = beacon_chain::state_query::state_at_slot(
+        &rig.harness.chain.store,
+        &rig.harness.chain.canonical_head,
+        &rig.harness.chain.spec,
+        fork_parent_slot,
+        StateSkipConfig::WithStateRoots,
+    )
+    .unwrap();
     assert_eq!(fork_parent_state.slot(), fork_parent_slot);
     let ((fork_block, _), _fork_post_state) =
         rig.harness.make_block(fork_parent_state, fork_slot).await;
     let fork_parent_root = fork_block.parent_root();
     let fork_lookup_block = LookupBlock::new(fork_block.clone());
-    let fork_block_root = rig
+    let fork_block_root: Hash256 = rig
         .harness
         .chain
+        .block_importer
         .process_block(
             fork_lookup_block.block_root(),
             fork_lookup_block,
@@ -1001,7 +1024,8 @@ async fn payload_preparation() {
 
     let el = rig.execution_layer();
     let head = rig.harness.chain.canonical_head.head_snapshot();
-    let current_slot = rig.harness.chain.slot().unwrap();
+    let current_slot =
+        beacon_chain::state_query::current_slot(&rig.harness.chain.slot_clock).unwrap();
     assert_eq!(head.beacon_state.slot(), 1);
     assert_eq!(current_slot, 1);
 
@@ -1032,7 +1056,7 @@ async fn payload_preparation() {
     );
     beacon_chain::execution_methods::prepare_beacon_proposer(
         &rig.harness.chain,
-        rig.harness.chain.slot().unwrap(),
+        beacon_chain::state_query::current_slot(&rig.harness.chain.slot_clock).unwrap(),
     )
     .await
     .unwrap();
@@ -1085,7 +1109,7 @@ async fn invalid_parent() {
 
     // Ensure the block built atop an invalid payload is invalid for gossip.
     assert!(matches!(
-        rig.harness.chain.clone().verify_block_for_gossip(block.clone()).await,
+        rig.harness.chain.block_importer.verify_block_for_gossip(block.clone()).await,
         Err(BlockError::ParentExecutionPayloadInvalid { parent_root: invalid_root })
         if invalid_root == parent_root
     ));
@@ -1093,7 +1117,7 @@ async fn invalid_parent() {
     // Ensure the block built atop an invalid payload is invalid for import.
     let lookup_block = LookupBlock::new(block.clone());
     assert!(matches!(
-        rig.harness.chain.process_block(lookup_block.block_root(), lookup_block, NotifyExecutionLayer::Yes, BlockImportSource::Lookup,
+        rig.harness.chain.block_importer.process_block(lookup_block.block_root(), lookup_block, NotifyExecutionLayer::Yes, BlockImportSource::Lookup,
             || Ok(()),
         ).await,
         Err(BlockError::ParentExecutionPayloadInvalid { parent_root: invalid_root })
@@ -1176,6 +1200,7 @@ async fn attesting_to_optimistic_head() {
 
         rig.harness
             .chain
+            .attestation_manager
             .naive_aggregation_pool
             .write()
             .insert(attestation.to_ref())
@@ -1204,13 +1229,27 @@ async fn attesting_to_optimistic_head() {
     let get_aggregated = || {
         rig.harness
             .chain
-            .get_aggregated_attestation(attestation.to_ref())
+            .attestation_manager
+            .get_aggregated_attestation(attestation.to_ref(), |block_root| {
+                rig.harness
+                    .chain
+                    .canonical_head
+                    .fork_choice_read_lock()
+                    .get_block_execution_status(block_root)
+            })
     };
 
     let get_aggregated_by_slot_and_root = || {
         rig.harness
             .chain
-            .get_aggregated_attestation(attestation.to_ref())
+            .attestation_manager
+            .get_aggregated_attestation(attestation.to_ref(), |block_root| {
+                rig.harness
+                    .chain
+                    .canonical_head
+                    .fork_choice_read_lock()
+                    .get_block_execution_status(block_root)
+            })
     };
 
     /*
@@ -1304,11 +1343,14 @@ impl InvalidHeadSetup {
         let head_slot = rig.cached_head().head_slot();
         let parent_slot = head_slot - 1;
         let fork_block_slot = head_slot + 1;
-        let parent_state = rig
-            .harness
-            .chain
-            .state_at_slot(parent_slot, StateSkipConfig::WithStateRoots)
-            .unwrap();
+        let parent_state = beacon_chain::state_query::state_at_slot(
+            &rig.harness.chain.store,
+            &rig.harness.chain.canonical_head,
+            &rig.harness.chain.spec,
+            parent_slot,
+            StateSkipConfig::WithStateRoots,
+        )
+        .unwrap();
         let (fork_block_tuple, _) = rig.harness.make_block(parent_state, fork_block_slot).await;
         let fork_block = fork_block_tuple.0;
 
@@ -1368,6 +1410,7 @@ async fn recover_from_invalid_head_by_importing_blocks() {
     let fork_lookup_block = LookupBlock::new(fork_block.clone());
     rig.harness
         .chain
+        .block_importer
         .process_block(
             fork_lookup_block.block_root(),
             fork_lookup_block,
@@ -1390,7 +1433,10 @@ async fn recover_from_invalid_head_by_importing_blocks() {
         .chain
         .canonical_head
         .fork_choice_write_lock()
-        .get_head(rig.harness.chain.slot().unwrap(), &rig.harness.chain.spec)
+        .get_head(
+            beacon_chain::state_query::current_slot(&rig.harness.chain.slot_clock).unwrap(),
+            &rig.harness.chain.spec,
+        )
         .unwrap();
     assert_eq!(manual_get_head, new_head.head_block_root());
 }
@@ -1409,7 +1455,11 @@ async fn recover_from_invalid_head_after_persist_and_reboot() {
     let slot_clock = rig.harness.chain.slot_clock.clone();
 
     // Forcefully persist fork choice.
-    rig.harness.chain.persist_fork_choice().unwrap();
+    rig.harness
+        .chain
+        .canonical_head
+        .persist_fork_choice()
+        .unwrap();
 
     let resumed = BeaconChainHarness::builder(MainnetEthSpec)
         .default_spec()
@@ -1489,8 +1539,9 @@ async fn weights_after_resetting_optimistic_status() {
     assert_eq!(original_weights, new_weights);
 
     // Advance the current slot and run fork choice to remove proposer boost.
-    rig.harness
-        .set_current_slot(rig.harness.chain.slot().unwrap() + 1);
+    rig.harness.set_current_slot(
+        beacon_chain::state_query::current_slot(&rig.harness.chain.slot_clock).unwrap() + 1,
+    );
     rig.recompute_head().await;
 
     assert_eq!(

@@ -10,7 +10,7 @@ pub mod beacon_proposer_cache;
 mod beacon_snapshot;
 pub mod bellatrix_readiness;
 pub mod blob_verification;
-pub mod block_import_methods;
+pub mod block_importer;
 pub mod block_production;
 mod block_times_cache;
 mod block_verification;
@@ -111,6 +111,7 @@ pub use self::beacon_components::{
     verify_weak_subjectivity_checkpoint,
 };
 pub use self::beacon_snapshot::BeaconSnapshot;
+pub use self::block_importer::BlockImporter;
 pub use self::chain_config::ChainConfig;
 pub use self::errors::{BeaconChainError, BlockProductionError};
 pub use self::historical_blocks::HistoricalBlockError;

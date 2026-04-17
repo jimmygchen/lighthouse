@@ -518,13 +518,13 @@ impl<T: BeaconChainTypes> CanonicalHead<T> {
 
 impl<T: BeaconChainTypes> Drop for CanonicalHead<T> {
     fn drop(&mut self) {
-        if self.store.is_some() {
-            if let Err(e) = self.persist_fork_choice() {
-                error!(
-                    error = ?e,
-                    "Failed to persist fork choice on CanonicalHead drop"
-                );
-            }
+        if self.store.is_some()
+            && let Err(e) = self.persist_fork_choice()
+        {
+            error!(
+                error = ?e,
+                "Failed to persist fork choice on CanonicalHead drop"
+            );
         }
     }
 }

@@ -594,7 +594,7 @@ impl<'a, T: BeaconChainTypes> IndexedAggregatedAttestation<'a, T> {
         verify_propagation_slot_range::<_, T::EthSpec>(
             chain.slot_clock,
             attestation.data(),
-            &chain.spec,
+            chain.spec,
         )?;
 
         // Check the attestation's epoch matches its target.
@@ -741,7 +741,7 @@ impl<'a, T: BeaconChainTypes> IndexedAggregatedAttestation<'a, T> {
                     .ok_or(Error::NoCommitteeForSlotAndIndex { slot, index })?;
 
                 if !SelectionProof::from(selection_proof)
-                    .is_aggregator(committee.committee.len(), &chain.spec)
+                    .is_aggregator(committee.committee.len(), chain.spec)
                     .map_err(|e| Error::BeaconChainError(Box::new(e.into())))?
                 {
                     return Err(Error::InvalidSelectionProof { aggregator_index });
@@ -949,7 +949,7 @@ impl<'a, T: BeaconChainTypes> IndexedUnaggregatedAttestation<'a, T> {
         verify_propagation_slot_range::<_, T::EthSpec>(
             chain.slot_clock,
             &attestation.data,
-            &chain.spec,
+            chain.spec,
         )?;
 
         let fork_name = chain
@@ -1123,7 +1123,7 @@ impl<'a, T: BeaconChainTypes> VerifiedUnaggregatedAttestation<'a, T> {
         let expected_subnet_id = SubnetId::compute_subnet_for_single_attestation::<T::EthSpec>(
             attestation,
             committees_per_slot,
-            &chain.spec,
+            chain.spec,
         )
         .map_err(BeaconChainError::from)?;
 
@@ -1380,7 +1380,7 @@ pub fn verify_attestation_signature<T: BeaconChainTypes>(
         indexed_attestation,
         &fork,
         chain.genesis_validators_root,
-        &chain.spec,
+        chain.spec,
     )
     .map_err(BeaconChainError::SignatureSetError)?;
     metrics::stop_timer(signature_setup_timer);
@@ -1480,7 +1480,7 @@ pub fn verify_signed_aggregate_signatures<T: BeaconChainTypes>(
             signed_aggregate,
             &fork,
             chain.genesis_validators_root,
-            &chain.spec,
+            chain.spec,
         )
         .map_err(BeaconChainError::SignatureSetError)?,
         signed_aggregate_signature_set(
@@ -1488,7 +1488,7 @@ pub fn verify_signed_aggregate_signatures<T: BeaconChainTypes>(
             signed_aggregate,
             &fork,
             chain.genesis_validators_root,
-            &chain.spec,
+            chain.spec,
         )
         .map_err(BeaconChainError::SignatureSetError)?,
         indexed_attestation_signature_set_from_pubkeys(
@@ -1497,7 +1497,7 @@ pub fn verify_signed_aggregate_signatures<T: BeaconChainTypes>(
             indexed_attestation,
             &fork,
             chain.genesis_validators_root,
-            &chain.spec,
+            chain.spec,
         )
         .map_err(BeaconChainError::SignatureSetError)?,
     ];

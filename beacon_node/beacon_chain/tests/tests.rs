@@ -29,6 +29,55 @@ pub const VALIDATOR_COUNT: usize = 48;
 static KEYPAIRS: LazyLock<Vec<Keypair>> =
     LazyLock::new(|| types::test_utils::generate_deterministic_keypairs(VALIDATOR_COUNT));
 
+/// Helper: call `block_root_at_slot` against the chain via the new free function.
+fn chain_block_root_at_slot<T: beacon_chain::BeaconChainTypes>(
+    chain: &beacon_chain::BeaconComponents<T>,
+    slot: Slot,
+    skips: WhenSlotSkipped,
+) -> Result<Option<Hash256>, beacon_chain::BeaconChainError> {
+    beacon_chain::state_query::block_root_at_slot(
+        &chain.store,
+        &chain.canonical_head,
+        &chain.spec,
+        &chain.slot_clock,
+        chain.genesis_block_root,
+        slot,
+        skips,
+    )
+}
+
+/// Helper: call `block_at_slot` against the chain via the new free function.
+fn chain_block_at_slot<T: beacon_chain::BeaconChainTypes>(
+    chain: &beacon_chain::BeaconComponents<T>,
+    slot: Slot,
+    skips: WhenSlotSkipped,
+) -> Result<Option<types::SignedBlindedBeaconBlock<T::EthSpec>>, beacon_chain::BeaconChainError> {
+    beacon_chain::state_query::block_at_slot(
+        &chain.store,
+        &chain.canonical_head,
+        &chain.spec,
+        &chain.slot_clock,
+        chain.genesis_block_root,
+        slot,
+        skips,
+    )
+}
+
+/// Helper: call `state_at_slot` against the chain via the new free function.
+fn chain_state_at_slot<T: beacon_chain::BeaconChainTypes>(
+    chain: &beacon_chain::BeaconComponents<T>,
+    slot: Slot,
+    config: StateSkipConfig,
+) -> Result<BeaconState<T::EthSpec>, beacon_chain::BeaconChainError> {
+    beacon_chain::state_query::state_at_slot(
+        &chain.store,
+        &chain.canonical_head,
+        &chain.spec,
+        slot,
+        config,
+    )
+}
+
 fn get_harness(validator_count: usize) -> BeaconChainHarness<EphemeralHarnessType<MinimalEthSpec>> {
     get_harness_with_config(
         validator_count,
@@ -148,18 +197,22 @@ async fn iterators() {
         )
         .await;
 
-    let block_roots: Vec<(Hash256, Slot)> = harness
-        .chain
-        .forwards_iter_block_roots(Slot::new(0))
-        .expect("should get iter")
-        .map(Result::unwrap)
-        .collect();
-    let state_roots: Vec<(Hash256, Slot)> = harness
-        .chain
-        .forwards_iter_state_roots(Slot::new(0))
-        .expect("should get iter")
-        .map(Result::unwrap)
-        .collect();
+    let block_roots: Vec<(Hash256, Slot)> = beacon_chain::state_query::forwards_iter_block_roots(
+        &harness.chain.store,
+        &harness.chain.canonical_head,
+        Slot::new(0),
+    )
+    .expect("should get iter")
+    .map(Result::unwrap)
+    .collect();
+    let state_roots: Vec<(Hash256, Slot)> = beacon_chain::state_query::forwards_iter_state_roots(
+        &harness.chain.store,
+        &harness.chain.canonical_head,
+        Slot::new(0),
+    )
+    .expect("should get iter")
+    .map(Result::unwrap)
+    .collect();
 
     assert_eq!(
         block_roots.len(),
@@ -251,10 +304,12 @@ async fn find_reorgs() {
     let head = harness.chain.canonical_head.head_snapshot();
     let head_state = &head.beacon_state;
     let head_slot = head_state.slot();
-    let genesis_state = harness
-        .chain
-        .state_at_slot(Slot::new(0), StateSkipConfig::WithStateRoots)
-        .unwrap();
+    let genesis_state = chain_state_at_slot(
+        &harness.chain,
+        Slot::new(0),
+        StateSkipConfig::WithStateRoots,
+    )
+    .unwrap();
 
     // because genesis is more than `SLOTS_PER_HISTORICAL_ROOT` away, this should return with the
     // finalized slot.
@@ -286,15 +341,12 @@ async fn find_reorgs() {
 
     // Re-org back to the slot prior to the head.
     let prev_slot = head_slot - Slot::new(1);
-    let prev_state = harness
-        .chain
-        .state_at_slot(prev_slot, StateSkipConfig::WithStateRoots)
-        .unwrap();
-    let prev_block_root = harness
-        .chain
-        .block_root_at_slot(prev_slot, WhenSlotSkipped::None)
-        .unwrap()
-        .unwrap();
+    let prev_state =
+        chain_state_at_slot(&harness.chain, prev_slot, StateSkipConfig::WithStateRoots).unwrap();
+    let prev_block_root =
+        chain_block_root_at_slot(&harness.chain, prev_slot, WhenSlotSkipped::None)
+            .unwrap()
+            .unwrap();
     assert_eq!(
         find_reorg_slot(&harness.chain, &prev_state, prev_block_root),
         prev_slot
@@ -552,7 +604,7 @@ async fn roundtrip_operation_pool() {
         .into_operation_pool()
         .unwrap();
 
-    assert_eq!(harness.chain.op_pool, restored_op_pool);
+    assert_eq!(*harness.chain.op_pool, restored_op_pool);
 }
 
 #[tokio::test]
@@ -576,7 +628,7 @@ async fn unaggregated_attestations_added_to_fork_choice_some_none() {
     // Move forward a slot so all queued attestations can be processed.
     harness.advance_slot();
     fork_choice
-        .update_time(harness.chain.slot().unwrap())
+        .update_time(beacon_chain::state_query::current_slot(&harness.chain.slot_clock).unwrap())
         .unwrap();
 
     let validator_slots: Vec<(usize, Slot)> = (0..VALIDATOR_COUNT)
@@ -647,11 +699,26 @@ async fn attestations_with_increasing_slots() {
     }
 
     for (attestation, subnet_id) in attestations.into_iter().flatten() {
-        let res = harness
-            .chain
-            .verify_unaggregated_attestation_for_gossip(&attestation, Some(subnet_id));
+        let ctx = beacon_chain::attestation_verification::AttestationVerificationContext {
+            canonical_head: &harness.chain.canonical_head,
+            attestation_manager: &harness.chain.attestation_manager,
+            validator_query: &harness.chain.validator_query,
+            store: &harness.chain.store,
+            slot_clock: &harness.chain.slot_clock,
+            spec: &harness.chain.spec,
+            config: &harness.chain.config,
+            genesis_validators_root: harness.chain.genesis_validators_root,
+            slasher: harness.chain.slasher.as_deref(),
+            pre_finalization_block_cache: &harness.chain.pre_finalization_block_cache,
+        };
+        let res = beacon_chain::attestation_verification::VerifiedUnaggregatedAttestation::verify(
+            &attestation,
+            Some(subnet_id),
+            &ctx,
+        );
 
-        let current_slot = harness.chain.slot().expect("should get slot");
+        let current_slot = beacon_chain::state_query::current_slot(&harness.chain.slot_clock)
+            .expect("should get slot");
         let expected_attestation_slot = attestation.data.slot;
         let expected_earliest_permissible_slot =
             current_slot - MinimalEthSpec::slots_per_epoch() - 1;
@@ -692,7 +759,7 @@ async fn unaggregated_attestations_added_to_fork_choice_all_updated() {
     // Move forward a slot so all queued attestations can be processed.
     harness.advance_slot();
     fork_choice
-        .update_time(harness.chain.slot().unwrap())
+        .update_time(beacon_chain::state_query::current_slot(&harness.chain.slot_clock).unwrap())
         .unwrap();
 
     let validators: Vec<usize> = (0..VALIDATOR_COUNT).collect();
@@ -773,6 +840,7 @@ async fn run_skip_slot_test(skip_slots: u64) {
 
     let status = harness_b
         .chain
+        .block_importer
         .process_block(
             harness_a
                 .chain
@@ -840,7 +908,9 @@ async fn block_roots_skip_slot_behaviour() {
             harness.advance_slot();
         }
 
-        let slot = harness.chain.slot().unwrap().as_u64();
+        let slot = beacon_chain::state_query::current_slot(&harness.chain.slot_clock)
+            .unwrap()
+            .as_u64();
 
         if !skipped_slots.contains(&slot) {
             harness
@@ -861,19 +931,16 @@ async fn block_roots_skip_slot_behaviour() {
              * A skip slot
              */
             assert!(
-                harness
-                    .chain
-                    .block_root_at_slot(target_slot.into(), WhenSlotSkipped::None)
+                chain_block_root_at_slot(&harness.chain, target_slot.into(), WhenSlotSkipped::None)
                     .unwrap()
                     .is_none(),
                 "WhenSlotSkipped::None should return None on a skip slot"
             );
 
-            let skipped_root = harness
-                .chain
-                .block_root_at_slot(target_slot.into(), WhenSlotSkipped::Prev)
-                .unwrap()
-                .expect("WhenSlotSkipped::Prev should always return Some");
+            let skipped_root =
+                chain_block_root_at_slot(&harness.chain, target_slot.into(), WhenSlotSkipped::Prev)
+                    .unwrap()
+                    .expect("WhenSlotSkipped::Prev should always return Some");
 
             assert_eq!(
                 skipped_root,
@@ -889,18 +956,14 @@ async fn block_roots_skip_slot_behaviour() {
                 .unwrap();
 
             assert_eq!(
-                harness
-                    .chain
-                    .block_at_slot(target_slot.into(), WhenSlotSkipped::Prev)
+                chain_block_at_slot(&harness.chain, target_slot.into(), WhenSlotSkipped::Prev)
                     .unwrap()
                     .unwrap(),
                 expected_block,
             );
 
             assert!(
-                harness
-                    .chain
-                    .block_at_slot(target_slot.into(), WhenSlotSkipped::None)
+                chain_block_at_slot(&harness.chain, target_slot.into(), WhenSlotSkipped::None)
                     .unwrap()
                     .is_none(),
                 "WhenSlotSkipped::None should return None on a skip slot"
@@ -909,16 +972,14 @@ async fn block_roots_skip_slot_behaviour() {
             /*
              * Not a skip slot
              */
-            let skips_none = harness
-                .chain
-                .block_root_at_slot(target_slot.into(), WhenSlotSkipped::None)
-                .unwrap()
-                .expect("WhenSlotSkipped::None should return Some for non-skipped block");
-            let skips_prev = harness
-                .chain
-                .block_root_at_slot(target_slot.into(), WhenSlotSkipped::Prev)
-                .unwrap()
-                .expect("WhenSlotSkipped::Prev should always return Some");
+            let skips_none =
+                chain_block_root_at_slot(&harness.chain, target_slot.into(), WhenSlotSkipped::None)
+                    .unwrap()
+                    .expect("WhenSlotSkipped::None should return Some for non-skipped block");
+            let skips_prev =
+                chain_block_root_at_slot(&harness.chain, target_slot.into(), WhenSlotSkipped::Prev)
+                    .unwrap()
+                    .expect("WhenSlotSkipped::Prev should always return Some");
             assert_eq!(
                 skips_none, skips_prev,
                 "WhenSlotSkipped::None and WhenSlotSkipped::Prev should be equal on non-skipped slot"
@@ -932,18 +993,14 @@ async fn block_roots_skip_slot_behaviour() {
                 .unwrap();
 
             assert_eq!(
-                harness
-                    .chain
-                    .block_at_slot(target_slot.into(), WhenSlotSkipped::Prev)
+                chain_block_at_slot(&harness.chain, target_slot.into(), WhenSlotSkipped::Prev)
                     .unwrap()
                     .unwrap(),
                 expected_block
             );
 
             assert_eq!(
-                harness
-                    .chain
-                    .block_at_slot(target_slot.into(), WhenSlotSkipped::None)
+                chain_block_at_slot(&harness.chain, target_slot.into(), WhenSlotSkipped::None)
                     .unwrap()
                     .unwrap(),
                 expected_block
@@ -957,7 +1014,8 @@ async fn block_roots_skip_slot_behaviour() {
      * A future, non-existent slot.
      */
 
-    let future_slot = harness.chain.slot().unwrap() + 1;
+    let future_slot =
+        beacon_chain::state_query::current_slot(&harness.chain.slot_clock).unwrap() + 1;
     assert_eq!(
         harness
             .chain
@@ -969,17 +1027,13 @@ async fn block_roots_skip_slot_behaviour() {
         "test precondition"
     );
     assert!(
-        harness
-            .chain
-            .block_root_at_slot(future_slot, WhenSlotSkipped::None)
+        chain_block_root_at_slot(&harness.chain, future_slot, WhenSlotSkipped::None)
             .unwrap()
             .is_none(),
         "WhenSlotSkipped::None should return None on a future slot"
     );
     assert!(
-        harness
-            .chain
-            .block_root_at_slot(future_slot, WhenSlotSkipped::Prev)
+        chain_block_root_at_slot(&harness.chain, future_slot, WhenSlotSkipped::Prev)
             .unwrap()
             .is_none(),
         "WhenSlotSkipped::Prev should return None on a future slot"

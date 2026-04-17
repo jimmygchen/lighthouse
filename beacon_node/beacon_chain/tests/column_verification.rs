@@ -82,6 +82,7 @@ async fn rpc_columns_with_invalid_header_signature() {
     harness.advance_slot();
     let availability = harness
         .chain
+        .block_importer
         .process_block(
             block_root,
             LookupBlock::new(signed_block.clone()),
@@ -105,6 +106,7 @@ async fn rpc_columns_with_invalid_header_signature() {
 
     let err = harness
         .chain
+        .block_importer
         .process_rpc_custody_columns(data_column_sidecars)
         .await
         .unwrap_err();
@@ -168,6 +170,7 @@ async fn verify_header_signature_fork_block_bug() {
     harness.advance_slot();
     let availability = harness
         .chain
+        .block_importer
         .process_block(
             block_root,
             LookupBlock::new(signed_block.clone()),
@@ -198,6 +201,7 @@ async fn verify_header_signature_fork_block_bug() {
     // Now that the bug is fixed, the block should import.
     let status = harness
         .chain
+        .block_importer
         .process_rpc_custody_columns(data_column_sidecars)
         .await
         .unwrap();
