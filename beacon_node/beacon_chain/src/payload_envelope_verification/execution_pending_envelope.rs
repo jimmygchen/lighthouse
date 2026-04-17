@@ -8,7 +8,7 @@ use state_processing::{
 use types::EthSpec;
 
 use crate::{
-    BeaconChainError, BeaconChainTypes, BeaconComponents, NotifyExecutionLayer,
+    BeaconChainError, BeaconChainTypes, BeaconSystem, NotifyExecutionLayer,
     PayloadVerificationOutcome,
     block_verification::PayloadVerificationHandle,
     payload_envelope_verification::{
@@ -27,7 +27,7 @@ pub struct ExecutionPendingEnvelope<E: EthSpec> {
 impl<T: BeaconChainTypes> GossipVerifiedEnvelope<T> {
     pub fn into_execution_pending_envelope(
         self,
-        chain: &Arc<BeaconComponents<T>>,
+        chain: &Arc<BeaconSystem<T>>,
         notify_execution_layer: NotifyExecutionLayer,
     ) -> Result<ExecutionPendingEnvelope<T::EthSpec>, EnvelopeError> {
         let signed_envelope = self.signed_envelope;

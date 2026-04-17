@@ -76,7 +76,7 @@ use slasher::Slasher;
 
 /// Context for attestation verification — holds refs to the components needed.
 ///
-/// This replaces `&BeaconComponents<T>` in all attestation verification functions,
+/// This replaces `&BeaconSystem<T>` in all attestation verification functions,
 /// making them independently testable by constructing this struct directly.
 pub struct AttestationVerificationContext<'a, T: BeaconChainTypes> {
     pub canonical_head: &'a CanonicalHead<T>,

@@ -155,7 +155,7 @@ impl<E: EthSpec, Hot: ItemStore<E>, Cold: ItemStore<E>> BackgroundMigrator<E, Ho
         }
     }
 
-    /// Process a finalized checkpoint from the `BeaconComponents`.
+    /// Process a finalized checkpoint from the `BeaconSystem`.
     ///
     /// If successful, all forks descending from before the `finalized_checkpoint` will be
     /// pruned, and the split point of the database will be advanced to the slot of the finalized

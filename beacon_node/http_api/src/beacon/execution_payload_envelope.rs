@@ -5,7 +5,7 @@ use crate::version::{
     ResponseIncludesVersion, add_consensus_version_header, add_ssz_content_type_header,
     execution_optimistic_finalized_beacon_response,
 };
-use beacon_chain::{BeaconChainTypes, BeaconComponents};
+use beacon_chain::{BeaconChainTypes, BeaconSystem};
 use bytes::Bytes;
 use eth2::types as api_types;
 use eth2::{CONTENT_TYPE_HEADER, SSZ_CONTENT_TYPE_HEADER};
@@ -43,7 +43,7 @@ pub(crate) fn post_beacon_execution_payload_envelope_ssz<T: BeaconChainTypes>(
         .then(
             |body_bytes: Bytes,
              task_spawner: TaskSpawner<T::EthSpec>,
-             chain: Arc<BeaconComponents<T>>,
+             chain: Arc<BeaconSystem<T>>,
              network_tx: UnboundedSender<NetworkMessage<T::EthSpec>>| {
                 task_spawner.spawn_async_with_rejection(Priority::P0, async move {
                     let envelope =
@@ -76,7 +76,7 @@ pub(crate) fn post_beacon_execution_payload_envelope<T: BeaconChainTypes>(
         .then(
             |envelope: SignedExecutionPayloadEnvelope<T::EthSpec>,
              task_spawner: TaskSpawner<T::EthSpec>,
-             chain: Arc<BeaconComponents<T>>,
+             chain: Arc<BeaconSystem<T>>,
              network_tx: UnboundedSender<NetworkMessage<T::EthSpec>>| {
                 task_spawner.spawn_async_with_rejection(Priority::P0, async move {
                     publish_execution_payload_envelope(envelope, chain, &network_tx).await
@@ -88,7 +88,7 @@ pub(crate) fn post_beacon_execution_payload_envelope<T: BeaconChainTypes>(
 /// Publishes a signed execution payload envelope to the network.
 pub async fn publish_execution_payload_envelope<T: BeaconChainTypes>(
     envelope: SignedExecutionPayloadEnvelope<T::EthSpec>,
-    chain: Arc<BeaconComponents<T>>,
+    chain: Arc<BeaconSystem<T>>,
     network_tx: &UnboundedSender<NetworkMessage<T::EthSpec>>,
 ) -> Result<Response<Body>, Rejection> {
     let slot = envelope.message.slot;
@@ -147,7 +147,7 @@ pub(crate) fn get_beacon_execution_payload_envelope<T: BeaconChainTypes>(
         .then(
             |block_id: BlockId,
              task_spawner: TaskSpawner<T::EthSpec>,
-             chain: Arc<BeaconComponents<T>>,
+             chain: Arc<BeaconSystem<T>>,
              accept_header: Option<api_types::Accept>| {
                 task_spawner.blocking_response_task(Priority::P1, move || {
                     let (root, execution_optimistic, finalized) = block_id.root(&chain)?;

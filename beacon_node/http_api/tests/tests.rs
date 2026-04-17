@@ -1,7 +1,7 @@
 use beacon_chain::custody_context::NodeCustodyType;
 use beacon_chain::test_utils::RelativeSyncCommittee;
 use beacon_chain::{
-    BeaconComponents, ChainConfig, StateSkipConfig, WhenSlotSkipped,
+    BeaconSystem, ChainConfig, StateSkipConfig, WhenSlotSkipped,
     test_utils::{
         AttestationStrategy, BeaconChainHarness, BlockStrategy, EphemeralHarnessType, test_spec,
     },
@@ -75,7 +75,7 @@ const SKIPPED_SLOTS: &[u64] = &[
 struct ApiTester {
     ctx: Arc<http_api::Context<EphemeralHarnessType<E>>>,
     harness: Arc<BeaconChainHarness<EphemeralHarnessType<E>>>,
-    chain: Arc<BeaconComponents<EphemeralHarnessType<E>>>,
+    chain: Arc<BeaconSystem<EphemeralHarnessType<E>>>,
     client: BeaconNodeHttpClient,
     next_block: PublishBlockRequest<E>,
     reorg_block: PublishBlockRequest<E>,

@@ -62,7 +62,7 @@ use types::{
 
 /// Context for sync committee verification -- holds refs to the components needed.
 ///
-/// This replaces `&BeaconComponents<T>` in all sync committee verification functions,
+/// This replaces `&BeaconSystem<T>` in all sync committee verification functions,
 /// making them independently testable by constructing this struct directly.
 pub struct SyncCommitteeVerificationContext<'a, T: BeaconChainTypes> {
     pub canonical_head: &'a CanonicalHead<T>,
@@ -630,7 +630,7 @@ impl VerifiedSyncCommitteeMessage {
     ///
     /// For use only in unit tests that need to exercise downstream logic (e.g.,
     /// adding to the naive sync aggregation pool) without standing up an entire
-    /// `BeaconComponents`.
+    /// `BeaconSystem`.
     #[cfg(test)]
     pub(crate) fn new_for_test(
         sync_message: SyncCommitteeMessage,

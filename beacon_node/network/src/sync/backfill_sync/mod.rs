@@ -20,7 +20,7 @@ use crate::sync::network_context::{
     RangeRequestId, RpcRequestSendError, RpcResponseError, SyncNetworkContext,
 };
 use beacon_chain::block_verification_types::RangeSyncBlock;
-use beacon_chain::{BeaconChainTypes, BeaconComponents};
+use beacon_chain::{BeaconChainTypes, BeaconSystem};
 use lighthouse_network::service::api_types::Id;
 use lighthouse_network::types::{BackFillState, NetworkGlobals};
 use lighthouse_network::{PeerAction, PeerId};
@@ -152,7 +152,7 @@ pub struct BackFillSync<T: BeaconChainTypes> {
     restart_failed_sync: bool,
 
     /// Reference to the beacon chain to obtain initial starting points for the backfill sync.
-    beacon_chain: Arc<BeaconComponents<T>>,
+    beacon_chain: Arc<BeaconSystem<T>>,
 
     /// Reference to the network globals in order to obtain valid peers to backfill blocks from
     /// (i.e synced peers).
@@ -161,7 +161,7 @@ pub struct BackFillSync<T: BeaconChainTypes> {
 
 impl<T: BeaconChainTypes> BackFillSync<T> {
     pub fn new(
-        beacon_chain: Arc<BeaconComponents<T>>,
+        beacon_chain: Arc<BeaconSystem<T>>,
         network_globals: Arc<NetworkGlobals<T::EthSpec>>,
     ) -> Self {
         // Determine if backfill is enabled or not.

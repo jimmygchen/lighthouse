@@ -1,6 +1,6 @@
 use crate::observed_attesters::SlotSubcommitteeIndex;
 use crate::types::consts::altair::SYNC_COMMITTEE_SUBNET_COUNT;
-use crate::{BeaconChainError, BeaconChainTypes, BeaconComponents};
+use crate::{BeaconChainError, BeaconChainTypes, BeaconSystem};
 use bls::FixedBytesExtended;
 pub use metrics::*;
 use slot_clock::SlotClock;
@@ -627,7 +627,7 @@ pub static BALANCES_CACHE_MISSES: LazyLock<Result<IntCounter>> = LazyLock::new(|
 });
 
 /*
- * Persisting BeaconComponents components to disk
+ * Persisting BeaconSystem components to disk
  */
 pub static PERSIST_OP_POOL: LazyLock<Result<Histogram>> = LazyLock::new(|| {
     try_create_histogram(
@@ -1980,7 +1980,7 @@ pub static LIGHT_CLIENT_SERVER_CACHE_PROCESSING_SUCCESSES: LazyLock<Result<IntCo
 
 /// Scrape the `beacon_chain` for metrics that are not constantly updated (e.g., the present slot,
 /// head state info, etc) and update the Prometheus `DEFAULT_REGISTRY`.
-pub fn scrape_for_metrics<T: BeaconChainTypes>(beacon_chain: &BeaconComponents<T>) {
+pub fn scrape_for_metrics<T: BeaconChainTypes>(beacon_chain: &BeaconSystem<T>) {
     let _ = beacon_chain.canonical_head.with_head(|head| {
         scrape_head_state(&head.beacon_state, head.beacon_state_root());
         Ok::<_, BeaconChainError>(())
@@ -2137,10 +2137,7 @@ fn scrape_head_state<E: EthSpec>(state: &BeaconState<E>, state_root: Hash256) {
     set_gauge_by_usize(&HEAD_STATE_WITHDRAWN_VALIDATORS, num_withdrawn);
 }
 
-fn scrape_attestation_observation<T: BeaconChainTypes>(
-    slot_now: Slot,
-    chain: &BeaconComponents<T>,
-) {
+fn scrape_attestation_observation<T: BeaconChainTypes>(slot_now: Slot, chain: &BeaconSystem<T>) {
     let prev_epoch = slot_now.epoch(T::EthSpec::slots_per_epoch()) - 1;
 
     if let Some(count) = chain
@@ -2162,10 +2159,7 @@ fn scrape_attestation_observation<T: BeaconChainTypes>(
     }
 }
 
-fn scrape_sync_committee_observation<T: BeaconChainTypes>(
-    slot_now: Slot,
-    chain: &BeaconComponents<T>,
-) {
+fn scrape_sync_committee_observation<T: BeaconChainTypes>(slot_now: Slot, chain: &BeaconSystem<T>) {
     let prev_slot = slot_now - 1;
 
     let contributors = chain

@@ -48,7 +48,7 @@ use crate::sync::BatchProcessResult;
 use crate::sync::batch::BatchId;
 use crate::sync::network_context::{RpcResponseError, SyncNetworkContext};
 use beacon_chain::block_verification_types::RangeSyncBlock;
-use beacon_chain::{BeaconChainTypes, BeaconComponents};
+use beacon_chain::{BeaconChainTypes, BeaconSystem};
 use lighthouse_network::rpc::GoodbyeReason;
 use lighthouse_network::service::api_types::Id;
 use lighthouse_network::{PeerId, SyncInfo};
@@ -67,7 +67,7 @@ const FAILED_CHAINS_EXPIRY_SECONDS: u64 = 30;
 /// holds the current state of the long range sync.
 pub struct RangeSync<T: BeaconChainTypes> {
     /// The beacon chain for processing.
-    beacon_chain: Arc<BeaconComponents<T>>,
+    beacon_chain: Arc<BeaconSystem<T>>,
     /// Last known sync info of our useful connected peers. We use this information to create Head
     /// chains after all finalized chains have ended.
     awaiting_head_peers: HashMap<PeerId, SyncInfo>,
@@ -82,7 +82,7 @@ impl<T: BeaconChainTypes> RangeSync<T>
 where
     T: BeaconChainTypes,
 {
-    pub fn new(beacon_chain: Arc<BeaconComponents<T>>) -> Self {
+    pub fn new(beacon_chain: Arc<BeaconSystem<T>>) -> Self {
         RangeSync {
             beacon_chain: beacon_chain.clone(),
             chains: ChainCollection::new(beacon_chain),

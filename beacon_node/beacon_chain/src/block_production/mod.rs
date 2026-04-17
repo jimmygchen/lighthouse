@@ -2,13 +2,13 @@
 //! and fork choice override logic.
 //!
 //! `BlockProducer<T>` owns the subsystems required to produce beacon blocks. It holds
-//! `Arc`-shared handles to the pieces of state it accesses directly (store, spec, slot clock,
-//! op pool, execution manager, caches, etc.) and a `Weak` back-reference to the parent
-//! `BeaconComponents` for reaching non-Arc fields (`canonical_head`, `attestation_manager`,
-//! `fork_choice_signal_rx`, `graffiti_calculator`, `pending_payload_envelopes`) and for
-//! invoking cross-module helpers that still consume `&BeaconComponents<T>` /
-//! `Arc<BeaconComponents<T>>` (e.g. `get_execution_payload`, `state_at_slot`,
-//! `is_healthy`, `compute_beacon_block_reward`, etc.).
+//! `Arc`-shared handles to every piece of state it accesses directly (store, spec, slot clock,
+//! op pool, execution manager, canonical head, attestation manager, etc.). For cross-module
+//! helpers that still take `&BeaconSystem<T>` / `Arc<BeaconSystem<T>>` (e.g.
+//! `get_execution_payload`, `state_at_slot`, `is_healthy`, `compute_beacon_block_reward`),
+//! a strong `Arc<BeaconSystem<T>>` back-reference is installed by the builder
+//! post-construction. This creates a reference cycle between `BeaconSystem` and
+//! `BlockProducer`; both share the lifetime of the beacon chain process.
 
 pub mod gloas;
 
@@ -38,25 +38,28 @@ use state_processing::{
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::marker::PhantomData;
-use std::sync::{OnceLock, Weak};
+use std::sync::OnceLock;
 use task_executor::TaskExecutor;
 use tracing::{debug, debug_span, error, info, instrument, trace, warn};
 use types::execution::BlockProductionVersion;
 use types::*;
 use types::{BeaconState, Hash256, Slot, StatePayloadStatus};
 
+use crate::attestation_manager::AttestationManager;
 use crate::beacon_components::{
     BeaconBlockResponse, BeaconBlockResponseWrapper, BeaconStore, PartialBeaconBlock,
     PrePayloadAttributes, ProduceBlockVerification, shuffling_is_compatible_with_fork_choice,
 };
 use crate::beacon_proposer_cache::BeaconProposerCache;
+use crate::canonical_head::CanonicalHead;
 use crate::chain_config::ChainConfig;
 use crate::errors::BeaconChainError as Error;
 use crate::execution_manager::ExecutionManager;
 use crate::execution_payload::get_execution_payload;
-use crate::graffiti_calculator::GraffitiSettings;
+use crate::graffiti_calculator::{GraffitiCalculator, GraffitiSettings};
+use crate::pending_payload_envelopes::PendingPayloadEnvelopes;
 use crate::{
-    BeaconChainError, BeaconChainTypes, BeaconComponents, BlockProductionError, CachedHead,
+    BeaconChainError, BeaconChainTypes, BeaconSystem, BlockProductionError, CachedHead,
     StateSkipConfig, block_times_cache::BlockTimesCache, fork_choice_signal::ForkChoiceWaitResult,
     metrics,
 };
@@ -64,12 +67,11 @@ use crate::{
 /// Handles block production for the beacon chain.
 ///
 /// Owns injected `Arc` handles to every subsystem it reaches for directly (store, spec, slot
-/// clock, op pool, execution manager, caches, etc.). A `Weak` back-reference to the parent
-/// `BeaconComponents` is installed by the builder after `Arc` wrapping and used for reaching
-/// non-Arc fields on `BeaconComponents` (`canonical_head`, `attestation_manager`,
-/// `fork_choice_signal_rx`, `graffiti_calculator`, `pending_payload_envelopes`) and for
-/// cross-module helpers that still take `&BeaconComponents<T>` / `Arc<BeaconComponents<T>>`
-/// (`get_execution_payload`, `state_at_slot`, `is_healthy`, `compute_beacon_block_reward`).
+/// clock, op pool, execution manager, canonical head, attestation manager, etc.). A strong
+/// `Arc<BeaconSystem<T>>` back-reference is installed by the builder after `Arc` wrapping
+/// and used for cross-module helpers that still take `&BeaconSystem<T>` /
+/// `Arc<BeaconSystem<T>>` (`get_execution_payload`, `state_at_slot`, `is_healthy`,
+/// `compute_beacon_block_reward`). This creates a reference cycle, released at process shutdown.
 pub struct BlockProducer<T: BeaconChainTypes> {
     // Arc-held subsystems cloned at construction.
     pub(crate) spec: Arc<ChainSpec>,
@@ -79,6 +81,10 @@ pub struct BlockProducer<T: BeaconChainTypes> {
     pub(crate) beacon_proposer_cache: Arc<Mutex<BeaconProposerCache>>,
     pub(crate) execution_manager: Arc<ExecutionManager<T>>,
     pub(crate) block_times_cache: Arc<RwLock<BlockTimesCache>>,
+    pub(crate) canonical_head: Arc<CanonicalHead<T>>,
+    pub(crate) attestation_manager: Arc<AttestationManager<T::EthSpec>>,
+    pub(crate) pending_payload_envelopes: Arc<RwLock<PendingPayloadEnvelopes<T::EthSpec>>>,
+    pub(crate) graffiti_calculator: Arc<GraffitiCalculator<T>>,
     // Cheap-to-clone wrappers around Arc.
     pub(crate) execution_layer: Option<ExecutionLayer<T::EthSpec>>,
     // Copy/Clone value fields.
@@ -86,12 +92,12 @@ pub struct BlockProducer<T: BeaconChainTypes> {
     pub(crate) genesis_block_root: Hash256,
     // Utilities.
     pub(crate) task_executor: TaskExecutor,
-    // Weak back-reference to the parent components, installed post-construction by the builder.
-    // Needed because a number of fields owned by `BeaconComponents` are not `Arc`-shared
-    // (`canonical_head`, `attestation_manager`, `fork_choice_signal_rx`,
-    // `graffiti_calculator`, `pending_payload_envelopes`) and because some helpers still take
-    // `&BeaconComponents<T>` / `Arc<BeaconComponents<T>>` as arguments.
-    pub(crate) parent: OnceLock<Weak<BeaconComponents<T>>>,
+    // Strong back-reference to the parent `BeaconSystem`, installed post-construction by the
+    // builder. Retained (despite creating a reference cycle) because a number of cross-module
+    // helpers still take `&BeaconSystem<T>` / `Arc<BeaconSystem<T>>`; refactoring
+    // their signatures is out of scope for this phase. Accessed via `self.system()` inside
+    // method bodies.
+    pub(crate) system: OnceLock<Arc<BeaconSystem<T>>>,
 }
 
 impl<T: BeaconChainTypes> BlockProducer<T> {
@@ -105,6 +111,10 @@ impl<T: BeaconChainTypes> BlockProducer<T> {
         beacon_proposer_cache: Arc<Mutex<BeaconProposerCache>>,
         execution_manager: Arc<ExecutionManager<T>>,
         block_times_cache: Arc<RwLock<BlockTimesCache>>,
+        canonical_head: Arc<CanonicalHead<T>>,
+        attestation_manager: Arc<AttestationManager<T::EthSpec>>,
+        pending_payload_envelopes: Arc<RwLock<PendingPayloadEnvelopes<T::EthSpec>>>,
+        graffiti_calculator: Arc<GraffitiCalculator<T>>,
         execution_layer: Option<ExecutionLayer<T::EthSpec>>,
         slot_clock: T::SlotClock,
         genesis_block_root: Hash256,
@@ -118,33 +128,34 @@ impl<T: BeaconChainTypes> BlockProducer<T> {
             beacon_proposer_cache,
             execution_manager,
             block_times_cache,
+            canonical_head,
+            attestation_manager,
+            pending_payload_envelopes,
+            graffiti_calculator,
             execution_layer,
             slot_clock,
             genesis_block_root,
             task_executor,
-            parent: OnceLock::new(),
+            system: OnceLock::new(),
         }
     }
 
-    /// Install the weak back-reference to the parent `BeaconComponents`.
+    /// Install the strong back-reference to the parent `BeaconSystem`.
     ///
-    /// Must be called once by the builder after `BeaconComponents` has been wrapped in an `Arc`.
-    pub fn set_parent(&self, parent: &Arc<BeaconComponents<T>>) {
-        let _ = self.parent.set(Arc::downgrade(parent));
+    /// Must be called once by the builder after `BeaconSystem` has been wrapped in an `Arc`.
+    /// This installs a reference cycle, released only at process shutdown.
+    pub fn set_system(&self, system: &Arc<BeaconSystem<T>>) {
+        let _ = self.system.set(system.clone());
     }
 
-    /// Upgrade the weak parent reference.
+    /// Get the strong parent reference.
     ///
-    /// Panics if the parent has not been installed yet or has been dropped. Both situations would
-    /// indicate a programming error: the block producer is never usable before the parent is
-    /// installed, and the parent owns this producer via `Arc<BlockProducer<T>>` so it cannot be
-    /// dropped while we are servicing a call on this producer.
-    pub(crate) fn parent(&self) -> Arc<BeaconComponents<T>> {
-        self.parent
+    /// Panics if the parent has not been installed yet. This indicates a programming error: the
+    /// block producer is never usable before the parent is installed.
+    pub(crate) fn system(&self) -> &Arc<BeaconSystem<T>> {
+        self.system
             .get()
-            .expect("BlockProducer parent not installed; builder bug")
-            .upgrade()
-            .expect("BlockProducer parent dropped while producer in use")
+            .expect("BlockProducer system not installed; builder bug")
     }
 
     /// Check if the block with `block_root` was observed after the attestation deadline of `slot`.
@@ -171,8 +182,6 @@ impl<T: BeaconChainTypes> BlockProducer<T> {
         &self,
         slot: Slot,
     ) -> Result<(BeaconState<T::EthSpec>, Option<Hash256>), BlockProductionError> {
-        let parent = self.parent();
-
         let fork_choice_timer = metrics::start_timer(&metrics::BLOCK_PRODUCTION_FORK_CHOICE_TIMES);
         self.wait_for_fork_choice_before_block_production(slot)?;
         drop(fork_choice_timer);
@@ -182,7 +191,7 @@ impl<T: BeaconChainTypes> BlockProducer<T> {
         // Atomically read some values from the head whilst avoiding holding cached head `Arc` any
         // longer than necessary.
         let (head_slot, head_block_root, head_state_root) = {
-            let head = parent.canonical_head.cached_head();
+            let head = self.canonical_head.cached_head();
             (
                 head.head_slot(),
                 head.head_block_root(),
@@ -245,7 +254,7 @@ impl<T: BeaconChainTypes> BlockProducer<T> {
             );
             let state = crate::state_query::state_at_slot(
                 &self.store,
-                &parent.canonical_head,
+                &self.canonical_head,
                 &self.spec,
                 slot - 1,
                 StateSkipConfig::WithStateRoots,
@@ -266,8 +275,8 @@ impl<T: BeaconChainTypes> BlockProducer<T> {
         &self,
         slot: Slot,
     ) -> Result<(), BlockProductionError> {
-        let parent = self.parent();
-        if let Some(rx) = &parent.fork_choice_signal_rx {
+        let system = self.system();
+        if let Some(rx) = &system.fork_choice_signal_rx {
             let current_slot = crate::state_query::current_slot(&self.slot_clock)
                 .map_err(|_| BlockProductionError::UnableToReadSlot)?;
 
@@ -319,7 +328,6 @@ impl<T: BeaconChainTypes> BlockProducer<T> {
         head_slot: Slot,
         canonical_head_root: Hash256,
     ) -> Option<(BeaconState<T::EthSpec>, Hash256)> {
-        let parent = self.parent();
         let re_org_head_threshold = self.config.re_org_head_threshold?;
         let re_org_parent_threshold = self.config.re_org_parent_threshold?;
 
@@ -361,7 +369,7 @@ impl<T: BeaconChainTypes> BlockProducer<T> {
         // Is the current head weak and appropriate for re-orging?
         let proposer_head_timer =
             metrics::start_timer(&metrics::BLOCK_PRODUCTION_GET_PROPOSER_HEAD_TIMES);
-        let proposer_head = parent
+        let proposer_head = self
             .canonical_head
             .fork_choice_read_lock()
             .get_proposer_head(
@@ -482,9 +490,8 @@ impl<T: BeaconChainTypes> BlockProducer<T> {
         // Part 1/3 (blocking)
         //
         // Perform the state advance and block-packing functions.
-        let parent = self.parent();
         let self_clone = self.clone();
-        let graffiti = parent
+        let graffiti = self
             .graffiti_calculator
             .get_graffiti(graffiti_settings)
             .await;
@@ -620,7 +627,6 @@ impl<T: BeaconChainTypes> BlockProducer<T> {
             .beacon_state
             .proposer_shuffling_decision_root_at_epoch(proposal_epoch, proposer_head, &self.spec)?;
 
-        let parent = self.parent();
         let Some(proposer_index) = self
             .execution_manager
             .with_proposer_cache(
@@ -654,7 +660,7 @@ impl<T: BeaconChainTypes> BlockProducer<T> {
                             epoch = %proposal_epoch,
                             "Proposer shuffling cache miss for proposer prep"
                         );
-                        let head = parent.canonical_head.cached_head();
+                        let head = self.canonical_head.cached_head();
                         Ok((head.head_state_root(), head.snapshot.beacon_state.clone()))
                     }
                 },
@@ -714,8 +720,7 @@ impl<T: BeaconChainTypes> BlockProducer<T> {
         forkchoice_update_params: &ForkchoiceUpdateParameters,
         proposal_slot: Slot,
     ) -> Result<Withdrawals<T::EthSpec>, Error> {
-        let parent = self.parent();
-        let cached_head = parent.canonical_head.cached_head();
+        let cached_head = self.canonical_head.cached_head();
         let head_state = &cached_head.snapshot.beacon_state;
 
         let parent_block_root = forkchoice_update_params.head_root;
@@ -815,9 +820,8 @@ impl<T: BeaconChainTypes> BlockProducer<T> {
 
         let head_block_root = canonical_forkchoice_params.head_root;
 
-        let parent = self.parent();
         // Perform initial checks and load the relevant info from fork choice.
-        let info = parent
+        let info = self
             .canonical_head
             .fork_choice_read_lock()
             .get_preliminary_proposer_head(
@@ -983,8 +987,6 @@ impl<T: BeaconChainTypes> BlockProducer<T> {
             });
         }
 
-        let parent = self.parent();
-
         let slot_timer = metrics::start_timer(&metrics::BLOCK_PRODUCTION_SLOT_PROCESS_TIMES);
 
         // Ensure the state has performed a complete transition into the required slot.
@@ -1017,7 +1019,7 @@ impl<T: BeaconChainTypes> BlockProducer<T> {
             pubkey,
             slot: state.slot(),
             chain_health: crate::beacon_components::is_healthy(
-                &parent.canonical_head,
+                &self.canonical_head,
                 &self.store,
                 &self.slot_clock,
                 &self.config,
@@ -1032,7 +1034,7 @@ impl<T: BeaconChainTypes> BlockProducer<T> {
         // allows it to run concurrently with things like attestation packing.
         let prepare_payload_handle = if state.fork_name_unchecked().bellatrix_enabled() {
             let prepare_payload_handle = get_execution_payload(
-                parent.clone(),
+                self.system().clone(),
                 &state,
                 parent_root,
                 proposer_index,
@@ -1066,7 +1068,7 @@ impl<T: BeaconChainTypes> BlockProducer<T> {
             let _guard = debug_span!("import_naive_aggregation_pool").entered();
             let _unagg_import_timer =
                 metrics::start_timer(&metrics::BLOCK_PRODUCTION_UNAGGREGATED_TIMES);
-            for attestation in parent
+            for attestation in self
                 .attestation_manager
                 .naive_aggregation_pool
                 .read()
@@ -1102,8 +1104,8 @@ impl<T: BeaconChainTypes> BlockProducer<T> {
                     block_root,
                     target_epoch,
                     &state,
-                    &parent.canonical_head,
-                    &parent.attestation_manager,
+                    &self.canonical_head,
+                    &self.attestation_manager,
                 )
             };
             let mut prev_filter_cache = HashMap::new();
@@ -1254,7 +1256,6 @@ impl<T: BeaconChainTypes> BlockProducer<T> {
         block_contents: Option<BlockProposalContents<T::EthSpec, Payload>>,
         verification: ProduceBlockVerification,
     ) -> Result<BeaconBlockResponse<T::EthSpec, Payload>, BlockProductionError> {
-        let parent = self.parent();
         let PartialBeaconBlock {
             mut state,
             slot,
@@ -1647,7 +1648,7 @@ impl<T: BeaconChainTypes> BlockProducer<T> {
             block.message(),
             &mut state,
             &self.store,
-            &parent.canonical_head,
+            &self.canonical_head,
             &self.spec,
         )
         .map(|reward| reward.total)

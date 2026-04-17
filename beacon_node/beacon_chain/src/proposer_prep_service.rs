@@ -1,4 +1,4 @@
-use crate::{BeaconChainTypes, BeaconComponents};
+use crate::{BeaconChainTypes, BeaconSystem};
 use slot_clock::SlotClock;
 use std::sync::Arc;
 use task_executor::TaskExecutor;
@@ -13,7 +13,7 @@ use tracing::{debug, error};
 /// The service will not be started if there is no `execution_layer` on the `chain`.
 pub fn start_proposer_prep_service<T: BeaconChainTypes>(
     executor: TaskExecutor,
-    chain: Arc<BeaconComponents<T>>,
+    chain: Arc<BeaconSystem<T>>,
 ) {
     // Avoid spawning the service if there's no EL, it'll just error anyway.
     if chain.execution_layer.is_some() {
@@ -24,10 +24,10 @@ pub fn start_proposer_prep_service<T: BeaconChainTypes>(
     }
 }
 
-/// Loop indefinitely, calling `BeaconComponents::prepare_beacon_proposer_async` at an interval.
+/// Loop indefinitely, calling `BeaconSystem::prepare_beacon_proposer_async` at an interval.
 async fn proposer_prep_service<T: BeaconChainTypes>(
     executor: TaskExecutor,
-    chain: Arc<BeaconComponents<T>>,
+    chain: Arc<BeaconSystem<T>>,
 ) {
     let slot_duration = chain.slot_clock.slot_duration();
 

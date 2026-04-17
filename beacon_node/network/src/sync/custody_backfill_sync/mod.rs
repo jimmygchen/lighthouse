@@ -4,7 +4,7 @@ use std::{
     sync::Arc,
 };
 
-use beacon_chain::{BeaconChainTypes, BeaconComponents};
+use beacon_chain::{BeaconChainTypes, BeaconSystem};
 use lighthouse_network::{
     NetworkGlobals, PeerAction, PeerId,
     service::api_types::{CustodyBackFillBatchRequestId, CustodyBackfillBatchId},
@@ -119,7 +119,7 @@ pub struct CustodyBackFillSync<T: BeaconChainTypes> {
     restart_failed_sync: bool,
 
     /// Reference to the beacon chain to obtain initial starting points for custody backfill sync.
-    beacon_chain: Arc<BeaconComponents<T>>,
+    beacon_chain: Arc<BeaconSystem<T>>,
 
     /// Reference to the network globals in order to obtain valid peers to backfill columns from
     /// (i.e synced peers).
@@ -128,7 +128,7 @@ pub struct CustodyBackFillSync<T: BeaconChainTypes> {
 
 impl<T: BeaconChainTypes> CustodyBackFillSync<T> {
     pub fn new(
-        beacon_chain: Arc<BeaconComponents<T>>,
+        beacon_chain: Arc<BeaconSystem<T>>,
         network_globals: Arc<NetworkGlobals<T::EthSpec>>,
     ) -> Self {
         Self {

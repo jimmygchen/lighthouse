@@ -21,7 +21,7 @@ use types::{
 };
 
 use beacon_chain::{
-    BeaconChainTypes, BeaconComponents,
+    BeaconChainTypes, BeaconSystem,
     sync_committee_verification::{
         SyncCommitteeVerificationContext, VerifiedSyncCommitteeMessage, VerifiedSyncContribution,
     },
@@ -33,7 +33,7 @@ pub const VALIDATOR_COUNT: usize = 256;
 
 /// Build a `SyncCommitteeVerificationContext` borrowing from the given chain.
 fn sync_ctx<'a, T: BeaconChainTypes>(
-    chain: &'a BeaconComponents<T>,
+    chain: &'a BeaconSystem<T>,
 ) -> SyncCommitteeVerificationContext<'a, T> {
     SyncCommitteeVerificationContext {
         canonical_head: &chain.canonical_head,

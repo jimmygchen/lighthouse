@@ -18,7 +18,9 @@ use crate::kzg_utils::{build_data_column_sidecars_fulu, build_data_column_sideca
 use crate::light_client_server_cache::LightClientServerCache;
 use crate::migrate::{BackgroundMigrator, MigratorConfig};
 use crate::observed_data_sidecars::ObservedDataSidecars;
+use crate::observed_slashable::ObservedSlashable;
 use crate::operations_manager::OperationsManager;
+use crate::pending_payload_envelopes::PendingPayloadEnvelopes;
 use crate::persisted_beacon_chain::PersistedBeaconChain;
 use crate::persisted_custody::load_custody_context;
 use crate::shuffling_cache::{BlockShufflingIds, ShufflingCache};
@@ -27,8 +29,7 @@ use crate::validator_monitor::{ValidatorMonitor, ValidatorMonitorConfig};
 use crate::validator_pubkey_cache::ValidatorPubkeyCache;
 use crate::validator_query_service::ValidatorQueryService;
 use crate::{
-    BeaconChainTypes, BeaconComponents, BeaconForkChoiceStore, BeaconSnapshot,
-    ServerSentEventHandler,
+    BeaconChainTypes, BeaconForkChoiceStore, BeaconSnapshot, BeaconSystem, ServerSentEventHandler,
 };
 use bls::Signature;
 use execution_layer::ExecutionLayer;
@@ -79,7 +80,7 @@ where
     type EthSpec = E;
 }
 
-/// Builds a `BeaconComponents` by either creating anew from genesis, or, resuming from an existing chain
+/// Builds a `BeaconSystem` by either creating anew from genesis, or, resuming from an existing chain
 /// persisted to `store`.
 ///
 /// Types may be elided and the compiler will infer them if all necessary builder methods have been
@@ -671,7 +672,7 @@ where
         Ok(self.empty_op_pool())
     }
 
-    /// Sets the `BeaconComponents` execution layer.
+    /// Sets the `BeaconSystem` execution layer.
     pub fn execution_layer(mut self, execution_layer: Option<ExecutionLayer<E>>) -> Self {
         self.execution_layer = execution_layer;
         self
@@ -693,7 +694,7 @@ where
         self
     }
 
-    /// Sets the `BeaconComponents` event handler backend.
+    /// Sets the `BeaconSystem` event handler backend.
     ///
     /// For example, provide `ServerSentEventHandler` as a `handler`.
     pub fn event_handler(mut self, handler: Option<ServerSentEventHandler<E>>) -> Self {
@@ -701,7 +702,7 @@ where
         self
     }
 
-    /// Sets the `BeaconComponents` slot clock.
+    /// Sets the `BeaconSystem` slot clock.
     ///
     /// For example, provide `SystemTimeSlotClock` as a `clock`.
     pub fn slot_clock(mut self, clock: TSlotClock) -> Self {
@@ -740,7 +741,7 @@ where
         self
     }
 
-    /// Sets the `ChainConfig` that determines `BeaconComponents` runtime behaviour.
+    /// Sets the `ChainConfig` that determines `BeaconSystem` runtime behaviour.
     pub fn chain_config(mut self, config: ChainConfig) -> Self {
         self.chain_config = config;
         self
@@ -762,7 +763,7 @@ where
         self
     }
 
-    /// Consumes `self`, returning a `BeaconComponents` if all required parameters have been supplied.
+    /// Consumes `self`, returning a `BeaconSystem` if all required parameters have been supplied.
     ///
     /// An error will be returned at runtime if all required parameters have not been configured.
     ///
@@ -771,7 +772,7 @@ where
     #[allow(clippy::type_complexity)] // I think there's nothing to be gained here from a type alias.
     pub fn build(
         mut self,
-    ) -> Result<BeaconComponents<Witness<TSlotClock, E, THotStore, TColdStore>>, String> {
+    ) -> Result<BeaconSystem<Witness<TSlotClock, E, THotStore, TColdStore>>, String> {
         let slot_clock = self
             .slot_clock
             .ok_or("Cannot build without a slot_clock.")?;
@@ -930,7 +931,7 @@ where
         // Store the `PersistedBeaconChain` in the database atomically with the metadata so that on
         // restart we can correctly detect the presence of an initialized database.
         //
-        // This *must* be stored before constructing the `BeaconComponents`, so that its `Drop` instance
+        // This *must* be stored before constructing the `BeaconSystem`, so that its `Drop` instance
         // doesn't write a `PersistedBeaconChain` without the rest of the batch.
         self.pending_io_batch.push(
             crate::persisted_beacon_chain::persist_head_in_batch_standalone(genesis_block_root),
@@ -948,12 +949,12 @@ where
 
         let genesis_validators_root = head_snapshot.beacon_state.genesis_validators_root();
         let genesis_time = head_snapshot.beacon_state.genesis_time();
-        let canonical_head = CanonicalHead::with_store(
+        let canonical_head = Arc::new(CanonicalHead::with_store(
             fork_choice,
             Arc::new(head_snapshot),
             head_payload_status,
             Some(store.clone()),
-        );
+        ));
         let shuffling_cache_size = self.chain_config.shuffling_cache_size;
         let complete_blob_backfill = self.chain_config.complete_blob_backfill;
 
@@ -1043,14 +1044,17 @@ where
         let op_pool = Arc::new(self.op_pool.ok_or("Cannot build without op pool")?);
 
         let persist_store = store.clone();
-        let operations = OperationsManager::with_persist_fn(
+        let operations = Arc::new(OperationsManager::with_persist_fn(
             self.spec.clone(),
             op_pool.clone(),
             Box::new(move |op_pool| {
                 crate::beacon_components::persist_op_pool(&persist_store, op_pool)
             }),
-        );
-        let sync_committee_manager = SyncCommitteeManager::new(self.spec.clone(), op_pool.clone());
+        ));
+        let sync_committee_manager = Arc::new(SyncCommitteeManager::new(
+            self.spec.clone(),
+            op_pool.clone(),
+        ));
 
         let shutdown_sender = self
             .shutdown_sender
@@ -1061,14 +1065,31 @@ where
         // immutable snapshot.
         let chain_config_arc = Arc::new(self.chain_config.clone());
 
-        // Shared caches/handles used by both `BlockImporter` and `BeaconComponents`.
+        // Shared caches/handles used by both `BlockImporter` and `BeaconSystem`.
         let block_times_cache: Arc<RwLock<BlockTimesCache>> =
             Arc::new(RwLock::new(Default::default()));
+
+        // Shared owned state used by both `BlockImporter` and `BeaconSystem`.
+        let attestation_manager = Arc::new(AttestationManager::new(
+            self.spec.clone(),
+            genesis_block_root,
+            ShufflingCache::new(shuffling_cache_size, head_shuffling_ids.clone()),
+        ));
+        let validator_monitor = Arc::new(RwLock::new(validator_monitor));
+        let observed_slashable: Arc<RwLock<ObservedSlashable<E>>> =
+            Arc::new(RwLock::new(ObservedSlashable::default()));
+        let event_handler = self.event_handler.map(Arc::new);
 
         let block_importer = Arc::new(BlockImporter::new(
             self.spec.clone(),
             store.clone(),
             data_availability_checker.clone(),
+            data_availability_manager.clone(),
+            canonical_head.clone(),
+            attestation_manager.clone(),
+            validator_monitor.clone(),
+            observed_slashable.clone(),
+            event_handler.clone(),
             block_times_cache.clone(),
             self.slasher.clone(),
             self.light_client_server_tx.clone(),
@@ -1079,6 +1100,15 @@ where
             shutdown_sender.clone(),
         ));
 
+        // Pre-declare shared handles so both `BlockProducer` and `BeaconSystem` can hold them.
+        let pending_payload_envelopes: Arc<RwLock<PendingPayloadEnvelopes<E>>> =
+            Arc::new(RwLock::new(PendingPayloadEnvelopes::default()));
+        let graffiti_calculator = Arc::new(GraffitiCalculator::new(
+            self.beacon_graffiti,
+            self.execution_layer.clone(),
+            slot_clock.slot_duration() * E::slots_per_epoch() as u32,
+        ));
+
         let block_producer = Arc::new(BlockProducer::new(
             self.spec.clone(),
             store.clone(),
@@ -1087,13 +1117,17 @@ where
             beacon_proposer_cache.clone(),
             execution_manager.clone(),
             block_times_cache.clone(),
+            canonical_head.clone(),
+            attestation_manager.clone(),
+            pending_payload_envelopes.clone(),
+            graffiti_calculator.clone(),
             self.execution_layer.clone(),
             slot_clock.clone(),
             genesis_block_root,
             task_executor.clone(),
         ));
 
-        let beacon_chain = BeaconComponents {
+        let beacon_chain = BeaconSystem {
             spec: self.spec.clone(),
             config: self.chain_config,
             store: store.clone(),
@@ -1101,20 +1135,20 @@ where
             store_migrator,
             slot_clock: slot_clock.clone(),
             op_pool,
-            attestation_manager: AttestationManager::new(
-                self.spec.clone(),
-                genesis_block_root,
-                ShufflingCache::new(shuffling_cache_size, head_shuffling_ids.clone()),
-            ),
+            attestation_manager,
             operations,
             sync_committee_manager,
             // TODO: allow for persisting and loading the pool from disk.
             observed_block_producers: <_>::default(),
-            observed_column_sidecars: RwLock::new(ObservedDataSidecars::new(self.spec.clone())),
-            observed_blob_sidecars: RwLock::new(ObservedDataSidecars::new(self.spec.clone())),
-            observed_slashable: <_>::default(),
-            pending_payload_envelopes: <_>::default(),
-            execution_layer: self.execution_layer.clone(),
+            observed_column_sidecars: Arc::new(RwLock::new(ObservedDataSidecars::new(
+                self.spec.clone(),
+            ))),
+            observed_blob_sidecars: Arc::new(RwLock::new(ObservedDataSidecars::new(
+                self.spec.clone(),
+            ))),
+            observed_slashable,
+            pending_payload_envelopes,
+            execution_layer: self.execution_layer,
             genesis_validators_root,
             genesis_time,
             canonical_head,
@@ -1122,7 +1156,7 @@ where
             genesis_state_root,
             fork_choice_signal_tx,
             fork_choice_signal_rx,
-            event_handler: self.event_handler,
+            event_handler,
             beacon_proposer_cache,
             block_times_cache: block_times_cache.clone(),
             envelope_times_cache: <_>::default(),
@@ -1133,13 +1167,9 @@ where
             light_client_server_cache: LightClientServerCache::new(),
             light_client_server_tx: self.light_client_server_tx,
             shutdown_sender,
-            graffiti_calculator: GraffitiCalculator::new(
-                self.beacon_graffiti,
-                self.execution_layer,
-                slot_clock.slot_duration() * E::slots_per_epoch() as u32,
-            ),
+            graffiti_calculator,
             slasher: self.slasher.clone(),
-            validator_monitor: RwLock::new(validator_monitor),
+            validator_monitor,
             genesis_backfill_slot,
             data_availability_checker: data_availability_checker.clone(),
             kzg: kzg.clone(),
@@ -1241,7 +1271,7 @@ where
     TColdStore: ItemStore<E> + 'static,
     E: EthSpec + 'static,
 {
-    /// Sets the `BeaconComponents` slot clock to `TestingSlotClock`.
+    /// Sets the `BeaconSystem` slot clock to `TestingSlotClock`.
     ///
     /// Requires the state to be initialized.
     pub fn testing_slot_clock(self, slot_duration: Duration) -> Result<Self, String> {

@@ -15,7 +15,7 @@ use tracing::{debug, error, warn};
 use types::{EthSpec, Hash256, SignedExecutionPayloadEnvelope};
 
 #[cfg(not(test))]
-use crate::BeaconComponents;
+use crate::BeaconSystem;
 use crate::{BeaconChainError, BeaconChainTypes};
 
 type PayloadEnvelopeResult<E> =
@@ -193,10 +193,10 @@ impl<T: BeaconChainTypes> PayloadEnvelopeStreamer<T> {
     }
 }
 
-/// Create a `PayloadEnvelopeStreamer` from a `BeaconComponents` and launch a stream.
+/// Create a `PayloadEnvelopeStreamer` from a `BeaconSystem` and launch a stream.
 #[cfg(not(test))]
 pub fn launch_payload_envelope_stream<T: BeaconChainTypes>(
-    chain: Arc<BeaconComponents<T>>,
+    chain: Arc<BeaconSystem<T>>,
     block_roots: Vec<Hash256>,
     request_source: EnvelopeRequestSource,
 ) -> impl Stream<Item = (Hash256, Arc<PayloadEnvelopeResult<T::EthSpec>>)> {

@@ -1,7 +1,7 @@
 //! Contains the handler for the `GET validator/duties/attester/{epoch}` endpoint.
 
 use crate::state_id::StateId;
-use beacon_chain::{BeaconChainError, BeaconChainTypes, BeaconComponents};
+use beacon_chain::{BeaconChainError, BeaconChainTypes, BeaconSystem};
 use eth2::types::{self as api_types};
 use slot_clock::SlotClock;
 use state_processing::state_advance::partial_state_advance;
@@ -14,7 +14,7 @@ type ApiDuties = api_types::DutiesResponse<Vec<api_types::AttesterData>>;
 pub fn attester_duties<T: BeaconChainTypes>(
     request_epoch: Epoch,
     request_indices: &[u64],
-    chain: &BeaconComponents<T>,
+    chain: &BeaconSystem<T>,
 ) -> Result<ApiDuties, warp::reject::Rejection> {
     let current_epoch = chain
         .slot_clock
@@ -60,7 +60,7 @@ pub fn attester_duties<T: BeaconChainTypes>(
 fn cached_attestation_duties<T: BeaconChainTypes>(
     request_epoch: Epoch,
     request_indices: &[u64],
-    chain: &BeaconComponents<T>,
+    chain: &BeaconSystem<T>,
 ) -> Result<ApiDuties, warp::reject::Rejection> {
     let head_block_root = chain.canonical_head.cached_head().head_block_root();
 
@@ -90,7 +90,7 @@ fn cached_attestation_duties<T: BeaconChainTypes>(
 fn compute_historic_attester_duties<T: BeaconChainTypes>(
     request_epoch: Epoch,
     request_indices: &[u64],
-    chain: &BeaconComponents<T>,
+    chain: &BeaconSystem<T>,
 ) -> Result<ApiDuties, warp::reject::Rejection> {
     // If the head is quite old then it might still be relevant for a historical request.
     //
@@ -211,7 +211,7 @@ fn convert_to_api_response<T: BeaconChainTypes>(
     indices: &[u64],
     dependent_root: Hash256,
     execution_optimistic: bool,
-    chain: &BeaconComponents<T>,
+    chain: &BeaconSystem<T>,
 ) -> Result<ApiDuties, warp::reject::Rejection> {
     // Protect against an inconsistent slot clock.
     if duties.len() != indices.len() {

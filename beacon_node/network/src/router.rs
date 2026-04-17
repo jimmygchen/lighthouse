@@ -9,7 +9,7 @@ use crate::network_beacon_processor::{InvalidBlockStorage, NetworkBeaconProcesso
 use crate::service::NetworkMessage;
 use crate::status::status_message;
 use crate::sync::SyncMessage;
-use beacon_chain::{BeaconChainTypes, BeaconComponents};
+use beacon_chain::{BeaconChainTypes, BeaconSystem};
 use beacon_processor::{BeaconProcessorSend, DuplicateCache};
 use futures::prelude::*;
 use lighthouse_network::rpc::*;
@@ -31,7 +31,7 @@ pub struct Router<T: BeaconChainTypes> {
     /// Access to the peer db and network information.
     network_globals: Arc<NetworkGlobals<T::EthSpec>>,
     /// A reference to the underlying beacon chain.
-    chain: Arc<BeaconComponents<T>>,
+    chain: Arc<BeaconSystem<T>>,
     /// A channel to the syncing thread.
     sync_send: mpsc::UnboundedSender<SyncMessage<T::EthSpec>>,
     /// A network context to return and handle RPC requests.
@@ -79,7 +79,7 @@ impl<T: BeaconChainTypes> Router<T> {
     /// Initializes and runs the Router.
     #[allow(clippy::too_many_arguments)]
     pub fn spawn(
-        beacon_chain: Arc<BeaconComponents<T>>,
+        beacon_chain: Arc<BeaconSystem<T>>,
         network_globals: Arc<NetworkGlobals<T::EthSpec>>,
         network_send: mpsc::UnboundedSender<NetworkMessage<T::EthSpec>>,
         executor: task_executor::TaskExecutor,

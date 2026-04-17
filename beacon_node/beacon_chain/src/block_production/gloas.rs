@@ -127,9 +127,8 @@ impl<T: BeaconChainTypes> BlockProducer<T> {
         // Part 1/3 (blocking)
         //
         // Perform the state advance and block-packing functions.
-        let parent = self.parent();
         let self_clone = self.clone();
-        let graffiti = parent
+        let graffiti = self
             .graffiti_calculator
             .get_graffiti(graffiti_settings)
             .await;
@@ -207,8 +206,6 @@ impl<T: BeaconChainTypes> BlockProducer<T> {
             });
         }
 
-        let parent = self.parent();
-
         let slot_timer = metrics::start_timer(&metrics::BLOCK_PRODUCTION_SLOT_PROCESS_TIMES);
 
         // Ensure the state has performed a complete transition into the required slot.
@@ -251,7 +248,7 @@ impl<T: BeaconChainTypes> BlockProducer<T> {
             let _guard = debug_span!("import_naive_aggregation_pool").entered();
             let _unagg_import_timer =
                 metrics::start_timer(&metrics::BLOCK_PRODUCTION_UNAGGREGATED_TIMES);
-            for attestation in parent
+            for attestation in self
                 .attestation_manager
                 .naive_aggregation_pool
                 .read()
@@ -287,8 +284,8 @@ impl<T: BeaconChainTypes> BlockProducer<T> {
                     block_root,
                     target_epoch,
                     &state,
-                    &parent.canonical_head,
-                    &parent.attestation_manager,
+                    &self.canonical_head,
+                    &self.attestation_manager,
                 )
             };
             let mut prev_filter_cache = HashMap::new();
@@ -463,7 +460,6 @@ impl<T: BeaconChainTypes> BlockProducer<T> {
         mut state: BeaconState<T::EthSpec>,
         verification: ProduceBlockVerification,
     ) -> Result<BlockProductionResult<T::EthSpec>, BlockProductionError> {
-        let parent = self.parent();
         let PartialBeaconBlock {
             slot,
             proposer_index,
@@ -558,7 +554,7 @@ impl<T: BeaconChainTypes> BlockProducer<T> {
             signed_beacon_block.message(),
             &mut state,
             &self.store,
-            &parent.canonical_head,
+            &self.canonical_head,
             &self.spec,
         )
         .map(|reward| reward.total)
@@ -623,8 +619,7 @@ impl<T: BeaconChainTypes> BlockProducer<T> {
             let envelope_slot = payload_data.slot;
             // TODO(gloas) might be safer to cache by root instead of by slot.
             // We should revisit this once this code path + beacon api spec matures
-            parent
-                .pending_payload_envelopes
+            self.pending_payload_envelopes
                 .write()
                 .insert(envelope_slot, signed_envelope.message);
 
@@ -696,12 +691,11 @@ impl<T: BeaconChainTypes> BlockProducer<T> {
                 BeaconChainError::ValidatorIndexUnknown(proposer_index as usize),
             )))?;
 
-        let components = self.parent();
         let builder_params = BuilderParams {
             pubkey,
             slot: state.slot(),
             chain_health: crate::beacon_components::is_healthy(
-                &components.canonical_head,
+                &self.canonical_head,
                 &self.store,
                 &self.slot_clock,
                 &self.config,
@@ -860,15 +854,10 @@ impl<T: BeaconChainTypes> BlockProducer<T> {
         //
         // Use a blocking task to interact with the `canonical_head` lock otherwise we risk blocking the
         // core `tokio` executor.
-        let components = self.parent();
+        let canonical_head = self.canonical_head.clone();
         let forkchoice_update_params = crate::beacon_components::spawn_blocking_handle(
             &self.task_executor,
-            move || {
-                components
-                    .canonical_head
-                    .cached_head()
-                    .forkchoice_update_parameters()
-            },
+            move || canonical_head.cached_head().forkchoice_update_parameters(),
             "prepare_execution_payload_forkchoice_update_params",
         )
         .instrument(debug_span!("forkchoice_update_params"))

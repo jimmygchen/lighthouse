@@ -1,6 +1,6 @@
 //! Provides tools for checking genesis execution payload consistency.
 
-use crate::{BeaconChainError as Error, BeaconChainTypes, BeaconComponents};
+use crate::{BeaconChainError as Error, BeaconChainTypes, BeaconSystem};
 use execution_layer::BlockByNumberQuery;
 use types::*;
 
@@ -26,7 +26,7 @@ pub enum GenesisExecutionPayloadStatus {
 /// Check that the execution payload embedded in the genesis state matches the EL's genesis
 /// block.
 pub async fn check_genesis_execution_payload_is_correct<T: BeaconChainTypes>(
-    chain: &BeaconComponents<T>,
+    chain: &BeaconSystem<T>,
 ) -> Result<GenesisExecutionPayloadStatus, Error> {
     let head_snapshot = chain.canonical_head.head_snapshot();
     let genesis_state = &head_snapshot.beacon_state;

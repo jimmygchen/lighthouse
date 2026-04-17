@@ -2,7 +2,7 @@ use crate::task_spawner::{Priority, TaskSpawner};
 use crate::utils::{
     ChainFilter, EthV1Filter, NotWhileSyncingFilter, ResponseFilter, TaskSpawnerFilter,
 };
-use beacon_chain::{BeaconChainTypes, BeaconComponents};
+use beacon_chain::{BeaconChainTypes, BeaconSystem};
 use eth2::beacon_response::{EmptyMetadata, ForkVersionedResponse};
 use eth2::types::Accept;
 use ssz::Encode;
@@ -46,7 +46,7 @@ pub fn get_validator_execution_payload_envelope<T: BeaconChainTypes>(
              accept_header: Option<Accept>,
              not_synced_filter: Result<(), Rejection>,
              task_spawner: TaskSpawner<T::EthSpec>,
-             chain: Arc<BeaconComponents<T>>| {
+             chain: Arc<BeaconSystem<T>>| {
                 task_spawner.spawn_async_with_rejection(Priority::P0, async move {
                     debug!(?slot, "Execution payload envelope request from HTTP API");
 

@@ -64,17 +64,17 @@ use beacon_processor::{
 /// messages.
 const STRICT_LATE_MESSAGE_PENALTIES: bool = false;
 
-/// An attestation that has been validated by the `BeaconComponents`.
+/// An attestation that has been validated by the `BeaconSystem`.
 ///
 /// Since this struct implements `beacon_chain::VerifiedAttestation`, it would be a logic error to
-/// construct this from components which have not passed `BeaconComponents` validation.
+/// construct this from components which have not passed `BeaconSystem` validation.
 struct VerifiedUnaggregate<T: BeaconChainTypes> {
     attestation: Box<Attestation<T::EthSpec>>,
     indexed_attestation: IndexedAttestation<T::EthSpec>,
 }
 
 /// This implementation allows `Self` to be imported to fork choice and other functions on the
-/// `BeaconComponents`.
+/// `BeaconSystem`.
 impl<T: BeaconChainTypes> VerifiedAttestation<T> for VerifiedUnaggregate<T> {
     fn attestation(&self) -> AttestationRef<'_, T::EthSpec> {
         self.attestation.to_ref()
@@ -91,23 +91,23 @@ impl<T: BeaconChainTypes> VerifiedAttestation<T> for VerifiedUnaggregate<T> {
     }
 }
 
-/// An attestation that failed validation by the `BeaconComponents`.
+/// An attestation that failed validation by the `BeaconSystem`.
 struct RejectedUnaggregate {
     attestation: Box<SingleAttestation>,
     error: AttnError,
 }
 
-/// An aggregate that has been validated by the `BeaconComponents`.
+/// An aggregate that has been validated by the `BeaconSystem`.
 ///
 /// Since this struct implements `beacon_chain::VerifiedAttestation`, it would be a logic error to
-/// construct this from components which have not passed `BeaconComponents` validation.
+/// construct this from components which have not passed `BeaconSystem` validation.
 struct VerifiedAggregate<T: BeaconChainTypes> {
     signed_aggregate: Box<SignedAggregateAndProof<T::EthSpec>>,
     indexed_attestation: IndexedAttestation<T::EthSpec>,
 }
 
 /// This implementation allows `Self` to be imported to fork choice and other functions on the
-/// `BeaconComponents`.
+/// `BeaconSystem`.
 impl<T: BeaconChainTypes> VerifiedAttestation<T> for VerifiedAggregate<T> {
     fn attestation(&self) -> AttestationRef<'_, T::EthSpec> {
         self.signed_aggregate.message().aggregate()
@@ -125,7 +125,7 @@ impl<T: BeaconChainTypes> VerifiedAttestation<T> for VerifiedAggregate<T> {
     }
 }
 
-/// An attestation that failed validation by the `BeaconComponents`.
+/// An attestation that failed validation by the `BeaconSystem`.
 struct RejectedAggregate<E: EthSpec> {
     signed_aggregate: Box<SignedAggregateAndProof<E>>,
     error: AttnError,
@@ -1807,7 +1807,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
     ) {
         let validator_index = voluntary_exit.message.validator_index;
 
-        // Fetch state context for verification (moved from BeaconComponents delegation wrapper).
+        // Fetch state context for verification (moved from BeaconSystem delegation wrapper).
         let head_snapshot = self.chain.canonical_head.cached_head().snapshot;
         let head_state = &head_snapshot.beacon_state;
         let wall_clock_epoch =
@@ -1836,7 +1836,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             wall_clock_epoch,
         ) {
             Ok(ObservationOutcome::New(exit)) => {
-                // Emit SSE event for new exits (moved from BeaconComponents delegation wrapper).
+                // Emit SSE event for new exits (moved from BeaconSystem delegation wrapper).
                 if let Some(event_handler) = self.chain.event_handler.as_ref()
                     && event_handler.has_exit_subscribers()
                 {
@@ -1898,7 +1898,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
     ) {
         let validator_index = proposer_slashing.signed_header_1.message.proposer_index;
 
-        // Fetch wall-clock state for verification (moved from BeaconComponents delegation wrapper).
+        // Fetch wall-clock state for verification (moved from BeaconSystem delegation wrapper).
         let wall_clock_state = match beacon_chain::state_query::wall_clock_state(
             &self.chain.store,
             &self.chain.canonical_head,
@@ -1965,7 +1965,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             .read()
             .register_gossip_proposer_slashing(slashing.as_inner());
 
-        // Import: emit SSE event + add to op pool (moved from BeaconComponents delegation wrapper).
+        // Import: emit SSE event + add to op pool (moved from BeaconSystem delegation wrapper).
         let inner_slashing = self.chain.operations.import_proposer_slashing(slashing);
         if let Some(event_handler) = self.chain.event_handler.as_ref()
             && event_handler.has_proposer_slashing_subscribers()
@@ -1983,7 +1983,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         peer_id: PeerId,
         attester_slashing: AttesterSlashing<T::EthSpec>,
     ) {
-        // Fetch wall-clock state for verification (moved from BeaconComponents delegation wrapper).
+        // Fetch wall-clock state for verification (moved from BeaconSystem delegation wrapper).
         let wall_clock_state = match beacon_chain::state_query::wall_clock_state(
             &self.chain.store,
             &self.chain.canonical_head,
@@ -2152,7 +2152,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         // Capella fork epoch.
         let received_pre_capella = ReceivedPreCapella::No;
 
-        // Emit SSE event before importing (moved from BeaconComponents delegation wrapper).
+        // Emit SSE event before importing (moved from BeaconSystem delegation wrapper).
         if let Some(event_handler) = self.chain.event_handler.as_ref()
             && event_handler.has_bls_to_execution_change_subscribers()
         {
@@ -3680,7 +3680,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                         &chain.beacon_proposer_cache,
                         &chain.validator_query.validator_pubkey_cache,
                         chain.genesis_validators_root,
-                        &chain.event_handler,
+                        chain.event_handler.as_deref(),
                     );
                     beacon_chain::payload_envelope_verification::gossip_verified_envelope::verify_envelope_for_gossip(
                         &ctx,
@@ -3784,7 +3784,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                                             &chain_ref.beacon_proposer_cache,
                                             &chain_ref.validator_query.validator_pubkey_cache,
                                             chain_ref.genesis_validators_root,
-                                            &chain_ref.event_handler,
+                                            chain_ref.event_handler.as_deref(),
                                         );
                                         beacon_chain::payload_envelope_verification::gossip_verified_envelope::verify_envelope_for_gossip(
                                             &ctx,

@@ -1,10 +1,10 @@
 //! Provides the `BeaconProcessor`, a multi-threaded processor for messages received on the network
-//! that need to be processed by the `BeaconComponents`.
+//! that need to be processed by the `BeaconSystem`.
 //!
 //! Uses `tokio` tasks (instead of raw threads) to provide the following tasks:
 //!
 //! - A "manager" task, which either spawns worker tasks or enqueues work.
-//! - One or more "worker" tasks which perform time-intensive work on the `BeaconComponents`.
+//! - One or more "worker" tasks which perform time-intensive work on the `BeaconSystem`.
 //! - A task managing the scheduling of work that needs to be re-processed.
 //!
 //! ## Purpose
@@ -643,7 +643,7 @@ impl<E: EthSpec> Stream for InboundEvents<E> {
 }
 
 /// A mutli-threaded processor for messages received on the network
-/// that need to be processed by the `BeaconComponents`
+/// that need to be processed by the `BeaconSystem`
 ///
 /// See module level documentation for more information.
 pub struct BeaconProcessor<E: EthSpec> {

@@ -7,9 +7,9 @@
 //! The free function `with_committee_cache` provides shared committee cache access logic used by
 //! both `AttestationManager` methods and `AttestationVerificationContext`.
 //!
-//! ## What stays on `BeaconComponents`
+//! ## What stays on `BeaconSystem`
 //!
-//! The following attestation-related methods remain on `BeaconComponents` because they depend on
+//! The following attestation-related methods remain on `BeaconSystem` because they depend on
 //! components the manager intentionally does not hold:
 //!
 //! - **Verification methods** (`verify_unaggregated_attestation_for_gossip`, etc.): The
@@ -29,7 +29,7 @@
 //!   `canonical_head.fork_choice_read_lock()`.
 //!
 //! - **`shuffling_is_compatible`**: Needs `canonical_head.fork_choice_read_lock()` to load block
-//!   shuffling IDs from fork choice. The `BeaconComponents` wrapper obtains the block from fork choice
+//!   shuffling IDs from fork choice. The `BeaconSystem` wrapper obtains the block from fork choice
 //!   and then delegates the pure shuffling comparison to this manager.
 
 #[cfg(test)]
@@ -590,7 +590,7 @@ impl<E: EthSpec> AttestationManager<E> {
 
 /// Provides access to the committee cache, loading from the store on cache miss.
 ///
-/// This is a free function rather than a method to allow both `BeaconComponents` and
+/// This is a free function rather than a method to allow both `BeaconSystem` and
 /// `AttestationVerificationContext` to share the same implementation.
 ///
 /// The `map_fn` is applied to the committee cache and the shuffling decision block root.

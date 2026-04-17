@@ -16,7 +16,7 @@ use beacon_chain::test_utils::{
     SyncCommitteeStrategy, fork_name_from_env, generate_data_column_indices_rand_order,
 };
 use beacon_chain::{
-    BeaconChainError, BeaconChainTypes, BeaconComponents, BeaconSnapshot, BlockError, ChainConfig,
+    BeaconChainError, BeaconChainTypes, BeaconSnapshot, BeaconSystem, BlockError, ChainConfig,
     NotifyExecutionLayer, ServerSentEventHandler, WhenSlotSkipped,
     beacon_proposer_cache::{
         compute_proposer_duties_from_head, ensure_state_can_determine_proposers_for_epoch,
@@ -67,7 +67,7 @@ static KEYPAIRS: LazyLock<Vec<Keypair>> =
 /// Helper: wrap `state_query::block_at_slot` for brevity.
 #[allow(dead_code)]
 fn chain_block_at_slot<T: BeaconChainTypes>(
-    chain: &BeaconComponents<T>,
+    chain: &BeaconSystem<T>,
     slot: Slot,
     skips: WhenSlotSkipped,
 ) -> Result<Option<SignedBlindedBeaconBlock<T::EthSpec>>, BeaconChainError> {
@@ -84,7 +84,7 @@ fn chain_block_at_slot<T: BeaconChainTypes>(
 
 /// Helper: wrap `state_query::block_root_at_slot` for brevity.
 fn chain_block_root_at_slot<T: BeaconChainTypes>(
-    chain: &BeaconComponents<T>,
+    chain: &BeaconSystem<T>,
     slot: Slot,
     skips: WhenSlotSkipped,
 ) -> Result<Option<Hash256>, BeaconChainError> {
@@ -102,7 +102,7 @@ fn chain_block_root_at_slot<T: BeaconChainTypes>(
 /// Helper: wrap `state_query::state_at_slot` for brevity.
 #[allow(dead_code)]
 fn chain_state_at_slot<T: BeaconChainTypes>(
-    chain: &BeaconComponents<T>,
+    chain: &BeaconSystem<T>,
     slot: Slot,
     config: beacon_chain::StateSkipConfig,
 ) -> Result<BeaconState<T::EthSpec>, BeaconChainError> {
@@ -117,7 +117,7 @@ fn chain_state_at_slot<T: BeaconChainTypes>(
 
 /// Helper: wrap `state_query::state_root_at_slot` for brevity.
 fn chain_state_root_at_slot<T: BeaconChainTypes>(
-    chain: &BeaconComponents<T>,
+    chain: &BeaconSystem<T>,
     slot: Slot,
 ) -> Result<Option<Hash256>, BeaconChainError> {
     beacon_chain::state_query::state_root_at_slot(
@@ -132,7 +132,7 @@ fn chain_state_root_at_slot<T: BeaconChainTypes>(
 
 /// Helper: wrap `state_query::forwards_iter_block_roots` for brevity.
 fn chain_forwards_iter_block_roots<'a, T: BeaconChainTypes>(
-    chain: &'a BeaconComponents<T>,
+    chain: &'a BeaconSystem<T>,
     start_slot: Slot,
 ) -> Result<impl Iterator<Item = Result<(Hash256, Slot), BeaconChainError>> + 'a, BeaconChainError>
 {
@@ -145,7 +145,7 @@ fn chain_forwards_iter_block_roots<'a, T: BeaconChainTypes>(
 
 /// Helper: wrap `state_query::forwards_iter_state_roots` for brevity.
 fn chain_forwards_iter_state_roots<'a, T: BeaconChainTypes>(
-    chain: &'a BeaconComponents<T>,
+    chain: &'a BeaconSystem<T>,
     start_slot: Slot,
 ) -> Result<impl Iterator<Item = Result<(Hash256, Slot), BeaconChainError>> + 'a, BeaconChainError>
 {
@@ -158,7 +158,7 @@ fn chain_forwards_iter_state_roots<'a, T: BeaconChainTypes>(
 
 /// Helper: wrap `state_query::rev_iter_state_roots_from` for brevity.
 fn chain_rev_iter_state_roots_from<'a, T: BeaconChainTypes>(
-    chain: &'a BeaconComponents<T>,
+    chain: &'a BeaconSystem<T>,
     state_root: Hash256,
     state: &'a BeaconState<T::EthSpec>,
 ) -> impl Iterator<Item = Result<(Hash256, Slot), BeaconChainError>> + 'a {
@@ -167,7 +167,7 @@ fn chain_rev_iter_state_roots_from<'a, T: BeaconChainTypes>(
 
 /// Helper: wrap `state_query::forwards_iter_block_roots_until` for brevity.
 fn chain_forwards_iter_block_roots_until<'a, T: BeaconChainTypes>(
-    chain: &'a BeaconComponents<T>,
+    chain: &'a BeaconSystem<T>,
     start_slot: Slot,
     end_slot: Slot,
 ) -> Result<impl Iterator<Item = Result<(Hash256, Slot), BeaconChainError>> + 'a, BeaconChainError>
@@ -182,7 +182,7 @@ fn chain_forwards_iter_block_roots_until<'a, T: BeaconChainTypes>(
 
 /// Helper: wrap `state_query::forwards_iter_state_roots_until` for brevity.
 fn chain_forwards_iter_state_roots_until<'a, T: BeaconChainTypes>(
-    chain: &'a BeaconComponents<T>,
+    chain: &'a BeaconSystem<T>,
     start_slot: Slot,
     end_slot: Slot,
 ) -> Result<impl Iterator<Item = Result<(Hash256, Slot), BeaconChainError>> + 'a, BeaconChainError>
@@ -197,7 +197,7 @@ fn chain_forwards_iter_state_roots_until<'a, T: BeaconChainTypes>(
 
 /// Helper: wrap `state_query::rev_iter_block_roots_from` for brevity.
 fn chain_rev_iter_block_roots_from<T: BeaconChainTypes>(
-    chain: &BeaconComponents<T>,
+    chain: &BeaconSystem<T>,
     block_root: Hash256,
 ) -> Result<impl Iterator<Item = Result<(Hash256, Slot), BeaconChainError>> + '_, BeaconChainError>
 {
@@ -3095,7 +3095,7 @@ async fn reproduction_unaligned_checkpoint_sync_pruned_payload() {
     );
     let all_custody_columns = (0..spec.number_of_custody_groups).collect::<Vec<_>>();
 
-    // Attempt to build the BeaconComponents.
+    // Attempt to build the BeaconSystem.
     // If the bug is present, this will panic with `MissingFullBlockExecutionPayloadPruned`.
     let beacon_chain = BeaconChainBuilder::<DiskHarnessType<E>>::new(MinimalEthSpec, trusted_setup)
         .chain_config(chain_config)
@@ -5594,8 +5594,8 @@ async fn test_safely_backfill_data_column_custody_info() {
 ///
 /// Several fields that are hard/impossible to check are ignored (e.g., the store).
 fn assert_chains_pretty_much_the_same<T: BeaconChainTypes>(
-    a: &BeaconComponents<T>,
-    b: &BeaconComponents<T>,
+    a: &BeaconSystem<T>,
+    b: &BeaconSystem<T>,
 ) {
     assert_eq!(a.spec, b.spec, "spec should be equal");
     assert_eq!(a.op_pool, b.op_pool, "op_pool should be equal");

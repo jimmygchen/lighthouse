@@ -17,7 +17,7 @@ use beacon_chain::test_utils::{
     AttestationStrategy, BeaconChainHarness, BlockStrategy, EphemeralHarnessType, get_kzg,
     test_spec,
 };
-use beacon_chain::{BeaconComponents, WhenSlotSkipped};
+use beacon_chain::{BeaconSystem, WhenSlotSkipped};
 use beacon_processor::{work_reprocessing_queue::*, *};
 use bls::Signature;
 use fixed_bytes::FixedBytesExtended;
@@ -68,7 +68,7 @@ const STANDARD_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// Helper: call `block_root_at_slot` via the free function in `state_query`.
 fn chain_block_root_at_slot(
-    chain: &BeaconComponents<T>,
+    chain: &BeaconSystem<T>,
     slot: Slot,
     skips: WhenSlotSkipped,
 ) -> Result<Option<Hash256>, beacon_chain::BeaconChainError> {
@@ -85,7 +85,7 @@ fn chain_block_root_at_slot(
 
 /// Provides utilities for testing the `BeaconProcessor`.
 struct TestRig {
-    chain: Arc<BeaconComponents<T>>,
+    chain: Arc<BeaconSystem<T>>,
     next_block: Arc<SignedBeaconBlock<E>>,
     next_blobs: Option<BlobSidecarList<E>>,
     next_data_columns: Option<DataColumnSidecarList<E>>,

@@ -17,7 +17,7 @@ pub use crate::{
     validator_monitor::{ValidatorMonitor, ValidatorMonitorConfig},
 };
 use crate::{
-    BeaconChainTypes, BeaconComponents, BlockError, ChainConfig, ServerSentEventHandler,
+    BeaconChainTypes, BeaconSystem, BlockError, ChainConfig, ServerSentEventHandler,
     StateSkipConfig,
     builder::{BeaconChainBuilder, Witness},
 };
@@ -659,10 +659,10 @@ where
 
         let chain = builder.build().expect("should build");
         let chain = Arc::new(chain);
-        // Install the weak back-reference from the block importer to the parent components.
-        chain.block_importer.set_parent(&chain);
-        // Install the weak back-reference from the block producer to the parent components.
-        chain.block_producer.set_parent(&chain);
+        // Install the strong back-reference from the block importer to the parent components.
+        chain.block_importer.set_system(&chain);
+        // Install the strong back-reference from the block producer to the parent components.
+        chain.block_producer.set_system(&chain);
 
         BeaconChainHarness {
             spec: chain.spec.clone(),
@@ -718,7 +718,7 @@ pub fn mock_execution_layer_from_parts<E: EthSpec>(
     )
 }
 
-/// A testing harness which can instantiate a `BeaconComponents` and populate it with blocks and
+/// A testing harness which can instantiate a `BeaconSystem` and populate it with blocks and
 /// attestations.
 ///
 /// Used for testing.
@@ -731,7 +731,7 @@ pub struct BeaconChainHarness<T: BeaconChainTypes> {
     /// initializer neglected to set this field.
     pub withdrawal_keypairs: Vec<Option<Keypair>>,
 
-    pub chain: Arc<BeaconComponents<T>>,
+    pub chain: Arc<BeaconSystem<T>>,
     pub spec: Arc<ChainSpec>,
     pub shutdown_receiver: Arc<Mutex<Receiver<ShutdownReason>>>,
     pub runtime: TestRuntime,
@@ -1001,7 +1001,7 @@ where
         let proposer_index = state.get_beacon_proposer_index(slot, &self.spec).unwrap();
 
         // If we produce two blocks for the same slot, they hash up to the same value and
-        // BeaconComponents errors out with `DuplicateFullyImported`.  Vary the graffiti so that we produce
+        // BeaconSystem errors out with `DuplicateFullyImported`.  Vary the graffiti so that we produce
         // different blocks each time.
         let graffiti = Graffiti::from(self.rng.lock().random::<[u8; 32]>());
         let graffiti_settings =
@@ -1061,7 +1061,7 @@ where
         let proposer_index = state.get_beacon_proposer_index(slot, &self.spec).unwrap();
 
         // If we produce two blocks for the same slot, they hash up to the same value and
-        // BeaconComponents errors out with `DuplicateFullyImported`.  Vary the graffiti so that we produce
+        // BeaconSystem errors out with `DuplicateFullyImported`.  Vary the graffiti so that we produce
         // different blocks each time.
         let graffiti = Graffiti::from(self.rng.lock().random::<[u8; 32]>());
         let graffiti_settings =
@@ -1204,7 +1204,7 @@ where
         let proposer_index = state.get_beacon_proposer_index(slot, &self.spec).unwrap();
 
         // If we produce two blocks for the same slot, they hash up to the same value and
-        // BeaconComponents errors out with `DuplicateFullyImported`.  Vary the graffiti so that we produce
+        // BeaconSystem errors out with `DuplicateFullyImported`.  Vary the graffiti so that we produce
         // different blocks each time.
         let graffiti = Graffiti::from(self.rng.lock().random::<[u8; 32]>());
         let graffiti_settings =
@@ -3432,7 +3432,7 @@ where
             .collect()
     }
 
-    /// Advance the slot of the `BeaconComponents`.
+    /// Advance the slot of the `BeaconSystem`.
     ///
     /// Does not produce blocks or attestations.
     pub fn advance_slot(&self) {
@@ -3513,7 +3513,7 @@ where
         .await
     }
 
-    /// Extend the `BeaconComponents` with some blocks and attestations. Returns the root of the
+    /// Extend the `BeaconSystem` with some blocks and attestations. Returns the root of the
     /// last-produced block (the head of the chain).
     ///
     /// Chain will be extended by `num_blocks` blocks.
@@ -4005,10 +4005,10 @@ pub fn generate_data_column_indices_rand_order<E: EthSpec>() -> Vec<CustodyIndex
 }
 
 // ---------------------------------------------------------------------------
-// Test/debug utilities on BeaconComponents
+// Test/debug utilities on BeaconSystem
 // ---------------------------------------------------------------------------
 
-impl<T: BeaconChainTypes> BeaconComponents<T> {
+impl<T: BeaconChainTypes> BeaconSystem<T> {
     /// Dumps the entire canonical chain, from the head to genesis to a vector for analysis.
     ///
     /// This could be a very expensive operation and should only be done in testing/analysis

@@ -1,7 +1,7 @@
 #![cfg(not(debug_assertions))]
 
 use beacon_chain::{
-    BeaconComponents, ChainConfig, NotifyExecutionLayer, StateSkipConfig, WhenSlotSkipped,
+    BeaconSystem, ChainConfig, NotifyExecutionLayer, StateSkipConfig, WhenSlotSkipped,
     attestation_verification::Error as AttnError,
     custody_context::NodeCustodyType,
     test_utils::{
@@ -31,7 +31,7 @@ static KEYPAIRS: LazyLock<Vec<Keypair>> =
 
 /// Helper: call `block_root_at_slot` against the chain via the new free function.
 fn chain_block_root_at_slot<T: beacon_chain::BeaconChainTypes>(
-    chain: &beacon_chain::BeaconComponents<T>,
+    chain: &beacon_chain::BeaconSystem<T>,
     slot: Slot,
     skips: WhenSlotSkipped,
 ) -> Result<Option<Hash256>, beacon_chain::BeaconChainError> {
@@ -48,7 +48,7 @@ fn chain_block_root_at_slot<T: beacon_chain::BeaconChainTypes>(
 
 /// Helper: call `block_at_slot` against the chain via the new free function.
 fn chain_block_at_slot<T: beacon_chain::BeaconChainTypes>(
-    chain: &beacon_chain::BeaconComponents<T>,
+    chain: &beacon_chain::BeaconSystem<T>,
     slot: Slot,
     skips: WhenSlotSkipped,
 ) -> Result<Option<types::SignedBlindedBeaconBlock<T::EthSpec>>, beacon_chain::BeaconChainError> {
@@ -65,7 +65,7 @@ fn chain_block_at_slot<T: beacon_chain::BeaconChainTypes>(
 
 /// Helper: call `state_at_slot` against the chain via the new free function.
 fn chain_state_at_slot<T: beacon_chain::BeaconChainTypes>(
-    chain: &beacon_chain::BeaconComponents<T>,
+    chain: &beacon_chain::BeaconSystem<T>,
     slot: Slot,
     config: StateSkipConfig,
 ) -> Result<BeaconState<T::EthSpec>, beacon_chain::BeaconChainError> {
@@ -266,7 +266,7 @@ async fn iterators() {
 }
 
 fn find_reorg_slot(
-    chain: &BeaconComponents<EphemeralHarnessType<MinimalEthSpec>>,
+    chain: &BeaconSystem<EphemeralHarnessType<MinimalEthSpec>>,
     new_state: &BeaconState<MinimalEthSpec>,
     new_block_root: Hash256,
 ) -> Slot {

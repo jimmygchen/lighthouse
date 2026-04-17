@@ -1,6 +1,6 @@
 use crate::ExecutionOptimistic;
 use crate::metrics;
-use beacon_chain::{BeaconChainError, BeaconChainTypes, BeaconComponents};
+use beacon_chain::{BeaconChainError, BeaconChainTypes, BeaconSystem};
 use eth2::types::StateId as CoreStateId;
 use proto_array::Block;
 use std::fmt;
@@ -25,7 +25,7 @@ impl StateId {
     /// Return the state root identified by `self`.
     pub fn root<T: BeaconChainTypes>(
         &self,
-        chain: &BeaconComponents<T>,
+        chain: &BeaconSystem<T>,
     ) -> Result<(Hash256, ExecutionOptimistic, Finalized), warp::Rejection> {
         let _t = metrics::start_timer(&metrics::HTTP_API_STATE_ROOT_TIMES);
         let (slot, execution_optimistic, finalized) = match &self.0 {
@@ -178,7 +178,7 @@ impl StateId {
     /// Also returns the `execution_optimistic` value of the state.
     pub fn fork_and_execution_optimistic<T: BeaconChainTypes>(
         &self,
-        chain: &BeaconComponents<T>,
+        chain: &BeaconSystem<T>,
     ) -> Result<(Fork, bool), warp::Rejection> {
         self.map_state_and_execution_optimistic_and_finalized(
             chain,
@@ -191,7 +191,7 @@ impl StateId {
     /// Also returns the `finalized` value of the state.
     pub fn fork_and_execution_optimistic_and_finalized<T: BeaconChainTypes>(
         &self,
-        chain: &BeaconComponents<T>,
+        chain: &BeaconSystem<T>,
     ) -> Result<(Fork, bool, bool), warp::Rejection> {
         self.map_state_and_execution_optimistic_and_finalized(
             chain,
@@ -204,7 +204,7 @@ impl StateId {
     /// Convenience function to compute `fork` when `execution_optimistic` isn't desired.
     pub fn fork<T: BeaconChainTypes>(
         &self,
-        chain: &BeaconComponents<T>,
+        chain: &BeaconSystem<T>,
     ) -> Result<Fork, warp::Rejection> {
         self.fork_and_execution_optimistic(chain)
             .map(|(fork, _)| fork)
@@ -213,7 +213,7 @@ impl StateId {
     /// Return the `BeaconState` identified by `self`.
     pub fn state<T: BeaconChainTypes>(
         &self,
-        chain: &BeaconComponents<T>,
+        chain: &BeaconSystem<T>,
     ) -> Result<(BeaconState<T::EthSpec>, ExecutionOptimistic, Finalized), warp::Rejection> {
         let ((state_root, execution_optimistic, finalized), slot_opt) = match &self.0 {
             CoreStateId::Head => {
@@ -258,7 +258,7 @@ impl StateId {
     /// of the chain.
     pub fn map_state_and_execution_optimistic_and_finalized<T: BeaconChainTypes, F, U>(
         &self,
-        chain: &BeaconComponents<T>,
+        chain: &BeaconSystem<T>,
         func: F,
     ) -> Result<U, warp::Rejection>
     where
@@ -299,7 +299,7 @@ impl fmt::Display for StateId {
 
 /// Returns checkpoint block and the execution status of the checkpoint's `root`.
 pub fn checkpoint_block_and_execution_optimistic<T: BeaconChainTypes>(
-    chain: &BeaconComponents<T>,
+    chain: &BeaconSystem<T>,
     checkpoint: Checkpoint,
 ) -> Result<(Block, ExecutionOptimistic), warp::reject::Rejection> {
     let fork_choice = chain.canonical_head.fork_choice_read_lock();

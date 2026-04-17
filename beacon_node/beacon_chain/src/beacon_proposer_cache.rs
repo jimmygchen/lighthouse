@@ -8,7 +8,7 @@
 //! very simple to reason about, but it might store values that are useless due to finalization. The
 //! values it stores are very small, so this should not be an issue.
 
-use crate::{BeaconChainError, BeaconChainTypes, BeaconComponents};
+use crate::{BeaconChainError, BeaconChainTypes, BeaconSystem};
 use fork_choice::ExecutionStatus;
 use lru::LruCache;
 use once_cell::sync::OnceCell;
@@ -168,7 +168,7 @@ impl BeaconProposerCache {
 /// Access the proposer cache, computing and caching the proposers if necessary.
 ///
 /// This is a free function that operates on references to the cache and spec, decoupled from
-/// `BeaconComponents`. The `accessor` is called with the cached `EpochBlockProposers` for the given
+/// `BeaconSystem`. The `accessor` is called with the cached `EpochBlockProposers` for the given
 /// `(proposal_epoch, shuffling_decision_block)` key. If the cache entry is missing, the
 /// `state_provider` closure is called to produce a state which is then used to compute and
 /// cache the proposers.
@@ -251,7 +251,7 @@ where
 /// - Fork at `request_epoch`.
 pub fn compute_proposer_duties_from_head<T: BeaconChainTypes>(
     request_epoch: Epoch,
-    chain: &BeaconComponents<T>,
+    chain: &BeaconSystem<T>,
 ) -> Result<(Vec<usize>, Hash256, Hash256, ExecutionStatus, Fork), BeaconChainError> {
     // Atomically collect information about the head whilst holding the canonical head `Arc` as
     // short as possible.

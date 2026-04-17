@@ -8,7 +8,7 @@
 //! here for good reason.
 
 use crate::{
-    BeaconChainError, BeaconChainTypes, BeaconComponents, BlockError, BlockProductionError,
+    BeaconChainError, BeaconChainTypes, BeaconSystem, BlockError, BlockProductionError,
     ExecutionPayloadError,
 };
 use execution_layer::{
@@ -43,14 +43,14 @@ pub enum NotifyExecutionLayer {
 
 /// Used to await the result of executing payload with a remote EE.
 pub struct PayloadNotifier<T: BeaconChainTypes> {
-    pub chain: Arc<BeaconComponents<T>>,
+    pub chain: Arc<BeaconSystem<T>>,
     pub block: Arc<SignedBeaconBlock<T::EthSpec>>,
     payload_verification_status: Option<PayloadVerificationStatus>,
 }
 
 impl<T: BeaconChainTypes> PayloadNotifier<T> {
     pub fn new(
-        chain: Arc<BeaconComponents<T>>,
+        chain: Arc<BeaconSystem<T>>,
         block: Arc<SignedBeaconBlock<T::EthSpec>>,
         state: &BeaconState<T::EthSpec>,
         notify_execution_layer: NotifyExecutionLayer,
@@ -129,7 +129,7 @@ impl<T: BeaconChainTypes> PayloadNotifier<T> {
 ///
 /// https://github.com/ethereum/consensus-specs/blob/v1.1.9/specs/bellatrix/beacon-chain.md#notify_new_payload
 pub async fn notify_new_payload<T: BeaconChainTypes>(
-    chain: &Arc<BeaconComponents<T>>,
+    chain: &Arc<BeaconSystem<T>>,
     slot: Slot,
     parent_beacon_block_root: Hash256,
     new_payload_request: NewPayloadRequest<'_, T::EthSpec>,
@@ -207,7 +207,7 @@ pub async fn notify_new_payload<T: BeaconChainTypes>(
 
                 // Returning an error here should be sufficient to invalidate the block. We have no
                 // information to indicate its parent is invalid, so no need to run
-                // `BeaconComponents::process_invalid_execution_payload`.
+                // `BeaconSystem::process_invalid_execution_payload`.
                 Err(ExecutionPayloadError::RejectedByExecutionEngine { status }.into())
             }
         },
@@ -220,7 +220,7 @@ pub async fn notify_new_payload<T: BeaconChainTypes>(
 pub fn validate_execution_payload_for_gossip<T: BeaconChainTypes>(
     parent_block: &ProtoBlock,
     block: BeaconBlockRef<'_, T::EthSpec>,
-    chain: &BeaconComponents<T>,
+    chain: &BeaconSystem<T>,
 ) -> Result<(), BlockError> {
     // Gloas blocks don't have an execution payload in the block body.
     // Bid-related validations are handled in gossip block verification.
@@ -285,7 +285,7 @@ pub fn validate_execution_payload_for_gossip<T: BeaconChainTypes>(
 ///
 /// https://github.com/ethereum/consensus-specs/blob/v1.1.5/specs/merge/validator.md#block-proposal
 pub fn get_execution_payload<T: BeaconChainTypes>(
-    chain: Arc<BeaconComponents<T>>,
+    chain: Arc<BeaconSystem<T>>,
     state: &BeaconState<T::EthSpec>,
     parent_block_root: Hash256,
     proposer_index: u64,
@@ -358,7 +358,7 @@ pub fn get_execution_payload<T: BeaconChainTypes>(
 /// https://github.com/ethereum/consensus-specs/blob/v1.1.5/specs/merge/validator.md#block-proposal
 #[allow(clippy::too_many_arguments)]
 pub async fn prepare_execution_payload<T>(
-    chain: &Arc<BeaconComponents<T>>,
+    chain: &Arc<BeaconSystem<T>>,
     timestamp: u64,
     random: Hash256,
     proposer_index: u64,

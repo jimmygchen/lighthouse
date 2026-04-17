@@ -21,7 +21,7 @@ use crate::{
 };
 
 /// Bundles only the dependencies needed for gossip verification of execution payload envelopes,
-/// decoupling `GossipVerifiedEnvelope::new` from the full `BeaconComponents`.
+/// decoupling `GossipVerifiedEnvelope::new` from the full `BeaconSystem`.
 pub struct GossipVerificationContext<'a, T: BeaconChainTypes> {
     pub canonical_head: &'a CanonicalHead<T>,
     pub store: &'a BeaconStore<T>,
@@ -29,7 +29,7 @@ pub struct GossipVerificationContext<'a, T: BeaconChainTypes> {
     pub beacon_proposer_cache: &'a Mutex<BeaconProposerCache>,
     pub validator_pubkey_cache: &'a RwLock<ValidatorPubkeyCache<T>>,
     pub genesis_validators_root: Hash256,
-    pub event_handler: &'a Option<ServerSentEventHandler<T::EthSpec>>,
+    pub event_handler: Option<&'a ServerSentEventHandler<T::EthSpec>>,
 }
 
 /// Verify that an execution payload envelope is consistent with its beacon block
@@ -215,7 +215,7 @@ impl<T: BeaconChainTypes> GossipVerifiedEnvelope<T> {
             return Err(EnvelopeError::BadSignature);
         }
 
-        if let Some(event_handler) = ctx.event_handler.as_ref()
+        if let Some(event_handler) = ctx.event_handler
             && event_handler.has_execution_payload_gossip_subscribers()
         {
             event_handler.register(EventKind::ExecutionPayloadGossip(
@@ -248,7 +248,7 @@ pub fn payload_envelope_gossip_verification_context<'a, T: BeaconChainTypes>(
     beacon_proposer_cache: &'a Mutex<BeaconProposerCache>,
     validator_pubkey_cache: &'a RwLock<ValidatorPubkeyCache<T>>,
     genesis_validators_root: Hash256,
-    event_handler: &'a Option<ServerSentEventHandler<T::EthSpec>>,
+    event_handler: Option<&'a ServerSentEventHandler<T::EthSpec>>,
 ) -> GossipVerificationContext<'a, T> {
     GossipVerificationContext {
         canonical_head,

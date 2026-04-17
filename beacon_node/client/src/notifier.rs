@@ -1,6 +1,6 @@
 use crate::metrics;
 use beacon_chain::{
-    self as beacon_chain, BeaconChainTypes, BeaconComponents, ExecutionStatus,
+    self as beacon_chain, BeaconChainTypes, BeaconSystem, ExecutionStatus,
     bellatrix_readiness::GenesisExecutionPayloadStatus,
 };
 use execution_layer::{
@@ -41,7 +41,7 @@ pub const ENGINE_CAPABILITIES_REFRESH_INTERVAL: u64 = 300;
 /// Spawns a notifier service which periodically logs information about the node.
 pub fn spawn_notifier<T: BeaconChainTypes>(
     executor: task_executor::TaskExecutor,
-    beacon_chain: Arc<BeaconComponents<T>>,
+    beacon_chain: Arc<BeaconSystem<T>>,
     network: Arc<NetworkGlobals<T::EthSpec>>,
     slot_duration: Duration,
 ) -> Result<(), String> {
@@ -430,7 +430,7 @@ pub fn spawn_notifier<T: BeaconChainTypes>(
 /// Provides some helpful logging to users to indicate if their node is ready for upcoming forks
 async fn post_bellatrix_readiness_logging<T: BeaconChainTypes>(
     current_slot: Slot,
-    beacon_chain: &BeaconComponents<T>,
+    beacon_chain: &BeaconSystem<T>,
 ) {
     if let Some(fork) = find_next_fork_to_prepare(current_slot, beacon_chain) {
         let readiness = if let Some(el) = beacon_chain.execution_layer.as_ref() {
@@ -470,7 +470,7 @@ async fn post_bellatrix_readiness_logging<T: BeaconChainTypes>(
 
 fn find_next_fork_to_prepare<T: BeaconChainTypes>(
     current_slot: Slot,
-    beacon_chain: &BeaconComponents<T>,
+    beacon_chain: &BeaconSystem<T>,
 ) -> Option<ForkName> {
     let head_fork = beacon_chain
         .canonical_head
@@ -571,9 +571,7 @@ fn methods_required_for_fork(
     missing_methods
 }
 
-async fn genesis_execution_payload_logging<T: BeaconChainTypes>(
-    beacon_chain: &BeaconComponents<T>,
-) {
+async fn genesis_execution_payload_logging<T: BeaconChainTypes>(beacon_chain: &BeaconSystem<T>) {
     match beacon_chain::bellatrix_readiness::check_genesis_execution_payload_is_correct(
         beacon_chain,
     )

@@ -1,7 +1,7 @@
 use super::*;
 use beacon_chain::test_utils::generate_data_column_indices_rand_order;
 use beacon_chain::{
-    BeaconComponents,
+    BeaconSystem,
     builder::{BeaconChainBuilder, Witness},
     test_utils::get_kzg,
 };
@@ -33,7 +33,7 @@ type TestBeaconChainType = Witness<
 >;
 
 pub struct TestBeaconChain {
-    chain: Arc<BeaconComponents<TestBeaconChainType>>,
+    chain: Arc<BeaconSystem<TestBeaconChainType>>,
     _test_runtime: TestRuntime,
 }
 

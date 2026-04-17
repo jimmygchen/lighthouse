@@ -6,7 +6,7 @@ use beacon_chain::block_verification_types::{AsBlock, LookupBlock};
 use beacon_chain::data_column_verification::GossipVerifiedDataColumn;
 use beacon_chain::validator_monitor::get_block_delay_ms;
 use beacon_chain::{
-    AvailabilityProcessingStatus, BeaconChainError, BeaconChainTypes, BeaconComponents, BlockError,
+    AvailabilityProcessingStatus, BeaconChainError, BeaconChainTypes, BeaconSystem, BlockError,
     IntoGossipVerifiedBlock, NotifyExecutionLayer, build_blob_data_column_sidecars,
 };
 use eth2::types::{
@@ -84,7 +84,7 @@ impl<T: BeaconChainTypes> ProvenancedBlock<T, Arc<SignedBeaconBlock<T::EthSpec>>
 pub async fn publish_block<T: BeaconChainTypes, B: IntoGossipVerifiedBlock<T>>(
     block_root: Option<Hash256>,
     provenanced_block: ProvenancedBlock<T, B>,
-    chain: Arc<BeaconComponents<T>>,
+    chain: Arc<BeaconSystem<T>>,
     network_tx: &UnboundedSender<NetworkMessage<T::EthSpec>>,
     validation_level: BroadcastValidation,
     duplicate_status_code: StatusCode,
@@ -359,7 +359,7 @@ type BuildDataSidecarTaskResult<T> = Result<
 /// 1. Blob sidecars if prior to peer DAS, or
 /// 2. Data column sidecars if post peer DAS.
 fn spawn_build_data_sidecar_task<T: BeaconChainTypes>(
-    chain: Arc<BeaconComponents<T>>,
+    chain: Arc<BeaconSystem<T>>,
     block: Arc<SignedBeaconBlock<T::EthSpec, FullPayload<T::EthSpec>>>,
     proofs_and_blobs: UnverifiedBlobs<T>,
 ) -> Result<impl Future<Output = BuildDataSidecarTaskResult<T>>, Rejection> {
@@ -402,7 +402,7 @@ fn spawn_build_data_sidecar_task<T: BeaconChainTypes>(
 /// is publishing. In the locally constructed case, cell proof verification happens in the EL.
 /// In the externally constructed case, there wont be any columns here.
 fn build_data_columns<T: BeaconChainTypes>(
-    chain: &BeaconComponents<T>,
+    chain: &BeaconSystem<T>,
     block: &SignedBeaconBlock<T::EthSpec, FullPayload<T::EthSpec>>,
     blobs: BlobsList<T::EthSpec>,
     kzg_cell_proofs: KzgProofs<T::EthSpec>,
@@ -429,7 +429,7 @@ fn build_data_columns<T: BeaconChainTypes>(
 }
 
 fn build_gossip_verified_blobs<T: BeaconChainTypes>(
-    chain: &BeaconComponents<T>,
+    chain: &BeaconSystem<T>,
     block: &SignedBeaconBlock<T::EthSpec, FullPayload<T::EthSpec>>,
     blobs: BlobsList<T::EthSpec>,
     kzg_proofs: KzgProofs<T::EthSpec>,
@@ -501,7 +501,7 @@ fn publish_blob_sidecars<T: BeaconChainTypes>(
 fn publish_column_sidecars<T: BeaconChainTypes>(
     sender_clone: &UnboundedSender<NetworkMessage<T::EthSpec>>,
     data_column_sidecars: &[GossipVerifiedDataColumn<T>],
-    chain: &BeaconComponents<T>,
+    chain: &BeaconSystem<T>,
 ) -> Result<(), BlockError> {
     let malicious_withhold_count = chain.config.malicious_withhold_count;
     let mut data_column_sidecars = data_column_sidecars
@@ -537,7 +537,7 @@ async fn post_block_import_logging_and_response<T: BeaconChainTypes>(
     block: Arc<SignedBeaconBlock<T::EthSpec>>,
     is_locally_built_block: bool,
     seen_timestamp: Duration,
-    chain: &Arc<BeaconComponents<T>>,
+    chain: &Arc<BeaconSystem<T>>,
 ) -> Result<Response, Rejection> {
     match result {
         // The `DuplicateFullyImported` case here captures the case where the block finishes
@@ -615,7 +615,7 @@ async fn post_block_import_logging_and_response<T: BeaconChainTypes>(
 /// blocks before publishing.
 pub async fn publish_blinded_block<T: BeaconChainTypes>(
     blinded_block: Arc<SignedBlindedBeaconBlock<T::EthSpec>>,
-    chain: Arc<BeaconComponents<T>>,
+    chain: Arc<BeaconSystem<T>>,
     network_tx: &UnboundedSender<NetworkMessage<T::EthSpec>>,
     validation_level: BroadcastValidation,
     duplicate_status_code: StatusCode,
@@ -647,7 +647,7 @@ pub async fn publish_blinded_block<T: BeaconChainTypes>(
 /// From the Fulu fork, external builders no longer return the full payload and blobs, and this
 /// function will always return `Ok(None)` on successful submission of blinded block.
 pub async fn reconstruct_block<T: BeaconChainTypes>(
-    chain: Arc<BeaconComponents<T>>,
+    chain: Arc<BeaconSystem<T>>,
     block_root: Hash256,
     block: Arc<SignedBlindedBeaconBlock<T::EthSpec>>,
 ) -> Result<Option<ProvenancedBlock<T, Arc<SignedBeaconBlock<T::EthSpec>>>>, Rejection> {
@@ -744,7 +744,7 @@ pub async fn reconstruct_block<T: BeaconChainTypes>(
 /// If the `seen_timestamp` is some time after the start of the slot for
 /// `block`, create some logs to indicate that the block was published late.
 fn late_block_logging<T: BeaconChainTypes, P: AbstractExecPayload<T::EthSpec>>(
-    chain: &BeaconComponents<T>,
+    chain: &BeaconSystem<T>,
     seen_timestamp: Duration,
     block: BeaconBlockRef<T::EthSpec, P>,
     root: Hash256,
@@ -788,7 +788,7 @@ fn late_block_logging<T: BeaconChainTypes, P: AbstractExecPayload<T::EthSpec>>(
 
 /// Check if any of the blobs or the block are slashable. Returns `BlockError::Slashable` if so.
 fn check_slashable<T: BeaconChainTypes>(
-    chain_clone: &BeaconComponents<T>,
+    chain_clone: &BeaconSystem<T>,
     block_root: Hash256,
     block_clone: &SignedBeaconBlock<T::EthSpec, FullPayload<T::EthSpec>>,
 ) -> Result<(), BlockError> {

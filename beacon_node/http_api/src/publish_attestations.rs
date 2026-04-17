@@ -36,7 +36,7 @@
 //! attestations and there's no immediate cause for concern.
 use crate::task_spawner::{Priority, TaskSpawner};
 use beacon_chain::attestation_verification::VerifiedAttestation;
-use beacon_chain::{AttestationError, BeaconChainError, BeaconChainTypes, BeaconComponents};
+use beacon_chain::{AttestationError, BeaconChainError, BeaconChainTypes, BeaconSystem};
 use beacon_processor::work_reprocessing_queue::{QueuedUnaggregate, ReprocessQueueMessage};
 use beacon_processor::{Work, WorkEvent};
 use eth2::types::Failure;
@@ -69,7 +69,7 @@ enum PublishAttestationResult {
 }
 
 fn verify_and_publish_attestation<T: BeaconChainTypes>(
-    chain: &Arc<BeaconComponents<T>>,
+    chain: &Arc<BeaconSystem<T>>,
     attestation: &SingleAttestation,
     seen_timestamp: Duration,
     network_tx: &UnboundedSender<NetworkMessage<T::EthSpec>>,
@@ -190,7 +190,7 @@ fn verify_and_publish_attestation<T: BeaconChainTypes>(
 
 pub async fn publish_attestations<T: BeaconChainTypes>(
     task_spawner: TaskSpawner<T::EthSpec>,
-    chain: Arc<BeaconComponents<T>>,
+    chain: Arc<BeaconSystem<T>>,
     attestations: Vec<SingleAttestation>,
     network_tx: UnboundedSender<NetworkMessage<T::EthSpec>>,
     allow_reprocess: bool,
