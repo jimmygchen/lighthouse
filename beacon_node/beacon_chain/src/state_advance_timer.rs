@@ -211,8 +211,7 @@ async fn state_advance_timer<T: BeaconChainTypes>(
 
                 // Prepare proposers so that the node can send payload attributes in the case where
                 // it decides to abandon a proposer boost re-org.
-                beacon_chain
-                    .prepare_beacon_proposer(current_slot)
+                crate::execution_methods::prepare_beacon_proposer(&beacon_chain, current_slot)
                     .await
                     .unwrap_or_else(|e| {
                         warn!(

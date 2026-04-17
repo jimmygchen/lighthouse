@@ -181,13 +181,15 @@ pub async fn notify_new_payload<T: BeaconChainTypes>(
                 {
                     // This block has not yet been applied to fork choice, so the latest block that was
                     // imported to fork choice was the parent.
-                    chain
-                        .process_invalid_execution_payload(&InvalidationOperation::InvalidateMany {
+                    crate::execution_methods::process_invalid_execution_payload(
+                        chain,
+                        &InvalidationOperation::InvalidateMany {
                             head_block_root: parent_beacon_block_root,
                             always_invalidate_head: false,
                             latest_valid_ancestor: latest_valid_hash,
-                        })
-                        .await?;
+                        },
+                    )
+                    .await?;
                 }
 
                 Err(ExecutionPayloadError::RejectedByExecutionEngine { status }.into())

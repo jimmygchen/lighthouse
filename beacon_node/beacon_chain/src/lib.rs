@@ -27,7 +27,7 @@ pub mod envelope_times_cache;
 mod errors;
 pub mod events;
 pub mod execution_manager;
-mod execution_methods;
+pub mod execution_methods;
 pub mod execution_payload;
 pub mod fetch_blobs;
 pub mod fork_choice_signal;

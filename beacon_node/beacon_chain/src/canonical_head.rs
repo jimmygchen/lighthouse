@@ -43,8 +43,8 @@ use crate::{
 };
 use eth2::types::{EventKind, SseChainReorg, SseFinalizedCheckpoint, SseLateHead};
 use fork_choice::{
-    ExecutionStatus, ForkChoiceStore, ForkChoiceView, ForkchoiceUpdateParameters, ProtoBlock,
-    ResetPayloadStatuses,
+    ExecutionStatus, ForkChoiceStore, ForkChoiceView, ForkchoiceUpdateParameters,
+    InvalidationOperation, ProtoBlock, ResetPayloadStatuses,
 };
 use itertools::process_results;
 
@@ -1141,6 +1141,68 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         };
         persisted_fork_choice.as_kv_store_op(FORK_CHOICE_DB_KEY, store_config)
     }
+
+    // -----------------------------------------------------------------------
+    // Delegation methods for execution_methods free functions
+    // -----------------------------------------------------------------------
+
+    /// Delegates to [`crate::execution_methods::process_invalid_execution_payload`].
+    pub async fn process_invalid_execution_payload(
+        self: &Arc<Self>,
+        op: &InvalidationOperation,
+    ) -> Result<(), Error> {
+        crate::execution_methods::process_invalid_execution_payload(self, op).await
+    }
+
+    /// Delegates to [`crate::execution_methods::block_is_known_to_fork_choice`].
+    pub fn block_is_known_to_fork_choice(&self, root: &Hash256) -> bool {
+        crate::execution_methods::block_is_known_to_fork_choice(self, root)
+    }
+
+    /// Delegates to [`crate::execution_methods::prepare_beacon_proposer`].
+    pub async fn prepare_beacon_proposer(
+        self: &Arc<Self>,
+        current_slot: Slot,
+    ) -> Result<Option<Hash256>, Error> {
+        crate::execution_methods::prepare_beacon_proposer(self, current_slot).await
+    }
+
+    /// Delegates to [`crate::execution_methods::update_execution_engine_forkchoice`].
+    pub async fn update_execution_engine_forkchoice(
+        self: &Arc<Self>,
+        current_slot: Slot,
+        input_params: ForkchoiceUpdateParameters,
+        override_forkchoice_update: OverrideForkchoiceUpdate,
+    ) -> Result<(), Error> {
+        crate::execution_methods::update_execution_engine_forkchoice(
+            self,
+            current_slot,
+            input_params,
+            override_forkchoice_update,
+        )
+        .await
+    }
+
+    /// Delegates to [`crate::execution_methods::is_optimistic_or_invalid_block`].
+    pub fn is_optimistic_or_invalid_block<Payload: AbstractExecPayload<T::EthSpec>>(
+        &self,
+        block: &SignedBeaconBlock<T::EthSpec, Payload>,
+    ) -> Result<bool, Error> {
+        crate::execution_methods::is_optimistic_or_invalid_block(self, block)
+    }
+
+    /// Delegates to [`crate::execution_methods::is_optimistic_or_invalid_head_block`].
+    pub fn is_optimistic_or_invalid_head_block<Payload: AbstractExecPayload<T::EthSpec>>(
+        &self,
+        head_block: &SignedBeaconBlock<T::EthSpec, Payload>,
+    ) -> Result<bool, Error> {
+        crate::execution_methods::is_optimistic_or_invalid_head_block(self, head_block)
+    }
+
+    /// Delegates to [`crate::execution_methods::is_optimistic_or_invalid_head`].
+    pub fn is_optimistic_or_invalid_head(&self) -> Result<bool, Error> {
+        crate::execution_methods::is_optimistic_or_invalid_head(self)
+    }
 }
 
 /// Check to see if the `finalized_proto_block` has an invalid execution payload. If so, shut down
@@ -1259,13 +1321,13 @@ fn spawn_execution_layer_updates<T: BeaconChainTypes>(
                     return;
                 }
 
-                if let Err(e) = chain
-                    .update_execution_engine_forkchoice(
-                        current_slot,
-                        forkchoice_update_params,
-                        OverrideForkchoiceUpdate::Yes,
-                    )
-                    .await
+                if let Err(e) = crate::execution_methods::update_execution_engine_forkchoice(
+                    &chain,
+                    current_slot,
+                    forkchoice_update_params,
+                    OverrideForkchoiceUpdate::Yes,
+                )
+                .await
                 {
                     crit!(
                         error = ?e,
@@ -1281,7 +1343,9 @@ fn spawn_execution_layer_updates<T: BeaconChainTypes>(
                 //
                 // This seems OK. It's not a significant waste of EL<>CL bandwidth or resources, as far as I
                 // know.
-                if let Err(e) = chain.prepare_beacon_proposer(current_slot).await {
+                if let Err(e) =
+                    crate::execution_methods::prepare_beacon_proposer(&chain, current_slot).await
+                {
                     crit!(
                         error = ?e,
                         "Failed to prepare proposers after fork choice"

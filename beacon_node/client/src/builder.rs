@@ -735,8 +735,9 @@ where
                         let inner_chain = beacon_chain.clone();
                         runtime_context.executor.spawn(
                             async move {
-                                let result = inner_chain
-                                    .update_execution_engine_forkchoice(
+                                let result =
+                                    beacon_chain::execution_methods::update_execution_engine_forkchoice(
+                                        &inner_chain,
                                         current_slot,
                                         params,
                                         Default::default(),
