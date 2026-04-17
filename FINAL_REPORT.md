@@ -2,7 +2,7 @@
 
 ## Start State (unstable, base commit d3c13c4cf0)
 
-- `BeaconChain<T>`: ~9000+ lines in a single file, 200+ methods
+- `BeaconChain<T>`: 7317 lines in a single file, 200+ methods
 - Zero component extraction -- all business logic on one struct
 - Untestable without `BeaconChainHarness` (requires database, fork choice, slot clock)
 - Every method has implicit access to 40+ fields via `&self`
@@ -22,11 +22,11 @@
 | `validator_query_service/mod.rs` | 101 | Validator pubkey cache lookups |
 | `block_import_methods.rs` | 1830 | Free functions with BlockImportContext |
 | `block_production/mod.rs` | 1691 | Free functions with BlockProductionContext |
-| `execution_methods.rs` | 622 | Free functions with ExecutionOrchestrationContext |
+| `execution_methods.rs` | 622 | Methods on `impl BeaconChain<T>` |
 | `state_query.rs` | 701 | 15 state query free functions |
 | `attestation_verification.rs` | 1685 | All attestation verification with AttestationVerificationContext |
 
-`beacon_chain.rs` reduced from ~9000+ to **1733 lines (81% reduction)**.
+`beacon_chain.rs` reduced from 7317 to **1733 lines (76% reduction)**.
 
 ### 6 Extracted Component Structs
 
@@ -55,7 +55,7 @@ migration.
 | `AttestationVerificationContext` | `attestation_verification.rs` | All attestation verification (26 call sites migrated) |
 | `BlockImportContext` | `block_import_methods.rs` | 9 block import helper free functions |
 | `BlockProductionContext` | `block_production/mod.rs` | 7 block production helper free functions |
-| `ExecutionOrchestrationContext` | `execution_methods.rs` | Execution layer orchestration free functions |
+| `SyncCommitteeVerificationContext` | `sync_committee_verification.rs` | Sync committee verification |
 
 ### Key Transformations
 
@@ -126,7 +126,7 @@ d8c3e43663 Extract OperationsManager from BeaconChain
 
 - **Context structs make verification/import/production testable.**
   `AttestationVerificationContext`, `BlockImportContext`,
-  `BlockProductionContext`, and `ExecutionOrchestrationContext` carry
+  `BlockProductionContext`, and `SyncCommitteeVerificationContext` carry
   explicit dependency bundles instead of `&BeaconChain<T>`. Tests can
   construct these without `BeaconChainHarness`.
 

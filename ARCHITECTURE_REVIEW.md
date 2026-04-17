@@ -233,7 +233,7 @@ Only `Drop` is implemented for `BeaconChain<T>`. No trait-based polymorphism dep
 
 ### Context Structs
 
-All four context structs (`AttestationVerificationContext`, `BlockImportContext`, `BlockProductionContext`, `ExecutionOrchestrationContext`) follow the documented pattern:
+All four context structs (`AttestationVerificationContext`, `BlockImportContext`, `BlockProductionContext`, `SyncCommitteeVerificationContext`) follow the documented pattern:
 - Explicit dependencies in the type signature
 - `from_chain` convenience constructor
 - Free functions operating on the context
