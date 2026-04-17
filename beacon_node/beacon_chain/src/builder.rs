@@ -931,12 +931,12 @@ where
         self.pending_io_batch.push(
             crate::persisted_beacon_chain::persist_head_in_batch_standalone(genesis_block_root),
         );
-        self.pending_io_batch.push(BeaconChain::<
-            Witness<TSlotClock,  E, THotStore, TColdStore>,
-        >::persist_fork_choice_in_batch_standalone(
-            &fork_choice,
-            store.get_config(),
-        ).map_err(|e| format!("Fork choice compression error: {e:?}"))?);
+        self.pending_io_batch.push(
+            crate::canonical_head::persist_fork_choice_in_batch_standalone::<
+                Witness<TSlotClock, E, THotStore, TColdStore>,
+            >(&fork_choice, store.get_config())
+            .map_err(|e| format!("Fork choice compression error: {e:?}"))?,
+        );
         store
             .hot_db
             .do_atomically(self.pending_io_batch)

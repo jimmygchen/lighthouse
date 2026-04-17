@@ -3653,7 +3653,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
 
         let chain = self.chain.clone();
         let envelope_for_verify = envelope.clone();
-        let verification_result = self
+        let verification_result = match self
             .chain
             .task_executor
             .clone()
@@ -3674,12 +3674,14 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                     )
                 },
                 "gossip_envelope_verification_handle",
-            )
-            .ok_or(BeaconChainError::RuntimeShutdown)
-            .map_err(EnvelopeError::from)?
-            .await
-            .map_err(BeaconChainError::TokioJoin)
-            .map_err(EnvelopeError::from)?;
+            ) {
+                Some(handle) => handle
+                    .await
+                    .map_err(BeaconChainError::TokioJoin)
+                    .map_err(EnvelopeError::from)
+                    .and_then(|r| r),
+                None => Err(EnvelopeError::from(BeaconChainError::RuntimeShutdown)),
+            };
 
         let verified_envelope = match verification_result {
             Ok(verified_envelope) => {
@@ -3783,7 +3785,8 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                                 Ok(handle) => handle
                                     .await
                                     .map_err(BeaconChainError::TokioJoin)
-                                    .map_err(EnvelopeError::from),
+                                    .map_err(EnvelopeError::from)
+                                    .and_then(|r| r),
                                 Err(e) => Err(e),
                             };
                             match verify_result {

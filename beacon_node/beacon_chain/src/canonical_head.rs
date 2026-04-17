@@ -313,7 +313,7 @@ impl<T: BeaconChainTypes> CanonicalHead<T> {
             .ok_or(Error::PersistenceError("no store in CanonicalHead".into()))?;
         let _fork_choice_timer = metrics::start_timer(&metrics::PERSIST_FORK_CHOICE);
         let fork_choice = self.fork_choice_read_lock();
-        let batch = vec![BeaconChain::<T>::persist_fork_choice_in_batch_standalone(
+        let batch = vec![persist_fork_choice_in_batch_standalone::<T>(
             &fork_choice,
             store.get_config(),
         )?];
@@ -471,6 +471,47 @@ impl<T: BeaconChainTypes> CanonicalHead<T> {
         let _timer = metrics::start_timer(&metrics::FORK_CHOICE_WRITE_LOCK_AQUIRE_TIMES);
         self.fork_choice.write()
     }
+
+    /// Returns the beacon block root at the head of the canonical chain.
+    pub fn head_beacon_block_root(&self) -> Hash256 {
+        self.cached_head_read_lock().snapshot.beacon_block_root
+    }
+
+    /// Returns the slot of the highest block in the canonical chain.
+    pub fn best_slot(&self) -> Slot {
+        self.cached_head_read_lock().snapshot.beacon_block.slot()
+    }
+
+    /// Returns an `Arc` of the `BeaconSnapshot` at the head of the canonical chain.
+    pub fn head_snapshot(&self) -> Arc<BeaconSnapshot<T::EthSpec>> {
+        self.cached_head_read_lock().snapshot.clone()
+    }
+
+    /// Returns the beacon block at the head of the canonical chain.
+    pub fn head_beacon_block(&self) -> Arc<SignedBeaconBlock<T::EthSpec>> {
+        self.cached_head_read_lock().snapshot.beacon_block.clone()
+    }
+
+    /// Returns a clone of the beacon state at the head of the canonical chain.
+    ///
+    /// Cloning the head state is expensive and should generally be avoided outside of tests.
+    pub fn head_beacon_state_cloned(&self) -> BeaconState<T::EthSpec> {
+        // Don't clone whilst holding the read-lock, take an Arc-clone to reduce lock contention.
+        let snapshot: Arc<_> = self.head_snapshot();
+        snapshot.beacon_state.clone()
+    }
+
+    /// Apply a function to an `Arc`-clone of the canonical head snapshot.
+    pub fn with_head<U, E>(
+        &self,
+        f: impl FnOnce(&BeaconSnapshot<T::EthSpec>) -> Result<U, E>,
+    ) -> Result<U, E>
+    where
+        E: From<Error>,
+    {
+        let head_snapshot = self.head_snapshot();
+        f(&head_snapshot)
+    }
 }
 
 impl<T: BeaconChainTypes> Drop for CanonicalHead<T> {
@@ -487,20 +528,34 @@ impl<T: BeaconChainTypes> Drop for CanonicalHead<T> {
 }
 
 impl<T: BeaconChainTypes> BeaconChain<T> {
-    /// Contains the "best block"; the head of the canonical `BeaconChain`.
-    ///
-    /// It is important to note that the `snapshot.beacon_state` returned may not match the present slot. It
-    /// is the state as it was when the head block was received, which could be some slots prior to
-    /// now.
+    // -----------------------------------------------------------------------
+    // Thin delegation to CanonicalHead
+    // -----------------------------------------------------------------------
+
     pub fn head(&self) -> CachedHead<T::EthSpec> {
         self.canonical_head.cached_head()
     }
 
-    /// Apply a function to an `Arc`-clone of the canonical head snapshot.
-    ///
-    /// This method is a relic from an old implementation where the canonical head was not behind
-    /// an `Arc` and the canonical head lock had to be held whenever it was read. This method is
-    /// fine to be left here, it just seems a bit weird.
+    pub fn head_beacon_block_root(&self) -> Hash256 {
+        self.canonical_head.head_beacon_block_root()
+    }
+
+    pub fn best_slot(&self) -> Slot {
+        self.canonical_head.best_slot()
+    }
+
+    pub fn head_snapshot(&self) -> Arc<BeaconSnapshot<T::EthSpec>> {
+        self.canonical_head.head_snapshot()
+    }
+
+    pub fn head_beacon_block(&self) -> Arc<SignedBeaconBlock<T::EthSpec>> {
+        self.canonical_head.head_beacon_block()
+    }
+
+    pub fn head_beacon_state_cloned(&self) -> BeaconState<T::EthSpec> {
+        self.canonical_head.head_beacon_state_cloned()
+    }
+
     pub fn with_head<U, E>(
         &self,
         f: impl FnOnce(&BeaconSnapshot<T::EthSpec>) -> Result<U, E>,
@@ -508,57 +563,10 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
     where
         E: From<Error>,
     {
-        let head_snapshot = self.head_snapshot();
-        f(&head_snapshot)
+        self.canonical_head.with_head(f)
     }
 
-    /// Returns the beacon block root at the head of the canonical chain.
-    ///
-    /// See `Self::head` for more information.
-    pub fn head_beacon_block_root(&self) -> Hash256 {
-        self.canonical_head
-            .cached_head_read_lock()
-            .snapshot
-            .beacon_block_root
-    }
-
-    /// Returns the slot of the highest block in the canonical chain.
-    pub fn best_slot(&self) -> Slot {
-        self.canonical_head
-            .cached_head_read_lock()
-            .snapshot
-            .beacon_block
-            .slot()
-    }
-
-    /// Returns a `Arc` of the `BeaconSnapshot` at the head of the canonical chain.
-    ///
-    /// See `Self::head` for more information.
-    pub fn head_snapshot(&self) -> Arc<BeaconSnapshot<T::EthSpec>> {
-        self.canonical_head.cached_head_read_lock().snapshot.clone()
-    }
-
-    /// Returns the beacon block at the head of the canonical chain.
-    ///
-    /// See `Self::head` for more information.
-    pub fn head_beacon_block(&self) -> Arc<SignedBeaconBlock<T::EthSpec>> {
-        self.canonical_head
-            .cached_head_read_lock()
-            .snapshot
-            .beacon_block
-            .clone()
-    }
-
-    /// Returns a clone of the beacon state at the head of the canonical chain.
-    ///
-    /// Cloning the head state is expensive and should generally be avoided outside of tests.
-    ///
-    /// See `Self::head` for more information.
-    pub fn head_beacon_state_cloned(&self) -> BeaconState<T::EthSpec> {
-        // Don't clone whilst holding the read-lock, take an Arc-clone to reduce lock contention.
-        let snapshot: Arc<_> = self.head_snapshot();
-        snapshot.beacon_state.clone()
-    }
+    // -----------------------------------------------------------------------
 
     /// Execute the fork choice algorithm and enthrone the result as the canonical head.
     ///
@@ -1123,23 +1131,11 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
 
     /// Return a database operation for writing fork choice to disk.
     pub fn persist_fork_choice_in_batch(&self) -> Result<KeyValueStoreOp, Error> {
-        Self::persist_fork_choice_in_batch_standalone(
+        persist_fork_choice_in_batch_standalone::<T>(
             &self.canonical_head.fork_choice_read_lock(),
             self.store.get_config(),
         )
         .map_err(Into::into)
-    }
-
-    /// Return a database operation for writing fork choice to disk.
-    pub fn persist_fork_choice_in_batch_standalone(
-        fork_choice: &BeaconForkChoice<T>,
-        store_config: &StoreConfig,
-    ) -> Result<KeyValueStoreOp, StoreError> {
-        let persisted_fork_choice = PersistedForkChoice {
-            fork_choice: fork_choice.to_persisted(),
-            fork_choice_store: fork_choice.fc_store().to_persisted(),
-        };
-        persisted_fork_choice.as_kv_store_op(FORK_CHOICE_DB_KEY, store_config)
     }
 
     // -----------------------------------------------------------------------
@@ -1203,6 +1199,18 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
     pub fn is_optimistic_or_invalid_head(&self) -> Result<bool, Error> {
         crate::execution_methods::is_optimistic_or_invalid_head(self)
     }
+}
+
+/// Return a database operation for writing fork choice to disk.
+pub fn persist_fork_choice_in_batch_standalone<T: BeaconChainTypes>(
+    fork_choice: &BeaconForkChoice<T>,
+    store_config: &StoreConfig,
+) -> Result<KeyValueStoreOp, StoreError> {
+    let persisted_fork_choice = PersistedForkChoice {
+        fork_choice: fork_choice.to_persisted(),
+        fork_choice_store: fork_choice.fc_store().to_persisted(),
+    };
+    persisted_fork_choice.as_kv_store_op(FORK_CHOICE_DB_KEY, store_config)
 }
 
 /// Check to see if the `finalized_proto_block` has an invalid execution payload. If so, shut down
