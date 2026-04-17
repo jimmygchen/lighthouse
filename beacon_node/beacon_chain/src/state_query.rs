@@ -750,8 +750,9 @@ mod tests {
         // Produce blocks at slots 1..=3.
         harness.extend_slots(3).await;
 
-        // Create a skip slot: advance the clock (slot 4) without producing a block,
-        // then produce a block at slot 5.
+        // Create a skip slot at slot 4: advance the clock past slot 4 without
+        // producing a block there, then produce a block at slot 5.
+        harness.advance_slot();
         harness.advance_slot();
         harness.extend_slots(1).await;
 
@@ -793,7 +794,8 @@ mod tests {
         .unwrap()
         .expect("slot 3 should have a block");
 
-        // Create a skip slot at slot 4.
+        // Create a skip slot at slot 4: advance past it, then produce a block at slot 5.
+        harness.advance_slot();
         harness.advance_slot();
         harness.extend_slots(1).await;
 
