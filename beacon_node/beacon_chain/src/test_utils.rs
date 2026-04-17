@@ -833,6 +833,7 @@ where
     pub fn get_full_block(&self, block_root: &Hash256) -> RangeSyncBlock<E> {
         let block = self
             .chain
+            .store
             .get_blinded_block(block_root)
             .unwrap()
             .unwrap_or_else(|| panic!("block root does not exist in harness {block_root:?}"));
@@ -909,7 +910,10 @@ where
         &self,
         block_hash: SignedBeaconBlockHash,
     ) -> Option<SignedBeaconBlock<E, BlindedPayload<E>>> {
-        self.chain.get_blinded_block(&block_hash.into()).unwrap()
+        self.chain
+            .store
+            .get_blinded_block(&block_hash.into())
+            .unwrap()
     }
 
     pub fn block_exists(&self, block_hash: SignedBeaconBlockHash) -> bool {
@@ -1970,7 +1974,13 @@ where
 
                         let aggregate = self
                             .chain
-                            .get_aggregated_attestation(attestation.to_ref())
+                            .attestation_manager
+                            .get_aggregated_attestation(attestation.to_ref(), |block_root| {
+                                self.chain
+                                    .canonical_head
+                                    .fork_choice_read_lock()
+                                    .get_block_execution_status(block_root)
+                            })
                             .unwrap()
                             .unwrap_or_else(|| {
                                 committee_attestations.iter().skip(1).fold(
@@ -3595,9 +3605,28 @@ where
         for (_, contribution_and_proof) in sync_contributions {
             let signed_contribution_and_proof = contribution_and_proof.unwrap();
 
-            let verified_contribution = self
-                .chain
-                .verify_sync_contribution_for_gossip(signed_contribution_and_proof)?;
+            let verified_contribution = {
+                crate::metrics::inc_counter(&crate::metrics::SYNC_CONTRIBUTION_PROCESSING_REQUESTS);
+                let _timer = crate::metrics::start_timer(
+                    &crate::metrics::SYNC_CONTRIBUTION_GOSSIP_VERIFICATION_TIMES,
+                );
+                crate::sync_committee_verification::VerifiedSyncContribution::verify(
+                    signed_contribution_and_proof,
+                    &self.chain,
+                )
+                .inspect(|v| {
+                    if let Some(event_handler) = self.chain.event_handler.as_ref()
+                        && event_handler.has_contribution_subscribers()
+                    {
+                        event_handler.register(eth2::types::EventKind::ContributionAndProof(
+                            Box::new(v.aggregate().clone()),
+                        ));
+                    }
+                    crate::metrics::inc_counter(
+                        &crate::metrics::SYNC_CONTRIBUTION_PROCESSING_SUCCESSES,
+                    );
+                })?
+            };
 
             verified_contributions.push(verified_contribution);
         }
@@ -3638,8 +3667,24 @@ where
                 .map(|sidecar| {
                     let subnet_id =
                         DataColumnSubnetId::from_column_index(*sidecar.index(), &self.spec);
-                    self.chain
-                        .verify_data_column_sidecar_for_gossip(sidecar, subnet_id)
+                    {
+                        crate::metrics::inc_counter(
+                            &crate::metrics::DATA_COLUMN_SIDECAR_PROCESSING_REQUESTS,
+                        );
+                        let _timer = crate::metrics::start_timer(
+                            &crate::metrics::DATA_COLUMN_SIDECAR_GOSSIP_VERIFICATION_TIMES,
+                        );
+                        crate::data_column_verification::GossipVerifiedDataColumn::new(
+                            sidecar,
+                            subnet_id,
+                            &self.chain,
+                        )
+                        .inspect(|_| {
+                            crate::metrics::inc_counter(
+                                &crate::metrics::DATA_COLUMN_SIDECAR_PROCESSING_SUCCESSES,
+                            );
+                        })
+                    }
                 })
                 .collect::<Result<Vec<_>, _>>()
                 .unwrap();

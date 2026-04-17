@@ -1,4 +1,4 @@
-use beacon_chain::{BeaconChain, BeaconChainTypes};
+use beacon_chain::{BeaconChain, BeaconChainTypes, enr_fork_id};
 use fixed_bytes::FixedBytesExtended;
 use types::{EthSpec, Hash256};
 
@@ -19,7 +19,12 @@ impl<T: BeaconChainTypes> ToStatusMessage for BeaconChain<T> {
 
 /// Build a `StatusMessage` representing the state of the given `beacon_chain`.
 pub(crate) fn status_message<T: BeaconChainTypes>(beacon_chain: &BeaconChain<T>) -> StatusMessage {
-    let fork_digest = beacon_chain.enr_fork_id().fork_digest;
+    let fork_digest = enr_fork_id::<T>(
+        &beacon_chain.slot_clock,
+        &beacon_chain.spec,
+        beacon_chain.genesis_validators_root,
+    )
+    .fork_digest;
     let cached_head = beacon_chain.canonical_head.cached_head();
     let mut finalized_checkpoint = cached_head.finalized_checkpoint();
 

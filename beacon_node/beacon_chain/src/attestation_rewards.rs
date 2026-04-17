@@ -54,6 +54,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         // This branch is reached from the HTTP API. We assume the user wants
         // to cache states so that future calls are faster.
         let state = self
+            .store
             .get_state(&state_root, Some(state_slot), true)?
             .ok_or(BeaconChainError::MissingBeaconState(state_root))?;
 

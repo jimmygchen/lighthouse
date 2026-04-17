@@ -1082,7 +1082,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         // being able to attest to it. DO NOT add any extra processing in this initial section
         // unless it must run before fork choice.
         // -----------------------------------------------------------------------------------------
-        let current_slot = self.slot()?;
+        let current_slot = self.slot_clock.now().ok_or(Error::UnableToReadSlot)?;
         let current_epoch = current_slot.epoch(T::EthSpec::slots_per_epoch());
         let block = signed_block.message();
         let post_exec_timer = metrics::start_timer(&metrics::BLOCK_PROCESSING_POST_EXEC_PROCESSING);
@@ -1393,7 +1393,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             && let Err(e) =
                 self.verify_weak_subjectivity_checkpoint(wss_checkpoint, block_root, state)
         {
-            let mut shutdown_sender = self.shutdown_sender();
+            let mut shutdown_sender = self.shutdown_sender.clone();
             crit!(
                 ?block_root,
                 parent_root = ?block.parent_root(),

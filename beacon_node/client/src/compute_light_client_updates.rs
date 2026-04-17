@@ -22,10 +22,17 @@ pub async fn compute_light_client_updates<T: BeaconChainTypes>(
     // Uses a bounded receiver, so may drop some SyncAggregates if very overloaded. This is okay
     // since only the most recent updates have value.
     while let Some(event) = light_client_server_rv.next().await {
-        let parent_root = event.0;
+        let (parent_root, slot, sync_aggregate) = event;
 
         chain
-            .recompute_and_cache_light_client_updates(event)
+            .light_client_server_cache
+            .recompute_and_cache_updates(
+                chain.store.clone(),
+                slot,
+                &parent_root,
+                &sync_aggregate,
+                &chain.spec,
+            )
             .unwrap_or_else(|e| {
                 debug!("error computing light_client updates {:?}", e);
             });

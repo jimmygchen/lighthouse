@@ -2664,7 +2664,7 @@ pub fn serve<T: BeaconChainTypes>(
         .then(
             |task_spawner: TaskSpawner<T::EthSpec>, chain: Arc<BeaconChain<T>>| {
                 task_spawner.blocking_json_task(Priority::P0, move || {
-                    chain.manually_compact_database();
+                    chain.store_migrator.process_manual_compaction();
                     Ok(api_types::GenericResponse::from(String::from(
                         "Triggered manual compaction",
                     )))

@@ -38,7 +38,17 @@ pub fn get_aggregate_attestation<T: BeaconChainTypes>(
             })?
     } else {
         chain
-            .get_pre_electra_aggregated_attestation_by_slot_and_root(slot, attestation_data_root)
+            .attestation_manager
+            .get_pre_electra_aggregated_attestation_by_slot_and_root(
+                slot,
+                attestation_data_root,
+                |block_root| {
+                    chain
+                        .canonical_head
+                        .fork_choice_read_lock()
+                        .get_block_execution_status(block_root)
+                },
+            )
             .map_err(|e| {
                 warp_utils::reject::custom_bad_request(format!(
                     "unable to fetch aggregate: {:?}",

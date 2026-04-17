@@ -366,7 +366,30 @@ pub fn process_signed_contribution_and_proofs<T: BeaconChainTypes>(
         let subcommittee_index = contribution.message.contribution.subcommittee_index;
         let contribution_slot = contribution.message.contribution.slot;
 
-        match chain.verify_sync_contribution_for_gossip(contribution) {
+        match {
+            beacon_chain::metrics::inc_counter(
+                &beacon_chain::metrics::SYNC_CONTRIBUTION_PROCESSING_REQUESTS,
+            );
+            let _timer = beacon_chain::metrics::start_timer(
+                &beacon_chain::metrics::SYNC_CONTRIBUTION_GOSSIP_VERIFICATION_TIMES,
+            );
+            beacon_chain::sync_committee_verification::VerifiedSyncContribution::verify(
+                contribution,
+                &chain,
+            )
+            .inspect(|v| {
+                if let Some(event_handler) = chain.event_handler.as_ref()
+                    && event_handler.has_contribution_subscribers()
+                {
+                    event_handler.register(eth2::types::EventKind::ContributionAndProof(Box::new(
+                        v.aggregate().clone(),
+                    )));
+                }
+                beacon_chain::metrics::inc_counter(
+                    &beacon_chain::metrics::SYNC_CONTRIBUTION_PROCESSING_SUCCESSES,
+                );
+            })
+        } {
             Ok(verified_contribution) => {
                 publish_pubsub_message(
                     &network_tx,

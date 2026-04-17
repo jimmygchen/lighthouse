@@ -638,10 +638,24 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             &metrics::BEACON_DATA_COLUMN_GOSSIP_SLOT_START_DELAY_TIME,
             delay,
         );
-        match self
-            .chain
-            .verify_data_column_sidecar_for_gossip(column_sidecar.clone(), subnet_id)
-        {
+        match {
+            beacon_chain::metrics::inc_counter(
+                &beacon_chain::metrics::DATA_COLUMN_SIDECAR_PROCESSING_REQUESTS,
+            );
+            let _timer = beacon_chain::metrics::start_timer(
+                &beacon_chain::metrics::DATA_COLUMN_SIDECAR_GOSSIP_VERIFICATION_TIMES,
+            );
+            beacon_chain::data_column_verification::GossipVerifiedDataColumn::new(
+                column_sidecar.clone(),
+                subnet_id,
+                &self.chain,
+            )
+            .inspect(|_| {
+                beacon_chain::metrics::inc_counter(
+                    &beacon_chain::metrics::DATA_COLUMN_SIDECAR_PROCESSING_SUCCESSES,
+                );
+            })
+        } {
             Ok(gossip_verified_data_column) => {
                 metrics::inc_counter(
                     &metrics::BEACON_PROCESSOR_GOSSIP_DATA_COLUMN_SIDECAR_VERIFIED_TOTAL,
@@ -813,10 +827,24 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         let delay = get_slot_delay_ms(seen_duration, slot, &self.chain.slot_clock);
         // Log metrics to track delay from other nodes on the network.
         metrics::set_gauge(&metrics::BEACON_BLOB_DELAY_GOSSIP, delay.as_millis() as i64);
-        match self
-            .chain
-            .verify_blob_sidecar_for_gossip(blob_sidecar.clone(), blob_index)
-        {
+        match {
+            beacon_chain::metrics::inc_counter(
+                &beacon_chain::metrics::BLOBS_SIDECAR_PROCESSING_REQUESTS,
+            );
+            let _timer = beacon_chain::metrics::start_timer(
+                &beacon_chain::metrics::BLOBS_SIDECAR_GOSSIP_VERIFICATION_TIMES,
+            );
+            beacon_chain::blob_verification::GossipVerifiedBlob::new(
+                blob_sidecar.clone(),
+                blob_index,
+                &self.chain,
+            )
+            .inspect(|_| {
+                beacon_chain::metrics::inc_counter(
+                    &beacon_chain::metrics::BLOBS_SIDECAR_PROCESSING_SUCCESSES,
+                );
+            })
+        } {
             Ok(gossip_verified_blob) => {
                 metrics::inc_counter(&metrics::BEACON_PROCESSOR_GOSSIP_BLOB_VERIFIED_TOTAL);
 
@@ -2014,10 +2042,24 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         seen_timestamp: Duration,
     ) {
         let message_slot = sync_signature.slot;
-        let sync_signature = match self
-            .chain
-            .verify_sync_committee_message_for_gossip(sync_signature, subnet_id)
-        {
+        let sync_signature = match {
+            beacon_chain::metrics::inc_counter(
+                &beacon_chain::metrics::SYNC_MESSAGE_PROCESSING_REQUESTS,
+            );
+            let _timer = beacon_chain::metrics::start_timer(
+                &beacon_chain::metrics::SYNC_MESSAGE_GOSSIP_VERIFICATION_TIMES,
+            );
+            beacon_chain::sync_committee_verification::VerifiedSyncCommitteeMessage::verify(
+                sync_signature,
+                subnet_id,
+                &self.chain,
+            )
+            .inspect(|_| {
+                beacon_chain::metrics::inc_counter(
+                    &beacon_chain::metrics::SYNC_MESSAGE_PROCESSING_SUCCESSES,
+                );
+            })
+        } {
             Ok(sync_signature) => sync_signature,
             Err(e) => {
                 self.handle_sync_committee_message_failure(
@@ -2077,10 +2119,30 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         seen_timestamp: Duration,
     ) {
         let contribution_slot = sync_contribution.message.contribution.slot;
-        let sync_contribution = match self
-            .chain
-            .verify_sync_contribution_for_gossip(sync_contribution)
-        {
+        let sync_contribution = match {
+            beacon_chain::metrics::inc_counter(
+                &beacon_chain::metrics::SYNC_CONTRIBUTION_PROCESSING_REQUESTS,
+            );
+            let _timer = beacon_chain::metrics::start_timer(
+                &beacon_chain::metrics::SYNC_CONTRIBUTION_GOSSIP_VERIFICATION_TIMES,
+            );
+            beacon_chain::sync_committee_verification::VerifiedSyncContribution::verify(
+                sync_contribution,
+                &self.chain,
+            )
+            .inspect(|v| {
+                if let Some(event_handler) = self.chain.event_handler.as_ref()
+                    && event_handler.has_contribution_subscribers()
+                {
+                    event_handler.register(eth2::types::EventKind::ContributionAndProof(Box::new(
+                        v.aggregate().clone(),
+                    )));
+                }
+                beacon_chain::metrics::inc_counter(
+                    &beacon_chain::metrics::SYNC_CONTRIBUTION_PROCESSING_SUCCESSES,
+                );
+            })
+        } {
             Ok(sync_contribution) => sync_contribution,
             Err(e) => {
                 // Report the failure to gossipsub
@@ -2132,9 +2194,13 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         light_client_finality_update: LightClientFinalityUpdate<T::EthSpec>,
         seen_timestamp: Duration,
     ) {
-        match self
-            .chain
-            .verify_finality_update_for_gossip(light_client_finality_update, seen_timestamp)
+        match beacon_chain::light_client_finality_update_verification::VerifiedLightClientFinalityUpdate::verify(
+            light_client_finality_update,
+            &self.chain,
+            seen_timestamp,
+        ).inspect(|_| {
+            beacon_chain::metrics::inc_counter(&beacon_chain::metrics::FINALITY_UPDATE_PROCESSING_SUCCESSES);
+        })
         {
             Ok(_verified_light_client_finality_update) => {
                 self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Accept);
@@ -2192,10 +2258,13 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         allow_reprocess: bool,
         seen_timestamp: Duration,
     ) {
-        match self.chain.verify_optimistic_update_for_gossip(
+        match beacon_chain::light_client_optimistic_update_verification::VerifiedLightClientOptimisticUpdate::verify(
             light_client_optimistic_update.clone(),
+            &self.chain,
             seen_timestamp,
-        ) {
+        ).inspect(|_| {
+            beacon_chain::metrics::inc_counter(&beacon_chain::metrics::OPTIMISTIC_UPDATE_PROCESSING_SUCCESSES);
+        }) {
             Ok(verified_light_client_optimistic_update) => {
                 debug!(
                     %peer_id,

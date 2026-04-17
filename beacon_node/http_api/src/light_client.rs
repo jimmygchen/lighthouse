@@ -2,7 +2,7 @@ use crate::version::{
     ResponseIncludesVersion, add_consensus_version_header, add_ssz_content_type_header,
     beacon_response,
 };
-use beacon_chain::{BeaconChain, BeaconChainError, BeaconChainTypes};
+use beacon_chain::{BeaconChain, BeaconChainError, BeaconChainTypes, compute_fork_digest};
 use eth2::beacon_response::BeaconResponse;
 use eth2::types::{
     self as api_types, LightClientUpdate, LightClientUpdateResponseChunk,
@@ -27,7 +27,8 @@ pub fn get_light_client_updates<T: BeaconChainTypes>(
     validate_light_client_updates_request(&chain, &query)?;
 
     let light_client_updates = chain
-        .get_light_client_updates(query.start_period, query.count)
+        .light_client_server_cache
+        .get_light_client_updates(&chain.store, query.start_period, query.count, &chain.spec)
         .map_err(|_| {
             warp_utils::reject::custom_not_found("No LightClientUpdates found".to_string())
         })?;
@@ -156,7 +157,7 @@ fn map_light_client_update_to_response_chunk<T: BeaconChainTypes>(
     let epoch = light_client_update
         .attested_header_slot()
         .epoch(T::EthSpec::slots_per_epoch());
-    let fork_digest = chain.compute_fork_digest(epoch);
+    let fork_digest = compute_fork_digest(&chain.spec, chain.genesis_validators_root, epoch);
 
     let response_chunk_len = fork_digest.len() + light_client_update.ssz_bytes_len();
 

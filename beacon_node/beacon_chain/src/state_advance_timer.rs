@@ -254,7 +254,10 @@ async fn state_advance_timer<T: BeaconChainTypes>(
 /// See the module-level documentation for rationale.
 #[instrument(skip_all)]
 fn advance_head<T: BeaconChainTypes>(beacon_chain: &Arc<BeaconChain<T>>) -> Result<(), Error> {
-    let current_slot = beacon_chain.slot()?;
+    let current_slot = beacon_chain
+        .slot_clock
+        .now()
+        .ok_or(BeaconChainError::UnableToReadSlot)?;
 
     // These brackets ensure that the `head_slot` value is dropped before we run fork choice and
     // potentially invalidate it.
@@ -428,7 +431,10 @@ fn advance_head<T: BeaconChainTypes>(beacon_chain: &Arc<BeaconChain<T>>) -> Resu
     // starting it earlier in the slot. Otherwise, it's a good indication that the machine is too
     // slow/overloaded and will be useful information for the user.
     let starting_slot = current_slot;
-    let current_slot = beacon_chain.slot()?;
+    let current_slot = beacon_chain
+        .slot_clock
+        .now()
+        .ok_or(BeaconChainError::UnableToReadSlot)?;
     if starting_slot < current_slot {
         warn!(
             %head_block_root,

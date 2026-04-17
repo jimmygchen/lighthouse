@@ -905,7 +905,12 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
 
         if is_epoch_transition || reorg_distance.is_some() {
             self.persist_fork_choice()?;
-            self.op_pool.prune_attestations(self.epoch()?);
+            self.op_pool.prune_attestations(
+                self.slot_clock
+                    .now()
+                    .ok_or(Error::UnableToReadSlot)?
+                    .epoch(T::EthSpec::slots_per_epoch()),
+            );
         }
 
         // Register a server-sent-event for a reorg (if necessary).
@@ -1038,7 +1043,10 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             &new_snapshot.beacon_block,
             &new_snapshot.beacon_state,
             &new_finalized_state,
-            self.epoch()?,
+            self.slot_clock
+                .now()
+                .ok_or(Error::UnableToReadSlot)?
+                .epoch(T::EthSpec::slots_per_epoch()),
             &self.spec,
         );
 
@@ -1113,7 +1121,7 @@ fn check_finalized_payload_validity<T: BeaconChainTypes>(
             You may be on a hostile network.",
             "Finalized block has an invalid payload"
         );
-        let mut shutdown_sender = chain.shutdown_sender();
+        let mut shutdown_sender = chain.shutdown_sender.clone();
         shutdown_sender
             .try_send(ShutdownReason::Failure(
                 "Finalized block has an invalid execution payload.",

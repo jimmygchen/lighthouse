@@ -5,7 +5,9 @@ use crate::network_beacon_processor::InvalidBlockStorage;
 use crate::persisted_dht::{clear_dht, load_dht, persist_dht};
 use crate::router::{Router, RouterMessage};
 use crate::subnet_service::{SubnetService, SubnetServiceMessage, Subscription};
-use beacon_chain::{BeaconChain, BeaconChainTypes};
+use beacon_chain::{
+    BeaconChain, BeaconChainTypes, compute_fork_digest, duration_to_next_digest, enr_fork_id,
+};
 use beacon_processor::BeaconProcessorSend;
 use futures::channel::mpsc::Sender;
 use futures::future::OptionFuture;
@@ -250,7 +252,11 @@ impl<T: BeaconChainTypes> NetworkService<T> {
         let store = beacon_chain.store.clone();
 
         // build the current enr_fork_id for adding to our local ENR
-        let enr_fork_id = beacon_chain.enr_fork_id();
+        let enr_fork_id = enr_fork_id::<T>(
+            &beacon_chain.slot_clock,
+            &beacon_chain.spec,
+            beacon_chain.genesis_validators_root,
+        );
 
         // keep track of when our fork_id needs to be updated
         let next_digest_update = Box::pin(next_digest_delay(&beacon_chain).into());
@@ -449,16 +455,16 @@ impl<T: BeaconChainTypes> NetworkService<T> {
                     Some(_) = &mut self.next_digest_update => self.update_next_fork_digest(),
 
                     Some(_) = &mut self.next_unsubscribe => {
-                        let new_enr_fork_id = self.beacon_chain.enr_fork_id();
+                        let new_enr_fork_id = enr_fork_id::<T>(&self.beacon_chain.slot_clock, &self.beacon_chain.spec, self.beacon_chain.genesis_validators_root);
                         self.libp2p.unsubscribe_from_fork_topics_except(new_enr_fork_id.fork_digest);
                         info!("Unsubscribed from old fork topics");
                         self.next_unsubscribe = Box::pin(None.into());
                     }
 
                     Some(_) = &mut self.next_topic_subscriptions => {
-                        if let Some((epoch, _)) = self.beacon_chain.duration_to_next_digest() {
+                        if let Some((epoch, _)) = duration_to_next_digest::<T>(&self.beacon_chain.slot_clock, &self.beacon_chain.spec) {
                             let fork_name = self.beacon_chain.spec.fork_name_at_epoch(epoch);
-                            let fork_digest = self.beacon_chain.compute_fork_digest(epoch);
+                            let fork_digest = compute_fork_digest(&self.beacon_chain.spec, self.beacon_chain.genesis_validators_root, epoch);
                             info!("Subscribing to new fork topics");
                             self.libp2p.subscribe_new_fork_topics(fork_name, fork_digest);
                             self.next_topic_subscriptions = Box::pin(None.into());
@@ -823,7 +829,11 @@ impl<T: BeaconChainTypes> NetworkService<T> {
     }
 
     fn update_next_fork_digest(&mut self) {
-        let new_enr_fork_id = self.beacon_chain.enr_fork_id();
+        let new_enr_fork_id = enr_fork_id::<T>(
+            &self.beacon_chain.slot_clock,
+            &self.beacon_chain.spec,
+            self.beacon_chain.genesis_validators_root,
+        );
         // if we are unable to read the slot clock we assume that it is prior to genesis
         let current_epoch = self.beacon_chain.epoch().unwrap_or(
             self.beacon_chain
@@ -905,8 +915,7 @@ impl<T: BeaconChainTypes> NetworkService<T> {
 fn next_digest_delay<T: BeaconChainTypes>(
     beacon_chain: &BeaconChain<T>,
 ) -> Option<tokio::time::Sleep> {
-    beacon_chain
-        .duration_to_next_digest()
+    duration_to_next_digest::<T>(&beacon_chain.slot_clock, &beacon_chain.spec)
         .map(|(_, until_epoch)| tokio::time::sleep(until_epoch))
 }
 
@@ -915,7 +924,9 @@ fn next_digest_delay<T: BeaconChainTypes>(
 fn next_topic_subscriptions_delay<T: BeaconChainTypes>(
     beacon_chain: &BeaconChain<T>,
 ) -> Option<tokio::time::Sleep> {
-    if let Some((_, duration_to_epoch)) = beacon_chain.duration_to_next_digest() {
+    if let Some((_, duration_to_epoch)) =
+        duration_to_next_digest::<T>(&beacon_chain.slot_clock, &beacon_chain.spec)
+    {
         let duration_to_subscription = duration_to_epoch.saturating_sub(Duration::from_secs(
             beacon_chain.spec.get_slot_duration().as_secs() * SUBSCRIBE_DELAY_SLOTS,
         ));

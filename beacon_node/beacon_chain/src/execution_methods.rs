@@ -183,7 +183,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
 
         if justified_block.execution_status.is_invalid() {
             // Delegate to the free function for shutdown signalling.
-            let mut shutdown_sender = self.shutdown_sender();
+            let mut shutdown_sender = self.shutdown_sender.clone();
             return handle_invalid_justified_checkpoint::<T>(
                 &mut shutdown_sender,
                 justified_block.root,

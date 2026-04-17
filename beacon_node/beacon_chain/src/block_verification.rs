@@ -1654,7 +1654,10 @@ impl<T: BeaconChainTypes> ExecutionPendingBlock<T> {
          * We're running in parallel with the payload verification at this point, so this is
          * free real estate.
          */
-        let current_slot = chain.slot()?;
+        let current_slot = chain
+            .slot_clock
+            .now()
+            .ok_or(BeaconChainError::UnableToReadSlot)?;
         let mut fork_choice = chain.canonical_head.fork_choice_write_lock();
 
         // Register each attester slashing in the block with fork choice.
@@ -1821,7 +1824,10 @@ pub fn check_block_relevancy<T: BeaconChainTypes>(
 ) -> Result<Hash256, BlockError> {
     let block = signed_block.message();
 
-    let present_slot = chain.slot()?;
+    let present_slot = chain
+        .slot_clock
+        .now()
+        .ok_or(BeaconChainError::UnableToReadSlot)?;
 
     // Do not process blocks from the future.
     if block.slot() > present_slot {

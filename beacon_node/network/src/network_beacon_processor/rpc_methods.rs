@@ -447,9 +447,17 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                 send_blob_count += 1;
             } else {
                 let blob_list_result = match blob_list_results.entry(root) {
-                    Entry::Vacant(entry) => {
-                        entry.insert(self.chain.get_blobs_checking_early_attester_cache(root))
-                    }
+                    Entry::Vacant(entry) => entry.insert(
+                        self.chain
+                            .attestation_manager
+                            .early_attester_cache
+                            .get_blobs(*root)
+                            .map(Into::into)
+                            .map_or_else(
+                                || self.chain.data_availability_manager.get_blobs(root),
+                                Ok,
+                            ),
+                    ),
                     Entry::Occupied(entry) => entry.into_mut(),
                 };
 
@@ -639,8 +647,13 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
 
         let lc_updates = match self
             .chain
-            .get_light_client_updates(req.start_period, req.count)
-        {
+            .light_client_server_cache
+            .get_light_client_updates(
+                &self.chain.store,
+                req.start_period,
+                req.count,
+                &self.chain.spec,
+            ) {
             Ok(lc_updates) => lc_updates,
             Err(e) => {
                 error!(
@@ -983,8 +996,26 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         let (block_roots_and_slots, source) = if req_start_slot >= finalized_slot.as_u64() {
             // If the entire requested range is after finalization, use fork_choice
             (
-                self.chain
-                    .block_roots_from_fork_choice(req_start_slot, req_count),
+                {
+                    let head_block_root = self.chain.canonical_head.cached_head().head_block_root();
+                    let fork_choice_read_lock = self.chain.canonical_head.fork_choice_read_lock();
+                    let block_roots_iter = fork_choice_read_lock
+                        .proto_array()
+                        .iter_block_roots(&head_block_root);
+                    let end_slot = req_start_slot.saturating_add(req_count);
+                    let mut roots = vec![];
+                    for (root, slot) in block_roots_iter {
+                        if slot < end_slot && slot >= req_start_slot {
+                            roots.push((root, slot));
+                        }
+                        if slot < req_start_slot {
+                            break;
+                        }
+                    }
+                    drop(fork_choice_read_lock);
+                    roots.reverse();
+                    roots
+                },
                 "fork_choice",
             )
         } else if req_start_slot + req_count <= finalized_slot.as_u64() {
@@ -1004,9 +1035,26 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                 self.get_block_roots_from_store(req_start_slot, count_from_store)?;
 
             // Get roots from fork choice (after finalized slot)
-            let roots_from_fork_choice = self
-                .chain
-                .block_roots_from_fork_choice(start_slot_fork_choice, count_from_fork_choice);
+            let roots_from_fork_choice = {
+                let head_block_root = self.chain.canonical_head.cached_head().head_block_root();
+                let fork_choice_read_lock = self.chain.canonical_head.fork_choice_read_lock();
+                let block_roots_iter = fork_choice_read_lock
+                    .proto_array()
+                    .iter_block_roots(&head_block_root);
+                let end_slot = start_slot_fork_choice.saturating_add(count_from_fork_choice);
+                let mut roots = vec![];
+                for (root, slot) in block_roots_iter {
+                    if slot < end_slot && slot >= start_slot_fork_choice {
+                        roots.push((root, slot));
+                    }
+                    if slot < start_slot_fork_choice {
+                        break;
+                    }
+                }
+                drop(fork_choice_read_lock);
+                roots.reverse();
+                roots
+            };
 
             roots_from_store.extend(roots_from_fork_choice);
 
