@@ -519,10 +519,13 @@
   <div class="container">
     <div class="hero-badge">Proof of Concept</div>
     <h1>
-      <span class="highlight">BeaconChain&lt;T&gt;</span> god object eliminated
+      Beacon Chain <span class="highlight">Rearchitected</span>
     </h1>
+    <p class="hero-subtitle">
+      Independently testable components for spec-driven, LLM-assisted development
+    </p>
     <p>
-      Replaced by <span class="hero-code">BeaconComponents&lt;T&gt;</span> &mdash; a pure ref-holder struct with
+      <span class="hero-code">BeaconComponents&lt;T&gt;</span> replaces the monolith &mdash; a pure ref-holder struct with
       zero methods. Business logic lives in 6 focused components, each independently
       constructable and testable without <code>BeaconChainHarness</code>.
     </p>
