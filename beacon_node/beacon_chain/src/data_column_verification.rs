@@ -263,7 +263,8 @@ impl<T: BeaconChainTypes, O: ObservationStrategy> GossipVerifiedDataColumn<T, O>
         verify_is_unknown_sidecar(chain, &column_sidecar)?;
 
         if chain
-            .data_availability_checker
+            .data_availability_manager
+            .data_availability_checker()
             .is_data_column_cached(&column_sidecar.block_root(), &column_sidecar)
         {
             // Observe this data column so we don't process it again.
@@ -554,7 +555,8 @@ pub fn validate_data_column_sidecar_for_gossip_fulu<T: BeaconChainTypes, O: Obse
     // seen / published on the gossip network yet (passed the `verify_is_unknown_sidecar` check above).
     // In this case, we should accept it for gossip propagation.
     if chain
-        .data_availability_checker
+        .data_availability_manager
+        .data_availability_checker()
         .is_data_column_cached(&data_column.block_root(), &data_column)
     {
         // Observe this data column so we don't process it again.

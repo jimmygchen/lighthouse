@@ -30,7 +30,10 @@ pub fn check_database_invariants<T: BeaconChainTypes>(
             .collect()
     };
 
-    let custody_context = chain.data_availability_checker.custody_context();
+    let custody_context = chain
+        .data_availability_manager
+        .data_availability_checker()
+        .custody_context();
 
     let ctx = InvariantContext {
         fork_choice_blocks,

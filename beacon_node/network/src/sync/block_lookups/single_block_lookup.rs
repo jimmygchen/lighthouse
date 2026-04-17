@@ -224,7 +224,8 @@ impl<T: BeaconChainTypes> SingleBlockLookup<T> {
                 // can assert that this is the correct value of `blob_kzg_commitments_count`.
                 match cx
                     .chain
-                    .data_availability_checker
+                    .data_availability_manager
+                    .data_availability_checker()
                     .get_cached_block(&self.block_root)
                     .unwrap_or(BlockProcessStatus::Unknown)
                 {

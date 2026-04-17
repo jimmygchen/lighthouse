@@ -67,6 +67,7 @@ pub fn post_beacon_pool_bls_to_execution_changes<T: BeaconChainTypes>(
 
                         // Check op pool for conflicts before checking the gossip duplicate filter.
                         let pool_result = chain
+                            .operations
                             .op_pool
                             .bls_to_execution_change_in_pool_equals(&address_change);
                         let verify_result = match pool_result {
@@ -120,10 +121,11 @@ pub fn post_beacon_pool_bls_to_execution_changes<T: BeaconChainTypes>(
                                 }
 
                                 // Import to op pool (may return `false` if there's a race).
-                                let imported = chain.op_pool.insert_bls_to_execution_change(
-                                    verified_address_change,
-                                    received_pre_capella,
-                                );
+                                let imported =
+                                    chain.operations.op_pool.insert_bls_to_execution_change(
+                                        verified_address_change,
+                                        received_pre_capella,
+                                    );
 
                                 info!(
                                     %validator_index,
@@ -174,7 +176,8 @@ pub fn get_beacon_pool_bls_to_execution_changes<T: BeaconChainTypes>(
         .then(
             |task_spawner: TaskSpawner<T::EthSpec>, chain: Arc<BeaconSystem<T>>| {
                 task_spawner.blocking_json_task(Priority::P1, move || {
-                    let address_changes = chain.op_pool.get_all_bls_to_execution_changes();
+                    let address_changes =
+                        chain.operations.op_pool.get_all_bls_to_execution_changes();
                     Ok(GenericResponse::from(address_changes))
                 })
             },
@@ -220,7 +223,7 @@ pub fn get_beacon_pool_voluntary_exits<T: BeaconChainTypes>(
         .then(
             |task_spawner: TaskSpawner<T::EthSpec>, chain: Arc<BeaconSystem<T>>| {
                 task_spawner.blocking_json_task(Priority::P1, move || {
-                    let attestations = chain.op_pool.get_all_voluntary_exits();
+                    let attestations = chain.operations.op_pool.get_all_voluntary_exits();
                     Ok(GenericResponse::from(attestations))
                 })
             },
@@ -299,7 +302,10 @@ pub fn post_beacon_pool_voluntary_exits<T: BeaconChainTypes>(
                             )),
                         )?;
 
-                        chain.op_pool.insert_voluntary_exit(verified_exit.clone());
+                        chain
+                            .operations
+                            .op_pool
+                            .insert_voluntary_exit(verified_exit.clone());
                     }
 
                     Ok(())
@@ -320,7 +326,7 @@ pub fn get_beacon_pool_proposer_slashings<T: BeaconChainTypes>(
         .then(
             |task_spawner: TaskSpawner<T::EthSpec>, chain: Arc<BeaconSystem<T>>| {
                 task_spawner.blocking_json_task(Priority::P1, move || {
-                    let attestations = chain.op_pool.get_all_proposer_slashings();
+                    let attestations = chain.operations.op_pool.get_all_proposer_slashings();
                     Ok(GenericResponse::from(attestations))
                 })
             },
@@ -394,7 +400,10 @@ pub fn post_beacon_pool_proposer_slashings<T: BeaconChainTypes>(
                             )),
                         )?;
 
-                        chain.op_pool.insert_proposer_slashing(verified_slashing);
+                        chain
+                            .operations
+                            .op_pool
+                            .insert_proposer_slashing(verified_slashing);
                     }
 
                     Ok(())
@@ -417,7 +426,7 @@ pub fn get_beacon_pool_attester_slashings<T: BeaconChainTypes>(
              task_spawner: TaskSpawner<T::EthSpec>,
              chain: Arc<BeaconSystem<T>>| {
                 task_spawner.blocking_response_task(Priority::P1, move || {
-                    let slashings = chain.op_pool.get_all_attester_slashings();
+                    let slashings = chain.operations.op_pool.get_all_attester_slashings();
 
                     // Use the current slot to find the fork version, and convert all messages to the
                     // current fork's format. This is to ensure consistent message types matching
@@ -533,7 +542,10 @@ pub fn post_beacon_pool_attester_slashings<T: BeaconChainTypes>(
                             )),
                         )?;
 
-                        chain.op_pool.insert_attester_slashing(verified_slashing);
+                        chain
+                            .operations
+                            .op_pool
+                            .insert_attester_slashing(verified_slashing);
                     }
 
                     Ok(())
@@ -565,7 +577,10 @@ pub fn get_beacon_pool_attestations<T: BeaconChainTypes>(
                                 .is_none_or(|index| committee_indices.contains(&index))
                     };
 
-                    let mut attestations = chain.op_pool.get_filtered_attestations(query_filter);
+                    let mut attestations = chain
+                        .operations
+                        .op_pool
+                        .get_filtered_attestations(query_filter);
                     attestations.extend(
                         chain
                             .attestation_manager

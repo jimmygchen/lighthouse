@@ -589,10 +589,10 @@ async fn roundtrip_operation_pool() {
             AttestationStrategy::AllValidators,
         )
         .await;
-    assert!(harness.chain.op_pool.num_attestations() > 0);
+    assert!(harness.chain.operations.op_pool.num_attestations() > 0);
 
     // TODO: could add some other operations
-    beacon_chain::persist_op_pool(&harness.chain.store, &harness.chain.op_pool)
+    beacon_chain::persist_op_pool(&harness.chain.store, &harness.chain.operations.op_pool)
         .expect("should persist op pool");
 
     let restored_op_pool = harness
@@ -604,7 +604,7 @@ async fn roundtrip_operation_pool() {
         .into_operation_pool()
         .unwrap();
 
-    assert_eq!(*harness.chain.op_pool, restored_op_pool);
+    assert_eq!(*harness.chain.operations.op_pool, restored_op_pool);
 }
 
 #[tokio::test]

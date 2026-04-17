@@ -2590,7 +2590,7 @@ impl ApiTester {
             .unwrap()
             .data;
 
-        let mut expected = self.chain.op_pool.get_all_attestations();
+        let mut expected = self.chain.operations.op_pool.get_all_attestations();
         expected.extend(
             self.chain
                 .attestation_manager
@@ -2656,7 +2656,7 @@ impl ApiTester {
             // Take and drop the lock in a block to avoid clippy complaining
             // about taking locks across await points
             {
-                let mut all_attestations = self.chain.op_pool.attestations.write();
+                let mut all_attestations = self.chain.operations.op_pool.attestations.write();
                 let (prev_epoch_key, curr_epoch_key) =
                     CheckpointKey::keys_for_state(&self.harness.get_current_state());
                 all_attestations.aggregate_across_committees(prev_epoch_key);
@@ -2668,7 +2668,7 @@ impl ApiTester {
                 .await
                 .unwrap()
                 .into_data();
-            let mut expected = self.chain.op_pool.get_all_attestations();
+            let mut expected = self.chain.operations.op_pool.get_all_attestations();
             expected.extend(
                 self.chain
                     .attestation_manager
@@ -2781,7 +2781,7 @@ impl ApiTester {
             .unwrap()
             .data;
 
-        let expected = self.chain.op_pool.get_all_attester_slashings();
+        let expected = self.chain.operations.op_pool.get_all_attester_slashings();
 
         assert_eq!(result, expected);
 
@@ -2835,7 +2835,7 @@ impl ApiTester {
             .unwrap()
             .data;
 
-        let expected = self.chain.op_pool.get_all_proposer_slashings();
+        let expected = self.chain.operations.op_pool.get_all_proposer_slashings();
 
         assert_eq!(result, expected);
 
@@ -2881,7 +2881,7 @@ impl ApiTester {
             .unwrap()
             .data;
 
-        let expected = self.chain.op_pool.get_all_voluntary_exits();
+        let expected = self.chain.operations.op_pool.get_all_voluntary_exits();
 
         assert_eq!(result, expected);
 
@@ -3488,7 +3488,8 @@ impl ApiTester {
             // this is succinct and effective for the time being.
             assert!(
                 self.chain
-                    .beacon_proposer_cache
+                    .execution_manager
+                    .beacon_proposer_cache()
                     .lock()
                     .get_epoch::<E>(dependent_root, epoch)
                     .is_none(),
@@ -3506,7 +3507,8 @@ impl ApiTester {
             if epoch == current_epoch {
                 assert!(
                     self.chain
-                        .beacon_proposer_cache
+                        .execution_manager
+                        .beacon_proposer_cache()
                         .lock()
                         .get_epoch::<E>(dependent_root, epoch)
                         .is_some(),
@@ -3515,7 +3517,8 @@ impl ApiTester {
             } else {
                 assert!(
                     self.chain
-                        .beacon_proposer_cache
+                        .execution_manager
+                        .beacon_proposer_cache()
                         .lock()
                         .get_epoch::<E>(dependent_root, epoch)
                         .is_none(),
@@ -3565,7 +3568,8 @@ impl ApiTester {
                 // This is technically a double-check, but it's defensive.
                 assert!(
                     self.chain
-                        .beacon_proposer_cache
+                        .execution_manager
+                        .beacon_proposer_cache()
                         .lock()
                         .get_epoch::<E>(dependent_root, epoch)
                         .is_some(),
@@ -3708,7 +3712,8 @@ impl ApiTester {
 
         assert!(
             self.chain
-                .beacon_proposer_cache
+                .execution_manager
+                .beacon_proposer_cache()
                 .lock()
                 .get_epoch::<E>(dependent_root, current_epoch)
                 .is_none(),
@@ -3737,7 +3742,8 @@ impl ApiTester {
 
         assert!(
             self.chain
-                .beacon_proposer_cache
+                .execution_manager
+                .beacon_proposer_cache()
                 .lock()
                 .get_epoch::<E>(dependent_root, current_epoch)
                 .is_some(),
@@ -4913,15 +4919,15 @@ impl ApiTester {
         {
             let actual_fee_recipient = self
                 .chain
-                .execution_layer
-                .as_ref()
+                .execution_manager
+                .execution_layer()
                 .unwrap()
                 .get_suggested_fee_recipient(val_index as u64)
                 .await;
             let actual_gas_limit = self
                 .chain
-                .execution_layer
-                .as_ref()
+                .execution_manager
+                .execution_layer()
                 .unwrap()
                 .get_proposer_gas_limit(val_index as u64)
                 .await;
@@ -4971,8 +4977,8 @@ impl ApiTester {
         {
             let actual = self
                 .chain
-                .execution_layer
-                .as_ref()
+                .execution_manager
+                .execution_layer()
                 .unwrap()
                 .get_suggested_fee_recipient(val_index as u64)
                 .await;
@@ -5011,15 +5017,15 @@ impl ApiTester {
         {
             let actual_fee_recipient = self
                 .chain
-                .execution_layer
-                .as_ref()
+                .execution_manager
+                .execution_layer()
                 .unwrap()
                 .get_suggested_fee_recipient(val_index as u64)
                 .await;
             let actual_gas_limit = self
                 .chain
-                .execution_layer
-                .as_ref()
+                .execution_manager
+                .execution_layer()
                 .unwrap()
                 .get_proposer_gas_limit(val_index as u64)
                 .await;
@@ -5278,8 +5284,8 @@ impl ApiTester {
         // mock builder.
         assert!(
             self.chain
-                .execution_layer
-                .as_ref()
+                .execution_manager
+                .execution_layer()
                 .unwrap()
                 .get_payload_by_root(&payload.tree_hash_root())
                 .is_none()
@@ -5325,8 +5331,8 @@ impl ApiTester {
         // This cache should not be populated because fallback should not have been used.
         assert!(
             self.chain
-                .execution_layer
-                .as_ref()
+                .execution_manager
+                .execution_layer()
                 .unwrap()
                 .get_payload_by_root(&payload.tree_hash_root())
                 .is_none()
@@ -5367,8 +5373,8 @@ impl ApiTester {
         // If this cache is populated, it indicates fallback to the local EE was correctly used.
         assert!(
             self.chain
-                .execution_layer
-                .as_ref()
+                .execution_manager
+                .execution_layer()
                 .unwrap()
                 .get_payload_by_root(&payload.tree_hash_root())
                 .is_some()
@@ -5446,8 +5452,8 @@ impl ApiTester {
         // This cache should not be populated because fallback should not have been used.
         assert!(
             self.chain
-                .execution_layer
-                .as_ref()
+                .execution_manager
+                .execution_layer()
                 .unwrap()
                 .get_payload_by_root(&payload.tree_hash_root())
                 .is_none()
@@ -5536,8 +5542,8 @@ impl ApiTester {
         // If this cache is populated, it indicates fallback to the local EE was correctly used.
         assert!(
             self.chain
-                .execution_layer
-                .as_ref()
+                .execution_manager
+                .execution_layer()
                 .unwrap()
                 .get_payload_by_root(&payload.tree_hash_root())
                 .is_some()
@@ -5632,8 +5638,8 @@ impl ApiTester {
         // If this cache is populated, it indicates fallback to the local EE was correctly used.
         assert!(
             self.chain
-                .execution_layer
-                .as_ref()
+                .execution_manager
+                .execution_layer()
                 .unwrap()
                 .get_payload_by_root(&payload.tree_hash_root())
                 .is_some()
@@ -5726,8 +5732,8 @@ impl ApiTester {
         // If this cache is populated, it indicates fallback to the local EE was correctly used.
         assert!(
             self.chain
-                .execution_layer
-                .as_ref()
+                .execution_manager
+                .execution_layer()
                 .unwrap()
                 .get_payload_by_root(&payload.tree_hash_root())
                 .is_some()
@@ -5820,8 +5826,8 @@ impl ApiTester {
         // If this cache is populated, it indicates fallback to the local EE was correctly used.
         assert!(
             self.chain
-                .execution_layer
-                .as_ref()
+                .execution_manager
+                .execution_layer()
                 .unwrap()
                 .get_payload_by_root(&payload.tree_hash_root())
                 .is_some()
@@ -5897,8 +5903,8 @@ impl ApiTester {
         // If this cache is populated, it indicates fallback to the local EE was correctly used.
         assert!(
             self.chain
-                .execution_layer
-                .as_ref()
+                .execution_manager
+                .execution_layer()
                 .unwrap()
                 .get_payload_by_root(&payload.tree_hash_root())
                 .is_some()
@@ -5963,8 +5969,8 @@ impl ApiTester {
         // If this cache is populated, it indicates fallback to the local EE was correctly used.
         assert!(
             self.chain
-                .execution_layer
-                .as_ref()
+                .execution_manager
+                .execution_layer()
                 .unwrap()
                 .get_payload_by_root(&payload.tree_hash_root())
                 .is_some()
@@ -6041,8 +6047,8 @@ impl ApiTester {
         // This cache should not be populated because fallback should not have been used.
         assert!(
             self.chain
-                .execution_layer
-                .as_ref()
+                .execution_manager
+                .execution_layer()
                 .unwrap()
                 .get_payload_by_root(&payload.tree_hash_root())
                 .is_none()
@@ -6073,8 +6079,8 @@ impl ApiTester {
         // If this cache is populated, it indicates fallback to the local EE was correctly used.
         assert!(
             self.chain
-                .execution_layer
-                .as_ref()
+                .execution_manager
+                .execution_layer()
                 .unwrap()
                 .get_payload_by_root(&payload.tree_hash_root())
                 .is_some()
@@ -6182,8 +6188,8 @@ impl ApiTester {
         // If this cache is populated, it indicates fallback to the local EE was correctly used.
         assert!(
             self.chain
-                .execution_layer
-                .as_ref()
+                .execution_manager
+                .execution_layer()
                 .unwrap()
                 .get_payload_by_root(&payload.tree_hash_root())
                 .is_some()
@@ -6224,8 +6230,8 @@ impl ApiTester {
         // This cache should not be populated because fallback should not have been used.
         assert!(
             self.chain
-                .execution_layer
-                .as_ref()
+                .execution_manager
+                .execution_layer()
                 .unwrap()
                 .get_payload_by_root(&payload.tree_hash_root())
                 .is_none()
@@ -6345,8 +6351,8 @@ impl ApiTester {
         // If this cache is populated, it indicates fallback to the local EE was correctly used.
         assert!(
             self.chain
-                .execution_layer
-                .as_ref()
+                .execution_manager
+                .execution_layer()
                 .unwrap()
                 .get_payload_by_root(&payload.tree_hash_root())
                 .is_some()
@@ -6426,8 +6432,8 @@ impl ApiTester {
         // The builder's payload should've been chosen, so this cache should not be populated
         assert!(
             self.chain
-                .execution_layer
-                .as_ref()
+                .execution_manager
+                .execution_layer()
                 .unwrap()
                 .get_payload_by_root(&payload.tree_hash_root())
                 .is_none()
@@ -6497,8 +6503,8 @@ impl ApiTester {
         // The local payload should've been chosen, so this cache should be populated
         assert!(
             self.chain
-                .execution_layer
-                .as_ref()
+                .execution_manager
+                .execution_layer()
                 .unwrap()
                 .get_payload_by_root(&payload.tree_hash_root())
                 .is_some()
@@ -6568,8 +6574,8 @@ impl ApiTester {
         // The local payload should've been chosen, so this cache should be populated
         assert!(
             self.chain
-                .execution_layer
-                .as_ref()
+                .execution_manager
+                .execution_layer()
                 .unwrap()
                 .get_payload_by_root(&payload.tree_hash_root())
                 .is_some()
@@ -6638,8 +6644,8 @@ impl ApiTester {
         // The builder's payload should've been chosen, so this cache should not be populated
         assert!(
             self.chain
-                .execution_layer
-                .as_ref()
+                .execution_manager
+                .execution_layer()
                 .unwrap()
                 .get_payload_by_root(&payload.tree_hash_root())
                 .is_none()
@@ -6712,8 +6718,8 @@ impl ApiTester {
         // The local payload should've been chosen because the builder's was invalid
         assert!(
             self.chain
-                .execution_layer
-                .as_ref()
+                .execution_manager
+                .execution_layer()
                 .unwrap()
                 .get_payload_by_root(&payload.tree_hash_root())
                 .is_some()

@@ -130,7 +130,8 @@ pub fn import_historical_data_column_batch<T: BeaconChainTypes>(
     }
 
     chain
-        .data_availability_checker
+        .data_availability_manager
+        .data_availability_checker()
         .custody_context()
         .update_and_backfill_custody_count_at_epoch(epoch, expected_cgc);
 

@@ -627,7 +627,8 @@ pub fn signature_verify_chain_segment<T: BeaconChainTypes>(
     }
 
     chain
-        .data_availability_checker
+        .data_availability_manager
+        .data_availability_checker()
         .batch_verify_kzg_for_available_blocks(&available_blocks)?;
 
     // verify signatures
@@ -1204,7 +1205,7 @@ impl<T: BeaconChainTypes> SignatureVerifiedBlock<T> {
                         AvailableBlock::new(
                             block,
                             AvailableBlockData::NoData,
-                            &chain.data_availability_checker,
+                            chain.data_availability_manager.data_availability_checker(),
                             chain.spec.clone(),
                         )
                         .map_err(BlockError::AvailabilityCheck)?,
@@ -1312,7 +1313,8 @@ impl<T: BeaconChainTypes> IntoExecutionPendingBlock<T> for RangeSyncBlock<T::Eth
 
         let available_block = self.into_available_block();
         chain
-            .data_availability_checker
+            .data_availability_manager
+            .data_availability_checker()
             .verify_kzg_for_available_block(&available_block)
             .map_err(|e| {
                 BlockSlashInfo::SignatureNotChecked(

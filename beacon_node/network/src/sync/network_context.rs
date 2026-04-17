@@ -782,7 +782,10 @@ impl<T: BeaconChainTypes> SyncNetworkContext<T> {
 
         let range_req = entry.get_mut();
         if let Some(blocks_result) = range_req.responses(
-            self.chain.data_availability_checker.clone(),
+            self.chain
+                .data_availability_manager
+                .data_availability_checker()
+                .clone(),
             self.chain.spec.clone(),
         ) {
             if let Err(CouplingError::DataColumnPeerFailure {
@@ -849,7 +852,8 @@ impl<T: BeaconChainTypes> SyncNetworkContext<T> {
 
         match self
             .chain
-            .data_availability_checker
+            .data_availability_manager
+            .data_availability_checker()
             .get_cached_block(&block_root)
             .unwrap_or(BlockProcessStatus::Unknown)
         {
@@ -976,7 +980,8 @@ impl<T: BeaconChainTypes> SyncNetworkContext<T> {
 
         let imported_blob_indexes = self
             .chain
-            .data_availability_checker
+            .data_availability_manager
+            .data_availability_checker()
             .cached_blob_indexes(&block_root)
             .unwrap_or_default();
         // Include only the blob indexes not yet imported (received through gossip)
@@ -1096,7 +1101,8 @@ impl<T: BeaconChainTypes> SyncNetworkContext<T> {
     ) -> Result<LookupRequestResult, RpcRequestSendError> {
         let custody_indexes_imported = self
             .chain
-            .data_availability_checker
+            .data_availability_manager
+            .data_availability_checker()
             .cached_data_column_indexes(&block_root)
             .unwrap_or_default();
 
@@ -1382,13 +1388,15 @@ impl<T: BeaconChainTypes> SyncNetworkContext<T> {
 
         if self
             .chain
-            .data_availability_checker
+            .data_availability_manager
+            .data_availability_checker()
             .data_columns_required_for_epoch(epoch)
         {
             ByRangeRequestType::BlocksAndColumns
         } else if self
             .chain
-            .data_availability_checker
+            .data_availability_manager
+            .data_availability_checker()
             .blobs_required_for_epoch(epoch)
         {
             ByRangeRequestType::BlocksAndBlobs

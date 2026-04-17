@@ -700,6 +700,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                     let (attestation, attesting_indices) =
                         verified_aggregate.into_attestation_and_indices();
                     self.chain
+                        .operations
                         .op_pool
                         .insert_attestation(attestation, attesting_indices)
                         .map_err(beacon_chain::BeaconChainError::from)
@@ -1231,7 +1232,8 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
 
                     if self
                         .chain
-                        .data_availability_checker
+                        .data_availability_manager
+                        .data_availability_checker()
                         .custody_context()
                         .should_attempt_reconstruction(
                             slot.epoch(T::EthSpec::slots_per_epoch()),
@@ -3677,7 +3679,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                         &chain.canonical_head,
                         &chain.store,
                         &chain.spec,
-                        &chain.beacon_proposer_cache,
+                        chain.execution_manager.beacon_proposer_cache(),
                         &chain.validator_query.validator_pubkey_cache,
                         chain.genesis_validators_root,
                         chain.event_handler.as_deref(),
@@ -3781,7 +3783,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                                             &chain_ref.canonical_head,
                                             &chain_ref.store,
                                             &chain_ref.spec,
-                                            &chain_ref.beacon_proposer_cache,
+                                            chain_ref.execution_manager.beacon_proposer_cache(),
                                             &chain_ref.validator_query.validator_pubkey_cache,
                                             chain_ref.genesis_validators_root,
                                             chain_ref.event_handler.as_deref(),

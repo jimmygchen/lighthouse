@@ -433,7 +433,7 @@ async fn post_bellatrix_readiness_logging<T: BeaconChainTypes>(
     beacon_chain: &BeaconSystem<T>,
 ) {
     if let Some(fork) = find_next_fork_to_prepare(current_slot, beacon_chain) {
-        let readiness = if let Some(el) = beacon_chain.execution_layer.as_ref() {
+        let readiness = if let Some(el) = beacon_chain.execution_manager.execution_layer() {
             match el
                 .get_engine_capabilities(Some(Duration::from_secs(
                     ENGINE_CAPABILITIES_REFRESH_INTERVAL,

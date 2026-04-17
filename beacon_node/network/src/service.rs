@@ -289,7 +289,8 @@ impl<T: BeaconChainTypes> NetworkService<T> {
             executor.clone(),
             service_context,
             beacon_chain
-                .data_availability_checker
+                .data_availability_manager
+                .data_availability_checker()
                 .custody_context()
                 .custody_group_count_at_head(&beacon_chain.spec),
             local_keypair,

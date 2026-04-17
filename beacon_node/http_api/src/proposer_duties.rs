@@ -125,8 +125,8 @@ fn proposer_duties_internal<T: BeaconChainTypes>(
     }
 }
 
-/// Attempt to load the proposer duties from the `chain.beacon_proposer_cache`, returning `Ok(None)`
-/// if there is a cache miss.
+/// Attempt to load the proposer duties from the execution manager's beacon proposer cache,
+/// returning `Ok(None)` if there is a cache miss.
 ///
 /// ## Notes
 ///
@@ -167,7 +167,8 @@ fn try_proposer_duties_from_cache<T: BeaconChainTypes>(
             .map_err(warp_utils::reject::unhandled_error)?;
 
     chain
-        .beacon_proposer_cache
+        .execution_manager
+        .beacon_proposer_cache()
         .lock()
         .get_epoch::<T::EthSpec>(head_decision_root, request_epoch)
         .cloned()
@@ -204,7 +205,8 @@ fn compute_and_cache_proposer_duties<T: BeaconChainTypes>(
 
     // Prime the proposer shuffling cache with the newly-learned value.
     chain
-        .beacon_proposer_cache
+        .execution_manager
+        .beacon_proposer_cache()
         .lock()
         .insert(current_epoch, dependent_root, indices.clone(), fork)
         .map_err(BeaconChainError::from)

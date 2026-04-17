@@ -41,8 +41,8 @@ impl<T: BeaconChainTypes> FetchBlobsBeaconAdapter<T> {
     ) -> Result<Vec<Option<BlobAndProofV1<T::EthSpec>>>, FetchEngineBlobError> {
         let execution_layer = self
             .chain
-            .execution_layer
-            .as_ref()
+            .execution_manager
+            .execution_layer()
             .ok_or(FetchEngineBlobError::ExecutionLayerMissing)?;
 
         execution_layer
@@ -57,8 +57,8 @@ impl<T: BeaconChainTypes> FetchBlobsBeaconAdapter<T> {
     ) -> Result<Option<Vec<BlobAndProofV2<T::EthSpec>>>, FetchEngineBlobError> {
         let execution_layer = self
             .chain
-            .execution_layer
-            .as_ref()
+            .execution_manager
+            .execution_layer()
             .ok_or(FetchEngineBlobError::ExecutionLayerMissing)?;
 
         execution_layer
@@ -91,13 +91,15 @@ impl<T: BeaconChainTypes> FetchBlobsBeaconAdapter<T> {
 
     pub(crate) fn cached_blob_indexes(&self, block_root: &Hash256) -> Option<Vec<u64>> {
         self.chain
-            .data_availability_checker
+            .data_availability_manager
+            .data_availability_checker()
             .cached_blob_indexes(block_root)
     }
 
     pub(crate) fn cached_data_column_indexes(&self, block_root: &Hash256) -> Option<Vec<u64>> {
         self.chain
-            .data_availability_checker
+            .data_availability_manager
+            .data_availability_checker()
             .cached_data_column_indexes(block_root)
     }
 

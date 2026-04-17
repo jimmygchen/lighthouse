@@ -171,7 +171,7 @@ pub fn start_engine_version_cache_refresh_service<T: BeaconChainTypes>(
     chain: &BeaconSystem<T>,
     executor: TaskExecutor,
 ) {
-    let Some(el_ref) = chain.execution_layer.as_ref() else {
+    let Some(el_ref) = chain.execution_manager.execution_layer() else {
         debug!("No execution layer configured, not starting engine version cache refresh service");
         return;
     };
@@ -302,8 +302,8 @@ mod tests {
         // refresh capabilities cache
         harness
             .chain
-            .execution_layer
-            .as_ref()
+            .execution_manager
+            .execution_layer()
             .unwrap()
             .get_engine_capabilities(Some(Duration::ZERO))
             .await

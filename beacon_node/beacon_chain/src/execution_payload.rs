@@ -135,8 +135,8 @@ pub async fn notify_new_payload<T: BeaconChainTypes>(
     new_payload_request: NewPayloadRequest<'_, T::EthSpec>,
 ) -> Result<PayloadVerificationStatus, BlockError> {
     let execution_layer = chain
-        .execution_layer
-        .as_ref()
+        .execution_manager
+        .execution_layer()
         .ok_or(ExecutionPayloadError::NoExecutionConnection)?;
 
     let execution_block_hash = new_payload_request.execution_payload_ref().block_hash();
@@ -376,8 +376,8 @@ where
     let spec = &chain.spec;
     let fork = spec.fork_name_at_slot::<T::EthSpec>(builder_params.slot);
     let execution_layer = chain
-        .execution_layer
-        .as_ref()
+        .execution_manager
+        .execution_layer()
         .ok_or(BlockProductionError::ExecutionLayerMissing)?;
 
     let parent_hash = latest_execution_payload_header_block_hash;

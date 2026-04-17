@@ -652,7 +652,7 @@ pub async fn reconstruct_block<T: BeaconChainTypes>(
     block: Arc<SignedBlindedBeaconBlock<T::EthSpec>>,
 ) -> Result<Option<ProvenancedBlock<T, Arc<SignedBeaconBlock<T::EthSpec>>>>, Rejection> {
     let full_payload_opt = if let Ok(payload_header) = block.message().body().execution_payload() {
-        let el = chain.execution_layer.as_ref().ok_or_else(|| {
+        let el = chain.execution_manager.execution_layer().ok_or_else(|| {
             warp_utils::reject::custom_server_error("Missing execution layer".to_string())
         })?;
 

@@ -39,7 +39,10 @@ pub fn info<T: BeaconChainTypes>(
     // Compute the custody columns and the CGC *at the earliest custodied slot*. The node might
     // have some columns prior to this, but this value is the most up-to-date view of the data the
     // node is custodying.
-    let custody_context = chain.data_availability_checker.custody_context();
+    let custody_context = chain
+        .data_availability_manager
+        .data_availability_checker()
+        .custody_context();
     let custody_columns = custody_context
         .custody_columns_for_epoch(Some(earliest_custodied_data_column_epoch), &chain.spec)
         .to_vec();

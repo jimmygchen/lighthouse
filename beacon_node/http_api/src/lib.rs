@@ -2265,7 +2265,7 @@ pub fn serve<T: BeaconChainTypes>(
              network_globals: Arc<NetworkGlobals<T::EthSpec>>,
              chain: Arc<BeaconSystem<T>>| {
                 async move {
-                    let el_offline = if let Some(el) = &chain.execution_layer {
+                    let el_offline = if let Some(el) = chain.execution_manager.execution_layer() {
                         el.is_offline_or_erroring().await
                     } else {
                         true
@@ -2327,7 +2327,7 @@ pub fn serve<T: BeaconChainTypes>(
              network_globals: Arc<NetworkGlobals<T::EthSpec>>,
              chain: Arc<BeaconSystem<T>>| {
                 async move {
-                    let el_offline = if let Some(el) = &chain.execution_layer {
+                    let el_offline = if let Some(el) = chain.execution_manager.execution_layer() {
                         el.is_offline_or_erroring().await
                     } else {
                         true
@@ -3140,7 +3140,10 @@ pub fn serve<T: BeaconChainTypes>(
                         .head_slot()
                         .epoch(T::EthSpec::slots_per_epoch())
                         + 1;
-                    let custody_context = chain.data_availability_checker.custody_context();
+                    let custody_context = chain
+                        .data_availability_manager
+                        .data_availability_checker()
+                        .custody_context();
                     // Reset validator custody requirements to `effective_epoch` with the latest
                     // cgc requiremnets.
                     custody_context.reset_validator_custody_requirements(effective_epoch);

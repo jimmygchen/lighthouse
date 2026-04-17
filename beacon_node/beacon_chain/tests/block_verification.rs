@@ -71,7 +71,7 @@ async fn get_chain_segment() -> (Vec<BeaconSnapshot<E>>, Vec<Option<DataSidecars
     {
         let full_block = beacon_chain::get_block::<EphemeralHarnessType<E>>(
             &harness.chain.store,
-            harness.chain.execution_layer.as_ref(),
+            harness.chain.execution_manager.execution_layer(),
             &harness.chain.spec,
             &snapshot.beacon_block_root,
         )
@@ -171,7 +171,7 @@ where
             RangeSyncBlock::new(
                 block,
                 block_data,
-                &chain.data_availability_checker,
+                chain.data_availability_manager.data_availability_checker(),
                 chain.spec.clone(),
             )
             .unwrap()
@@ -186,7 +186,7 @@ where
             RangeSyncBlock::new(
                 block,
                 block_data,
-                &chain.data_availability_checker,
+                chain.data_availability_manager.data_availability_checker(),
                 chain.spec.clone(),
             )
             .unwrap()
@@ -194,7 +194,7 @@ where
         None => RangeSyncBlock::new(
             block,
             AvailableBlockData::NoData,
-            &chain.data_availability_checker,
+            chain.data_availability_manager.data_availability_checker(),
             chain.spec.clone(),
         )
         .unwrap(),
@@ -427,7 +427,10 @@ async fn chain_segment_non_linear_parent_roots() {
     blocks[3] = RangeSyncBlock::new(
         Arc::new(SignedBeaconBlock::from_block(block, signature)),
         blocks[3].block_data().clone(),
-        &harness.chain.data_availability_checker,
+        harness
+            .chain
+            .data_availability_manager
+            .data_availability_checker(),
         harness.spec.clone(),
     )
     .unwrap();
@@ -468,7 +471,10 @@ async fn chain_segment_non_linear_slots() {
     blocks[3] = RangeSyncBlock::new(
         Arc::new(SignedBeaconBlock::from_block(block, signature)),
         blocks[3].block_data().clone(),
-        &harness.chain.data_availability_checker,
+        harness
+            .chain
+            .data_availability_manager
+            .data_availability_checker(),
         harness.spec.clone(),
     )
     .unwrap();
@@ -499,7 +505,10 @@ async fn chain_segment_non_linear_slots() {
     blocks[3] = RangeSyncBlock::new(
         Arc::new(SignedBeaconBlock::from_block(block, signature)),
         blocks[3].block_data().clone(),
-        &harness.chain.data_availability_checker,
+        harness
+            .chain
+            .data_availability_manager
+            .data_availability_checker(),
         harness.chain.spec.clone(),
     )
     .unwrap();
@@ -1700,7 +1709,10 @@ async fn add_base_block_to_altair_chain() {
     let base_range_sync_block = RangeSyncBlock::new(
         Arc::new(base_block.clone()),
         AvailableBlockData::NoData,
-        &harness.chain.data_availability_checker,
+        harness
+            .chain
+            .data_availability_manager
+            .data_availability_checker(),
         harness.spec.clone(),
     )
     .unwrap();
@@ -1733,7 +1745,10 @@ async fn add_base_block_to_altair_chain() {
                     RangeSyncBlock::new(
                         Arc::new(base_block),
                         AvailableBlockData::NoData,
-                        &harness.chain.data_availability_checker,
+                        harness
+                            .chain
+                            .data_availability_manager
+                            .data_availability_checker(),
                         harness.spec.clone()
                     )
                     .unwrap()
@@ -1881,7 +1896,10 @@ async fn add_altair_block_to_base_chain() {
                     RangeSyncBlock::new(
                         Arc::new(altair_block),
                         AvailableBlockData::NoData,
-                        &harness.chain.data_availability_checker,
+                        harness
+                            .chain
+                            .data_availability_manager
+                            .data_availability_checker(),
                         harness.spec.clone()
                     )
                     .unwrap()
@@ -1949,7 +1967,10 @@ async fn import_duplicate_block_unrealized_justification() {
     let range_sync_block = RangeSyncBlock::new(
         block.clone(),
         AvailableBlockData::NoData,
-        &harness.chain.data_availability_checker,
+        harness
+            .chain
+            .data_availability_manager
+            .data_availability_checker(),
         harness.spec.clone(),
     )
     .unwrap();
@@ -2072,7 +2093,7 @@ async fn range_sync_block_construction_fails_with_wrong_blob_count() {
         .unwrap();
         let block = beacon_chain::get_block::<EphemeralHarnessType<E>>(
             &harness.chain.store,
-            harness.chain.execution_layer.as_ref(),
+            harness.chain.execution_manager.execution_layer(),
             &harness.chain.spec,
             &root,
         )
@@ -2104,7 +2125,10 @@ async fn range_sync_block_construction_fails_with_wrong_blob_count() {
             let result = RangeSyncBlock::new(
                 Arc::new(block),
                 block_data,
-                &harness.chain.data_availability_checker,
+                harness
+                    .chain
+                    .data_availability_manager
+                    .data_availability_checker(),
                 harness.chain.spec.clone(),
             );
 
@@ -2164,7 +2188,7 @@ async fn range_sync_block_rejects_missing_custody_columns() {
         .unwrap();
         let block = beacon_chain::get_block::<EphemeralHarnessType<E>>(
             &harness.chain.store,
-            harness.chain.execution_layer.as_ref(),
+            harness.chain.execution_manager.execution_layer(),
             &harness.chain.spec,
             &root,
         )
@@ -2194,7 +2218,10 @@ async fn range_sync_block_rejects_missing_custody_columns() {
                 let result = RangeSyncBlock::new(
                     Arc::new(block),
                     block_data,
-                    &harness.chain.data_availability_checker,
+                    harness
+                        .chain
+                        .data_availability_manager
+                        .data_availability_checker(),
                     harness.chain.spec.clone(),
                 );
 
@@ -2257,7 +2284,7 @@ async fn rpc_block_allows_construction_past_da_boundary() {
         .unwrap();
         let block = beacon_chain::get_block::<EphemeralHarnessType<E>>(
             &harness.chain.store,
-            harness.chain.execution_layer.as_ref(),
+            harness.chain.execution_manager.execution_layer(),
             &harness.chain.spec,
             &root,
         )
@@ -2281,7 +2308,7 @@ async fn rpc_block_allows_construction_past_da_boundary() {
             // Now verify the block is past the DA boundary
             let da_boundary = harness
                 .chain
-                .data_availability_checker
+                .data_availability_manager
                 .data_availability_boundary()
                 .expect("DA boundary should be set");
             assert!(
@@ -2296,7 +2323,10 @@ async fn rpc_block_allows_construction_past_da_boundary() {
             let result = RangeSyncBlock::new(
                 Arc::new(block),
                 AvailableBlockData::NoData,
-                &harness.chain.data_availability_checker,
+                harness
+                    .chain
+                    .data_availability_manager
+                    .data_availability_checker(),
                 harness.chain.spec.clone(),
             );
 

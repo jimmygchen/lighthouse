@@ -1991,7 +1991,7 @@ pub fn scrape_for_metrics<T: BeaconChainTypes>(beacon_chain: &BeaconSystem<T>) {
         scrape_sync_committee_observation(slot, beacon_chain);
     }
 
-    let attestation_stats = beacon_chain.op_pool.attestation_stats();
+    let attestation_stats = beacon_chain.operations.op_pool.attestation_stats();
 
     // Kept duplicated for backwards compatibility
     set_gauge_by_usize(
@@ -1999,7 +1999,10 @@ pub fn scrape_for_metrics<T: BeaconChainTypes>(beacon_chain: &BeaconSystem<T>) {
         beacon_chain.store.state_cache_len(),
     );
 
-    let da_checker_metrics = beacon_chain.data_availability_checker.metrics();
+    let da_checker_metrics = beacon_chain
+        .data_availability_manager
+        .data_availability_checker()
+        .metrics();
     set_gauge_by_usize(
         &DATA_AVAILABILITY_OVERFLOW_MEMORY_BLOCK_CACHE_SIZE,
         da_checker_metrics.block_cache_size,
@@ -2024,19 +2027,19 @@ pub fn scrape_for_metrics<T: BeaconChainTypes>(beacon_chain: &BeaconSystem<T>) {
     );
     set_gauge_by_usize(
         &OP_POOL_NUM_ATTESTER_SLASHINGS,
-        beacon_chain.op_pool.num_attester_slashings(),
+        beacon_chain.operations.op_pool.num_attester_slashings(),
     );
     set_gauge_by_usize(
         &OP_POOL_NUM_PROPOSER_SLASHINGS,
-        beacon_chain.op_pool.num_proposer_slashings(),
+        beacon_chain.operations.op_pool.num_proposer_slashings(),
     );
     set_gauge_by_usize(
         &OP_POOL_NUM_VOLUNTARY_EXITS,
-        beacon_chain.op_pool.num_voluntary_exits(),
+        beacon_chain.operations.op_pool.num_voluntary_exits(),
     );
     set_gauge_by_usize(
         &OP_POOL_NUM_SYNC_CONTRIBUTIONS,
-        beacon_chain.op_pool.num_sync_contributions(),
+        beacon_chain.operations.op_pool.num_sync_contributions(),
     );
 
     beacon_chain

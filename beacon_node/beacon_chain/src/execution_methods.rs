@@ -192,8 +192,9 @@ pub async fn prepare_beacon_proposer<T: BeaconChainTypes>(
     }
 
     let execution_layer = chain
-        .execution_layer
-        .clone()
+        .execution_manager
+        .execution_layer()
+        .cloned()
         .ok_or(Error::ExecutionLayerMissing)?;
 
     // Nothing to do if there are no proposers registered with the EL, exit early to avoid
@@ -381,8 +382,8 @@ pub async fn update_execution_engine_forkchoice<T: BeaconChainTypes>(
     override_forkchoice_update: OverrideForkchoiceUpdate,
 ) -> Result<(), Error> {
     let execution_layer = chain
-        .execution_layer
-        .as_ref()
+        .execution_manager
+        .execution_layer()
         .ok_or(Error::ExecutionLayerMissing)?;
 
     // Determine whether to override the forkchoiceUpdated message if we want to re-org

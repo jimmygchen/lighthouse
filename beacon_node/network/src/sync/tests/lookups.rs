@@ -1112,7 +1112,10 @@ impl TestRig {
         let range_sync_block = RangeSyncBlock::new(
             block,
             block_data,
-            &self.harness.chain.data_availability_checker,
+            self.harness
+                .chain
+                .data_availability_manager
+                .data_availability_checker(),
             self.harness.chain.spec.clone(),
         )
         .unwrap();
@@ -1423,7 +1426,8 @@ impl TestRig {
     fn custody_columns(&self) -> &[ColumnIndex] {
         self.harness
             .chain
-            .data_availability_checker
+            .data_availability_manager
+            .data_availability_checker()
             .custody_context()
             .custody_columns_for_epoch(None, &self.harness.spec)
     }
@@ -1755,7 +1759,8 @@ impl TestRig {
         match self
             .harness
             .chain
-            .data_availability_checker
+            .data_availability_manager
+            .data_availability_checker()
             .put_kzg_verified_blobs(
                 blob.block_root(),
                 std::iter::once(
@@ -1779,7 +1784,8 @@ impl TestRig {
         ));
         self.harness
             .chain
-            .data_availability_checker
+            .data_availability_manager
+            .data_availability_checker()
             .put_pre_execution_block(block.canonical_root(), block, BlockImportSource::Gossip)
             .unwrap();
     }
@@ -1790,7 +1796,8 @@ impl TestRig {
         ));
         self.harness
             .chain
-            .data_availability_checker
+            .data_availability_manager
+            .data_availability_checker()
             .remove_block_on_execution_error(&block_root);
 
         self.send_sync_message(SyncMessage::GossipBlockProcessResult {

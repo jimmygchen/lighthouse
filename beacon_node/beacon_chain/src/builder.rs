@@ -1134,7 +1134,6 @@ where
             task_executor,
             store_migrator,
             slot_clock: slot_clock.clone(),
-            op_pool,
             attestation_manager,
             operations,
             sync_committee_manager,
@@ -1148,7 +1147,6 @@ where
             ))),
             observed_slashable,
             pending_payload_envelopes,
-            execution_layer: self.execution_layer,
             genesis_validators_root,
             genesis_time,
             canonical_head,
@@ -1157,7 +1155,6 @@ where
             fork_choice_signal_tx,
             fork_choice_signal_rx,
             event_handler,
-            beacon_proposer_cache,
             block_times_cache: block_times_cache.clone(),
             envelope_times_cache: <_>::default(),
             pre_finalization_block_cache: <_>::default(),
@@ -1171,7 +1168,6 @@ where
             slasher: self.slasher.clone(),
             validator_monitor,
             genesis_backfill_slot,
-            data_availability_checker: data_availability_checker.clone(),
             kzg: kzg.clone(),
             rng: rng.clone(),
             data_availability_manager,
@@ -1219,7 +1215,9 @@ where
                 Witness<TSlotClock, E, THotStore, TColdStore>,
             >(
                 &beacon_chain.spec,
-                &beacon_chain.data_availability_checker,
+                beacon_chain
+                    .data_availability_manager
+                    .data_availability_checker(),
                 &beacon_chain.store,
             )
             .map_err(|e| format!("Failed writing updated CGC: {e:?}"))?;

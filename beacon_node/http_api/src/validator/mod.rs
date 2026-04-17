@@ -491,8 +491,8 @@ pub fn post_validator_register_validator<T: BeaconChainTypes>(
                 let initial_result = task_spawner
                     .spawn_async_with_rejection_no_conversion(Priority::P0, async move {
                         let execution_layer = chain
-                            .execution_layer
-                            .as_ref()
+                            .execution_manager
+                            .execution_layer()
                             .ok_or(BeaconChainError::ExecutionLayerMissing)
                             .map_err(warp_utils::reject::unhandled_error)?;
                         let current_slot = chain
@@ -593,8 +593,8 @@ pub fn post_validator_register_validator<T: BeaconChainTypes>(
                         // task via a channel.
                         let builder_future = async move {
                             let arc_builder = chain
-                                .execution_layer
-                                .as_ref()
+                                .execution_manager
+                                .execution_layer()
                                 .ok_or(BeaconChainError::ExecutionLayerMissing)
                                 .map_err(warp_utils::reject::unhandled_error)?
                                 .builder();
@@ -684,8 +684,8 @@ pub fn post_validator_prepare_beacon_proposer<T: BeaconChainTypes>(
                 task_spawner.spawn_async_with_rejection(Priority::P0, async move {
                     not_synced_filter?;
                     let execution_layer = chain
-                        .execution_layer
-                        .as_ref()
+                        .execution_manager
+                        .execution_layer()
                         .ok_or(BeaconChainError::ExecutionLayerMissing)
                         .map_err(warp_utils::reject::unhandled_error)?;
 
@@ -751,7 +751,8 @@ pub fn post_validator_prepare_beacon_proposer<T: BeaconChainTypes>(
                             beacon_chain::state_query::current_slot(&chain.slot_clock)
                                 .map_err(warp_utils::reject::unhandled_error)?;
                         if let Some(cgc_change) = chain
-                            .data_availability_checker
+                            .data_availability_manager
+                            .data_availability_checker()
                             .custody_context()
                             .register_validators(validators_and_balances, current_slot, &chain.spec)
                         {
@@ -778,7 +779,7 @@ pub fn post_validator_prepare_beacon_proposer<T: BeaconChainTypes>(
                             // `BeaconChain::drop`.
                             if let Err(error) = beacon_chain::persist_custody_ctx::<T>(
                                 &chain.spec,
-                                &chain.data_availability_checker,
+                                chain.data_availability_manager.data_availability_checker(),
                                 &chain.store,
                             ) {
                                 error!(
@@ -1028,7 +1029,7 @@ pub fn post_validator_aggregate_and_proofs<T: BeaconChainTypes>(
                         if let Err(e) = {
                             let _timer = beacon_chain::metrics::start_timer(&beacon_chain::metrics::ATTESTATION_PROCESSING_APPLY_TO_OP_POOL);
                             let (attestation, attesting_indices) = verified_aggregate.into_attestation_and_indices();
-                            chain.op_pool.insert_attestation(attestation, attesting_indices)
+                            chain.operations.op_pool.insert_attestation(attestation, attesting_indices)
                                 .map_err(beacon_chain::BeaconChainError::from)
                         } {
                             warn!(

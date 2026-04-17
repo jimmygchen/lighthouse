@@ -748,13 +748,13 @@ impl<T: BeaconChainTypes> SyncManager<T> {
 
     /// The main driving future for the sync manager.
     async fn main(&mut self) {
-        let check_ee = self.chain.execution_layer.is_some();
+        let check_ee = self.chain.execution_manager.execution_layer().is_some();
         let mut check_ee_stream = {
             // some magic to have an instance implementing stream even if there is no execution layer
             let ee_responsiveness_watch: futures::future::OptionFuture<_> = self
                 .chain
-                .execution_layer
-                .as_ref()
+                .execution_manager
+                .execution_layer()
                 .map(|el| el.get_responsiveness_watch())
                 .into();
             futures::stream::iter(ee_responsiveness_watch.await).flatten()

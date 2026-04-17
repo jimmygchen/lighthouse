@@ -227,7 +227,8 @@ impl<T: BeaconChainTypes> CustodyBackFillSync<T> {
     fn restart_if_required(&mut self) -> bool {
         let cgc_at_head = self
             .beacon_chain
-            .data_availability_checker
+            .data_availability_manager
+            .data_availability_checker()
             .custody_context()
             .custody_group_count_at_head(&self.beacon_chain.spec);
 
@@ -320,7 +321,8 @@ impl<T: BeaconChainTypes> CustodyBackFillSync<T> {
     fn set_cgc(&mut self) {
         self.cgc = self
             .beacon_chain
-            .data_availability_checker
+            .data_availability_manager
+            .data_availability_checker()
             .custody_context()
             .custody_group_count_at_head(&self.beacon_chain.spec);
     }

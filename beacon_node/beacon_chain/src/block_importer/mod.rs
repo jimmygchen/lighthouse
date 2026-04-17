@@ -1825,7 +1825,8 @@ fn emit_sse_blob_sidecar_events<'a, T: BeaconChainTypes, I>(
         && event_handler.has_blob_sidecar_subscribers()
     {
         let imported_blobs = components
-            .data_availability_checker
+            .data_availability_manager
+            .data_availability_checker()
             .cached_blob_indexes(block_root)
             .unwrap_or_default();
         let new_blobs = blobs_iter.filter(|b| !imported_blobs.contains(&b.index));
@@ -1849,7 +1850,8 @@ fn emit_sse_data_column_sidecar_events<'a, T: BeaconChainTypes, I>(
         && event_handler.has_data_column_sidecar_subscribers()
     {
         let imported_data_columns = components
-            .data_availability_checker
+            .data_availability_manager
+            .data_availability_checker()
             .cached_data_column_indexes(block_root)
             .unwrap_or_default();
         let new_data_columns =

@@ -1222,7 +1222,8 @@ async fn accept_processed_gossip_data_columns_without_import() {
 
     let block_root = rig.next_block.canonical_root();
     rig.chain
-        .data_availability_checker
+        .data_availability_manager
+        .data_availability_checker()
         .put_gossip_verified_data_columns(block_root, rig.next_block.slot(), verified_data_columns)
         .expect("should put data columns into availability cache");
 
@@ -1417,12 +1418,15 @@ async fn aggregate_attestation_to_unknown_block(import_method: BlockImportMethod
     let mut rig = TestRig::new(SMALL_CHAIN).await;
 
     // Empty the op pool.
-    rig.chain.op_pool.prune_attestations(u64::MAX.into());
-    assert_eq!(rig.chain.op_pool.num_attestations(), 0);
+    rig.chain
+        .operations
+        .op_pool
+        .prune_attestations(u64::MAX.into());
+    assert_eq!(rig.chain.operations.op_pool.num_attestations(), 0);
 
     // Send the attestation but not the block, and check that it was not imported.
 
-    let initial_attns = rig.chain.op_pool.num_attestations();
+    let initial_attns = rig.chain.operations.op_pool.num_attestations();
 
     rig.enqueue_next_block_aggregated_attestation();
 
@@ -1430,7 +1434,7 @@ async fn aggregate_attestation_to_unknown_block(import_method: BlockImportMethod
         .await;
 
     assert_eq!(
-        rig.chain.op_pool.num_attestations(),
+        rig.chain.operations.op_pool.num_attestations(),
         initial_attns,
         "Attestation should not have been included."
     );
@@ -1481,7 +1485,7 @@ async fn aggregate_attestation_to_unknown_block(import_method: BlockImportMethod
     );
 
     assert_eq!(
-        rig.chain.op_pool.num_attestations(),
+        rig.chain.operations.op_pool.num_attestations(),
         initial_attns + 1,
         "Attestation should have been included."
     );
@@ -1560,7 +1564,7 @@ async fn requeue_unknown_block_gossip_aggregated_attestation_without_import() {
 
     // Send the attestation but not the block, and check that it was not imported.
 
-    let initial_attns = rig.chain.op_pool.num_attestations();
+    let initial_attns = rig.chain.operations.op_pool.num_attestations();
 
     rig.enqueue_next_block_aggregated_attestation();
 
@@ -1592,7 +1596,7 @@ async fn requeue_unknown_block_gossip_aggregated_attestation_without_import() {
     .await;
 
     assert_eq!(
-        rig.chain.op_pool.num_attestations(),
+        rig.chain.operations.op_pool.num_attestations(),
         initial_attns,
         "Attestation should not have been included."
     );
@@ -1608,7 +1612,7 @@ async fn import_misc_gossip_ops() {
      * Attester slashing
      */
 
-    let initial_attester_slashings = rig.chain.op_pool.num_attester_slashings();
+    let initial_attester_slashings = rig.chain.operations.op_pool.num_attester_slashings();
 
     rig.enqueue_gossip_attester_slashing();
 
@@ -1616,7 +1620,7 @@ async fn import_misc_gossip_ops() {
         .await;
 
     assert_eq!(
-        rig.chain.op_pool.num_attester_slashings(),
+        rig.chain.operations.op_pool.num_attester_slashings(),
         initial_attester_slashings + 1,
         "op pool should have one more attester slashing"
     );
@@ -1625,7 +1629,7 @@ async fn import_misc_gossip_ops() {
      * Proposer slashing
      */
 
-    let initial_proposer_slashings = rig.chain.op_pool.num_proposer_slashings();
+    let initial_proposer_slashings = rig.chain.operations.op_pool.num_proposer_slashings();
 
     rig.enqueue_gossip_proposer_slashing();
 
@@ -1633,7 +1637,7 @@ async fn import_misc_gossip_ops() {
         .await;
 
     assert_eq!(
-        rig.chain.op_pool.num_proposer_slashings(),
+        rig.chain.operations.op_pool.num_proposer_slashings(),
         initial_proposer_slashings + 1,
         "op pool should have one more proposer slashing"
     );
@@ -1642,7 +1646,7 @@ async fn import_misc_gossip_ops() {
      * Voluntary exit
      */
 
-    let initial_voluntary_exits = rig.chain.op_pool.num_voluntary_exits();
+    let initial_voluntary_exits = rig.chain.operations.op_pool.num_voluntary_exits();
 
     rig.enqueue_gossip_voluntary_exit();
 
@@ -1650,7 +1654,7 @@ async fn import_misc_gossip_ops() {
         .await;
 
     assert_eq!(
-        rig.chain.op_pool.num_voluntary_exits(),
+        rig.chain.operations.op_pool.num_voluntary_exits(),
         initial_voluntary_exits + 1,
         "op pool should have one more exit"
     );

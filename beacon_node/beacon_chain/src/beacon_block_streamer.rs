@@ -388,8 +388,8 @@ impl<T: BeaconChainTypes> BeaconBlockStreamer<T> {
         check_caches: CheckCaches,
     ) -> Result<Arc<Self>, BeaconChainError> {
         let execution_layer = beacon_chain
-            .execution_layer
-            .as_ref()
+            .execution_manager
+            .execution_layer()
             .ok_or(BeaconChainError::ExecutionLayerMissing)?
             .clone();
 
@@ -404,7 +404,8 @@ impl<T: BeaconChainTypes> BeaconBlockStreamer<T> {
         if self.check_caches == CheckCaches::Yes {
             match self
                 .beacon_chain
-                .data_availability_checker
+                .data_availability_manager
+                .data_availability_checker()
                 .get_cached_block(&root)
                 .unwrap_or(BlockProcessStatus::Unknown)
             {
@@ -561,7 +562,7 @@ impl<T: BeaconChainTypes> BeaconBlockStreamer<T> {
             } else {
                 crate::beacon_components::get_block::<T>(
                     &self.beacon_chain.store,
-                    self.beacon_chain.execution_layer.as_ref(),
+                    self.beacon_chain.execution_manager.execution_layer(),
                     &self.beacon_chain.spec,
                     &root,
                 )
@@ -822,7 +823,7 @@ mod tests {
             let block =
                 crate::beacon_components::get_block::<EphemeralHarnessType<MinimalEthSpec>>(
                     &harness.chain.store,
-                    harness.chain.execution_layer.as_ref(),
+                    harness.chain.execution_manager.execution_layer(),
                     &harness.chain.spec,
                     root,
                 )

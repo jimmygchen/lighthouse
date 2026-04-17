@@ -68,7 +68,11 @@ async fn missed_blocks_across_epochs() {
         .await;
 
     // Prime the proposer shuffling cache.
-    let mut proposer_shuffling_cache = harness.chain.beacon_proposer_cache.lock();
+    let mut proposer_shuffling_cache = harness
+        .chain
+        .execution_manager
+        .beacon_proposer_cache()
+        .lock();
     for epoch in [0, 1].into_iter().map(Epoch::new) {
         let start_slot = epoch.start_slot(slots_per_epoch) + 1;
         let state = harness

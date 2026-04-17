@@ -74,7 +74,12 @@ impl InvalidPayloadRig {
     }
 
     fn execution_layer(&self) -> ExecutionLayer<E> {
-        self.harness.chain.execution_layer.clone().unwrap()
+        self.harness
+            .chain
+            .execution_manager
+            .execution_layer()
+            .cloned()
+            .unwrap()
     }
 
     fn block_hash(&self, block_root: Hash256) -> ExecutionBlockHash {

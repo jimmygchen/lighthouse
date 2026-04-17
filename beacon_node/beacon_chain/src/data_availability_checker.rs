@@ -567,7 +567,11 @@ pub fn start_availability_cache_maintenance_service<T: BeaconChainTypes>(
 ) {
     // this cache only needs to be maintained if deneb is configured
     if chain.spec.deneb_fork_epoch.is_some() {
-        let overflow_cache = chain.data_availability_checker.availability_cache.clone();
+        let overflow_cache = chain
+            .data_availability_manager
+            .data_availability_checker()
+            .availability_cache
+            .clone();
         executor.spawn(
             async move { availability_cache_maintenance_service(chain, overflow_cache).await },
             "availability_cache_service",

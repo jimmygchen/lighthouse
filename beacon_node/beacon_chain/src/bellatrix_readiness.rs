@@ -41,8 +41,8 @@ pub async fn check_genesis_execution_payload_is_correct<T: BeaconChainTypes>(
     };
 
     let execution_layer = chain
-        .execution_layer
-        .as_ref()
+        .execution_manager
+        .execution_layer()
         .ok_or(Error::ExecutionLayerMissing)?;
     let exec_block_hash = latest_execution_payload_header.block_hash();
 

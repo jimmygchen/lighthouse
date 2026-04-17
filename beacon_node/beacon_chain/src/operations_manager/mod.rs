@@ -27,7 +27,7 @@ type PersistFn<E> = Box<dyn Fn(&OperationPool<E>) -> Result<(), Error> + Send + 
 /// state, slot clock values, or similar chain-level context on its own.
 pub struct OperationsManager<E: EthSpec> {
     spec: Arc<ChainSpec>,
-    op_pool: Arc<OperationPool<E>>,
+    pub op_pool: Arc<OperationPool<E>>,
     pub observed_voluntary_exits: Mutex<ObservedOperations<SignedVoluntaryExit, E>>,
     pub observed_proposer_slashings: Mutex<ObservedOperations<ProposerSlashing, E>>,
     pub observed_attester_slashings: Mutex<ObservedOperations<AttesterSlashing<E>, E>>,

@@ -718,7 +718,7 @@ where
             let state_advance_context = runtime_context.clone();
             spawn_state_advance_timer(state_advance_context.executor, beacon_chain.clone());
 
-            if let Some(execution_layer) = beacon_chain.execution_layer.as_ref() {
+            if let Some(execution_layer) = beacon_chain.execution_manager.execution_layer() {
                 // Only send a head update *after* genesis.
                 if let Ok(current_slot) =
                     beacon_chain::state_query::current_slot(&beacon_chain.slot_clock)

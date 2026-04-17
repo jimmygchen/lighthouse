@@ -412,7 +412,8 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             .flat_map(|blob_id| {
                 let block_root = blob_id.block_root;
                 self.chain
-                    .data_availability_checker
+                    .data_availability_manager
+                    .data_availability_checker()
                     .get_cached_block(&block_root)
                     .and_then(|status| match status {
                         BlockProcessStatus::NotValidated(block, _source) => Some(block),
@@ -445,7 +446,12 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             }
 
             // First attempt to get the blobs from the RPC cache.
-            if let Ok(Some(blob)) = self.chain.data_availability_checker.get_blob(id) {
+            if let Ok(Some(blob)) = self
+                .chain
+                .data_availability_manager
+                .data_availability_checker()
+                .get_blob(id)
+            {
                 self.send_response(
                     peer_id,
                     inbound_request_id,
@@ -1734,7 +1740,8 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         let non_custody_indices = {
             let custody_columns = self
                 .chain
-                .data_availability_checker
+                .data_availability_manager
+                .data_availability_checker()
                 .custody_context()
                 .custody_columns_for_epoch(epoch_opt, &self.chain.spec);
             requested_indices

@@ -472,8 +472,8 @@ pub async fn proposer_boost_re_org_test(
         .collect::<Vec<_>>();
     harness
         .chain
-        .execution_layer
-        .as_ref()
+        .execution_manager
+        .execution_layer()
         .unwrap()
         .update_proposer_preparation(
             head_slot.epoch(E::slots_per_epoch()) + 1,
@@ -1007,7 +1007,8 @@ async fn proposer_duties_with_gossip_tolerance() {
     let wrong_proposer_indices = vec![0; E::slots_per_epoch() as usize];
     harness
         .chain
-        .beacon_proposer_cache
+        .execution_manager
+        .beacon_proposer_cache()
         .lock()
         .insert(
             tolerant_current_epoch,
@@ -1116,7 +1117,8 @@ async fn proposer_duties_v2_with_gossip_tolerance() {
     let wrong_proposer_indices = vec![0; E::slots_per_epoch() as usize];
     harness
         .chain
-        .beacon_proposer_cache
+        .execution_manager
+        .beacon_proposer_cache()
         .lock()
         .insert(
             tolerant_current_epoch,
@@ -1343,7 +1345,11 @@ async fn lighthouse_restart_custody_backfill() {
 
     let num_blocks = 2 * E::slots_per_epoch();
 
-    let custody_context = harness.chain.data_availability_checker.custody_context();
+    let custody_context = harness
+        .chain
+        .data_availability_manager
+        .data_availability_checker()
+        .custody_context();
 
     harness.advance_slot();
     harness

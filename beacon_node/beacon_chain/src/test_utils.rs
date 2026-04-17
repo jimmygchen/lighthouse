@@ -818,8 +818,8 @@ where
         // Sanity check.
         let el_builder = self
             .chain
-            .execution_layer
-            .as_ref()
+            .execution_manager
+            .execution_layer()
             .unwrap()
             .builder()
             .unwrap();
@@ -2798,8 +2798,8 @@ where
         });
 
         self.chain
-            .execution_layer
-            .as_ref()
+            .execution_manager
+            .execution_layer()
             .expect("harness should have execution layer")
             .notify_new_payload(request)
             .await
@@ -2837,7 +2837,9 @@ where
             return RangeSyncBlock::new(
                 block,
                 AvailableBlockData::NoData,
-                &self.chain.data_availability_checker,
+                self.chain
+                    .data_availability_manager
+                    .data_availability_checker(),
                 self.chain.spec.clone(),
             )
             .unwrap();
@@ -2857,7 +2859,9 @@ where
             RangeSyncBlock::new(
                 block,
                 block_data,
-                &self.chain.data_availability_checker,
+                self.chain
+                    .data_availability_manager
+                    .data_availability_checker(),
                 self.chain.spec.clone(),
             )
             .unwrap()
@@ -2877,7 +2881,9 @@ where
             RangeSyncBlock::new(
                 block,
                 block_data,
-                &self.chain.data_availability_checker,
+                self.chain
+                    .data_availability_manager
+                    .data_availability_checker(),
                 self.chain.spec.clone(),
             )
             .unwrap()
@@ -2909,14 +2915,18 @@ where
                 RangeSyncBlock::new(
                     block,
                     block_data,
-                    &self.chain.data_availability_checker,
+                    self.chain
+                        .data_availability_manager
+                        .data_availability_checker(),
                     self.chain.spec.clone(),
                 )?
             } else {
                 RangeSyncBlock::new(
                     block,
                     AvailableBlockData::NoData,
-                    &self.chain.data_availability_checker,
+                    self.chain
+                        .data_availability_manager
+                        .data_availability_checker(),
                     self.chain.spec.clone(),
                 )?
             }
@@ -2936,7 +2946,9 @@ where
             RangeSyncBlock::new(
                 block,
                 block_data,
-                &self.chain.data_availability_checker,
+                self.chain
+                    .data_availability_manager
+                    .data_availability_checker(),
                 self.chain.spec.clone(),
             )?
         })
@@ -3050,6 +3062,7 @@ where
                     .unwrap();
                 let (attestation, attesting_indices) = verified.into_attestation_and_indices();
                 self.chain
+                    .operations
                     .op_pool
                     .insert_attestation(attestation, attesting_indices)
                     .unwrap();
@@ -3225,16 +3238,24 @@ where
             };
             let contribution = contribution_and_proof.message.contribution;
             self.chain
+                .operations
                 .op_pool
                 .insert_sync_contribution(contribution.clone())
                 .unwrap();
             self.chain
+                .operations
                 .op_pool
                 .insert_sync_contribution(contribution)
                 .unwrap();
         }
 
-        let Some(sync_aggregate) = self.chain.op_pool.get_sync_aggregate(state).unwrap() else {
+        let Some(sync_aggregate) = self
+            .chain
+            .operations
+            .op_pool
+            .get_sync_aggregate(state)
+            .unwrap()
+        else {
             return;
         };
 

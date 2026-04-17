@@ -251,7 +251,7 @@ impl BlockId {
                 let (root, execution_optimistic, finalized) = self.root(chain)?;
                 beacon_chain::get_block::<T>(
                     &chain.store,
-                    chain.execution_layer.as_ref(),
+                    chain.execution_manager.execution_layer(),
                     &chain.spec,
                     &root,
                 )
@@ -277,7 +277,7 @@ impl BlockId {
                 let (root, execution_optimistic, finalized) = self.root(chain)?;
                 beacon_chain::get_block::<T>(
                     &chain.store,
-                    chain.execution_layer.as_ref(),
+                    chain.execution_manager.execution_layer(),
                     &chain.spec,
                     &root,
                 )

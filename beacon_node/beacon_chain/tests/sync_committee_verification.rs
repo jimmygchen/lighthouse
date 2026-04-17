@@ -799,12 +799,16 @@ async fn unaggregated_gossip_verification() {
             .unwrap();
 
         // Insert the aggregate into the op pool.
-        chain.op_pool.insert_sync_contribution(aggregate).unwrap();
+        chain
+            .operations
+            .op_pool
+            .insert_sync_contribution(aggregate)
+            .unwrap();
 
         // Load the block and state for the given root.
         let block = beacon_chain::get_block::<EphemeralHarnessType<E>>(
             &chain.store,
-            chain.execution_layer.as_ref(),
+            chain.execution_manager.execution_layer(),
             &chain.spec,
             &root,
         )
@@ -822,7 +826,12 @@ async fn unaggregated_gossip_verification() {
         complete_state_advance(&mut state, Some(block.state_root()), slot, &chain.spec).unwrap();
 
         // Get an aggregate that would be included in a block.
-        let aggregate_for_inclusion = chain.op_pool.get_sync_aggregate(&state).unwrap().unwrap();
+        let aggregate_for_inclusion = chain
+            .operations
+            .op_pool
+            .get_sync_aggregate(&state)
+            .unwrap()
+            .unwrap();
 
         // Validate the retrieved aggregate against the state.
         process_sync_aggregate(

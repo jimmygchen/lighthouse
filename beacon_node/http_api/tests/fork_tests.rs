@@ -533,6 +533,7 @@ async fn bls_to_execution_changes_update_all_around_capella_fork() {
     assert_eq!(
         harness
             .chain
+            .operations
             .op_pool
             .get_bls_to_execution_changes_received_pre_capella(
                 &harness.chain.canonical_head.head_snapshot().beacon_state,
@@ -549,7 +550,7 @@ async fn bls_to_execution_changes_update_all_around_capella_fork() {
         let head_block_root = harness.extend_slots(1).await;
         let head_block = beacon_chain::get_block::<EphemeralHarnessType<E>>(
             &harness.chain.store,
-            harness.chain.execution_layer.as_ref(),
+            harness.chain.execution_manager.execution_layer(),
             &harness.chain.spec,
             &head_block_root,
         )

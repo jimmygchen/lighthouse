@@ -1091,13 +1091,20 @@ impl<E: EthSpec> Tester<E> {
         // Ensure the proposer index cache is primed.
         self.harness
             .chain
-            .beacon_proposer_cache
+            .execution_manager
+            .beacon_proposer_cache()
             .lock()
             .insert(next_slot_epoch, decision_root, proposer_indices, fork)
             .unwrap();
 
         // Update the execution layer proposer preparation to match the test config.
-        let el = self.harness.chain.execution_layer.clone().unwrap();
+        let el = self
+            .harness
+            .chain
+            .execution_manager
+            .execution_layer()
+            .cloned()
+            .unwrap();
         self.block_on_dangerous(async {
             if expected_should_override_fcu.validator_is_connected {
                 el.update_proposer_preparation(

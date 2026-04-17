@@ -926,7 +926,7 @@ fn after_new_head<T: BeaconChainTypes>(
 
     if is_epoch_transition || reorg_distance.is_some() {
         chain.canonical_head.persist_fork_choice()?;
-        chain.op_pool.prune_attestations(
+        chain.operations.op_pool.prune_attestations(
             chain
                 .slot_clock
                 .now()
@@ -1061,7 +1061,7 @@ fn after_finalization<T: BeaconChainTypes>(
         .get_hot_state(&new_finalized_state_root, update_cache)?
         .ok_or(Error::MissingBeaconState(new_finalized_state_root))?;
 
-    chain.op_pool.prune_all(
+    chain.operations.op_pool.prune_all(
         &new_snapshot.beacon_block,
         &new_snapshot.beacon_state,
         &new_finalized_state,

@@ -3271,7 +3271,7 @@ async fn weak_subjectivity_sync_test(
     let wss_block_root = wss_block.canonical_root();
     let store_wss_block = beacon_chain::get_block::<DiskHarnessType<E>>(
         &harness.chain.store,
-        harness.chain.execution_layer.as_ref(),
+        harness.chain.execution_manager.execution_layer(),
         &harness.chain.spec,
         &wss_block_root,
     )
@@ -3300,7 +3300,7 @@ async fn weak_subjectivity_sync_test(
         let block_root = snapshot.beacon_block_root;
         let full_block = beacon_chain::get_block::<DiskHarnessType<E>>(
             &harness.chain.store,
-            harness.chain.execution_layer.as_ref(),
+            harness.chain.execution_manager.execution_layer(),
             &harness.chain.spec,
             &snapshot.beacon_block_root,
         )
@@ -3386,7 +3386,7 @@ async fn weak_subjectivity_sync_test(
             let block_root = blinded.canonical_root();
             let full_block = beacon_chain::get_block::<DiskHarnessType<E>>(
                 &harness.chain.store,
-                harness.chain.execution_layer.as_ref(),
+                harness.chain.execution_manager.execution_layer(),
                 &harness.chain.spec,
                 &block_root,
             )
@@ -3400,7 +3400,8 @@ async fn weak_subjectivity_sync_test(
             let fully_available_block = range_sync_block.into_available_block();
             harness
                 .chain
-                .data_availability_checker
+                .data_availability_manager
+                .data_availability_checker()
                 .verify_kzg_for_available_block(&fully_available_block)
                 .expect("should verify kzg");
             available_blocks.push(fully_available_block);
@@ -3417,7 +3418,9 @@ async fn weak_subjectivity_sync_test(
             AvailableBlock::new(
                 Arc::new(corrupt_block),
                 data,
-                &beacon_chain.data_availability_checker,
+                beacon_chain
+                    .data_availability_manager
+                    .data_availability_checker(),
                 Arc::new(spec),
             )
             .expect("available block")
@@ -4083,7 +4086,7 @@ async fn finalizes_after_resuming_from_db() {
         .canonical_head
         .persist_fork_choice()
         .expect("should persist fork choice");
-    beacon_chain::persist_op_pool(&harness.chain.store, &harness.chain.op_pool)
+    beacon_chain::persist_op_pool(&harness.chain.store, &harness.chain.operations.op_pool)
         .expect("should persist the op pool");
 
     let original_chain = harness.chain;
@@ -4093,7 +4096,7 @@ async fn finalizes_after_resuming_from_db() {
         .keypairs(KEYPAIRS[0..validator_count].to_vec())
         .resumed_disk_store(store)
         .testing_slot_clock(original_chain.slot_clock.clone())
-        .execution_layer(original_chain.execution_layer.clone())
+        .execution_layer(original_chain.execution_manager.execution_layer().cloned())
         .build();
 
     assert_chains_pretty_much_the_same(&original_chain, &resumed_harness.chain);
@@ -5437,7 +5440,11 @@ async fn test_missing_columns_after_cgc_change() {
         return;
     }
 
-    let custody_context = harness.chain.data_availability_checker.custody_context();
+    let custody_context = harness
+        .chain
+        .data_availability_manager
+        .data_availability_checker()
+        .custody_context();
 
     harness.advance_slot();
     harness
@@ -5510,7 +5517,11 @@ async fn test_safely_backfill_data_column_custody_info() {
         return;
     }
 
-    let custody_context = harness.chain.data_availability_checker.custody_context();
+    let custody_context = harness
+        .chain
+        .data_availability_manager
+        .data_availability_checker()
+        .custody_context();
 
     harness.advance_slot();
     harness
@@ -5598,7 +5609,10 @@ fn assert_chains_pretty_much_the_same<T: BeaconChainTypes>(
     b: &BeaconSystem<T>,
 ) {
     assert_eq!(a.spec, b.spec, "spec should be equal");
-    assert_eq!(a.op_pool, b.op_pool, "op_pool should be equal");
+    assert_eq!(
+        a.operations.op_pool, b.operations.op_pool,
+        "op_pool should be equal"
+    );
     let a_head = a.canonical_head.head_snapshot();
     let b_head = b.canonical_head.head_snapshot();
     assert_eq!(
