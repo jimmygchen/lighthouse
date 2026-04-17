@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Modularize BeaconChain — POC Report</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --bg-card: #181b24;
+    --bg-card-alt: #1e2230;
+    --border: #2a2f3e;
+    --text: #e1e4eb;
+    --text-muted: #8b92a5;
+    --accent: #3b82f6;
+    --accent-light: #60a5fa;
+    --teal: #14b8a6;
+    --teal-dim: #0d9488;
+    --red-muted: #ef4444;
+    --green: #22c55e;
+    --green-dim: rgba(34, 197, 94, 0.12);
+    --red-dim: rgba(239, 68, 68, 0.12);
+    --accent-dim: rgba(59, 130, 246, 0.10);
+    --teal-bg: rgba(20, 184, 166, 0.10);
+    --font-mono: 'SF Mono', 'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace;
+    --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', Roboto, sans-serif;
+    --radius: 12px;
+    --radius-sm: 8px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: var(--font-sans);
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .container {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+
+  /* Header */
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 32px 0;
+  }
+  header .container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .logo {
+    width: 48px;
+    height: 48px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, var(--accent), var(--teal));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    font-weight: 700;
+    color: #fff;
+    flex-shrink: 0;
+  }
+  .header-title {
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: -0.3px;
+  }
+  .header-subtitle {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+  .gh-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 13px;
+    padding: 6px 14px;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    transition: all 0.15s;
+  }
+  .gh-link:hover {
+    color: var(--text);
+    border-color: var(--text-muted);
+  }
+  .gh-link svg { width: 16px; height: 16px; fill: currentColor; }
+
+  /* Hero */
+  .hero {
+    padding: 64px 0 48px;
+    text-align: center;
+  }
+  .hero-badge {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: var(--teal);
+    background: var(--teal-bg);
+    padding: 6px 14px;
+    border-radius: 20px;
+    margin-bottom: 20px;
+  }
+  .hero h1 {
+    font-size: 38px;
+    font-weight: 700;
+    letter-spacing: -0.8px;
+    line-height: 1.2;
+    max-width: 800px;
+    margin: 0 auto 16px;
+  }
+  .hero h1 .highlight {
+    background: linear-gradient(135deg, var(--accent-light), var(--teal));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .hero p {
+    font-size: 17px;
+    color: var(--text-muted);
+    max-width: 640px;
+    margin: 0 auto;
+    line-height: 1.7;
+  }
+  .hero-code {
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-size: 15px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    padding: 4px 10px;
+    border-radius: 6px;
+    color: var(--teal);
+  }
+
+  /* Stats row */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    padding-bottom: 48px;
+  }
+  .stat-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    text-align: center;
+  }
+  .stat-value {
+    font-size: 36px;
+    font-weight: 700;
+    letter-spacing: -1px;
+    line-height: 1.1;
+  }
+  .stat-value.green { color: var(--green); }
+  .stat-value.teal { color: var(--teal); }
+  .stat-value.accent { color: var(--accent-light); }
+  .stat-label {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-top: 6px;
+  }
+
+  /* Sections */
+  section {
+    padding: 48px 0;
+    border-top: 1px solid var(--border);
+  }
+  section h2 {
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: -0.4px;
+    margin-bottom: 24px;
+  }
+  section h3 {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    font-size: 12px;
+  }
+
+  /* Before/After comparison */
+  .comparison-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .compare-col {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .compare-col.before { border-color: rgba(239, 68, 68, 0.25); }
+  .compare-col.after { border-color: rgba(34, 197, 94, 0.25); }
+  .compare-header {
+    padding: 14px 20px;
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .compare-col.before .compare-header {
+    background: var(--red-dim);
+    color: var(--red-muted);
+  }
+  .compare-col.after .compare-header {
+    background: var(--green-dim);
+    color: var(--green);
+  }
+  .compare-rows { padding: 8px 0; }
+  .compare-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px 20px;
+    font-size: 14px;
+  }
+  .compare-row:nth-child(even) { background: var(--bg-card-alt); }
+  .compare-row .label { color: var(--text-muted); }
+  .compare-row .value { font-weight: 600; font-family: var(--font-mono); font-size: 13px; }
+
+  /* Architecture diagram */
+  .arch-container {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 32px;
+    overflow-x: auto;
+  }
+  .tree { list-style: none; padding: 0; }
+  .tree-root {
+    font-size: 15px;
+    font-family: var(--font-mono);
+    color: var(--accent-light);
+    font-weight: 600;
+    margin-bottom: 6px;
+    padding: 10px 16px;
+    background: var(--accent-dim);
+    border-radius: var(--radius-sm);
+    display: inline-block;
+  }
+  .tree-root-sub {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 400;
+    margin-left: 8px;
+  }
+  .tree-children { list-style: none; padding-left: 20px; }
+  .tree-children li {
+    position: relative;
+    padding: 6px 0 6px 28px;
+    font-family: var(--font-mono);
+    font-size: 14px;
+  }
+  .tree-children li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 50%;
+    width: 20px;
+    border-left: 2px solid var(--border);
+    border-bottom: 2px solid var(--border);
+    border-radius: 0 0 0 6px;
+  }
+  .tree-children li:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    bottom: -6px;
+    border-left: 2px solid var(--border);
+  }
+  .tree-children li:last-child::before {
+    border-radius: 0 0 0 6px;
+  }
+  .comp-name { color: var(--teal); font-weight: 500; }
+  .comp-generic { color: var(--text-muted); font-weight: 400; font-size: 12px; }
+  .comp-infra { color: var(--text-muted); }
+
+  /* Bullet lists */
+  .change-list {
+    list-style: none;
+    padding: 0;
+  }
+  .change-list li {
+    padding: 10px 0;
+    padding-left: 24px;
+    position: relative;
+    font-size: 15px;
+    line-height: 1.6;
+    border-bottom: 1px solid var(--border);
+  }
+  .change-list li:last-child { border-bottom: none; }
+  .change-list li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 18px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+
+  /* Test table */
+  .test-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+  .test-table th {
+    text-align: left;
+    padding: 12px 16px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-muted);
+    border-bottom: 2px solid var(--border);
+  }
+  .test-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .test-table tr:last-child td { border-bottom: none; }
+  .test-table tr:hover td { background: var(--bg-card-alt); }
+  .test-table .mono {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--teal);
+  }
+  .test-table .num {
+    font-family: var(--font-mono);
+    font-size: 14px;
+    font-weight: 600;
+    text-align: center;
+  }
+  .test-total td {
+    font-weight: 700;
+    border-top: 2px solid var(--border);
+    padding-top: 14px;
+  }
+  .table-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  /* Coverage links */
+  .coverage-links {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 20px;
+  }
+  .cov-link {
+    display: block;
+    padding: 20px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    text-decoration: none;
+    transition: all 0.15s;
+  }
+  .cov-link:hover {
+    border-color: var(--accent);
+    background: var(--bg-card-alt);
+  }
+  .cov-link .cov-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+  .cov-link .cov-desc {
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+  .cov-link .cov-url {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--accent-light);
+    margin-top: 8px;
+    word-break: break-all;
+  }
+
+  /* Migration section */
+  .migration-info {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+  }
+  .info-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+  }
+  .info-card .info-label {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+  }
+  .info-card .info-value {
+    font-family: var(--font-mono);
+    font-size: 14px;
+    color: var(--text);
+    word-break: break-all;
+  }
+
+  /* Future work */
+  .future-list {
+    list-style: none;
+    padding: 0;
+    display: grid;
+    gap: 12px;
+  }
+  .future-list li {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 15px;
+  }
+  .future-num {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--accent-dim);
+    color: var(--accent-light);
+    border-radius: 50%;
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  /* Footer */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 32px 0;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 13px;
+  }
+  footer a {
+    color: var(--accent-light);
+    text-decoration: none;
+  }
+  footer a:hover { text-decoration: underline; }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .stats-row { grid-template-columns: repeat(2, 1fr); }
+    .comparison-grid { grid-template-columns: 1fr; }
+    .coverage-links { grid-template-columns: 1fr; }
+    .migration-info { grid-template-columns: 1fr; }
+    .hero h1 { font-size: 28px; }
+    .stat-value { font-size: 28px; }
+  }
+  @media (max-width: 480px) {
+    .stats-row { grid-template-columns: 1fr; }
+    header .container { flex-direction: column; align-items: flex-start; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header>
+  <div class="container">
+    <div class="header-left">
+      <div class="logo">LH</div>
+      <div>
+        <div class="header-title">Modularize BeaconChain &mdash; POC Report</div>
+        <div class="header-subtitle">Lighthouse Consensus Client</div>
+      </div>
+    </div>
+    <a class="gh-link" href="https://github.com/sigp/lighthouse" target="_blank" rel="noopener">
+      <svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+      sigp/lighthouse
+    </a>
+  </div>
+</header>
+
+<!-- Hero -->
+<div class="hero">
+  <div class="container">
+    <div class="hero-badge">Proof of Concept</div>
+    <h1>
+      <span class="highlight">BeaconChain&lt;T&gt;</span> god object eliminated
+    </h1>
+    <p>
+      Replaced by <span class="hero-code">BeaconComponents&lt;T&gt;</span> &mdash; a pure ref-holder struct with
+      zero methods. Business logic lives in 6 focused components, each independently
+      constructable and testable without <code>BeaconChainHarness</code>.
+    </p>
+  </div>
+</div>
+
+<!-- Key stats -->
+<div class="container">
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-value green">-89%</div>
+      <div class="stat-label">God object file reduction<br>(9000+ &rarr; 1025 lines)</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value teal">6</div>
+      <div class="stat-label">Extracted components<br>with owned state &amp; logic</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value accent">58</div>
+      <div class="stat-label">New component unit tests<br>(no harness required)</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">50</div>
+      <div class="stat-label">Commits on branch<br>152 files changed</div>
+    </div>
+  </div>
+</div>
+
+<!-- Before / After -->
+<section>
+  <div class="container">
+    <h2>Before / After</h2>
+    <div class="comparison-grid">
+      <div class="compare-col before">
+        <div class="compare-header">Before (unstable)</div>
+        <div class="compare-rows">
+          <div class="compare-row">
+            <span class="label">God object file</span>
+            <span class="value">beacon_chain.rs (9000+ lines)</span>
+          </div>
+          <div class="compare-row">
+            <span class="label">impl methods</span>
+            <span class="value">200+</span>
+          </div>
+          <div class="compare-row">
+            <span class="label">Struct name</span>
+            <span class="value">BeaconChain&lt;T&gt;</span>
+          </div>
+          <div class="compare-row">
+            <span class="label">Components</span>
+            <span class="value">0</span>
+          </div>
+          <div class="compare-row">
+            <span class="label">Context structs</span>
+            <span class="value">0</span>
+          </div>
+          <div class="compare-row">
+            <span class="label">Component unit tests</span>
+            <span class="value">0</span>
+          </div>
+          <div class="compare-row">
+            <span class="label">Total tests passing</span>
+            <span class="value">223</span>
+          </div>
+        </div>
+      </div>
+      <div class="compare-col after">
+        <div class="compare-header">After (this branch)</div>
+        <div class="compare-rows">
+          <div class="compare-row">
+            <span class="label">Ref-holder file</span>
+            <span class="value">beacon_components.rs (1025 lines)</span>
+          </div>
+          <div class="compare-row">
+            <span class="label">impl methods</span>
+            <span class="value">0</span>
+          </div>
+          <div class="compare-row">
+            <span class="label">Struct name</span>
+            <span class="value">BeaconComponents&lt;T&gt;</span>
+          </div>
+          <div class="compare-row">
+            <span class="label">Components</span>
+            <span class="value">6</span>
+          </div>
+          <div class="compare-row">
+            <span class="label">Context structs</span>
+            <span class="value">4</span>
+          </div>
+          <div class="compare-row">
+            <span class="label">Component unit tests</span>
+            <span class="value">58</span>
+          </div>
+          <div class="compare-row">
+            <span class="label">Total tests passing</span>
+            <span class="value">239</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Architecture Diagram -->
+<section>
+  <div class="container">
+    <h2>Architecture</h2>
+    <div class="arch-container">
+      <div class="tree">
+        <div class="tree-root">
+          BeaconComponents&lt;T&gt;<span class="tree-root-sub">&mdash; ref-holder, zero methods</span>
+        </div>
+        <ul class="tree-children">
+          <li><span class="comp-name">OperationsManager</span><span class="comp-generic">&lt;E&gt;</span> &mdash; voluntary exits, slashings, BLS-to-exec changes</li>
+          <li><span class="comp-name">AttestationManager</span><span class="comp-generic">&lt;E&gt;</span> &mdash; pools, observed sets, shuffling cache, early attester cache</li>
+          <li><span class="comp-name">SyncCommitteeManager</span><span class="comp-generic">&lt;E&gt;</span> &mdash; sync aggregation pool, observed contributions</li>
+          <li><span class="comp-name">DataAvailabilityManager</span><span class="comp-generic">&lt;T&gt;</span> &mdash; blob/column verification, DA checker, KZG, custody</li>
+          <li><span class="comp-name">ExecutionManager</span><span class="comp-generic">&lt;T&gt;</span> &mdash; proposer cache, fork choice signal, optimistic checks</li>
+          <li><span class="comp-name">ValidatorQueryService</span><span class="comp-generic">&lt;T&gt;</span> &mdash; validator pubkey cache, index lookups</li>
+          <li><span class="comp-name">CanonicalHead</span><span class="comp-generic">&lt;T&gt;</span> &mdash; fork choice, head state, finality</li>
+          <li><span class="comp-infra">store</span> <span class="comp-generic">Arc&lt;HotColdDB&gt;</span> &mdash; hot/cold database</li>
+          <li><span class="comp-infra">slot_clock</span> &mdash; wall-clock slot</li>
+          <li><span class="comp-infra">spec</span> <span class="comp-generic">Arc&lt;ChainSpec&gt;</span> &mdash; chain specification</li>
+          <li><span class="comp-infra">config</span> <span class="comp-generic">ChainConfig</span> &mdash; runtime configuration</li>
+        </ul>
+      </div>
+
+      <div style="margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--border);">
+        <h3 style="margin-bottom: 16px;">Context Structs (explicit dependency bundles for testable orchestration)</h3>
+        <ul class="tree-children">
+          <li><span class="comp-name">AttestationVerificationContext</span> &mdash; all attestation verification (26 call sites migrated)</li>
+          <li><span class="comp-name">BlockImportContext</span> &mdash; 9 block import helper free functions</li>
+          <li><span class="comp-name">BlockProductionContext</span> &mdash; 7 block production helper free functions</li>
+          <li><span class="comp-name">ExecutionOrchestrationContext</span> &mdash; execution layer orchestration</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- What Changed -->
+<section>
+  <div class="container">
+    <h2>What Changed</h2>
+    <ul class="change-list">
+      <li><strong>6 component structs extracted</strong> from BeaconChain &mdash; OperationsManager, AttestationManager, SyncCommitteeManager, DataAvailabilityManager, ExecutionManager, ValidatorQueryService. Each owns its state and is constructable with <code>::new()</code>.</li>
+      <li><strong>Attestation verification decoupled</strong> &mdash; all 26 call sites migrated from <code>&amp;BeaconChain&lt;T&gt;</code> to <code>AttestationVerificationContext</code>.</li>
+      <li><strong>Block import and production converted to free functions</strong> &mdash; 9 block import helpers and 7 block production helpers use explicit context structs.</li>
+      <li><strong>15 state query methods extracted</strong> to free functions in <code>state_query.rs</code>, taking <code>(store, canonical_head, spec)</code> as explicit parameters.</li>
+      <li><strong>Drop persistence moved to components</strong> &mdash; <code>OperationsManager</code>, <code>CanonicalHead</code>, and <code>DataAvailabilityManager</code> each persist their own state on drop.</li>
+      <li><strong>17 thin wrapper methods deleted, 60+ callers migrated</strong> across <code>http_api</code> and <code>network</code> crates to direct component access.</li>
+      <li><strong><code>with_committee_cache</code> deduplicated</strong> from 3 implementations to 1 on <code>AttestationManager</code>.</li>
+      <li><strong>Struct renamed</strong> from <code>BeaconChain</code> to <code>BeaconComponents</code> &mdash; zero <code>impl</code> methods in <code>beacon_components.rs</code>.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- Test Coverage -->
+<section>
+  <div class="container">
+    <h2>Test Coverage</h2>
+
+    <div class="table-card">
+      <table class="test-table">
+        <thead>
+          <tr>
+            <th>Component</th>
+            <th>Module</th>
+            <th style="text-align: center">Tests</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>AttestationManager</td>
+            <td class="mono">attestation_manager/tests.rs</td>
+            <td class="num">21</td>
+          </tr>
+          <tr>
+            <td>ValidatorQueryService</td>
+            <td class="mono">validator_query_service/tests.rs</td>
+            <td class="num">11</td>
+          </tr>
+          <tr>
+            <td>OperationsManager</td>
+            <td class="mono">operations_manager/tests.rs</td>
+            <td class="num">10</td>
+          </tr>
+          <tr>
+            <td>ExecutionManager</td>
+            <td class="mono">execution_manager/tests.rs</td>
+            <td class="num">6</td>
+          </tr>
+          <tr>
+            <td>SyncCommitteeManager</td>
+            <td class="mono">sync_committee_manager/tests.rs</td>
+            <td class="num">5</td>
+          </tr>
+          <tr>
+            <td>DataAvailabilityManager</td>
+            <td class="mono">data_availability_manager/tests.rs</td>
+            <td class="num">4</td>
+          </tr>
+          <tr>
+            <td>State Queries</td>
+            <td class="mono">state_query.rs</td>
+            <td class="num">1</td>
+          </tr>
+          <tr class="test-total">
+            <td>Total new component tests</td>
+            <td></td>
+            <td class="num">58</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p style="margin-top: 16px; font-size: 14px; color: var(--text-muted);">
+      All 239 tests in the <code>beacon_chain</code> crate pass (up from 223 on <code>unstable</code>).
+      Components are tested in isolation without <code>BeaconChainHarness</code> &mdash;
+      construct with <code>::new()</code>, pass test state, assert results.
+    </p>
+
+    <div class="coverage-links">
+      <a class="cov-link" href="http://204.168.250.92:8080" target="_blank" rel="noopener">
+        <div class="cov-title">Unstable Baseline Coverage</div>
+        <div class="cov-desc">Code coverage report for the unstable branch (before modularization)</div>
+        <div class="cov-url">http://204.168.250.92:8080</div>
+      </a>
+      <a class="cov-link" href="http://204.168.250.92:8081" target="_blank" rel="noopener">
+        <div class="cov-title">Combined Coverage (this branch)</div>
+        <div class="cov-desc">Code coverage report including all new component tests</div>
+        <div class="cov-url">http://204.168.250.92:8081</div>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- Migration -->
+<section>
+  <div class="container">
+    <h2>Migration</h2>
+    <div class="migration-info">
+      <div class="info-card">
+        <div class="info-label">Base commit</div>
+        <div class="info-value">d3c13c4cf0</div>
+        <p style="font-size: 13px; color: var(--text-muted); margin-top: 8px;">
+          Gloas: envelope peer penalties and REJECT/IGNORE mapping (#8981)
+        </p>
+      </div>
+      <div class="info-card">
+        <div class="info-label">Migration guide</div>
+        <div class="info-value">MIGRATION_GUIDE.md</div>
+        <p style="font-size: 13px; color: var(--text-muted); margin-top: 8px;">
+          Step-by-step patterns for cherry-picking unstable commits onto this branch
+        </p>
+      </div>
+      <div class="info-card">
+        <div class="info-label">Diff stats</div>
+        <div class="info-value" style="font-size: 13px;">
+          152 files changed<br>
+          +19,760 / -12,479 lines
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top: 24px; padding: 20px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); font-size: 14px; color: var(--text-muted); line-height: 1.7;">
+      <strong style="color: var(--text);">Cherry-pick workflow:</strong>
+      Future <code>unstable</code> commits can be cherry-picked and refactored using the migration guide.
+      Each pattern is documented &mdash; new methods go to components, new fields to component constructors,
+      verification logic uses context structs, and callers access components directly via pub fields.
+    </div>
+  </div>
+</section>
+
+<!-- Future Work -->
+<section>
+  <div class="container">
+    <h2>Future Work</h2>
+    <ul class="future-list">
+      <li>
+        <span class="future-num">1</span>
+        <div>
+          <strong>Promote component modules to separate crates</strong><br>
+          <span style="color: var(--text-muted);">Enables parallel compilation. Each component crate builds independently &mdash; cuts incremental build times for changes scoped to one domain.</span>
+        </div>
+      </li>
+      <li>
+        <span class="future-num">2</span>
+        <div>
+          <strong>Remove <code>Arc&lt;BeaconComponents&gt;</code> from callers</strong><br>
+          <span style="color: var(--text-muted);">HTTP API and NetworkBeaconProcessor hold <code>Arc&lt;Component&gt;</code> directly. Eliminates the last vestige of the god object pattern in caller code.</span>
+        </div>
+      </li>
+      <li>
+        <span class="future-num">3</span>
+        <div>
+          <strong>Remove <code>BlockProductionContext</code> escape hatch</strong><br>
+          <span style="color: var(--text-muted);">3 methods still hold a reference to the full chain (<code>is_healthy</code>, <code>get_execution_payload</code>, <code>compute_beacon_block_reward</code>). Extract their dependencies explicitly.</span>
+        </div>
+      </li>
+      <li>
+        <span class="future-num">4</span>
+        <div>
+          <strong>Create <code>SyncCommitteeVerificationContext</code></strong><br>
+          <span style="color: var(--text-muted);">Follow the same pattern as <code>AttestationVerificationContext</code>. 6 functions in <code>sync_committee_verification.rs</code> still take <code>&amp;BeaconChain&lt;T&gt;</code>.</span>
+        </div>
+      </li>
+      <li>
+        <span class="future-num">5</span>
+        <div>
+          <strong>Add more component tests for critical paths</strong><br>
+          <span style="color: var(--text-muted);">Expand coverage with standalone construction tests for context structs (not using <code>from_chain</code>). Target edge cases in shuffling cache and DA boundary calculations.</span>
+        </div>
+      </li>
+    </ul>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer>
+  <div class="container">
+    <a href="https://github.com/sigp/lighthouse">Lighthouse</a> &mdash; Ethereum consensus client by Sigma Prime
+    <br>
+    <span style="margin-top: 4px; display: inline-block;">
+      50 commits &middot; 152 files changed &middot; +19,760 / -12,479 lines
+    </span>
+  </div>
+</footer>
+
+</body>
+</html>
