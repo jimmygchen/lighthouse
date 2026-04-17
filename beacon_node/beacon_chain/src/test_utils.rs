@@ -7,7 +7,7 @@ use crate::graffiti_calculator::GraffitiSettings;
 use crate::kzg_utils::{build_data_column_sidecars_fulu, build_data_column_sidecars_gloas};
 use crate::observed_operations::ObservationOutcome;
 pub use crate::persisted_beacon_chain::PersistedBeaconChain;
-use crate::{BeaconBlockResponseWrapper, CustodyContext, get_block_root};
+use crate::{BeaconBlockResponseWrapper, BeaconSnapshot, CustodyContext, get_block_root};
 use crate::{
     BeaconChain, BeaconChainTypes, BlockError, ChainConfig, ServerSentEventHandler,
     StateSkipConfig,
@@ -3928,4 +3928,231 @@ pub fn generate_data_column_indices_rand_order<E: EthSpec>() -> Vec<CustodyIndex
     let mut indices = (0..E::number_of_columns() as u64).collect::<Vec<_>>();
     indices.shuffle(&mut StdRng::seed_from_u64(42));
     indices
+}
+
+// ---------------------------------------------------------------------------
+// Test/debug utilities on BeaconChain
+// ---------------------------------------------------------------------------
+
+impl<T: BeaconChainTypes> BeaconChain<T> {
+    /// Dumps the entire canonical chain, from the head to genesis to a vector for analysis.
+    ///
+    /// This could be a very expensive operation and should only be done in testing/analysis
+    /// activities.
+    ///
+    /// This dump function previously used a backwards iterator but has been swapped to a forwards
+    /// iterator as it allows for MUCH better caching and rebasing. Memory usage of some tests went
+    /// from 5GB per test to 90MB.
+    #[allow(clippy::type_complexity)]
+    pub fn chain_dump(
+        &self,
+    ) -> Result<Vec<BeaconSnapshot<T::EthSpec, BlindedPayload<T::EthSpec>>>, BeaconChainError> {
+        self.chain_dump_from_slot(Slot::new(0))
+    }
+
+    /// As for `chain_dump` but dumping only the portion of the chain newer than `from_slot`.
+    #[allow(clippy::type_complexity)]
+    pub fn chain_dump_from_slot(
+        &self,
+        from_slot: Slot,
+    ) -> Result<Vec<BeaconSnapshot<T::EthSpec, BlindedPayload<T::EthSpec>>>, BeaconChainError> {
+        let mut dump = vec![];
+
+        let mut prev_block_root = None;
+        let mut prev_beacon_state = None;
+
+        // Collect all blocks.
+        let mut blocks = vec![];
+
+        for res in self.forwards_iter_block_roots(from_slot)? {
+            let (beacon_block_root, _) = res?;
+
+            // Do not include snapshots at skipped slots.
+            if Some(beacon_block_root) == prev_block_root {
+                continue;
+            }
+            prev_block_root = Some(beacon_block_root);
+
+            let beacon_block = self
+                .store
+                .get_blinded_block(&beacon_block_root)?
+                .ok_or_else(|| {
+                    BeaconChainError::DBInconsistent(format!("Missing block {}", beacon_block_root))
+                })?;
+            blocks.push((beacon_block_root, Arc::new(beacon_block)));
+        }
+
+        // Collect states, using the next blocks to determine if states are full (have Gloas
+        // payloads).
+        for (i, (block_root, block)) in blocks.iter().enumerate() {
+            let (opt_envelope, state_root) = if block.fork_name_unchecked().gloas_enabled() {
+                let opt_envelope = self.store.get_payload_envelope(block_root)?.map(Arc::new);
+
+                if let Some((_, next_block)) = blocks.get(i + 1) {
+                    let block_hash = block.payload_bid_block_hash()?;
+                    if next_block.is_parent_block_full(block_hash) {
+                        let envelope = opt_envelope.ok_or_else(|| {
+                            BeaconChainError::DBInconsistent(format!(
+                                "Missing envelope {block_root:?}"
+                            ))
+                        })?;
+                        let state_root = envelope.message.state_root;
+                        (Some(envelope), state_root)
+                    } else {
+                        (None, block.state_root())
+                    }
+                } else {
+                    // Last block in the sequence: use canonical head to determine
+                    // whether the payload is canonical.
+                    let head = self.canonical_head.cached_head();
+                    assert_eq!(head.head_block_root(), *block_root);
+                    let payload_received = head.head_payload_status().as_state_payload_status()
+                        == StatePayloadStatus::Full;
+                    if payload_received {
+                        let envelope = opt_envelope.ok_or_else(|| {
+                            BeaconChainError::DBInconsistent(format!(
+                                "Missing envelope {block_root:?}"
+                            ))
+                        })?;
+                        let state_root = envelope.message.state_root;
+                        (Some(envelope), state_root)
+                    } else {
+                        (None, block.state_root())
+                    }
+                }
+            } else {
+                (None, block.state_root())
+            };
+
+            let mut beacon_state = self
+                .store
+                .get_state(&state_root, Some(block.slot()), true)?
+                .ok_or_else(|| {
+                    BeaconChainError::DBInconsistent(format!("Missing state {:?}", state_root))
+                })?;
+
+            // This beacon state might come from the freezer DB, which means it could have pending
+            // updates or lots of untethered memory. We rebase it on the previous state in order to
+            // address this.
+            beacon_state.apply_pending_mutations()?;
+            if let Some(prev) = prev_beacon_state {
+                beacon_state.rebase_on(&prev, &self.spec)?;
+            }
+            beacon_state.build_caches(&self.spec)?;
+            prev_beacon_state = Some(beacon_state.clone());
+
+            let snapshot = BeaconSnapshot {
+                beacon_block: block.clone(),
+                execution_envelope: opt_envelope,
+                beacon_block_root: *block_root,
+                beacon_state,
+            };
+            dump.push(snapshot);
+        }
+
+        Ok(dump)
+    }
+
+    pub fn dump_as_dot<W: std::io::Write>(&self, output: &mut W) {
+        let canonical_head_hash = self.canonical_head.cached_head().head_block_root();
+        let mut visited: HashSet<Hash256> = HashSet::new();
+        let mut finalized_blocks: HashSet<Hash256> = HashSet::new();
+        let mut justified_blocks: HashSet<Hash256> = HashSet::new();
+
+        let genesis_block_hash = Hash256::zero();
+        writeln!(output, "digraph beacon {{").unwrap();
+        writeln!(output, "\t_{:?}[label=\"zero\"];", genesis_block_hash).unwrap();
+
+        // Canonical head needs to be processed first as otherwise finalized blocks aren't detected
+        // properly.
+        let heads = {
+            let mut heads = crate::beacon_chain::heads(&self.canonical_head);
+            let canonical_head_index = heads
+                .iter()
+                .position(|(block_hash, _)| *block_hash == canonical_head_hash)
+                .unwrap();
+            let (canonical_head_hash, canonical_head_slot) =
+                heads.swap_remove(canonical_head_index);
+            heads.insert(0, (canonical_head_hash, canonical_head_slot));
+            heads
+        };
+
+        for (head_hash, _head_slot) in heads {
+            for maybe_pair in store::iter::ParentRootBlockIterator::new(&*self.store, head_hash) {
+                let (block_hash, signed_beacon_block) = maybe_pair.unwrap();
+                if visited.contains(&block_hash) {
+                    break;
+                }
+                visited.insert(block_hash);
+
+                if signed_beacon_block.slot() % T::EthSpec::slots_per_epoch() == 0 {
+                    let block = self.store.get_blinded_block(&block_hash).unwrap().unwrap();
+                    // This branch is reached from the HTTP API. We assume the user wants
+                    // to cache states so that future calls are faster.
+                    let state = self
+                        .store
+                        .get_state(&block.state_root(), Some(block.slot()), true)
+                        .unwrap()
+                        .unwrap();
+                    finalized_blocks.insert(state.finalized_checkpoint().root);
+                    justified_blocks.insert(state.current_justified_checkpoint().root);
+                    justified_blocks.insert(state.previous_justified_checkpoint().root);
+                }
+
+                if block_hash == canonical_head_hash {
+                    writeln!(
+                        output,
+                        "\t_{:?}[label=\"{} ({})\" shape=box3d];",
+                        block_hash,
+                        block_hash,
+                        signed_beacon_block.slot()
+                    )
+                    .unwrap();
+                } else if finalized_blocks.contains(&block_hash) {
+                    writeln!(
+                        output,
+                        "\t_{:?}[label=\"{} ({})\" shape=Msquare];",
+                        block_hash,
+                        block_hash,
+                        signed_beacon_block.slot()
+                    )
+                    .unwrap();
+                } else if justified_blocks.contains(&block_hash) {
+                    writeln!(
+                        output,
+                        "\t_{:?}[label=\"{} ({})\" shape=cds];",
+                        block_hash,
+                        block_hash,
+                        signed_beacon_block.slot()
+                    )
+                    .unwrap();
+                } else {
+                    writeln!(
+                        output,
+                        "\t_{:?}[label=\"{} ({})\" shape=box];",
+                        block_hash,
+                        block_hash,
+                        signed_beacon_block.slot()
+                    )
+                    .unwrap();
+                }
+                writeln!(
+                    output,
+                    "\t_{:?} -> _{:?};",
+                    block_hash,
+                    signed_beacon_block.parent_root()
+                )
+                .unwrap();
+            }
+        }
+
+        writeln!(output, "}}").unwrap();
+    }
+
+    // Used for debugging
+    #[allow(dead_code)]
+    pub fn dump_dot_file(&self, file_name: &str) {
+        let mut file = std::fs::File::create(file_name).unwrap();
+        self.dump_as_dot(&mut file);
+    }
 }

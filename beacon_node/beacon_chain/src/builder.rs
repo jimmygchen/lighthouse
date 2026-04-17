@@ -262,15 +262,16 @@ where
                     .to_string()
             })?;
 
-        let fork_choice = BeaconChain::<Witness<TSlotClock, _, _, _>>::load_fork_choice(
-            store.clone(),
-            ResetPayloadStatuses::always_reset_conditionally(
-                self.chain_config.always_reset_payload_statuses,
-            ),
-            &self.spec,
-        )
-        .map_err(|e| format!("Unable to load fork choice from disk: {:?}", e))?
-        .ok_or("Fork choice not found in store")?;
+        let fork_choice =
+            crate::persisted_fork_choice::load_fork_choice::<Witness<TSlotClock, _, _, _>>(
+                store.clone(),
+                ResetPayloadStatuses::always_reset_conditionally(
+                    self.chain_config.always_reset_payload_statuses,
+                ),
+                &self.spec,
+            )
+            .map_err(|e| format!("Unable to load fork choice from disk: {:?}", e))?
+            .ok_or("Fork choice not found in store")?;
 
         let genesis_block = store
             .get_blinded_block(&chain.genesis_block_root)
@@ -927,11 +928,9 @@ where
         //
         // This *must* be stored before constructing the `BeaconChain`, so that its `Drop` instance
         // doesn't write a `PersistedBeaconChain` without the rest of the batch.
-        self.pending_io_batch.push(BeaconChain::<
-            Witness<TSlotClock,  E, THotStore, TColdStore>,
-        >::persist_head_in_batch_standalone(
-            genesis_block_root
-        ));
+        self.pending_io_batch.push(
+            crate::persisted_beacon_chain::persist_head_in_batch_standalone(genesis_block_root),
+        );
         self.pending_io_batch.push(BeaconChain::<
             Witness<TSlotClock,  E, THotStore, TColdStore>,
         >::persist_fork_choice_in_batch_standalone(

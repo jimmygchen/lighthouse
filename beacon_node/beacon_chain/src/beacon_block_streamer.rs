@@ -690,6 +690,40 @@ impl From<Error> for BeaconChainError {
     }
 }
 
+/// Fetch blocks from the store by root, checking caches first.
+#[allow(clippy::type_complexity)]
+pub fn get_blocks_checking_caches<T: BeaconChainTypes>(
+    chain: &Arc<BeaconChain<T>>,
+    block_roots: Vec<Hash256>,
+) -> Result<
+    impl Stream<
+        Item = (
+            Hash256,
+            Arc<Result<Option<Arc<SignedBeaconBlock<T::EthSpec>>>, BeaconChainError>>,
+        ),
+    >,
+    BeaconChainError,
+> {
+    Ok(BeaconBlockStreamer::<T>::new(chain, CheckCaches::Yes)?.launch_stream(block_roots))
+}
+
+/// Fetch blocks from the store by root, without checking caches.
+#[allow(clippy::type_complexity)]
+pub fn get_blocks<T: BeaconChainTypes>(
+    chain: &Arc<BeaconChain<T>>,
+    block_roots: Vec<Hash256>,
+) -> Result<
+    impl Stream<
+        Item = (
+            Hash256,
+            Arc<Result<Option<Arc<SignedBeaconBlock<T::EthSpec>>>, BeaconChainError>>,
+        ),
+    >,
+    BeaconChainError,
+> {
+    Ok(BeaconBlockStreamer::<T>::new(chain, CheckCaches::No)?.launch_stream(block_roots))
+}
+
 #[cfg(test)]
 mod tests {
     use crate::beacon_block_streamer::{BeaconBlockStreamer, CheckCaches};

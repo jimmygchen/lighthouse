@@ -1851,3 +1851,53 @@ fn handle_import_block_db_write_error<T: BeaconChainTypes>(
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_utils::{BeaconChainHarness, test_spec};
+    use bls::Keypair;
+    use std::sync::LazyLock;
+    use types::MinimalEthSpec;
+
+    type E = MinimalEthSpec;
+
+    const VALIDATOR_COUNT: usize = 48;
+
+    static KEYPAIRS: LazyLock<Vec<Keypair>> =
+        LazyLock::new(|| types::test_utils::generate_deterministic_keypairs(VALIDATOR_COUNT));
+
+    /// Compile-time regression test: ensures `BlockImportContext` can be constructed
+    /// from a `BeaconChain` and that all expected fields are accessible.
+    #[tokio::test]
+    async fn block_import_context_from_chain_has_all_fields() {
+        let spec = Arc::new(test_spec::<E>());
+        let harness = BeaconChainHarness::builder(MinimalEthSpec)
+            .spec(spec)
+            .keypairs(KEYPAIRS[..VALIDATOR_COUNT].to_vec())
+            .fresh_ephemeral_store()
+            .mock_execution_layer()
+            .build();
+
+        harness.advance_slot();
+        harness.extend_slots(1).await;
+
+        let ctx = BlockImportContext::from_chain(&harness.chain);
+
+        // Verify each field is accessible. This is a compile-time guarantee that the
+        // struct shape hasn't drifted from what `from_chain` populates.
+        let _canonical_head = ctx.canonical_head;
+        let _store = ctx.store;
+        let _attestation_manager = ctx.attestation_manager;
+        let _validator_monitor = ctx.validator_monitor;
+        let _slasher: Option<&Arc<Slasher<E>>> = ctx.slasher;
+        let _event_handler = ctx.event_handler;
+        let _data_availability_checker = ctx.data_availability_checker;
+        let _observed_slashable = ctx.observed_slashable;
+        let _spec = ctx.spec;
+        let _slot_clock = ctx.slot_clock;
+        let _config = ctx.config;
+        let _block_times_cache = ctx.block_times_cache;
+        let _light_client_server_tx = ctx.light_client_server_tx;
+    }
+}

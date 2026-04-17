@@ -200,10 +200,10 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         };
 
         let requested_blocks = request.block_roots().len();
-        let mut block_stream = match self
-            .chain
-            .get_blocks_checking_caches(request.block_roots().to_vec())
-        {
+        let mut block_stream = match beacon_chain::beacon_block_streamer::get_blocks_checking_caches(
+            &self.chain,
+            request.block_roots().to_vec(),
+        ) {
             Ok(block_stream) => block_stream,
             Err(e) => {
                 error!( error = ?e, "Error getting block stream");
@@ -304,10 +304,12 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         };
 
         let requested_envelopes = request.beacon_block_roots.len();
-        let mut envelope_stream = self.chain.get_payload_envelopes(
-            request.beacon_block_roots.to_vec(),
-            EnvelopeRequestSource::ByRoot,
-        );
+        let mut envelope_stream =
+            beacon_chain::payload_envelope_streamer::launch_payload_envelope_stream(
+                self.chain.clone(),
+                request.beacon_block_roots.to_vec(),
+                EnvelopeRequestSource::ByRoot,
+            );
         // Fetching payload envelopes is async because it may have to hit the execution layer for payloads.
         let mut send_envelope_count = 0;
         while let Some((root, result)) = envelope_stream.next().await {
@@ -901,13 +903,14 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             }
         };
 
-        let mut block_stream = match self.chain.get_blocks(block_roots) {
-            Ok(block_stream) => block_stream,
-            Err(e) => {
-                error!(error = ?e, "Error getting block stream");
-                return Err((RpcErrorResponse::ServerError, "Iterator error"));
-            }
-        };
+        let mut block_stream =
+            match beacon_chain::beacon_block_streamer::get_blocks(&self.chain, block_roots) {
+                Ok(block_stream) => block_stream,
+                Err(e) => {
+                    error!(error = ?e, "Error getting block stream");
+                    return Err((RpcErrorResponse::ServerError, "Iterator error"));
+                }
+            };
 
         // Fetching blocks is async because it may have to hit the execution layer for payloads.
         let mut blocks_sent = 0;
@@ -1247,9 +1250,12 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             }
         };
 
-        let mut envelope_stream = self
-            .chain
-            .get_payload_envelopes(block_roots, EnvelopeRequestSource::ByRange);
+        let mut envelope_stream =
+            beacon_chain::payload_envelope_streamer::launch_payload_envelope_stream(
+                self.chain.clone(),
+                block_roots,
+                EnvelopeRequestSource::ByRange,
+            );
 
         // Fetching payload envelopes is async because it may have to hit the execution layer for payloads.
         let mut envelopes_sent = 0;

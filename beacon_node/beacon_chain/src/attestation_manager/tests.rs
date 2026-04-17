@@ -1,7 +1,8 @@
 use super::*;
 use crate::shuffling_cache::BlockShufflingIds;
+use fork_choice::ExecutionStatus;
 use types::test_utils::generate_deterministic_keypairs;
-use types::{ChainSpec, Hash256, MinimalEthSpec};
+use types::{ChainSpec, ExecutionBlockHash, Hash256, MinimalEthSpec};
 
 type E = MinimalEthSpec;
 
@@ -319,5 +320,341 @@ fn multiple_attestations_same_slot_different_data() {
     assert_eq!(
         count, 2,
         "pool should contain two attestations with different data"
+    );
+}
+
+// ============================================================================
+// get_aggregated_attestation tests
+// ============================================================================
+
+#[test]
+fn get_aggregated_attestation_returns_attestation_when_valid() {
+    let manager = make_manager();
+    let spec = make_spec();
+    let slot = Slot::new(1);
+    let block_root = Hash256::repeat_byte(0xaa);
+
+    let attestation = make_attestation(&spec, slot, block_root, 0);
+    manager
+        .add_to_naive_aggregation_pool(attestation.to_ref())
+        .expect("should insert attestation");
+
+    // Provide an execution status closure that returns Valid for the block root.
+    let result = manager
+        .get_aggregated_attestation(attestation.to_ref(), |_root| {
+            Some(ExecutionStatus::Valid(ExecutionBlockHash::zero()))
+        })
+        .expect("should not error");
+
+    assert!(
+        result.is_some(),
+        "should return attestation from pool when execution status is valid"
+    );
+    assert_eq!(
+        result.unwrap().data(),
+        attestation.data(),
+        "returned attestation data should match"
+    );
+}
+
+#[test]
+fn get_aggregated_attestation_rejects_optimistic_block() {
+    let manager = make_manager();
+    let spec = make_spec();
+    let slot = Slot::new(1);
+    let block_root = Hash256::repeat_byte(0xaa);
+
+    let attestation = make_attestation(&spec, slot, block_root, 0);
+    manager
+        .add_to_naive_aggregation_pool(attestation.to_ref())
+        .expect("should insert attestation");
+
+    // Provide an execution status closure that returns Optimistic for the block root.
+    let result = manager.get_aggregated_attestation(attestation.to_ref(), |_root| {
+        Some(ExecutionStatus::Optimistic(ExecutionBlockHash::zero()))
+    });
+
+    assert!(
+        result.is_err(),
+        "should reject attestation referencing an optimistic block"
+    );
+    assert!(
+        matches!(result, Err(Error::HeadBlockNotFullyVerified { .. })),
+        "error should be HeadBlockNotFullyVerified"
+    );
+}
+
+#[test]
+fn get_aggregated_attestation_rejects_finalized_block() {
+    let manager = make_manager();
+    let spec = make_spec();
+    let slot = Slot::new(1);
+    let block_root = Hash256::repeat_byte(0xaa);
+
+    let attestation = make_attestation(&spec, slot, block_root, 0);
+    manager
+        .add_to_naive_aggregation_pool(attestation.to_ref())
+        .expect("should insert attestation");
+
+    // Provide an execution status closure that returns None (block not in fork choice).
+    let result = manager.get_aggregated_attestation(attestation.to_ref(), |_root| None);
+
+    assert!(
+        result.is_err(),
+        "should reject attestation when block root not in fork choice"
+    );
+    assert!(
+        matches!(result, Err(Error::CannotAttestToFinalizedBlock { .. })),
+        "error should be CannotAttestToFinalizedBlock"
+    );
+}
+
+#[test]
+fn get_aggregated_attestation_returns_none_when_not_in_pool() {
+    let manager = make_manager();
+    let spec = make_spec();
+    let slot = Slot::new(1);
+    let block_root = Hash256::repeat_byte(0xaa);
+
+    // Do NOT insert into the pool. Just create the attestation for the lookup key.
+    let attestation = make_attestation(&spec, slot, block_root, 0);
+
+    let result = manager
+        .get_aggregated_attestation(attestation.to_ref(), |_root| {
+            Some(ExecutionStatus::Valid(ExecutionBlockHash::zero()))
+        })
+        .expect("should not error");
+
+    assert!(
+        result.is_none(),
+        "should return None when no matching attestation in pool"
+    );
+}
+
+// ============================================================================
+// filter_optimistic_attestation tests
+// ============================================================================
+
+#[test]
+fn filter_optimistic_attestation_passes_valid() {
+    let spec = make_spec();
+    let slot = Slot::new(1);
+    let block_root = Hash256::repeat_byte(0xaa);
+    let attestation = make_attestation(&spec, slot, block_root, 0);
+
+    let result = AttestationManager::<E>::filter_optimistic_attestation(attestation, &|_root| {
+        Some(ExecutionStatus::Valid(ExecutionBlockHash::zero()))
+    });
+
+    assert!(
+        result.is_ok(),
+        "should pass through attestation with valid execution status"
+    );
+}
+
+#[test]
+fn filter_optimistic_attestation_rejects_optimistic() {
+    let spec = make_spec();
+    let slot = Slot::new(1);
+    let block_root = Hash256::repeat_byte(0xaa);
+    let attestation = make_attestation(&spec, slot, block_root, 0);
+
+    let result = AttestationManager::<E>::filter_optimistic_attestation(attestation, &|_root| {
+        Some(ExecutionStatus::Optimistic(ExecutionBlockHash::zero()))
+    });
+
+    assert!(
+        result.is_err(),
+        "should reject attestation with optimistic execution status"
+    );
+    assert!(
+        matches!(result, Err(Error::HeadBlockNotFullyVerified { .. })),
+        "error should be HeadBlockNotFullyVerified"
+    );
+}
+
+#[test]
+fn filter_optimistic_attestation_rejects_finalized() {
+    let spec = make_spec();
+    let slot = Slot::new(1);
+    let block_root = Hash256::repeat_byte(0xaa);
+    let attestation = make_attestation(&spec, slot, block_root, 0);
+
+    let result = AttestationManager::<E>::filter_optimistic_attestation(attestation, &|_root| None);
+
+    assert!(
+        result.is_err(),
+        "should reject attestation when execution status is None (finalized)"
+    );
+    assert!(
+        matches!(result, Err(Error::CannotAttestToFinalizedBlock { .. })),
+        "error should be CannotAttestToFinalizedBlock"
+    );
+}
+
+// ============================================================================
+// validator_seen_at_epoch tests
+// ============================================================================
+
+#[test]
+fn validator_seen_at_epoch_gossip_attested() {
+    let manager = make_manager();
+    let epoch = Epoch::new(0);
+    let validator_index = 0;
+
+    // Observe the validator as having gossip-attested.
+    manager
+        .observed_gossip_attesters
+        .write()
+        .observe_validator(epoch, validator_index)
+        .expect("should observe validator");
+
+    assert!(
+        manager.validator_seen_at_epoch(validator_index, epoch),
+        "should return true when validator has gossip attested"
+    );
+}
+
+#[test]
+fn validator_seen_at_epoch_block_attested() {
+    let manager = make_manager();
+    let epoch = Epoch::new(0);
+    let validator_index = 1;
+
+    // Observe the validator as having block-attested.
+    manager
+        .observed_block_attesters
+        .write()
+        .observe_validator(epoch, validator_index)
+        .expect("should observe validator");
+
+    assert!(
+        manager.validator_seen_at_epoch(validator_index, epoch),
+        "should return true when validator has block attested"
+    );
+}
+
+#[test]
+fn validator_seen_at_epoch_aggregated() {
+    let manager = make_manager();
+    let epoch = Epoch::new(0);
+    let validator_index = 2;
+
+    // Observe the validator as having aggregated.
+    manager
+        .observed_aggregators
+        .write()
+        .observe_validator(epoch, validator_index)
+        .expect("should observe validator");
+
+    assert!(
+        manager.validator_seen_at_epoch(validator_index, epoch),
+        "should return true when validator has aggregated"
+    );
+}
+
+#[test]
+fn validator_seen_at_epoch_not_seen() {
+    let manager = make_manager();
+    let epoch = Epoch::new(0);
+    let validator_index = 5;
+
+    // Do not observe the validator at all.
+    assert!(
+        !manager.validator_seen_at_epoch(validator_index, epoch),
+        "should return false when validator not seen at epoch"
+    );
+}
+
+// ============================================================================
+// produce_unaggregated_attestation — early attester cache path
+// ============================================================================
+
+#[test]
+fn produce_unaggregated_attestation_from_early_attester_cache() {
+    let spec = make_spec();
+    let genesis_block_root = Hash256::repeat_byte(0x42);
+
+    let head_shuffling_ids = BlockShufflingIds {
+        current: AttestationShufflingId::from_components(Epoch::new(0), genesis_block_root),
+        next: AttestationShufflingId::from_components(Epoch::new(1), genesis_block_root),
+        previous: None,
+        block_root: genesis_block_root,
+    };
+    let shuffling_cache = ShufflingCache::new(16, head_shuffling_ids);
+    let manager: AttestationManager<E> =
+        AttestationManager::new(spec.clone(), genesis_block_root, shuffling_cache);
+
+    let request_slot = Slot::new(0);
+    let request_index = 0;
+
+    // try_attest returns None when the cache is empty.
+    let empty_result = manager
+        .early_attester_cache
+        .try_attest(request_slot, request_index, &spec)
+        .expect("should not error");
+    assert!(
+        empty_result.is_none(),
+        "early attester cache should be empty initially"
+    );
+
+    // We can't easily populate the early_attester_cache without AvailableBlock +
+    // ProtoBlock, which requires full chain infrastructure. Instead we verify:
+    // 1) The cache returns None when empty (tested above)
+    // 2) produce_unaggregated_attestation delegates to try_attest first (code inspection)
+    //
+    // Full integration testing of the early_attester_cache path is covered by
+    // BeaconChainHarness-based tests.
+}
+
+// ============================================================================
+// get_pre_electra_aggregated_attestation_by_slot_and_root tests
+// ============================================================================
+
+#[test]
+fn get_pre_electra_aggregated_attestation_by_slot_and_root_returns_attestation() {
+    let manager = make_manager();
+    let spec = make_spec();
+    let slot = Slot::new(1);
+    let block_root = Hash256::repeat_byte(0xaa);
+
+    let attestation = make_attestation(&spec, slot, block_root, 0);
+    manager
+        .add_to_naive_aggregation_pool(attestation.to_ref())
+        .expect("should insert attestation");
+
+    let att_data_root = attestation.data().tree_hash_root();
+    let result = manager
+        .get_pre_electra_aggregated_attestation_by_slot_and_root(slot, &att_data_root, |_root| {
+            Some(ExecutionStatus::Valid(ExecutionBlockHash::zero()))
+        })
+        .expect("should not error");
+
+    assert!(
+        result.is_some(),
+        "should return attestation by slot and root when valid"
+    );
+    assert_eq!(
+        result.unwrap().data(),
+        attestation.data(),
+        "returned attestation data should match"
+    );
+}
+
+#[test]
+fn get_pre_electra_aggregated_attestation_by_slot_and_root_returns_none_on_miss() {
+    let manager = make_manager();
+    let slot = Slot::new(1);
+    let unknown_root = Hash256::repeat_byte(0xff);
+
+    let result = manager
+        .get_pre_electra_aggregated_attestation_by_slot_and_root(slot, &unknown_root, |_root| {
+            Some(ExecutionStatus::Valid(ExecutionBlockHash::zero()))
+        })
+        .expect("should not error");
+
+    assert!(
+        result.is_none(),
+        "should return None when no matching attestation exists"
     );
 }

@@ -1,127 +1,53 @@
 use crate::attestation_manager::AttestationManager;
-use crate::attestation_verification::{
-    Error as AttestationError, VerifiedAggregatedAttestation, VerifiedAttestation,
-    VerifiedUnaggregatedAttestation, batch_verify_aggregated_attestations,
-    batch_verify_unaggregated_attestations,
-};
-use crate::beacon_block_streamer::{BeaconBlockStreamer, CheckCaches};
 use crate::beacon_proposer_cache::BeaconProposerCache;
-use crate::blob_verification::{GossipBlobError, GossipVerifiedBlob};
 use crate::block_times_cache::BlockTimesCache;
-use crate::block_verification::{
-    BlockError, ExecutionPendingBlock, GossipVerifiedBlock, IntoExecutionPendingBlock,
-    check_block_is_finalized_checkpoint_or_descendant, check_block_relevancy,
-    signature_verify_chain_segment, verify_header_signature,
-};
-use crate::block_verification_types::{
-    AsBlock, AvailableExecutedBlock, BlockImportData, ExecutedBlock, RangeSyncBlock,
-};
+use crate::block_verification::BlockError;
+use crate::block_verification_types::RangeSyncBlock;
 pub use crate::canonical_head::CanonicalHead;
 use crate::chain_config::ChainConfig;
 use crate::custody_context::CustodyContextSsz;
-use crate::data_availability_checker::{
-    Availability, AvailabilityCheckError, AvailableBlock, AvailableBlockData,
-    DataAvailabilityChecker, DataColumnReconstructionResult,
-};
+use crate::data_availability_checker::{AvailableBlockData, DataAvailabilityChecker};
 use crate::data_availability_manager::DataAvailabilityManager;
-use crate::data_column_verification::{GossipDataColumnError, GossipVerifiedDataColumn};
 use crate::envelope_times_cache::EnvelopeTimesCache;
-use crate::errors::{BeaconChainError as Error, BlockProductionError};
+use crate::errors::BeaconChainError as Error;
 use crate::events::ServerSentEventHandler;
 use crate::execution_manager::ExecutionManager;
-use crate::execution_payload::{NotifyExecutionLayer, PreparePayloadHandle, get_execution_payload};
-use crate::fetch_blobs::EngineGetBlobsOutput;
+use crate::execution_payload::PreparePayloadHandle;
 use crate::fork_choice_signal::{ForkChoiceSignalRx, ForkChoiceSignalTx};
-use crate::graffiti_calculator::{GraffitiCalculator, GraffitiSettings};
-use crate::light_client_finality_update_verification::{
-    Error as LightClientFinalityUpdateError, VerifiedLightClientFinalityUpdate,
-};
-use crate::light_client_optimistic_update_verification::{
-    Error as LightClientOptimisticUpdateError, VerifiedLightClientOptimisticUpdate,
-};
+use crate::graffiti_calculator::GraffitiCalculator;
 use crate::light_client_server_cache::LightClientServerCache;
 use crate::migrate::{BackgroundMigrator, ManualFinalizationNotification};
-use crate::observed_aggregates::Error as AttestationObservationError;
 use crate::observed_block_producers::ObservedBlockProducers;
 use crate::observed_data_sidecars::ObservedDataSidecars;
-use crate::observed_operations::ObservationOutcome;
 use crate::observed_slashable::ObservedSlashable;
 use crate::operations_manager::OperationsManager;
 use crate::payload_bid_verification::payload_bid_cache::GossipVerifiedPayloadBidCache;
-#[cfg(not(test))]
-use crate::payload_envelope_streamer::{EnvelopeRequestSource, launch_payload_envelope_stream};
 use crate::pending_payload_envelopes::PendingPayloadEnvelopes;
-use crate::persisted_beacon_chain::PersistedBeaconChain;
 use crate::persisted_custody::persist_custody_context;
-use crate::persisted_fork_choice::PersistedForkChoice;
 use crate::pre_finalization_cache::PreFinalizationBlockCache;
 use crate::proposer_preferences_verification::proposer_preference_cache::GossipVerifiedProposerPreferenceCache;
 use crate::sync_committee_manager::SyncCommitteeManager;
-use crate::sync_committee_verification::{
-    Error as SyncCommitteeError, VerifiedSyncCommitteeMessage, VerifiedSyncContribution,
-};
-use crate::validator_monitor::{
-    HISTORIC_EPOCHS as VALIDATOR_MONITOR_HISTORIC_EPOCHS, ValidatorMonitor, get_slot_delay_ms,
-};
+use crate::validator_monitor::ValidatorMonitor;
 use crate::validator_query_service::ValidatorQueryService;
-use crate::{
-    AvailabilityPendingExecutedBlock, BeaconChainError, BeaconForkChoiceStore, BeaconSnapshot,
-    CachedHead, metrics,
-};
+use crate::{BeaconChainError, BeaconForkChoiceStore, metrics};
 use bls::Signature;
-use eth2::beacon_response::ForkVersionedResponse;
-use eth2::types::{
-    EventKind, SseBlobSidecar, SseBlock, SseDataColumnSidecar, SseExtendedPayloadAttributes,
-    SseHead,
-};
-use execution_layer::{
-    BlockProposalContents, BlockProposalContentsType, BuilderParams, ChainHealth, ExecutionLayer,
-    FailedCondition, PayloadAttributes, PayloadStatus,
-};
-use fixed_bytes::FixedBytesExtended;
-use fork_choice::{
-    AttestationFromBlock, ExecutionStatus, ForkChoice, ForkchoiceUpdateParameters,
-    InvalidationOperation, PayloadVerificationStatus, ResetPayloadStatuses,
-};
+use execution_layer::{ChainHealth, ExecutionLayer, FailedCondition};
+use fork_choice::ForkChoice;
 use futures::channel::mpsc::Sender;
 use kzg::Kzg;
 use logging::crit;
-use operation_pool::{CompactAttestationRef, OperationPool, PersistedOperationPool};
-use parking_lot::{Mutex, RwLock, RwLockWriteGuard};
-use proto_array::{DoNotReOrg, ProposerHeadError};
+use operation_pool::{OperationPool, PersistedOperationPool};
+use parking_lot::{Mutex, RwLock};
 use rand::RngCore;
-use safe_arith::SafeArith;
 use slasher::Slasher;
 use slot_clock::SlotClock;
-use ssz::Encode;
-use state_processing::{
-    BlockSignatureStrategy, ConsensusContext, VerifyBlockRoot, VerifyOperation,
-    common::get_attesting_indices_from_state,
-    epoch_cache::initialize_epoch_cache,
-    per_block_processing,
-    per_block_processing::{
-        VerifySignatures, errors::AttestationValidationError, get_expected_withdrawals,
-        verify_attestation_for_block_inclusion,
-    },
-};
-use std::borrow::Cow;
-use std::collections::HashMap;
-use std::collections::HashSet;
-use std::io::prelude::*;
-use std::marker::PhantomData;
+use state_processing::per_block_processing::errors::AttestationValidationError;
 use std::sync::Arc;
 use std::time::Duration;
-use store::iter::ParentRootBlockIterator;
-use store::{
-    BlobSidecarListFromRoot, DBColumn, DatabaseBlock, Error as DBError, HotColdDB, HotStateSummary,
-    KeyValueStore, KeyValueStoreOp, StoreItem, StoreOp,
-};
-use task_executor::{RayonPoolType, ShutdownReason, TaskExecutor};
-use tokio_stream::Stream;
-use tracing::{debug, error, info, info_span, instrument, trace, warn};
-use tree_hash::TreeHash;
-use types::data::{ColumnIndex, FixedBlobSidecarList};
-use types::execution::BlockProductionVersion;
+use store::{DatabaseBlock, Error as DBError, HotColdDB, HotStateSummary, StoreOp};
+use task_executor::{ShutdownReason, TaskExecutor};
+use tracing::{debug, error, info, warn};
+use types::data::ColumnIndex;
 use types::*;
 
 pub type ForkChoiceError = fork_choice::Error<crate::ForkChoiceStoreError>;
@@ -523,314 +449,6 @@ pub struct BeaconBlockResponse<E: EthSpec, Payload: AbstractExecPayload<E>> {
 impl FinalizationAndCanonicity {
     pub fn is_finalized(self) -> bool {
         self.slot_is_finalized && self.canonical
-    }
-}
-
-impl<T: BeaconChainTypes> BeaconChain<T> {
-    /// Return a database operation for writing the `PersistedBeaconChain` to disk.
-    ///
-    /// These days the `PersistedBeaconChain` is only used to store the genesis block root, so it
-    /// should only ever be written once at startup. It used to be written more frequently, but
-    /// this is no longer necessary.
-    pub fn persist_head_in_batch_standalone(genesis_block_root: Hash256) -> KeyValueStoreOp {
-        PersistedBeaconChain { genesis_block_root }.as_kv_store_op(BEACON_CHAIN_DB_KEY)
-    }
-
-    /// Load fork choice from disk, returning `None` if it isn't found.
-    pub fn load_fork_choice(
-        store: BeaconStore<T>,
-        reset_payload_statuses: ResetPayloadStatuses,
-        spec: &ChainSpec,
-    ) -> Result<Option<BeaconForkChoice<T>>, Error> {
-        let Some(persisted_fork_choice_bytes) = store
-            .hot_db
-            .get_bytes(DBColumn::ForkChoice, FORK_CHOICE_DB_KEY.as_slice())?
-        else {
-            return Ok(None);
-        };
-
-        let persisted_fork_choice =
-            PersistedForkChoice::from_bytes(&persisted_fork_choice_bytes, store.get_config())?;
-        let fc_store =
-            BeaconForkChoiceStore::from_persisted(persisted_fork_choice.fork_choice_store, store)?;
-
-        Ok(Some(ForkChoice::from_persisted(
-            persisted_fork_choice.fork_choice,
-            reset_payload_statuses,
-            fc_store,
-            spec,
-        )?))
-    }
-
-    // -----------------------------------------------------------------------
-    // Remaining `impl` methods:
-    //
-    // `get_blocks_checking_caches`, `get_blocks`, `get_payload_envelopes`
-    // exist only because `BeaconBlockStreamer` and `launch_payload_envelope_stream`
-    // take `Arc<BeaconChain<T>>`. They should be removed once those types are
-    // refactored.
-    // -----------------------------------------------------------------------
-
-    #[allow(clippy::type_complexity)]
-    pub fn get_blocks_checking_caches(
-        self: &Arc<Self>,
-        block_roots: Vec<Hash256>,
-    ) -> Result<
-        impl Stream<
-            Item = (
-                Hash256,
-                Arc<Result<Option<Arc<SignedBeaconBlock<T::EthSpec>>>, Error>>,
-            ),
-        >,
-        Error,
-    > {
-        Ok(BeaconBlockStreamer::<T>::new(self, CheckCaches::Yes)?.launch_stream(block_roots))
-    }
-
-    #[allow(clippy::type_complexity)]
-    pub fn get_blocks(
-        self: &Arc<Self>,
-        block_roots: Vec<Hash256>,
-    ) -> Result<
-        impl Stream<
-            Item = (
-                Hash256,
-                Arc<Result<Option<Arc<SignedBeaconBlock<T::EthSpec>>>, Error>>,
-            ),
-        >,
-        Error,
-    > {
-        Ok(BeaconBlockStreamer::<T>::new(self, CheckCaches::No)?.launch_stream(block_roots))
-    }
-
-    #[cfg(not(test))]
-    #[allow(clippy::type_complexity)]
-    pub fn get_payload_envelopes(
-        self: &Arc<Self>,
-        block_roots: Vec<Hash256>,
-        request_source: EnvelopeRequestSource,
-    ) -> impl Stream<
-        Item = (
-            Hash256,
-            Arc<Result<Option<Arc<SignedExecutionPayloadEnvelope<T::EthSpec>>>, Error>>,
-        ),
-    > {
-        launch_payload_envelope_stream(self.clone(), block_roots, request_source)
-    }
-
-    /// Dumps the entire canonical chain, from the head to genesis to a vector for analysis.
-    ///
-    /// This could be a very expensive operation and should only be done in testing/analysis
-    /// activities.
-    ///
-    /// This dump function previously used a backwards iterator but has been swapped to a forwards
-    /// iterator as it allows for MUCH better caching and rebasing. Memory usage of some tests went
-    /// from 5GB per test to 90MB.
-    #[allow(clippy::type_complexity)]
-    pub fn chain_dump(
-        &self,
-    ) -> Result<Vec<BeaconSnapshot<T::EthSpec, BlindedPayload<T::EthSpec>>>, Error> {
-        self.chain_dump_from_slot(Slot::new(0))
-    }
-
-    /// As for `chain_dump` but dumping only the portion of the chain newer than `from_slot`.
-    #[allow(clippy::type_complexity)]
-    pub fn chain_dump_from_slot(
-        &self,
-        from_slot: Slot,
-    ) -> Result<Vec<BeaconSnapshot<T::EthSpec, BlindedPayload<T::EthSpec>>>, Error> {
-        let mut dump = vec![];
-
-        let mut prev_block_root = None;
-        let mut prev_beacon_state = None;
-
-        // Collect all blocks.
-        let mut blocks = vec![];
-
-        for res in self.forwards_iter_block_roots(from_slot)? {
-            let (beacon_block_root, _) = res?;
-
-            // Do not include snapshots at skipped slots.
-            if Some(beacon_block_root) == prev_block_root {
-                continue;
-            }
-            prev_block_root = Some(beacon_block_root);
-
-            let beacon_block = self
-                .store
-                .get_blinded_block(&beacon_block_root)?
-                .ok_or_else(|| {
-                    Error::DBInconsistent(format!("Missing block {}", beacon_block_root))
-                })?;
-            blocks.push((beacon_block_root, Arc::new(beacon_block)));
-        }
-
-        // Collect states, using the next blocks to determine if states are full (have Gloas
-        // payloads).
-        for (i, (block_root, block)) in blocks.iter().enumerate() {
-            let (opt_envelope, state_root) = if block.fork_name_unchecked().gloas_enabled() {
-                let opt_envelope = self.store.get_payload_envelope(block_root)?.map(Arc::new);
-
-                if let Some((_, next_block)) = blocks.get(i + 1) {
-                    let block_hash = block.payload_bid_block_hash()?;
-                    if next_block.is_parent_block_full(block_hash) {
-                        let envelope = opt_envelope.ok_or_else(|| {
-                            Error::DBInconsistent(format!("Missing envelope {block_root:?}"))
-                        })?;
-                        let state_root = envelope.message.state_root;
-                        (Some(envelope), state_root)
-                    } else {
-                        (None, block.state_root())
-                    }
-                } else {
-                    // Last block in the sequence: use canonical head to determine
-                    // whether the payload is canonical.
-                    let head = self.canonical_head.cached_head();
-                    assert_eq!(head.head_block_root(), *block_root);
-                    let payload_received = head.head_payload_status().as_state_payload_status()
-                        == StatePayloadStatus::Full;
-                    if payload_received {
-                        let envelope = opt_envelope.ok_or_else(|| {
-                            Error::DBInconsistent(format!("Missing envelope {block_root:?}"))
-                        })?;
-                        let state_root = envelope.message.state_root;
-                        (Some(envelope), state_root)
-                    } else {
-                        (None, block.state_root())
-                    }
-                }
-            } else {
-                (None, block.state_root())
-            };
-
-            let mut beacon_state = self
-                .store
-                .get_state(&state_root, Some(block.slot()), true)?
-                .ok_or_else(|| Error::DBInconsistent(format!("Missing state {:?}", state_root)))?;
-
-            // This beacon state might come from the freezer DB, which means it could have pending
-            // updates or lots of untethered memory. We rebase it on the previous state in order to
-            // address this.
-            beacon_state.apply_pending_mutations()?;
-            if let Some(prev) = prev_beacon_state {
-                beacon_state.rebase_on(&prev, &self.spec)?;
-            }
-            beacon_state.build_caches(&self.spec)?;
-            prev_beacon_state = Some(beacon_state.clone());
-
-            let snapshot = BeaconSnapshot {
-                beacon_block: block.clone(),
-                execution_envelope: opt_envelope,
-                beacon_block_root: *block_root,
-                beacon_state,
-            };
-            dump.push(snapshot);
-        }
-
-        Ok(dump)
-    }
-
-    pub fn dump_as_dot<W: Write>(&self, output: &mut W) {
-        let canonical_head_hash = self.canonical_head.cached_head().head_block_root();
-        let mut visited: HashSet<Hash256> = HashSet::new();
-        let mut finalized_blocks: HashSet<Hash256> = HashSet::new();
-        let mut justified_blocks: HashSet<Hash256> = HashSet::new();
-
-        let genesis_block_hash = Hash256::zero();
-        writeln!(output, "digraph beacon {{").unwrap();
-        writeln!(output, "\t_{:?}[label=\"zero\"];", genesis_block_hash).unwrap();
-
-        // Canonical head needs to be processed first as otherwise finalized blocks aren't detected
-        // properly.
-        let heads = {
-            let mut heads = heads(&self.canonical_head);
-            let canonical_head_index = heads
-                .iter()
-                .position(|(block_hash, _)| *block_hash == canonical_head_hash)
-                .unwrap();
-            let (canonical_head_hash, canonical_head_slot) =
-                heads.swap_remove(canonical_head_index);
-            heads.insert(0, (canonical_head_hash, canonical_head_slot));
-            heads
-        };
-
-        for (head_hash, _head_slot) in heads {
-            for maybe_pair in ParentRootBlockIterator::new(&*self.store, head_hash) {
-                let (block_hash, signed_beacon_block) = maybe_pair.unwrap();
-                if visited.contains(&block_hash) {
-                    break;
-                }
-                visited.insert(block_hash);
-
-                if signed_beacon_block.slot() % T::EthSpec::slots_per_epoch() == 0 {
-                    let block = self.store.get_blinded_block(&block_hash).unwrap().unwrap();
-                    // This branch is reached from the HTTP API. We assume the user wants
-                    // to cache states so that future calls are faster.
-                    let state = self
-                        .store
-                        .get_state(&block.state_root(), Some(block.slot()), true)
-                        .unwrap()
-                        .unwrap();
-                    finalized_blocks.insert(state.finalized_checkpoint().root);
-                    justified_blocks.insert(state.current_justified_checkpoint().root);
-                    justified_blocks.insert(state.previous_justified_checkpoint().root);
-                }
-
-                if block_hash == canonical_head_hash {
-                    writeln!(
-                        output,
-                        "\t_{:?}[label=\"{} ({})\" shape=box3d];",
-                        block_hash,
-                        block_hash,
-                        signed_beacon_block.slot()
-                    )
-                    .unwrap();
-                } else if finalized_blocks.contains(&block_hash) {
-                    writeln!(
-                        output,
-                        "\t_{:?}[label=\"{} ({})\" shape=Msquare];",
-                        block_hash,
-                        block_hash,
-                        signed_beacon_block.slot()
-                    )
-                    .unwrap();
-                } else if justified_blocks.contains(&block_hash) {
-                    writeln!(
-                        output,
-                        "\t_{:?}[label=\"{} ({})\" shape=cds];",
-                        block_hash,
-                        block_hash,
-                        signed_beacon_block.slot()
-                    )
-                    .unwrap();
-                } else {
-                    writeln!(
-                        output,
-                        "\t_{:?}[label=\"{} ({})\" shape=box];",
-                        block_hash,
-                        block_hash,
-                        signed_beacon_block.slot()
-                    )
-                    .unwrap();
-                }
-                writeln!(
-                    output,
-                    "\t_{:?} -> _{:?};",
-                    block_hash,
-                    signed_beacon_block.parent_root()
-                )
-                .unwrap();
-            }
-        }
-
-        writeln!(output, "}}").unwrap();
-    }
-
-    // Used for debugging
-    #[allow(dead_code)]
-    pub fn dump_dot_file(&self, file_name: &str) {
-        let mut file = std::fs::File::create(file_name).unwrap();
-        self.dump_as_dot(&mut file);
     }
 }
 

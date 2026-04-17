@@ -699,3 +699,159 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_utils::{BeaconChainHarness, EphemeralHarnessType, test_spec};
+    use bls::Keypair;
+    use std::sync::Arc;
+    use std::sync::LazyLock;
+    use types::{ChainSpec, MinimalEthSpec};
+
+    type E = MinimalEthSpec;
+
+    const VALIDATOR_COUNT: usize = 48;
+
+    static KEYPAIRS: LazyLock<Vec<Keypair>> =
+        LazyLock::new(|| types::test_utils::generate_deterministic_keypairs(VALIDATOR_COUNT));
+
+    fn get_harness(spec: Arc<ChainSpec>) -> BeaconChainHarness<EphemeralHarnessType<E>> {
+        let harness = BeaconChainHarness::builder(MinimalEthSpec)
+            .spec(spec)
+            .keypairs(KEYPAIRS[..VALIDATOR_COUNT].to_vec())
+            .fresh_ephemeral_store()
+            .mock_execution_layer()
+            .build();
+
+        harness.advance_slot();
+        harness
+    }
+
+    #[test]
+    fn current_slot_returns_clock_time() {
+        let spec = Arc::new(test_spec::<E>());
+        let harness = get_harness(spec);
+
+        // Advance the clock a few slots without producing blocks.
+        harness.advance_slot();
+        harness.advance_slot();
+
+        let expected_slot = harness.chain.slot_clock.now().unwrap();
+        let result = current_slot(&harness.chain.slot_clock).unwrap();
+        assert_eq!(result, expected_slot);
+    }
+
+    #[tokio::test]
+    async fn block_root_at_slot_returns_none_for_skip_slot() {
+        let spec = Arc::new(test_spec::<E>());
+        let harness = get_harness(spec);
+
+        // Produce blocks at slots 1..=3.
+        harness.extend_slots(3).await;
+
+        // Create a skip slot: advance the clock (slot 4) without producing a block,
+        // then produce a block at slot 5.
+        harness.advance_slot();
+        harness.extend_slots(1).await;
+
+        let skip_slot = Slot::new(4);
+
+        // When we query the skip slot with WhenSlotSkipped::None, we get None.
+        let result = block_root_at_slot(
+            &harness.chain.store,
+            &harness.chain.canonical_head,
+            &harness.chain.spec,
+            &harness.chain.slot_clock,
+            harness.chain.genesis_block_root,
+            skip_slot,
+            WhenSlotSkipped::None,
+        )
+        .unwrap();
+
+        assert_eq!(result, None, "skip slot should return None");
+    }
+
+    #[tokio::test]
+    async fn block_root_at_slot_returns_prev_for_skip_slot() {
+        let spec = Arc::new(test_spec::<E>());
+        let harness = get_harness(spec);
+
+        // Produce blocks at slots 1..=3.
+        harness.extend_slots(3).await;
+
+        // Get the block root at slot 3 (the last produced block before the skip).
+        let prev_root = block_root_at_slot(
+            &harness.chain.store,
+            &harness.chain.canonical_head,
+            &harness.chain.spec,
+            &harness.chain.slot_clock,
+            harness.chain.genesis_block_root,
+            Slot::new(3),
+            WhenSlotSkipped::None,
+        )
+        .unwrap()
+        .expect("slot 3 should have a block");
+
+        // Create a skip slot at slot 4.
+        harness.advance_slot();
+        harness.extend_slots(1).await;
+
+        let skip_slot = Slot::new(4);
+
+        // When we query the skip slot with WhenSlotSkipped::Prev, we get the root
+        // from the previous non-skipped slot.
+        let result = block_root_at_slot(
+            &harness.chain.store,
+            &harness.chain.canonical_head,
+            &harness.chain.spec,
+            &harness.chain.slot_clock,
+            harness.chain.genesis_block_root,
+            skip_slot,
+            WhenSlotSkipped::Prev,
+        )
+        .unwrap()
+        .expect("WhenSlotSkipped::Prev should return Some");
+
+        assert_eq!(
+            result, prev_root,
+            "skip slot with Prev should return the previous non-skipped block root"
+        );
+    }
+
+    #[tokio::test]
+    async fn state_root_at_slot_returns_correct_root() {
+        let spec = Arc::new(test_spec::<E>());
+        let harness = get_harness(spec);
+
+        // Produce a few blocks so we have state roots to query.
+        harness.extend_slots(3).await;
+
+        let query_slot = Slot::new(2);
+
+        let result = state_root_at_slot(
+            &harness.chain.store,
+            &harness.chain.canonical_head,
+            &harness.chain.spec,
+            &harness.chain.slot_clock,
+            harness.chain.genesis_state_root,
+            query_slot,
+        )
+        .unwrap();
+
+        assert!(
+            result.is_some(),
+            "state root should exist for a slot with a block"
+        );
+
+        // Verify the returned root matches the state root stored in the head state.
+        let head_state = &harness
+            .chain
+            .canonical_head
+            .cached_head()
+            .snapshot
+            .beacon_state;
+        let expected_root = *head_state.get_state_root(query_slot).unwrap();
+        assert_eq!(result.unwrap(), expected_root);
+    }
+}

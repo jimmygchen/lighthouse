@@ -303,9 +303,12 @@ impl<T: BeaconChainTypes> CanonicalHead<T> {
         store: &BeaconStore<T>,
         spec: &ChainSpec,
     ) -> Result<(), Error> {
-        let mut fork_choice =
-            <BeaconChain<T>>::load_fork_choice(store.clone(), reset_payload_statuses, spec)?
-                .ok_or(Error::MissingPersistedForkChoice)?;
+        let mut fork_choice = crate::persisted_fork_choice::load_fork_choice::<T>(
+            store.clone(),
+            reset_payload_statuses,
+            spec,
+        )?
+        .ok_or(Error::MissingPersistedForkChoice)?;
         let current_slot_for_head = fork_choice.fc_store().get_current_slot();
         let (_, head_payload_status) = fork_choice.get_head(current_slot_for_head, spec)?;
         let fork_choice_view = fork_choice.cached_fork_choice_view();
