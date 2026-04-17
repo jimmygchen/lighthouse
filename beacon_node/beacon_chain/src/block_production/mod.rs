@@ -6,7 +6,7 @@ use tracing::{debug, debug_span, error, info, instrument, warn};
 use types::{BeaconState, Hash256, Slot, StatePayloadStatus};
 
 use crate::{
-    BeaconChain, BeaconChainTypes, BlockProductionError, StateSkipConfig,
+    BeaconChainTypes, BeaconComponents, BlockProductionError, StateSkipConfig,
     attestation_manager::AttestationManager, block_times_cache::BlockTimesCache,
     canonical_head::CanonicalHead, execution_manager::ExecutionManager,
     fork_choice_signal::ForkChoiceWaitResult, metrics,
@@ -16,8 +16,8 @@ pub mod gloas;
 
 /// Context struct for block production free functions.
 ///
-/// Holds references to the `BeaconChain` fields that block production depends on.
-/// Public entry points construct this from an `Arc<BeaconChain<T>>` via
+/// Holds references to the `BeaconComponents` fields that block production depends on.
+/// Public entry points construct this from an `Arc<BeaconComponents<T>>` via
 /// [`block_production_context_from_chain`].
 pub(crate) struct BlockProductionContext<'a, T: BeaconChainTypes> {
     pub canonical_head: &'a CanonicalHead<T>,
@@ -35,12 +35,12 @@ pub(crate) struct BlockProductionContext<'a, T: BeaconChainTypes> {
     pub genesis_block_root: Hash256,
 }
 
-/// Construct a `BlockProductionContext` from a `BeaconChain` reference.
+/// Construct a `BlockProductionContext` from a `BeaconComponents` reference.
 ///
 /// Helper used by free functions in this module. External callers should
 /// construct the context from individual component refs.
 fn block_production_context_from_chain<T: BeaconChainTypes>(
-    chain: &Arc<BeaconChain<T>>,
+    chain: &Arc<BeaconComponents<T>>,
 ) -> BlockProductionContext<'_, T> {
     BlockProductionContext {
         canonical_head: &chain.canonical_head,
@@ -79,7 +79,7 @@ pub(crate) fn block_observed_after_attestation_deadline<T: BeaconChainTypes>(
 /// that should not be performed in an `async` context.
 #[instrument(skip_all, level = "debug")]
 pub(crate) fn load_state_for_block_production<T: BeaconChainTypes>(
-    chain: &Arc<BeaconChain<T>>,
+    chain: &Arc<BeaconComponents<T>>,
     slot: Slot,
 ) -> Result<(BeaconState<T::EthSpec>, Option<Hash256>), BlockProductionError> {
     let ctx = block_production_context_from_chain(chain);
@@ -169,7 +169,7 @@ pub(crate) fn load_state_for_block_production<T: BeaconChainTypes>(
 /// If configured, wait for the fork choice run at the start of the slot to complete.
 #[instrument(level = "debug", skip_all)]
 fn wait_for_fork_choice_before_block_production<T: BeaconChainTypes>(
-    chain: &BeaconChain<T>,
+    chain: &BeaconComponents<T>,
     slot: Slot,
 ) -> Result<(), BlockProductionError> {
     if let Some(rx) = &chain.fork_choice_signal_rx {
@@ -312,7 +312,7 @@ fn get_state_for_re_org<T: BeaconChainTypes>(
 }
 
 // Additional imports for methods moved from beacon_chain.rs
-use crate::beacon_chain::{
+use crate::beacon_components::{
     BeaconBlockResponse, BeaconBlockResponseWrapper, PartialBeaconBlock, PrePayloadAttributes,
     ProduceBlockVerification, shuffling_is_compatible_with_fork_choice,
 };
@@ -345,7 +345,7 @@ use types::execution::BlockProductionVersion;
 use types::*;
 
 pub async fn produce_block_with_verification<T: BeaconChainTypes>(
-    chain: &Arc<BeaconChain<T>>,
+    chain: &Arc<BeaconComponents<T>>,
     randao_reveal: Signature,
     slot: Slot,
     graffiti_settings: GraffitiSettings,
@@ -388,10 +388,10 @@ pub async fn produce_block_with_verification<T: BeaconChainTypes>(
 
 /// Get the proposer index and `prev_randao` value for a proposal at slot `proposal_slot`.
 ///
-/// Thin wrapper that constructs a [`BlockProductionContext`] from a [`BeaconChain`] and
+/// Thin wrapper that constructs a [`BlockProductionContext`] from a [`BeaconComponents`] and
 /// delegates to the free function [`get_pre_payload_attributes`].
 pub(crate) fn get_pre_payload_attributes_from_chain<T: BeaconChainTypes>(
-    chain: &Arc<BeaconChain<T>>,
+    chain: &Arc<BeaconComponents<T>>,
     proposal_slot: Slot,
     proposer_head: Hash256,
     cached_head: &CachedHead<T::EthSpec>,
@@ -402,10 +402,10 @@ pub(crate) fn get_pre_payload_attributes_from_chain<T: BeaconChainTypes>(
 
 /// Compute expected withdrawals for a proposal.
 ///
-/// Thin wrapper that constructs a [`BlockProductionContext`] from a [`BeaconChain`] and
+/// Thin wrapper that constructs a [`BlockProductionContext`] from a [`BeaconComponents`] and
 /// delegates to [`get_expected_withdrawals_for_proposal`].
 pub(crate) fn get_expected_withdrawals_from_chain<T: BeaconChainTypes>(
-    chain: &Arc<BeaconChain<T>>,
+    chain: &Arc<BeaconComponents<T>>,
     forkchoice_update_params: &ForkchoiceUpdateParameters,
     proposal_slot: Slot,
 ) -> Result<Withdrawals<T::EthSpec>, Error> {
@@ -415,10 +415,10 @@ pub(crate) fn get_expected_withdrawals_from_chain<T: BeaconChainTypes>(
 
 /// Determine whether a fork choice update to the execution layer should be overridden.
 ///
-/// Thin wrapper that constructs a [`BlockProductionContext`] from a [`BeaconChain`] and
+/// Thin wrapper that constructs a [`BlockProductionContext`] from a [`BeaconComponents`] and
 /// delegates to [`overridden_forkchoice_update_params_fn`].
 pub(crate) fn overridden_forkchoice_update_params_from_chain<T: BeaconChainTypes>(
-    chain: &Arc<BeaconChain<T>>,
+    chain: &Arc<BeaconComponents<T>>,
     canonical_forkchoice_params: ForkchoiceUpdateParameters,
 ) -> Result<ForkchoiceUpdateParameters, Error> {
     let ctx = block_production_context_from_chain(chain);
@@ -440,7 +440,7 @@ pub(crate) fn overridden_forkchoice_update_params_from_chain<T: BeaconChainTypes
 #[allow(clippy::too_many_arguments)]
 #[instrument(level = "debug", skip_all)]
 pub async fn produce_block_on_state<T: BeaconChainTypes>(
-    chain: &Arc<BeaconChain<T>>,
+    chain: &Arc<BeaconComponents<T>>,
     state: BeaconState<T::EthSpec>,
     state_root_opt: Option<Hash256>,
     produce_at_slot: Slot,
@@ -942,13 +942,13 @@ fn overridden_forkchoice_update_params_or_failure_reason_fn<T: BeaconChainTypes>
 /// Core block assembly logic: advance state, pack operations, begin payload fetch.
 ///
 /// The `chain` parameter is needed only because `get_execution_payload` spawns
-/// an async task that requires `Arc<BeaconChain<T>>`. Everything else goes through
+/// an async task that requires `Arc<BeaconComponents<T>>`. Everything else goes through
 /// `ctx` with explicit deps.
 #[allow(clippy::too_many_arguments)]
 #[instrument(skip_all, level = "debug")]
 pub(crate) fn produce_partial_beacon_block<T: BeaconChainTypes>(
     ctx: &BlockProductionContext<'_, T>,
-    chain: &Arc<BeaconChain<T>>,
+    chain: &Arc<BeaconComponents<T>>,
     mut state: BeaconState<T::EthSpec>,
     state_root_opt: Option<Hash256>,
     produce_at_slot: Slot,
@@ -996,7 +996,7 @@ pub(crate) fn produce_partial_beacon_block<T: BeaconChainTypes>(
     let builder_params = BuilderParams {
         pubkey,
         slot: state.slot(),
-        chain_health: crate::beacon_chain::is_healthy(
+        chain_health: crate::beacon_components::is_healthy(
             ctx.canonical_head,
             ctx.store,
             ctx.slot_clock,
@@ -1229,7 +1229,7 @@ pub(crate) fn complete_partial_beacon_block<
     Payload: AbstractExecPayload<T::EthSpec>,
 >(
     ctx: &BlockProductionContext<'_, T>,
-    chain: &BeaconChain<T>,
+    chain: &BeaconComponents<T>,
     partial_beacon_block: PartialBeaconBlock<T::EthSpec>,
     block_contents: Option<BlockProposalContents<T::EthSpec, Payload>>,
     verification: ProduceBlockVerification,

@@ -12,7 +12,7 @@
 //!
 //! 1. `RwLock<BeaconForkChoice>`: Contains `proto_array` fork choice.
 //! 2. `RwLock<CachedHead>`: Contains a cached block/state from the last run of `proto_array`.
-//! 3. `Mutex<()>`: Is used to prevent concurrent execution of `BeaconChain::recompute_head`.
+//! 3. `Mutex<()>`: Is used to prevent concurrent execution of `BeaconComponents::recompute_head`.
 //!
 //! This module has to take great efforts to avoid causing a deadlock with these three methods. Any
 //! developers working in this module should tread carefully and seek a detailed review.
@@ -34,8 +34,10 @@
 use crate::persisted_fork_choice::PersistedForkChoice;
 use crate::shuffling_cache::BlockShufflingIds;
 use crate::{
-    BeaconChain, BeaconChainError as Error, BeaconChainTypes, BeaconSnapshot,
-    beacon_chain::{BeaconForkChoice, BeaconStore, FORK_CHOICE_DB_KEY, OverrideForkchoiceUpdate},
+    BeaconChainError as Error, BeaconChainTypes, BeaconComponents, BeaconSnapshot,
+    beacon_components::{
+        BeaconForkChoice, BeaconStore, FORK_CHOICE_DB_KEY, OverrideForkchoiceUpdate,
+    },
     block_times_cache::BlockTimesCache,
     events::ServerSentEventHandler,
     metrics,
@@ -89,7 +91,7 @@ impl<T> CanonicalHeadRwLock<T> {
     }
 }
 
-/// Provides a series of cached values from the last time `BeaconChain::recompute_head` was run.
+/// Provides a series of cached values from the last time `BeaconComponents::recompute_head` was run.
 ///
 /// This struct is designed to be cheap-to-clone, any large fields should be wrapped in an `Arc` (or
 /// similar).
@@ -143,7 +145,7 @@ impl<E: EthSpec> CachedHead<E> {
     ///
     /// ## Notes
     ///
-    /// This is *not* the current slot as per the system clock. Use `BeaconChain::slot` for the
+    /// This is *not* the current slot as per the system clock. Use `BeaconComponents::slot` for the
     /// system clock (aka "wall clock") slot.
     pub fn head_slot(&self) -> Slot {
         self.snapshot.beacon_block.slot()
@@ -256,7 +258,7 @@ pub struct CanonicalHead<T: BeaconChainTypes> {
     /// Although `self.fork_choice` might be slightly more advanced that this value, it is safe to
     /// consider that these values represent the "canonical head" of the beacon chain.
     cached_head: CanonicalHeadRwLock<CachedHead<T::EthSpec>>,
-    /// A lock used to prevent concurrent runs of `BeaconChain::recompute_head`.
+    /// A lock used to prevent concurrent runs of `BeaconComponents::recompute_head`.
     ///
     /// This lock **should not be made public**, it should only be used inside this module.
     recompute_head_lock: Mutex<()>,
@@ -391,7 +393,7 @@ impl<T: BeaconChainTypes> CanonicalHead<T> {
     ///
     /// This will only return `Err` in the scenario where `self.fork_choice` has advanced
     /// significantly past the cached `head_snapshot`. In such a scenario it is likely prudent to
-    /// run `BeaconChain::recompute_head` to update the cached values.
+    /// run `BeaconComponents::recompute_head` to update the cached values.
     pub fn head_execution_status(&self) -> Result<ExecutionStatus, Error> {
         let head_block_root = self.cached_head().head_block_root();
         self.fork_choice_read_lock()
@@ -403,7 +405,7 @@ impl<T: BeaconChainTypes> CanonicalHead<T> {
     ///
     /// This will only return `Err` in the scenario where `self.fork_choice` has advanced
     /// significantly past the cached `head_snapshot`. In such a scenario it is likely prudent to
-    /// run `BeaconChain::recompute_head` to update the cached values.
+    /// run `BeaconComponents::recompute_head` to update the cached values.
     pub fn head_and_execution_status(
         &self,
     ) -> Result<(CachedHead<T::EthSpec>, ExecutionStatus), Error> {
@@ -529,7 +531,7 @@ impl<T: BeaconChainTypes> Drop for CanonicalHead<T> {
 
 /// Execute the fork choice algorithm and enthrone the result as the canonical head.
 #[instrument(skip_all, level = "debug")]
-pub async fn recompute_head_at_current_slot<T: BeaconChainTypes>(chain: &Arc<BeaconChain<T>>) {
+pub async fn recompute_head_at_current_slot<T: BeaconChainTypes>(chain: &Arc<BeaconComponents<T>>) {
     match crate::state_query::current_slot(&chain.slot_clock) {
         Ok(current_slot) => recompute_head_at_slot(chain, current_slot).await,
         Err(e) => error!(
@@ -548,19 +550,19 @@ pub async fn recompute_head_at_current_slot<T: BeaconChainTypes>(chain: &Arc<Bea
 ///
 /// This function purposefully does *not* return a `Result`. It's possible for fork choice to
 /// fail to update if there is only one viable head and it has an invalid execution payload. In
-/// such a case it's critical that the `BeaconChain` keeps importing blocks so that the
+/// such a case it's critical that the `BeaconComponents` keeps importing blocks so that the
 /// situation can be rectified. We avoid returning an error here so that calling functions
 /// can't abort block import because an error is returned here.
 #[instrument(name = "lh_recompute_head_at_slot", skip(chain), level = "info", fields(slot = %current_slot))]
 pub async fn recompute_head_at_slot<T: BeaconChainTypes>(
-    chain: &Arc<BeaconChain<T>>,
+    chain: &Arc<BeaconComponents<T>>,
     current_slot: Slot,
 ) {
     metrics::inc_counter(&metrics::FORK_CHOICE_REQUESTS);
     let _timer = metrics::start_timer(&metrics::FORK_CHOICE_TIMES);
 
     let chain_clone = chain.clone();
-    match crate::beacon_chain::spawn_blocking_handle(
+    match crate::beacon_components::spawn_blocking_handle(
         &chain.task_executor,
         move || recompute_head_at_slot_internal(&chain_clone, current_slot),
         "recompute_head_internal",
@@ -609,7 +611,7 @@ pub async fn recompute_head_at_slot<T: BeaconChainTypes>(
 /// This function performs long-running, heavy-lifting tasks which should not be performed on
 /// the core `tokio` executor.
 fn recompute_head_at_slot_internal<T: BeaconChainTypes>(
-    chain: &Arc<BeaconChain<T>>,
+    chain: &Arc<BeaconComponents<T>>,
     current_slot: Slot,
 ) -> Result<Option<JoinHandle<Option<()>>>, Error> {
     let recompute_head_lock = chain.canonical_head.recompute_head_lock.lock();
@@ -848,7 +850,7 @@ fn recompute_head_at_slot_internal<T: BeaconChainTypes>(
 /// Perform updates to caches and other components after the canonical head has been changed.
 #[instrument(skip_all)]
 fn after_new_head<T: BeaconChainTypes>(
-    chain: &Arc<BeaconChain<T>>,
+    chain: &Arc<BeaconComponents<T>>,
     old_cached_head: &CachedHead<T::EthSpec>,
     new_cached_head: &CachedHead<T::EthSpec>,
     new_head_proto_block: ProtoBlock,
@@ -962,7 +964,7 @@ fn after_new_head<T: BeaconChainTypes>(
 /// unwise to hold any lock on fork choice while calling this function.
 #[instrument(skip_all)]
 fn after_finalization<T: BeaconChainTypes>(
-    chain: &Arc<BeaconChain<T>>,
+    chain: &Arc<BeaconComponents<T>>,
     new_cached_head: &CachedHead<T::EthSpec>,
     new_view: ForkChoiceView,
     finalized_proto_block: ProtoBlock,
@@ -1036,7 +1038,7 @@ fn after_finalization<T: BeaconChainTypes>(
         // TODO(gloas): consider just always using this state root (even pre-Gloas)
         finalized_proto_block.state_root
     } else {
-        // Use the `StateRootsIterator` directly rather than `BeaconChain::state_root_at_slot`
+        // Use the `StateRootsIterator` directly rather than `BeaconComponents::state_root_at_slot`
         // to ensure we use the same state that we just set as the head.
         process_results(
             StateRootsIterator::new(&chain.store, &new_snapshot.beacon_state),
@@ -1115,7 +1117,7 @@ pub fn persist_fork_choice_in_batch_standalone<T: BeaconChainTypes>(
 /// safety, **do not take any other locks inside this function**.
 #[instrument(skip_all)]
 fn check_finalized_payload_validity<T: BeaconChainTypes>(
-    chain: &BeaconChain<T>,
+    chain: &BeaconComponents<T>,
     finalized_proto_block: &ProtoBlock,
 ) -> Result<(), Error> {
     if let ExecutionStatus::Invalid(block_hash) = finalized_proto_block.execution_status {
@@ -1199,7 +1201,7 @@ fn perform_debug_logging<T: BeaconChainTypes>(
 
 #[instrument(skip_all)]
 fn spawn_execution_layer_updates<T: BeaconChainTypes>(
-    chain: Arc<BeaconChain<T>>,
+    chain: Arc<BeaconComponents<T>>,
     forkchoice_update_params: ForkchoiceUpdateParameters,
 ) -> Result<JoinHandle<Option<()>>, Error> {
     let current_slot = chain

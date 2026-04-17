@@ -1,4 +1,4 @@
-use crate::{BeaconChain, BeaconChainError, BeaconChainTypes, BlockProcessStatus, metrics};
+use crate::{BeaconChainError, BeaconChainTypes, BeaconComponents, BlockProcessStatus, metrics};
 use execution_layer::{ExecutionLayer, ExecutionPayloadBodyV1};
 use logging::crit;
 use std::collections::HashMap;
@@ -379,12 +379,12 @@ impl<E: EthSpec> EngineRequest<E> {
 pub struct BeaconBlockStreamer<T: BeaconChainTypes> {
     execution_layer: ExecutionLayer<T::EthSpec>,
     check_caches: CheckCaches,
-    beacon_chain: Arc<BeaconChain<T>>,
+    beacon_chain: Arc<BeaconComponents<T>>,
 }
 
 impl<T: BeaconChainTypes> BeaconBlockStreamer<T> {
     pub fn new(
-        beacon_chain: &Arc<BeaconChain<T>>,
+        beacon_chain: &Arc<BeaconComponents<T>>,
         check_caches: CheckCaches,
     ) -> Result<Arc<Self>, BeaconChainError> {
         let execution_layer = beacon_chain
@@ -426,7 +426,7 @@ impl<T: BeaconChainTypes> BeaconBlockStreamer<T> {
     ) -> Result<Vec<(Hash256, LoadResult<T::EthSpec>)>, BeaconChainError> {
         let streamer = self.clone();
         // Loading from the DB is slow -> spawn a blocking task
-        crate::beacon_chain::spawn_blocking_handle(
+        crate::beacon_components::spawn_blocking_handle(
             &self.beacon_chain.task_executor,
             move || {
                 let mut db_blocks = Vec::new();
@@ -559,7 +559,7 @@ impl<T: BeaconChainTypes> BeaconBlockStreamer<T> {
             let block_result = if cached_block.is_some() {
                 Ok(cached_block)
             } else {
-                crate::beacon_chain::get_block::<T>(
+                crate::beacon_components::get_block::<T>(
                     &self.beacon_chain.store,
                     self.beacon_chain.execution_layer.as_ref(),
                     &self.beacon_chain.spec,
@@ -693,7 +693,7 @@ impl From<Error> for BeaconChainError {
 /// Fetch blocks from the store by root, checking caches first.
 #[allow(clippy::type_complexity)]
 pub fn get_blocks_checking_caches<T: BeaconChainTypes>(
-    chain: &Arc<BeaconChain<T>>,
+    chain: &Arc<BeaconComponents<T>>,
     block_roots: Vec<Hash256>,
 ) -> Result<
     impl Stream<
@@ -710,7 +710,7 @@ pub fn get_blocks_checking_caches<T: BeaconChainTypes>(
 /// Fetch blocks from the store by root, without checking caches.
 #[allow(clippy::type_complexity)]
 pub fn get_blocks<T: BeaconChainTypes>(
-    chain: &Arc<BeaconChain<T>>,
+    chain: &Arc<BeaconComponents<T>>,
     block_roots: Vec<Hash256>,
 ) -> Result<
     impl Stream<
@@ -819,15 +819,16 @@ mod tests {
         let mut expected_blocks = vec![];
         // get all blocks the old fashioned way
         for root in &block_roots {
-            let block = crate::beacon_chain::get_block::<EphemeralHarnessType<MinimalEthSpec>>(
-                &harness.chain.store,
-                harness.chain.execution_layer.as_ref(),
-                &harness.chain.spec,
-                root,
-            )
-            .await
-            .expect("should get block")
-            .expect("block should exist");
+            let block =
+                crate::beacon_components::get_block::<EphemeralHarnessType<MinimalEthSpec>>(
+                    &harness.chain.store,
+                    harness.chain.execution_layer.as_ref(),
+                    &harness.chain.spec,
+                    root,
+                )
+                .await
+                .expect("should get block")
+                .expect("block should exist");
             expected_blocks.push(block);
         }
 

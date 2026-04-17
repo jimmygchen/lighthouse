@@ -2,7 +2,7 @@
 mod tests;
 
 use crate::BeaconChainTypes;
-use crate::beacon_chain::BeaconStore;
+use crate::beacon_components::BeaconStore;
 use crate::data_availability_checker::DataAvailabilityChecker;
 use crate::errors::BeaconChainError as Error;
 use crate::kzg_utils::reconstruct_blobs;
@@ -312,7 +312,7 @@ impl<T: BeaconChainTypes> DataAvailabilityManager<T> {
 
 impl<T: BeaconChainTypes> Drop for DataAvailabilityManager<T> {
     fn drop(&mut self) {
-        if let Err(e) = crate::beacon_chain::persist_custody_ctx::<T>(
+        if let Err(e) = crate::beacon_components::persist_custody_ctx::<T>(
             &self.spec,
             &self.data_availability_checker,
             &self.store,

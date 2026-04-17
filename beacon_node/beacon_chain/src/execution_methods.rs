@@ -1,16 +1,16 @@
 //! Execution layer integration and fork choice update methods.
 //!
 //! All methods are free functions. Async methods that need `spawn_blocking` take
-//! `Arc<BeaconChain<T>>` directly. Callers access these via delegation methods
-//! on `BeaconChain` defined elsewhere (e.g., `canonical_head.rs`).
+//! `Arc<BeaconComponents<T>>` directly. Callers access these via delegation methods
+//! on `BeaconComponents` defined elsewhere (e.g., `canonical_head.rs`).
 
-use crate::beacon_chain::{
+use crate::beacon_components::{
     BeaconChainTypes, INVALID_JUSTIFIED_PAYLOAD_SHUTDOWN_REASON, OverrideForkchoiceUpdate,
     PrePayloadAttributes,
 };
 use crate::errors::BeaconChainError as Error;
 use crate::events::ServerSentEventHandler;
-use crate::{BeaconChain, BeaconChainError};
+use crate::{BeaconChainError, BeaconComponents};
 use eth2::beacon_response::ForkVersionedResponse;
 use eth2::types::{EventKind, SseExtendedPayloadAttributes};
 use execution_layer::{ExecutionBlockHash, PayloadAttributes, PayloadStatus};
@@ -89,7 +89,7 @@ pub(crate) fn emit_payload_attributes_event<E: EthSpec>(
 }
 
 pub async fn process_invalid_execution_payload<T: BeaconChainTypes>(
-    chain: &Arc<BeaconChain<T>>,
+    chain: &Arc<BeaconComponents<T>>,
     op: &InvalidationOperation,
 ) -> Result<(), Error> {
     debug!(?op, "Processing payload invalidation");
@@ -100,7 +100,7 @@ pub async fn process_invalid_execution_payload<T: BeaconChainTypes>(
     // on the core executor is bad.
     let inner_chain = chain.clone();
     let inner_op = op.clone();
-    let fork_choice_result = crate::beacon_chain::spawn_blocking_handle(
+    let fork_choice_result = crate::beacon_components::spawn_blocking_handle(
         &chain.task_executor,
         move || {
             inner_chain
@@ -131,7 +131,7 @@ pub async fn process_invalid_execution_payload<T: BeaconChainTypes>(
     // Use a blocking task since it interacts with the `canonical_head` lock. Lock contention
     // on the core executor is bad.
     let inner_chain = chain.clone();
-    let justified_block = crate::beacon_chain::spawn_blocking_handle(
+    let justified_block = crate::beacon_components::spawn_blocking_handle(
         &chain.task_executor,
         move || {
             inner_chain
@@ -157,7 +157,7 @@ pub async fn process_invalid_execution_payload<T: BeaconChainTypes>(
 }
 
 pub fn block_is_known_to_fork_choice<T: BeaconChainTypes>(
-    chain: &BeaconChain<T>,
+    chain: &BeaconComponents<T>,
     root: &Hash256,
 ) -> bool {
     chain
@@ -178,7 +178,7 @@ pub fn block_is_known_to_fork_choice<T: BeaconChainTypes>(
 /// Return `Ok(Some(head_block_root))` if this node prepared to propose at the next slot on
 /// top of `head_block_root`.
 pub async fn prepare_beacon_proposer<T: BeaconChainTypes>(
-    chain: &Arc<BeaconChain<T>>,
+    chain: &Arc<BeaconComponents<T>>,
     current_slot: Slot,
 ) -> Result<Option<Hash256>, Error> {
     let prepare_slot = current_slot + 1;
@@ -210,7 +210,7 @@ pub async fn prepare_beacon_proposer<T: BeaconChainTypes>(
     // block the core tokio executor.
     let inner_chain = chain.clone();
     let tolerance_slots = chain.config.sync_tolerance_epochs * T::EthSpec::slots_per_epoch();
-    let maybe_prep_data = crate::beacon_chain::spawn_blocking_handle(
+    let maybe_prep_data = crate::beacon_components::spawn_blocking_handle(
         &chain.task_executor,
         move || {
             let cached_head = inner_chain.canonical_head.cached_head();
@@ -275,7 +275,7 @@ pub async fn prepare_beacon_proposer<T: BeaconChainTypes>(
 
         let withdrawals = if prepare_slot_fork.capella_enabled() {
             let inner_chain = chain.clone();
-            crate::beacon_chain::spawn_blocking_handle(
+            crate::beacon_components::spawn_blocking_handle(
                 &chain.task_executor,
                 move || {
                     crate::block_production::get_expected_withdrawals_from_chain(
@@ -379,7 +379,7 @@ pub async fn prepare_beacon_proposer<T: BeaconChainTypes>(
 }
 
 pub async fn update_execution_engine_forkchoice<T: BeaconChainTypes>(
-    chain: &Arc<BeaconChain<T>>,
+    chain: &Arc<BeaconComponents<T>>,
     current_slot: Slot,
     input_params: ForkchoiceUpdateParameters,
     override_forkchoice_update: OverrideForkchoiceUpdate,
@@ -393,7 +393,7 @@ pub async fn update_execution_engine_forkchoice<T: BeaconChainTypes>(
     // the current head at the next slot.
     let params = if override_forkchoice_update == OverrideForkchoiceUpdate::Yes {
         let inner_chain = chain.clone();
-        crate::beacon_chain::spawn_blocking_handle(
+        crate::beacon_components::spawn_blocking_handle(
             &chain.task_executor,
             move || {
                 crate::block_production::overridden_forkchoice_update_params_from_chain(
@@ -461,7 +461,7 @@ pub async fn update_execution_engine_forkchoice<T: BeaconChainTypes>(
             PayloadStatus::Valid => {
                 // Ensure that fork choice knows that the block is no longer optimistic.
                 let inner_chain = chain.clone();
-                let fork_choice_update_result = crate::beacon_chain::spawn_blocking_handle(
+                let fork_choice_update_result = crate::beacon_components::spawn_blocking_handle(
                     &chain.task_executor,
                     move || {
                         inner_chain
@@ -588,7 +588,7 @@ pub fn is_optimistic_or_invalid_block<
     T: BeaconChainTypes,
     Payload: AbstractExecPayload<T::EthSpec>,
 >(
-    chain: &BeaconChain<T>,
+    chain: &BeaconComponents<T>,
     block: &SignedBeaconBlock<T::EthSpec, Payload>,
 ) -> Result<bool, BeaconChainError> {
     chain
@@ -600,7 +600,7 @@ pub fn is_optimistic_or_invalid_head_block<
     T: BeaconChainTypes,
     Payload: AbstractExecPayload<T::EthSpec>,
 >(
-    chain: &BeaconChain<T>,
+    chain: &BeaconComponents<T>,
     head_block: &SignedBeaconBlock<T::EthSpec, Payload>,
 ) -> Result<bool, BeaconChainError> {
     chain
@@ -609,7 +609,7 @@ pub fn is_optimistic_or_invalid_head_block<
 }
 
 pub fn is_optimistic_or_invalid_head<T: BeaconChainTypes>(
-    chain: &BeaconChain<T>,
+    chain: &BeaconComponents<T>,
 ) -> Result<bool, BeaconChainError> {
     chain
         .execution_manager

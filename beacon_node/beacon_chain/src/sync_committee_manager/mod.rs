@@ -26,7 +26,7 @@ use types::{
 /// sync aggregation pool.
 ///
 /// Generic over `E: EthSpec` rather than `T: BeaconChainTypes` so it can be
-/// constructed and tested without a full `BeaconChain`.
+/// constructed and tested without a full `BeaconComponents`.
 ///
 /// State is passed as method parameters -- this component never fetches head
 /// state, slot clock values, or similar chain-level context on its own.

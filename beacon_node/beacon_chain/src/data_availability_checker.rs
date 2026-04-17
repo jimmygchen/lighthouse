@@ -5,7 +5,7 @@ use crate::block_verification_types::{AvailabilityPendingExecutedBlock, Availabl
 use crate::data_availability_checker::overflow_lru_cache::{
     DataAvailabilityCheckerInner, ReconstructColumnsDecision,
 };
-use crate::{BeaconChain, BeaconChainTypes, BlockProcessStatus, CustodyContext, metrics};
+use crate::{BeaconChainTypes, BeaconComponents, BlockProcessStatus, CustodyContext, metrics};
 use educe::Educe;
 use kzg::Kzg;
 use slot_clock::SlotClock;
@@ -563,7 +563,7 @@ pub struct DataAvailabilityCheckerMetrics {
 
 pub fn start_availability_cache_maintenance_service<T: BeaconChainTypes>(
     executor: TaskExecutor,
-    chain: Arc<BeaconChain<T>>,
+    chain: Arc<BeaconComponents<T>>,
 ) {
     // this cache only needs to be maintained if deneb is configured
     if chain.spec.deneb_fork_epoch.is_some() {
@@ -578,7 +578,7 @@ pub fn start_availability_cache_maintenance_service<T: BeaconChainTypes>(
 }
 
 async fn availability_cache_maintenance_service<T: BeaconChainTypes>(
-    chain: Arc<BeaconChain<T>>,
+    chain: Arc<BeaconComponents<T>>,
     overflow_cache: Arc<DataAvailabilityCheckerInner<T>>,
 ) {
     let epoch_duration = chain.slot_clock.slot_duration() * T::EthSpec::slots_per_epoch() as u32;

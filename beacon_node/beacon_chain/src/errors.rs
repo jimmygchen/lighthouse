@@ -1,5 +1,5 @@
 use crate::beacon_block_streamer::Error as BlockStreamerError;
-use crate::beacon_chain::ForkChoiceError;
+use crate::beacon_components::ForkChoiceError;
 use crate::beacon_fork_choice_store::Error as ForkChoiceStoreError;
 use crate::data_availability_checker::AvailabilityCheckError;
 use crate::migrate::PruningError;
@@ -295,7 +295,7 @@ pub enum BlockProductionError {
     BeaconStateError(BeaconStateError),
     StateAdvanceError(StateAdvanceError),
     OpPoolError(OpPoolError),
-    /// The `BeaconChain` was explicitly configured _without_ a connection to eth1, therefore it
+    /// The `BeaconComponents` was explicitly configured _without_ a connection to eth1, therefore it
     /// cannot produce blocks.
     NoEth1ChainConnection,
     StateSlotTooHigh {

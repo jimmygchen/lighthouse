@@ -8,18 +8,18 @@ use crate::kzg_utils::{build_data_column_sidecars_fulu, build_data_column_sideca
 use crate::observed_operations::ObservationOutcome;
 pub use crate::persisted_beacon_chain::PersistedBeaconChain;
 use crate::{BeaconBlockResponseWrapper, BeaconSnapshot, CustodyContext, get_block_root};
-use crate::{
-    BeaconChain, BeaconChainTypes, BlockError, ChainConfig, ServerSentEventHandler,
-    StateSkipConfig,
-    builder::{BeaconChainBuilder, Witness},
-};
 pub use crate::{
     BeaconChainError, NotifyExecutionLayer, ProduceBlockVerification,
-    beacon_chain::{BEACON_CHAIN_DB_KEY, FORK_CHOICE_DB_KEY, OP_POOL_DB_KEY},
+    beacon_components::{BEACON_CHAIN_DB_KEY, FORK_CHOICE_DB_KEY, OP_POOL_DB_KEY},
     migrate::MigratorConfig,
     single_attestation::single_attestation_to_attestation,
     sync_committee_verification::Error as SyncCommitteeError,
     validator_monitor::{ValidatorMonitor, ValidatorMonitorConfig},
+};
+use crate::{
+    BeaconChainTypes, BeaconComponents, BlockError, ChainConfig, ServerSentEventHandler,
+    StateSkipConfig,
+    builder::{BeaconChainBuilder, Witness},
 };
 use bls::get_withdrawal_credentials;
 use bls::{
@@ -713,7 +713,7 @@ pub fn mock_execution_layer_from_parts<E: EthSpec>(
     )
 }
 
-/// A testing harness which can instantiate a `BeaconChain` and populate it with blocks and
+/// A testing harness which can instantiate a `BeaconComponents` and populate it with blocks and
 /// attestations.
 ///
 /// Used for testing.
@@ -726,7 +726,7 @@ pub struct BeaconChainHarness<T: BeaconChainTypes> {
     /// initializer neglected to set this field.
     pub withdrawal_keypairs: Vec<Option<Keypair>>,
 
-    pub chain: Arc<BeaconChain<T>>,
+    pub chain: Arc<BeaconComponents<T>>,
     pub spec: Arc<ChainSpec>,
     pub shutdown_receiver: Arc<Mutex<Receiver<ShutdownReason>>>,
     pub runtime: TestRuntime,
@@ -948,13 +948,13 @@ where
     }
 
     pub fn knows_head(&self, block_hash: &SignedBeaconBlockHash) -> bool {
-        crate::beacon_chain::heads(&self.chain.canonical_head)
+        crate::beacon_components::heads(&self.chain.canonical_head)
             .iter()
             .any(|(head, _)| *head == Hash256::from(*block_hash))
     }
 
     pub fn assert_knows_head(&self, head_block_root: Hash256) {
-        let heads = crate::beacon_chain::heads(&self.chain.canonical_head);
+        let heads = crate::beacon_components::heads(&self.chain.canonical_head);
         if !heads.iter().any(|(head, _)| *head == head_block_root) {
             let fork_choice = self.chain.canonical_head.fork_choice_read_lock();
             if heads.is_empty() {
@@ -996,7 +996,7 @@ where
         let proposer_index = state.get_beacon_proposer_index(slot, &self.spec).unwrap();
 
         // If we produce two blocks for the same slot, they hash up to the same value and
-        // BeaconChain errors out with `DuplicateFullyImported`.  Vary the graffiti so that we produce
+        // BeaconComponents errors out with `DuplicateFullyImported`.  Vary the graffiti so that we produce
         // different blocks each time.
         let graffiti = Graffiti::from(self.rng.lock().random::<[u8; 32]>());
         let graffiti_settings =
@@ -1055,7 +1055,7 @@ where
         let proposer_index = state.get_beacon_proposer_index(slot, &self.spec).unwrap();
 
         // If we produce two blocks for the same slot, they hash up to the same value and
-        // BeaconChain errors out with `DuplicateFullyImported`.  Vary the graffiti so that we produce
+        // BeaconComponents errors out with `DuplicateFullyImported`.  Vary the graffiti so that we produce
         // different blocks each time.
         let graffiti = Graffiti::from(self.rng.lock().random::<[u8; 32]>());
         let graffiti_settings =
@@ -1196,7 +1196,7 @@ where
         let proposer_index = state.get_beacon_proposer_index(slot, &self.spec).unwrap();
 
         // If we produce two blocks for the same slot, they hash up to the same value and
-        // BeaconChain errors out with `DuplicateFullyImported`.  Vary the graffiti so that we produce
+        // BeaconComponents errors out with `DuplicateFullyImported`.  Vary the graffiti so that we produce
         // different blocks each time.
         let graffiti = Graffiti::from(self.rng.lock().random::<[u8; 32]>());
         let graffiti_settings =
@@ -3420,7 +3420,7 @@ where
             .collect()
     }
 
-    /// Advance the slot of the `BeaconChain`.
+    /// Advance the slot of the `BeaconComponents`.
     ///
     /// Does not produce blocks or attestations.
     pub fn advance_slot(&self) {
@@ -3501,7 +3501,7 @@ where
         .await
     }
 
-    /// Extend the `BeaconChain` with some blocks and attestations. Returns the root of the
+    /// Extend the `BeaconComponents` with some blocks and attestations. Returns the root of the
     /// last-produced block (the head of the chain).
     ///
     /// Chain will be extended by `num_blocks` blocks.
@@ -3993,10 +3993,10 @@ pub fn generate_data_column_indices_rand_order<E: EthSpec>() -> Vec<CustodyIndex
 }
 
 // ---------------------------------------------------------------------------
-// Test/debug utilities on BeaconChain
+// Test/debug utilities on BeaconComponents
 // ---------------------------------------------------------------------------
 
-impl<T: BeaconChainTypes> BeaconChain<T> {
+impl<T: BeaconChainTypes> BeaconComponents<T> {
     /// Dumps the entire canonical chain, from the head to genesis to a vector for analysis.
     ///
     /// This could be a very expensive operation and should only be done in testing/analysis
@@ -4132,7 +4132,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         // Canonical head needs to be processed first as otherwise finalized blocks aren't detected
         // properly.
         let heads = {
-            let mut heads = crate::beacon_chain::heads(&self.canonical_head);
+            let mut heads = crate::beacon_components::heads(&self.canonical_head);
             let canonical_head_index = heads
                 .iter()
                 .position(|(block_hash, _)| *block_hash == canonical_head_hash)

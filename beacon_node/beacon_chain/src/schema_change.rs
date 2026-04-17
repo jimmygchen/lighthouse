@@ -1,7 +1,7 @@
 //! Utilities for managing database schema changes.
 mod migration_schema_v29;
 
-use crate::beacon_chain::BeaconChainTypes;
+use crate::beacon_components::BeaconChainTypes;
 use migration_schema_v29::{downgrade_from_v29, upgrade_to_v29};
 use std::sync::Arc;
 use store::Error as StoreError;

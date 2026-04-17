@@ -276,9 +276,15 @@ pub type BeaconStore<T> = Arc<
     >,
 >;
 
-/// Represents the "Beacon Chain" component of Ethereum 2.0. Allows import of blocks and block
-/// operations and chooses a canonical head.
-pub struct BeaconChain<T: BeaconChainTypes> {
+/// Backward compatibility alias. New code should use `BeaconComponents`.
+pub type BeaconChain<T> = BeaconComponents<T>;
+
+/// The top-level container for all beacon-chain subsystems.
+///
+/// Holds shared state (store, slot clock, spec, etc.) and the various manager
+/// components that implement beacon-chain logic. Previously named `BeaconChain`;
+/// the alias above keeps external crates compiling while the rename propagates.
+pub struct BeaconComponents<T: BeaconChainTypes> {
     pub spec: Arc<ChainSpec>,
     /// Configuration for `BeaconChain` runtime behaviour.
     pub config: ChainConfig,
@@ -538,7 +544,7 @@ pub fn heads<T: BeaconChainTypes>(canonical_head: &CanonicalHead<T>) -> Vec<(Has
 }
 
 // ---------------------------------------------------------------------------
-// Free functions: methods extracted from `impl BeaconChain<T>`
+// Free functions: methods extracted from `impl BeaconComponents<T>`
 // ---------------------------------------------------------------------------
 
 /// Persists `op_pool` to disk.
@@ -660,7 +666,7 @@ where
 /// Note: this function **MUST** be called from a non-async context since
 /// it contains a call to `fork_choice` which may eventually call
 /// `tokio::runtime::block_on` in certain cases.
-pub async fn per_slot_task<T: BeaconChainTypes>(chain: &Arc<BeaconChain<T>>) {
+pub async fn per_slot_task<T: BeaconChainTypes>(chain: &Arc<BeaconComponents<T>>) {
     if let Some(slot) = chain.slot_clock.now() {
         debug!(?slot, "Running beacon chain per slot tasks");
 
@@ -700,7 +706,7 @@ pub async fn per_slot_task<T: BeaconChainTypes>(chain: &Arc<BeaconChain<T>>) {
 
 /// Returns data columns for the given block root, checking all caches first.
 pub fn get_data_columns_checking_all_caches<T: BeaconChainTypes>(
-    chain: &BeaconChain<T>,
+    chain: &BeaconComponents<T>,
     block_root: Hash256,
     indices: &[ColumnIndex],
 ) -> Result<DataColumnSidecarList<T::EthSpec>, Error> {
@@ -843,7 +849,7 @@ pub fn is_healthy<T: BeaconChainTypes>(
 
 /// Verify that the weak subjectivity checkpoint is consistent with the finalized chain.
 pub fn verify_weak_subjectivity_checkpoint<T: BeaconChainTypes>(
-    chain: &BeaconChain<T>,
+    chain: &BeaconComponents<T>,
     wss_checkpoint: Checkpoint,
     beacon_block_root: Hash256,
     state: &BeaconState<T::EthSpec>,
@@ -898,7 +904,7 @@ pub fn verify_weak_subjectivity_checkpoint<T: BeaconChainTypes>(
 
 /// Checks if attestations have been seen from the given `validator_index` at the given `epoch`.
 pub fn validator_seen_at_epoch<T: BeaconChainTypes>(
-    chain: &BeaconChain<T>,
+    chain: &BeaconComponents<T>,
     validator_index: usize,
     epoch: Epoch,
 ) -> bool {
@@ -915,7 +921,7 @@ pub fn validator_seen_at_epoch<T: BeaconChainTypes>(
 /// Gets the `LightClientBootstrap` object for a requested block root.
 #[allow(clippy::type_complexity)]
 pub fn get_light_client_bootstrap<T: BeaconChainTypes>(
-    chain: &BeaconChain<T>,
+    chain: &BeaconComponents<T>,
     block_root: &Hash256,
 ) -> Result<Option<(LightClientBootstrap<T::EthSpec>, ForkName)>, Error> {
     let head_state = &chain.canonical_head.cached_head().snapshot.beacon_state;
@@ -933,7 +939,7 @@ pub fn get_light_client_bootstrap<T: BeaconChainTypes>(
 
 /// Finalize the state at the given root via the background migrator.
 pub fn manually_finalize_state<T: BeaconChainTypes>(
-    chain: &BeaconChain<T>,
+    chain: &BeaconComponents<T>,
     state_root: Hash256,
     checkpoint: Checkpoint,
 ) -> Result<(), Error> {

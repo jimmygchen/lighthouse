@@ -17,7 +17,7 @@ pub type BeaconForkChoice<T> = ForkChoice<
     <T as BeaconChainTypes>::EthSpec,
 >;
 
-pub use crate::beacon_chain::FORK_CHOICE_DB_KEY;
+pub use crate::beacon_components::FORK_CHOICE_DB_KEY;
 
 // If adding a new version you should update this type alias and fix the breakages.
 pub type PersistedForkChoice = PersistedForkChoiceV29;
@@ -120,7 +120,7 @@ impl From<PersistedForkChoiceV29> for PersistedForkChoiceV28 {
 
 /// Load fork choice from disk, returning `None` if it isn't found.
 pub fn load_fork_choice<T: BeaconChainTypes>(
-    store: crate::beacon_chain::BeaconStore<T>,
+    store: crate::beacon_components::BeaconStore<T>,
     reset_payload_statuses: ResetPayloadStatuses,
     spec: &ChainSpec,
 ) -> Result<Option<BeaconForkChoice<T>>, BeaconChainError> {

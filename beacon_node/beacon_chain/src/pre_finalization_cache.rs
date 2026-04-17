@@ -41,7 +41,7 @@ impl PreFinalizationBlockCache {
     /// Check whether the block with `block_root` is known to be pre-finalization.
     ///
     /// This is a standalone version that accepts component refs instead of requiring
-    /// `&BeaconChain<T>`, enabling use from `AttestationVerificationContext`.
+    /// `&BeaconComponents<T>`, enabling use from `AttestationVerificationContext`.
     pub fn is_pre_finalization_block<T: BeaconChainTypes>(
         &self,
         block_root: Hash256,

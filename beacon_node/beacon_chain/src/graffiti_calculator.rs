@@ -1,5 +1,5 @@
-use crate::BeaconChain;
 use crate::BeaconChainTypes;
+use crate::BeaconComponents;
 use eth2::types::GraffitiPolicy;
 use execution_layer::{CommitPrefix, ExecutionLayer, http::ENGINE_GET_CLIENT_VERSION_V1};
 use logging::crit;
@@ -168,7 +168,7 @@ impl<T: BeaconChainTypes> GraffitiCalculator<T> {
 }
 
 pub fn start_engine_version_cache_refresh_service<T: BeaconChainTypes>(
-    chain: &BeaconChain<T>,
+    chain: &BeaconComponents<T>,
     executor: TaskExecutor,
 ) {
     let Some(el_ref) = chain.execution_layer.as_ref() else {

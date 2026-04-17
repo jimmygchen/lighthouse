@@ -13,7 +13,7 @@ use super::{
     ExecutedEnvelope, gossip_verified_envelope::GossipVerifiedEnvelope,
 };
 use crate::{
-    AvailabilityProcessingStatus, BeaconChain, BeaconChainError, BeaconChainTypes,
+    AvailabilityProcessingStatus, BeaconChainError, BeaconChainTypes, BeaconComponents,
     NotifyExecutionLayer, block_verification_types::AvailableBlockData, metrics,
     payload_envelope_verification::ExecutionPendingEnvelope, validator_monitor::get_slot_delay_ms,
 };
@@ -29,7 +29,7 @@ const ENVELOPE_METRICS_CACHE_SLOT_LIMIT: u32 = 64;
 /// verification.
 #[instrument(skip_all, fields(block_root = ?block_root, block_source = %block_source))]
 pub async fn process_execution_payload_envelope<T: BeaconChainTypes>(
-    chain: &Arc<BeaconChain<T>>,
+    chain: &Arc<BeaconComponents<T>>,
     block_root: Hash256,
     unverified_envelope: GossipVerifiedEnvelope<T>,
     notify_execution_layer: NotifyExecutionLayer,
@@ -153,7 +153,7 @@ pub async fn process_execution_payload_envelope<T: BeaconChainTypes>(
 /// An error is returned if the verification handle couldn't be awaited.
 #[instrument(skip_all, level = "debug")]
 async fn into_executed_payload_envelope<T: BeaconChainTypes>(
-    _chain: Arc<BeaconChain<T>>,
+    _chain: Arc<BeaconComponents<T>>,
     pending_envelope: ExecutionPendingEnvelope<T::EthSpec>,
 ) -> Result<ExecutedEnvelope<T::EthSpec>, EnvelopeError> {
     let ExecutionPendingEnvelope {
@@ -186,7 +186,7 @@ async fn into_executed_payload_envelope<T: BeaconChainTypes>(
 
 #[instrument(skip_all)]
 pub async fn import_available_execution_payload_envelope<T: BeaconChainTypes>(
-    chain: &Arc<BeaconChain<T>>,
+    chain: &Arc<BeaconComponents<T>>,
     envelope: Box<AvailableExecutedEnvelope<T::EthSpec>>,
 ) -> Result<AvailabilityProcessingStatus, EnvelopeError> {
     let AvailableExecutedEnvelope {
@@ -203,7 +203,7 @@ pub async fn import_available_execution_payload_envelope<T: BeaconChainTypes>(
     let block_root = {
         let task_executor = chain.task_executor.clone();
         let chain = chain.clone();
-        crate::beacon_chain::spawn_blocking_handle(
+        crate::beacon_components::spawn_blocking_handle(
             &task_executor,
             move || {
                 import_execution_payload_envelope(
@@ -230,7 +230,7 @@ pub async fn import_available_execution_payload_envelope<T: BeaconChainTypes>(
 #[allow(clippy::too_many_arguments)]
 #[instrument(skip_all)]
 fn import_execution_payload_envelope<T: BeaconChainTypes>(
-    chain: &BeaconChain<T>,
+    chain: &BeaconComponents<T>,
     signed_envelope: AvailableEnvelope<T::EthSpec>,
     block_root: Hash256,
     state: BeaconState<T::EthSpec>,
@@ -273,7 +273,7 @@ fn import_execution_payload_envelope<T: BeaconChainTypes>(
 
     let mut ops = vec![];
 
-    if let Some(blobs_or_columns_store_op) = crate::beacon_chain::get_blobs_or_columns_store_op(
+    if let Some(blobs_or_columns_store_op) = crate::beacon_components::get_blobs_or_columns_store_op(
         &chain.data_availability_manager,
         &chain.spec,
         block_root,
@@ -337,7 +337,7 @@ fn import_execution_payload_envelope<T: BeaconChainTypes>(
 }
 
 fn import_envelope_update_metrics_and_events<T: BeaconChainTypes>(
-    chain: &BeaconChain<T>,
+    chain: &BeaconComponents<T>,
     signed_envelope: Arc<SignedExecutionPayloadEnvelope<T::EthSpec>>,
     block_root: Hash256,
     payload_verification_status: PayloadVerificationStatus,

@@ -7,13 +7,13 @@ use tracing::warn;
 use types::{SignedBeaconBlock, SignedExecutionPayloadEnvelope};
 
 use crate::{
-    BeaconChain, BeaconChainTypes, BlockError, NotifyExecutionLayer,
+    BeaconChainTypes, BeaconComponents, BlockError, NotifyExecutionLayer,
     execution_payload::notify_new_payload, payload_envelope_verification::EnvelopeError,
 };
 
 /// Used to await the result of executing payload with a remote EE.
 pub struct PayloadNotifier<T: BeaconChainTypes> {
-    pub chain: Arc<BeaconChain<T>>,
+    pub chain: Arc<BeaconComponents<T>>,
     envelope: Arc<SignedExecutionPayloadEnvelope<T::EthSpec>>,
     block: Arc<SignedBeaconBlock<T::EthSpec>>,
     payload_verification_status: Option<PayloadVerificationStatus>,
@@ -21,7 +21,7 @@ pub struct PayloadNotifier<T: BeaconChainTypes> {
 
 impl<T: BeaconChainTypes> PayloadNotifier<T> {
     pub fn new(
-        chain: Arc<BeaconChain<T>>,
+        chain: Arc<BeaconComponents<T>>,
         envelope: Arc<SignedExecutionPayloadEnvelope<T::EthSpec>>,
         block: Arc<SignedBeaconBlock<T::EthSpec>>,
         notify_execution_layer: NotifyExecutionLayer,

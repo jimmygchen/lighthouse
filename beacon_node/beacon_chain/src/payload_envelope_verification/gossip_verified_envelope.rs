@@ -21,7 +21,7 @@ use crate::{
 };
 
 /// Bundles only the dependencies needed for gossip verification of execution payload envelopes,
-/// decoupling `GossipVerifiedEnvelope::new` from the full `BeaconChain`.
+/// decoupling `GossipVerifiedEnvelope::new` from the full `BeaconComponents`.
 pub struct GossipVerificationContext<'a, T: BeaconChainTypes> {
     pub canonical_head: &'a CanonicalHead<T>,
     pub store: &'a BeaconStore<T>,

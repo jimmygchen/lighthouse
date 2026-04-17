@@ -1,5 +1,5 @@
 use crate::data_availability_checker::{AvailableBlock, AvailableBlockData};
-use crate::{BeaconChain, BeaconChainTypes, WhenSlotSkipped, metrics};
+use crate::{BeaconChainTypes, BeaconComponents, WhenSlotSkipped, metrics};
 use fixed_bytes::FixedBytesExtended;
 use itertools::Itertools;
 use state_processing::{
@@ -68,7 +68,7 @@ impl From<StoreError> for HistoricalBlockError {
 /// Return the number of blocks successfully imported.
 #[instrument(skip_all)]
 pub fn import_historical_block_batch<T: BeaconChainTypes>(
-    chain: &BeaconChain<T>,
+    chain: &BeaconComponents<T>,
     mut blocks: Vec<AvailableBlock<T::EthSpec>>,
 ) -> Result<usize, HistoricalBlockError> {
     let anchor_info = chain.store.get_anchor_info();
@@ -168,7 +168,7 @@ pub fn import_historical_block_batch<T: BeaconChainTypes>(
         }
 
         // Store the blobs or data columns too
-        if let Some(op) = crate::beacon_chain::get_blobs_or_columns_store_op(
+        if let Some(op) = crate::beacon_components::get_blobs_or_columns_store_op(
             &chain.data_availability_manager,
             &chain.spec,
             block_root,

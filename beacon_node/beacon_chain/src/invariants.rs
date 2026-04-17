@@ -3,8 +3,8 @@
 //! Builds the `InvariantContext` from beacon chain state and delegates all checks
 //! to `HotColdDB::check_invariants`.
 
-use crate::BeaconChain;
-use crate::beacon_chain::BeaconChainTypes;
+use crate::BeaconComponents;
+use crate::beacon_components::BeaconChainTypes;
 use store::invariants::{InvariantCheckResult, InvariantContext};
 
 /// Run all database invariant checks.
@@ -12,7 +12,7 @@ use store::invariants::{InvariantCheckResult, InvariantContext};
 /// Collects context from fork choice, state cache, custody columns, and pubkey cache,
 /// then delegates to the store-level `check_invariants` method.
 pub fn check_database_invariants<T: BeaconChainTypes>(
-    chain: &BeaconChain<T>,
+    chain: &BeaconComponents<T>,
 ) -> Result<InvariantCheckResult, store::Error> {
     let fork_choice_blocks = {
         let fc = chain.canonical_head.fork_choice_read_lock();

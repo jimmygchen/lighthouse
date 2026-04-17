@@ -378,7 +378,7 @@ struct MissedBlock {
 }
 
 /// Holds a collection of `MonitoredValidator` and is notified about a variety of events on the P2P
-/// network, HTTP API and `BeaconChain`.
+/// network, HTTP API and `BeaconComponents`.
 ///
 /// If any of the events pertain to a `MonitoredValidator`, additional logging and metrics will be
 /// performed.

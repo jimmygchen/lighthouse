@@ -1,10 +1,10 @@
 //! Block import, chain segment processing, blob/data column processing, and availability methods.
 //!
-//! All functions are free functions that take `&Arc<BeaconChain<T>>` (or `&BeaconChain<T>` for
+//! All functions are free functions that take `&Arc<BeaconComponents<T>>` (or `&BeaconComponents<T>` for
 //! sync helpers). Private helper functions take a `BlockImportContext` with explicit dependencies.
 
 use crate::attestation_manager::AttestationManager;
-use crate::beacon_chain::{
+use crate::beacon_components::{
     AvailabilityProcessingStatus, BeaconChainTypes, BeaconForkChoice, BeaconStore,
     ChainSegmentResult, EARLY_ATTESTER_CACHE_HISTORIC_SLOTS, HashBlockTuple,
     LightClientProducerEvent,
@@ -35,7 +35,7 @@ use crate::observed_slashable::ObservedSlashable;
 use crate::validator_monitor::{
     HISTORIC_EPOCHS as VALIDATOR_MONITOR_HISTORIC_EPOCHS, ValidatorMonitor, get_slot_delay_ms,
 };
-use crate::{AvailabilityPendingExecutedBlock, BeaconChain, BeaconChainError, metrics};
+use crate::{AvailabilityPendingExecutedBlock, BeaconChainError, BeaconComponents, metrics};
 use eth2::types::{EventKind, SseBlobSidecar, SseBlock, SseDataColumnSidecar, SseHead};
 use fork_choice::{PayloadVerificationStatus, ResetPayloadStatuses};
 use futures::channel::mpsc::Sender;
@@ -54,7 +54,7 @@ use types::*;
 
 /// Context struct providing explicit dependencies for block import helper functions.
 ///
-/// This replaces implicit `&self` access to `BeaconChain` fields, making each helper's
+/// This replaces implicit `&self` access to `BeaconComponents` fields, making each helper's
 /// dependencies visible and enabling independent testability.
 pub(crate) struct BlockImportContext<'a, T: BeaconChainTypes> {
     pub canonical_head: &'a CanonicalHead<T>,
@@ -72,13 +72,13 @@ pub(crate) struct BlockImportContext<'a, T: BeaconChainTypes> {
     pub light_client_server_tx: &'a Option<Sender<LightClientProducerEvent<T::EthSpec>>>,
 }
 
-/// Construct a `BlockImportContext` from a `BeaconChain` reference.
+/// Construct a `BlockImportContext` from a `BeaconComponents` reference.
 ///
-/// This is a module-private helper to avoid repetition across `impl BeaconChain<T>` methods.
+/// This is a module-private helper to avoid repetition across `impl BeaconComponents<T>` methods.
 /// It is NOT a method on `BlockImportContext` because callers outside this module should
 /// construct the context from individual component refs.
 fn block_import_context_from_chain<T: BeaconChainTypes>(
-    chain: &BeaconChain<T>,
+    chain: &BeaconComponents<T>,
 ) -> BlockImportContext<'_, T> {
     BlockImportContext {
         canonical_head: &chain.canonical_head,
@@ -98,7 +98,7 @@ fn block_import_context_from_chain<T: BeaconChainTypes>(
 }
 
 pub fn filter_chain_segment<T: BeaconChainTypes>(
-    chain: &Arc<BeaconChain<T>>,
+    chain: &Arc<BeaconComponents<T>>,
     chain_segment: Vec<RangeSyncBlock<T::EthSpec>>,
 ) -> Result<Vec<HashBlockTuple<T::EthSpec>>, Box<ChainSegmentResult>> {
     // This function will never import any blocks.
@@ -207,7 +207,7 @@ pub fn filter_chain_segment<T: BeaconChainTypes>(
 /// This method is generally much more efficient than importing each block using
 /// `process_block`.
 pub async fn process_chain_segment<T: BeaconChainTypes>(
-    chain: &Arc<BeaconChain<T>>,
+    chain: &Arc<BeaconComponents<T>>,
     chain_segment: Vec<RangeSyncBlock<T::EthSpec>>,
     notify_execution_layer: NotifyExecutionLayer,
 ) -> ChainSegmentResult {
@@ -224,7 +224,7 @@ pub async fn process_chain_segment<T: BeaconChainTypes>(
 
     // Filter uninteresting blocks from the chain segment in a blocking task.
     let chain_clone = chain.clone();
-    let filtered_chain_segment_future = crate::beacon_chain::spawn_blocking_handle(
+    let filtered_chain_segment_future = crate::beacon_components::spawn_blocking_handle(
         &chain.task_executor,
         move || filter_chain_segment(&chain_clone, chain_segment),
         "filter_chain_segment",
@@ -257,7 +257,7 @@ pub async fn process_chain_segment<T: BeaconChainTypes>(
         std::mem::swap(&mut blocks, &mut filtered_chain_segment);
 
         let chain_clone = chain.clone();
-        let signature_verification_future = crate::beacon_chain::spawn_blocking_handle(
+        let signature_verification_future = crate::beacon_components::spawn_blocking_handle(
             &chain.task_executor,
             move || signature_verify_chain_segment(blocks, &chain_clone),
             "signature_verify_chain_segment",
@@ -345,7 +345,7 @@ pub async fn process_chain_segment<T: BeaconChainTypes>(
 ///
 /// Returns an `Err` if the given block was invalid, or an error was encountered during
 pub async fn verify_block_for_gossip<T: BeaconChainTypes>(
-    chain: &Arc<BeaconChain<T>>,
+    chain: &Arc<BeaconComponents<T>>,
     block: Arc<SignedBeaconBlock<T::EthSpec>>,
 ) -> Result<GossipVerifiedBlock<T>, BlockError> {
     let chain_clone = chain.clone();
@@ -393,7 +393,7 @@ pub async fn verify_block_for_gossip<T: BeaconChainTypes>(
 /// imported or errors.
 #[instrument(skip_all, level = "debug")]
 pub async fn process_gossip_blob<T: BeaconChainTypes>(
-    chain: &Arc<BeaconChain<T>>,
+    chain: &Arc<BeaconComponents<T>>,
     blob: GossipVerifiedBlob<T>,
 ) -> Result<AvailabilityProcessingStatus, BlockError> {
     let block_root = blob.block_root();
@@ -423,7 +423,7 @@ pub async fn process_gossip_blob<T: BeaconChainTypes>(
 /// imported or errors.
 #[instrument(skip_all, level = "debug")]
 pub async fn process_gossip_data_columns<T: BeaconChainTypes>(
-    chain: &Arc<BeaconChain<T>>,
+    chain: &Arc<BeaconComponents<T>>,
     data_columns: Vec<GossipVerifiedDataColumn<T>>,
     publish_fn: impl FnOnce() -> Result<(), BlockError>,
 ) -> Result<AvailabilityProcessingStatus, BlockError> {
@@ -469,7 +469,7 @@ pub async fn process_gossip_data_columns<T: BeaconChainTypes>(
 /// imported or errors.
 #[instrument(skip_all, level = "debug")]
 pub async fn process_rpc_blobs<T: BeaconChainTypes>(
-    chain: &Arc<BeaconChain<T>>,
+    chain: &Arc<BeaconComponents<T>>,
     slot: Slot,
     block_root: Hash256,
     blobs: FixedBlobSidecarList<T::EthSpec>,
@@ -507,7 +507,7 @@ pub async fn process_rpc_blobs<T: BeaconChainTypes>(
 
 /// Process blobs retrieved from the EL and returns the `AvailabilityProcessingStatus`.
 pub async fn process_engine_blobs<T: BeaconChainTypes>(
-    chain: &Arc<BeaconChain<T>>,
+    chain: &Arc<BeaconComponents<T>>,
     slot: Slot,
     block_root: Hash256,
     engine_get_blobs_output: EngineGetBlobsOutput<T>,
@@ -544,7 +544,7 @@ pub async fn process_engine_blobs<T: BeaconChainTypes>(
 /// imported or errors.
 // TODO(gloas) we need a separate code path for gloas. See TODO's below.
 pub async fn process_rpc_custody_columns<T: BeaconChainTypes>(
-    chain: &Arc<BeaconChain<T>>,
+    chain: &Arc<BeaconComponents<T>>,
     custody_columns: DataColumnSidecarList<T::EthSpec>,
 ) -> Result<AvailabilityProcessingStatus, BlockError> {
     let Ok((slot, block_root)) = custody_columns
@@ -601,7 +601,7 @@ pub async fn process_rpc_custody_columns<T: BeaconChainTypes>(
 }
 
 pub async fn reconstruct_data_columns<T: BeaconChainTypes>(
-    chain: &Arc<BeaconChain<T>>,
+    chain: &Arc<BeaconComponents<T>>,
     block_root: Hash256,
 ) -> Result<
     Option<(
@@ -658,7 +658,7 @@ pub async fn reconstruct_data_columns<T: BeaconChainTypes>(
 
 /// Check for known and configured invalid block roots before processing.
 pub fn check_invalid_block_roots<T: BeaconChainTypes>(
-    chain: &BeaconChain<T>,
+    chain: &BeaconComponents<T>,
     block_root: Hash256,
 ) -> Result<(), BlockError> {
     if chain.config.invalid_block_roots.contains(&block_root) {
@@ -683,7 +683,7 @@ pub fn check_invalid_block_roots<T: BeaconChainTypes>(
 /// verification.
 #[instrument(skip_all, fields(block_root = ?block_root, block_source = %block_source))]
 pub async fn process_block<T: BeaconChainTypes, B: IntoExecutionPendingBlock<T>>(
-    chain: &Arc<BeaconChain<T>>,
+    chain: &Arc<BeaconComponents<T>>,
     block_root: Hash256,
     unverified_block: B,
     notify_execution_layer: NotifyExecutionLayer,
@@ -825,7 +825,7 @@ pub async fn process_block<T: BeaconChainTypes, B: IntoExecutionPendingBlock<T>>
 /// An error is returned if the verification handle couldn't be awaited.
 #[instrument(skip_all, level = "debug")]
 pub async fn into_executed_block<T: BeaconChainTypes>(
-    _chain: Arc<BeaconChain<T>>,
+    _chain: Arc<BeaconComponents<T>>,
     execution_pending_block: ExecutionPendingBlock<T>,
 ) -> Result<ExecutedBlock<T::EthSpec>, BlockError> {
     let ExecutionPendingBlock {
@@ -852,7 +852,7 @@ pub async fn into_executed_block<T: BeaconChainTypes>(
 /// in the data availability checker.
 #[instrument(skip_all)]
 async fn check_block_availability_and_import<T: BeaconChainTypes>(
-    chain: &Arc<BeaconChain<T>>,
+    chain: &Arc<BeaconComponents<T>>,
     block: AvailabilityPendingExecutedBlock<T::EthSpec>,
 ) -> Result<AvailabilityProcessingStatus, BlockError> {
     let slot = block.block.slot();
@@ -863,7 +863,7 @@ async fn check_block_availability_and_import<T: BeaconChainTypes>(
 /// Checks if the provided blob can make any cached blocks available, and imports immediately
 /// if so, otherwise caches the blob in the data availability checker.
 async fn check_gossip_blob_availability_and_import<T: BeaconChainTypes>(
-    chain: &Arc<BeaconChain<T>>,
+    chain: &Arc<BeaconComponents<T>>,
     blob: GossipVerifiedBlob<T>,
 ) -> Result<AvailabilityProcessingStatus, BlockError> {
     let slot = blob.slot();
@@ -880,7 +880,7 @@ async fn check_gossip_blob_availability_and_import<T: BeaconChainTypes>(
 /// Checks if the provided data column can make any cached blocks available, and imports immediately
 /// if so, otherwise caches the data column in the data availability checker.
 async fn check_gossip_data_columns_availability_and_import<T: BeaconChainTypes>(
-    chain: &Arc<BeaconChain<T>>,
+    chain: &Arc<BeaconComponents<T>>,
     slot: Slot,
     block_root: Hash256,
     data_columns: Vec<GossipVerifiedDataColumn<T>>,
@@ -906,7 +906,7 @@ async fn check_gossip_data_columns_availability_and_import<T: BeaconChainTypes>(
 /// Checks if the provided blobs can make any cached blocks available, and imports immediately
 /// if so, otherwise caches the blob in the data availability checker.
 async fn check_rpc_blob_availability_and_import<T: BeaconChainTypes>(
-    chain: &Arc<BeaconChain<T>>,
+    chain: &Arc<BeaconComponents<T>>,
     slot: Slot,
     block_root: Hash256,
     blobs: FixedBlobSidecarList<T::EthSpec>,
@@ -926,7 +926,7 @@ async fn check_rpc_blob_availability_and_import<T: BeaconChainTypes>(
 }
 
 async fn check_engine_blobs_availability_and_import<T: BeaconChainTypes>(
-    chain: &Arc<BeaconChain<T>>,
+    chain: &Arc<BeaconComponents<T>>,
     slot: Slot,
     block_root: Hash256,
     engine_get_blobs_output: EngineGetBlobsOutput<T>,
@@ -969,7 +969,7 @@ async fn check_engine_blobs_availability_and_import<T: BeaconChainTypes>(
 /// Checks if the provided columns can make any cached blocks available, and imports immediately
 /// if so, otherwise caches the columns in the data availability checker.
 async fn check_rpc_custody_columns_availability_and_import<T: BeaconChainTypes>(
-    chain: &Arc<BeaconChain<T>>,
+    chain: &Arc<BeaconComponents<T>>,
     slot: Slot,
     block_root: Hash256,
     custody_columns: DataColumnSidecarList<T::EthSpec>,
@@ -1002,7 +1002,7 @@ async fn check_rpc_custody_columns_availability_and_import<T: BeaconChainTypes>(
 /// An error is returned if the block was unable to be imported. It may be partially imported
 /// (i.e., this function is not atomic).
 async fn process_availability<T: BeaconChainTypes>(
-    chain: &Arc<BeaconChain<T>>,
+    chain: &Arc<BeaconComponents<T>>,
     slot: Slot,
     availability: Availability<T::EthSpec>,
     publish_fn: impl FnOnce() -> Result<(), BlockError>,
@@ -1021,7 +1021,7 @@ async fn process_availability<T: BeaconChainTypes>(
 
 #[instrument(skip_all)]
 pub async fn import_available_block<T: BeaconChainTypes>(
-    chain: &Arc<BeaconChain<T>>,
+    chain: &Arc<BeaconComponents<T>>,
     block: Box<AvailableExecutedBlock<T::EthSpec>>,
 ) -> Result<AvailabilityProcessingStatus, BlockError> {
     let AvailableExecutedBlock {
@@ -1048,7 +1048,7 @@ pub async fn import_available_block<T: BeaconChainTypes>(
 
     let block_root = {
         let chain_clone = chain.clone();
-        crate::beacon_chain::spawn_blocking_handle(
+        crate::beacon_components::spawn_blocking_handle(
             &chain.task_executor,
             move || {
                 import_block(
@@ -1077,7 +1077,7 @@ pub async fn import_available_block<T: BeaconChainTypes>(
 #[allow(clippy::too_many_arguments)]
 #[instrument(skip_all)]
 fn import_block<T: BeaconChainTypes>(
-    chain: &BeaconChain<T>,
+    chain: &BeaconComponents<T>,
     signed_block: AvailableBlock<T::EthSpec>,
     block_root: Hash256,
     mut state: BeaconState<T::EthSpec>,
@@ -1297,7 +1297,7 @@ fn import_block<T: BeaconChainTypes>(
     // See https://github.com/sigp/lighthouse/issues/2028
     let (_, signed_block, block_data) = signed_block.deconstruct();
 
-    if let Some(blobs_or_columns_store_op) = crate::beacon_chain::get_blobs_or_columns_store_op(
+    if let Some(blobs_or_columns_store_op) = crate::beacon_components::get_blobs_or_columns_store_op(
         &chain.data_availability_manager,
         &chain.spec,
         block_root,
@@ -1375,7 +1375,7 @@ fn import_block<T: BeaconChainTypes>(
 
 /// Check block's consistentency with any configured weak subjectivity checkpoint.
 pub fn check_block_against_weak_subjectivity_checkpoint<T: BeaconChainTypes>(
-    chain: &BeaconChain<T>,
+    chain: &BeaconComponents<T>,
     block: BeaconBlockRef<T::EthSpec>,
     block_root: Hash256,
     state: &BeaconState<T::EthSpec>,
@@ -1398,7 +1398,7 @@ pub fn check_block_against_weak_subjectivity_checkpoint<T: BeaconChainTypes>(
     // This ensures we only perform the check once.
     if current_head_finalized_checkpoint.epoch < wss_checkpoint.epoch
         && wss_checkpoint.epoch <= new_finalized_checkpoint.epoch
-        && let Err(e) = crate::beacon_chain::verify_weak_subjectivity_checkpoint(
+        && let Err(e) = crate::beacon_components::verify_weak_subjectivity_checkpoint(
             chain,
             wss_checkpoint,
             block_root,
@@ -1435,13 +1435,13 @@ pub fn check_block_against_weak_subjectivity_checkpoint<T: BeaconChainTypes>(
     Ok(())
 }
 
-// --- Free functions extracted from `impl BeaconChain<T>` ---
+// --- Free functions extracted from `impl BeaconComponents<T>` ---
 
 /// Process a block for the validator monitor, including all its constituent messages.
 #[instrument(skip_all, level = "debug")]
 fn import_block_update_validator_monitor<T: BeaconChainTypes>(
     ctx: &BlockImportContext<T>,
-    chain: &BeaconChain<T>,
+    chain: &BeaconComponents<T>,
     block: BeaconBlockRef<T::EthSpec>,
     state: &BeaconState<T::EthSpec>,
     ctxt: &mut ConsensusContext<T::EthSpec>,
@@ -1482,7 +1482,7 @@ fn import_block_update_validator_monitor<T: BeaconChainTypes>(
                         &chain.canonical_head,
                         &chain.spec,
                         load_slot,
-                        crate::beacon_chain::StateSkipConfig::WithoutStateRoots,
+                        crate::beacon_components::StateSkipConfig::WithoutStateRoots,
                     )
                 },
             )
@@ -1761,7 +1761,7 @@ fn emit_sse_data_column_sidecar_events<'a, T: BeaconChainTypes, I>(
 
 fn check_blob_header_signature_and_slashability<'a, T: BeaconChainTypes>(
     ctx: &BlockImportContext<T>,
-    chain: &BeaconChain<T>,
+    chain: &BeaconComponents<T>,
     block_root: Hash256,
     blobs: impl IntoIterator<Item = &'a BlobSidecar<T::EthSpec>>,
 ) -> Result<(), BlockError> {
@@ -1792,7 +1792,7 @@ fn check_blob_header_signature_and_slashability<'a, T: BeaconChainTypes>(
 
 fn check_data_column_sidecar_header_signature_and_slashability<'a, T: BeaconChainTypes>(
     ctx: &BlockImportContext<T>,
-    chain: &BeaconChain<T>,
+    chain: &BeaconComponents<T>,
     block_root: Hash256,
     custody_columns: impl IntoIterator<Item = &'a DataColumnSidecarFulu<T::EthSpec>>,
 ) -> Result<(), BlockError> {

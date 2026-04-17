@@ -1,4 +1,4 @@
-use crate::beacon_chain::{BeaconChainTypes, FORK_CHOICE_DB_KEY};
+use crate::beacon_components::{BeaconChainTypes, FORK_CHOICE_DB_KEY};
 use crate::persisted_fork_choice::{PersistedForkChoiceV28, PersistedForkChoiceV29};
 use std::collections::HashMap;
 use store::hot_cold_store::HotColdDB;

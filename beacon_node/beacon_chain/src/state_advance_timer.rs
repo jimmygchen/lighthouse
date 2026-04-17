@@ -15,7 +15,8 @@
 //! 2. There's a possibility that the head block is never built upon, causing wasted CPU cycles.
 use crate::validator_monitor::HISTORIC_EPOCHS as VALIDATOR_MONITOR_HISTORIC_EPOCHS;
 use crate::{
-    BeaconChain, BeaconChainError, BeaconChainTypes, chain_config::FORK_CHOICE_LOOKAHEAD_FACTOR,
+    BeaconChainError, BeaconChainTypes, BeaconComponents,
+    chain_config::FORK_CHOICE_LOOKAHEAD_FACTOR,
 };
 use slot_clock::SlotClock;
 use state_processing::per_slot_processing;
@@ -95,7 +96,7 @@ impl Lock {
 /// Spawns the timer described in the module-level documentation.
 pub fn spawn_state_advance_timer<T: BeaconChainTypes>(
     executor: TaskExecutor,
-    beacon_chain: Arc<BeaconChain<T>>,
+    beacon_chain: Arc<BeaconComponents<T>>,
 ) {
     executor.spawn(
         state_advance_timer(executor.clone(), beacon_chain),
@@ -106,7 +107,7 @@ pub fn spawn_state_advance_timer<T: BeaconChainTypes>(
 /// Provides the timer described in the module-level documentation.
 async fn state_advance_timer<T: BeaconChainTypes>(
     executor: TaskExecutor,
-    beacon_chain: Arc<BeaconChain<T>>,
+    beacon_chain: Arc<BeaconComponents<T>>,
 ) {
     let is_running = Lock::new();
     let slot_clock = &beacon_chain.slot_clock;
@@ -253,7 +254,7 @@ async fn state_advance_timer<T: BeaconChainTypes>(
 ///
 /// See the module-level documentation for rationale.
 #[instrument(skip_all)]
-fn advance_head<T: BeaconChainTypes>(beacon_chain: &Arc<BeaconChain<T>>) -> Result<(), Error> {
+fn advance_head<T: BeaconChainTypes>(beacon_chain: &Arc<BeaconComponents<T>>) -> Result<(), Error> {
     let current_slot = beacon_chain
         .slot_clock
         .now()

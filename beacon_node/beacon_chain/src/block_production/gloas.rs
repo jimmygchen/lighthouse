@@ -34,8 +34,8 @@ use types::{
 
 use super::block_production_context_from_chain;
 use crate::{
-    BeaconChain, BeaconChainError, BeaconChainTypes, BlockProductionError,
-    ProduceBlockVerification, beacon_chain::shuffling_is_compatible_with_fork_choice,
+    BeaconChainError, BeaconChainTypes, BeaconComponents, BlockProductionError,
+    ProduceBlockVerification, beacon_components::shuffling_is_compatible_with_fork_choice,
     graffiti_calculator::GraffitiSettings, metrics,
 };
 
@@ -75,7 +75,7 @@ pub struct ExecutionPayloadData<E: types::EthSpec> {
 }
 
 pub async fn produce_block_with_verification_gloas<T: BeaconChainTypes>(
-    chain: &Arc<BeaconChain<T>>,
+    chain: &Arc<BeaconComponents<T>>,
     randao_reveal: Signature,
     slot: Slot,
     graffiti_settings: GraffitiSettings,
@@ -116,7 +116,7 @@ pub async fn produce_block_with_verification_gloas<T: BeaconChainTypes>(
 // TODO(gloas) need to implement builder boost factor logic
 #[instrument(level = "debug", skip_all)]
 pub async fn produce_block_on_state_gloas<T: BeaconChainTypes>(
-    chain: &Arc<BeaconChain<T>>,
+    chain: &Arc<BeaconComponents<T>>,
     state: BeaconState<T::EthSpec>,
     state_root_opt: Option<Hash256>,
     produce_at_slot: Slot,
@@ -193,7 +193,7 @@ pub async fn produce_block_on_state_gloas<T: BeaconChainTypes>(
 #[allow(clippy::type_complexity)]
 #[instrument(skip_all, level = "debug")]
 fn produce_partial_beacon_block_gloas<T: BeaconChainTypes>(
-    chain: &Arc<BeaconChain<T>>,
+    chain: &Arc<BeaconComponents<T>>,
     mut state: BeaconState<T::EthSpec>,
     state_root_opt: Option<Hash256>,
     produce_at_slot: Slot,
@@ -450,7 +450,7 @@ fn produce_partial_beacon_block_gloas<T: BeaconChainTypes>(
 #[allow(clippy::type_complexity)]
 #[instrument(skip_all, level = "debug")]
 fn complete_partial_beacon_block_gloas<T: BeaconChainTypes>(
-    chain: &BeaconChain<T>,
+    chain: &BeaconComponents<T>,
     partial_beacon_block: PartialBeaconBlock<T::EthSpec>,
     signed_execution_payload_bid: SignedExecutionPayloadBid<T::EthSpec>,
     payload_data: Option<ExecutionPayloadData<T::EthSpec>>,
@@ -653,7 +653,7 @@ fn complete_partial_beacon_block_gloas<T: BeaconChainTypes>(
 #[allow(clippy::type_complexity)]
 #[instrument(level = "debug", skip_all)]
 pub async fn produce_execution_payload_bid<T: BeaconChainTypes>(
-    chain: Arc<BeaconChain<T>>,
+    chain: Arc<BeaconComponents<T>>,
     mut state: BeaconState<T::EthSpec>,
     produce_at_slot: Slot,
     bid_value: u64,
@@ -692,7 +692,7 @@ pub async fn produce_execution_payload_bid<T: BeaconChainTypes>(
     let builder_params = BuilderParams {
         pubkey,
         slot: state.slot(),
-        chain_health: crate::beacon_chain::is_healthy(
+        chain_health: crate::beacon_components::is_healthy(
             &chain.canonical_head,
             &chain.store,
             &chain.slot_clock,
@@ -775,7 +775,7 @@ pub async fn produce_execution_payload_bid<T: BeaconChainTypes>(
 /// Will return an error when using a pre-Gloas `state`. Ensure to only run this function
 /// after the Gloas fork.
 fn get_execution_payload_gloas<T: BeaconChainTypes>(
-    chain: Arc<BeaconChain<T>>,
+    chain: Arc<BeaconComponents<T>>,
     state: &BeaconState<T::EthSpec>,
     parent_beacon_block_root: Hash256,
     proposer_index: u64,
@@ -835,7 +835,7 @@ fn get_execution_payload_gloas<T: BeaconChainTypes>(
 /// after the Gloas fork.
 #[allow(clippy::too_many_arguments)]
 async fn prepare_execution_payload<T>(
-    chain: &Arc<BeaconChain<T>>,
+    chain: &Arc<BeaconComponents<T>>,
     timestamp: u64,
     random: Hash256,
     proposer_index: u64,
@@ -860,7 +860,7 @@ where
     // Use a blocking task to interact with the `canonical_head` lock otherwise we risk blocking the
     // core `tokio` executor.
     let inner_chain = chain.clone();
-    let forkchoice_update_params = crate::beacon_chain::spawn_blocking_handle(
+    let forkchoice_update_params = crate::beacon_components::spawn_blocking_handle(
         &chain.task_executor,
         move || {
             inner_chain

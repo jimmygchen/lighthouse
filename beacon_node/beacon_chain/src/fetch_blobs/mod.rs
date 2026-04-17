@@ -20,7 +20,7 @@ use crate::fetch_blobs::fetch_blobs_beacon_adapter::FetchBlobsBeaconAdapter;
 use crate::kzg_utils::blobs_to_data_column_sidecars;
 use crate::observed_data_sidecars::ObservationKey;
 use crate::{
-    AvailabilityProcessingStatus, BeaconChain, BeaconChainError, BeaconChainTypes, BlockError,
+    AvailabilityProcessingStatus, BeaconChainError, BeaconChainTypes, BeaconComponents, BlockError,
     metrics,
 };
 use execution_layer::Error as ExecutionLayerError;
@@ -69,7 +69,7 @@ pub enum FetchEngineBlobError {
 /// data columns (PeerDAS onwards) to the network, using the supplied `publish_fn`.
 #[instrument(skip_all)]
 pub async fn fetch_and_process_engine_blobs<T: BeaconChainTypes>(
-    chain: Arc<BeaconChain<T>>,
+    chain: Arc<BeaconComponents<T>>,
     block_root: Hash256,
     block: Arc<SignedBeaconBlock<T::EthSpec, FullPayload<T::EthSpec>>>,
     custody_columns: &[ColumnIndex],
@@ -86,7 +86,7 @@ pub async fn fetch_and_process_engine_blobs<T: BeaconChainTypes>(
 }
 
 /// Internal implementation of fetch blobs, which uses `FetchBlobsBeaconAdapter` instead of
-/// `BeaconChain` for better testability.
+/// `BeaconComponents` for better testability.
 async fn fetch_and_process_engine_blobs_inner<T: BeaconChainTypes>(
     chain_adapter: FetchBlobsBeaconAdapter<T>,
     block_root: Hash256,

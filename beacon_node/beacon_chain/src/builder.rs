@@ -1,7 +1,7 @@
 use crate::ChainConfig;
 use crate::CustodyContext;
 use crate::attestation_manager::AttestationManager;
-use crate::beacon_chain::{
+use crate::beacon_components::{
     BEACON_CHAIN_DB_KEY, CanonicalHead, LightClientProducerEvent, OP_POOL_DB_KEY,
 };
 use crate::beacon_proposer_cache::BeaconProposerCache;
@@ -24,7 +24,8 @@ use crate::validator_monitor::{ValidatorMonitor, ValidatorMonitorConfig};
 use crate::validator_pubkey_cache::ValidatorPubkeyCache;
 use crate::validator_query_service::ValidatorQueryService;
 use crate::{
-    BeaconChain, BeaconChainTypes, BeaconForkChoiceStore, BeaconSnapshot, ServerSentEventHandler,
+    BeaconChainTypes, BeaconComponents, BeaconForkChoiceStore, BeaconSnapshot,
+    ServerSentEventHandler,
 };
 use bls::Signature;
 use execution_layer::ExecutionLayer;
@@ -75,7 +76,7 @@ where
     type EthSpec = E;
 }
 
-/// Builds a `BeaconChain` by either creating anew from genesis, or, resuming from an existing chain
+/// Builds a `BeaconComponents` by either creating anew from genesis, or, resuming from an existing chain
 /// persisted to `store`.
 ///
 /// Types may be elided and the compiler will infer them if all necessary builder methods have been
@@ -667,7 +668,7 @@ where
         Ok(self.empty_op_pool())
     }
 
-    /// Sets the `BeaconChain` execution layer.
+    /// Sets the `BeaconComponents` execution layer.
     pub fn execution_layer(mut self, execution_layer: Option<ExecutionLayer<E>>) -> Self {
         self.execution_layer = execution_layer;
         self
@@ -689,7 +690,7 @@ where
         self
     }
 
-    /// Sets the `BeaconChain` event handler backend.
+    /// Sets the `BeaconComponents` event handler backend.
     ///
     /// For example, provide `ServerSentEventHandler` as a `handler`.
     pub fn event_handler(mut self, handler: Option<ServerSentEventHandler<E>>) -> Self {
@@ -697,7 +698,7 @@ where
         self
     }
 
-    /// Sets the `BeaconChain` slot clock.
+    /// Sets the `BeaconComponents` slot clock.
     ///
     /// For example, provide `SystemTimeSlotClock` as a `clock`.
     pub fn slot_clock(mut self, clock: TSlotClock) -> Self {
@@ -736,7 +737,7 @@ where
         self
     }
 
-    /// Sets the `ChainConfig` that determines `BeaconChain` runtime behaviour.
+    /// Sets the `ChainConfig` that determines `BeaconComponents` runtime behaviour.
     pub fn chain_config(mut self, config: ChainConfig) -> Self {
         self.chain_config = config;
         self
@@ -758,7 +759,7 @@ where
         self
     }
 
-    /// Consumes `self`, returning a `BeaconChain` if all required parameters have been supplied.
+    /// Consumes `self`, returning a `BeaconComponents` if all required parameters have been supplied.
     ///
     /// An error will be returned at runtime if all required parameters have not been configured.
     ///
@@ -767,7 +768,7 @@ where
     #[allow(clippy::type_complexity)] // I think there's nothing to be gained here from a type alias.
     pub fn build(
         mut self,
-    ) -> Result<BeaconChain<Witness<TSlotClock, E, THotStore, TColdStore>>, String> {
+    ) -> Result<BeaconComponents<Witness<TSlotClock, E, THotStore, TColdStore>>, String> {
         let slot_clock = self
             .slot_clock
             .ok_or("Cannot build without a slot_clock.")?;
@@ -926,7 +927,7 @@ where
         // Store the `PersistedBeaconChain` in the database atomically with the metadata so that on
         // restart we can correctly detect the presence of an initialized database.
         //
-        // This *must* be stored before constructing the `BeaconChain`, so that its `Drop` instance
+        // This *must* be stored before constructing the `BeaconComponents`, so that its `Drop` instance
         // doesn't write a `PersistedBeaconChain` without the rest of the batch.
         self.pending_io_batch.push(
             crate::persisted_beacon_chain::persist_head_in_batch_standalone(genesis_block_root),
@@ -1042,11 +1043,13 @@ where
         let operations = OperationsManager::with_persist_fn(
             self.spec.clone(),
             op_pool.clone(),
-            Box::new(move |op_pool| crate::beacon_chain::persist_op_pool(&persist_store, op_pool)),
+            Box::new(move |op_pool| {
+                crate::beacon_components::persist_op_pool(&persist_store, op_pool)
+            }),
         );
         let sync_committee_manager = SyncCommitteeManager::new(self.spec.clone(), op_pool.clone());
 
-        let beacon_chain = BeaconChain {
+        let beacon_chain = BeaconComponents {
             spec: self.spec.clone(),
             config: self.chain_config,
             store: store.clone(),
@@ -1107,7 +1110,7 @@ where
 
         // Only perform the check if it was configured.
         if let Some(wss_checkpoint) = beacon_chain.config.weak_subjectivity_checkpoint
-            && let Err(e) = crate::beacon_chain::verify_weak_subjectivity_checkpoint(
+            && let Err(e) = crate::beacon_components::verify_weak_subjectivity_checkpoint(
                 &beacon_chain,
                 wss_checkpoint,
                 head.beacon_block_root,
@@ -1138,7 +1141,9 @@ where
                 .update_data_column_custody_info(Some(cgc_change_effective_slot));
 
             // Persist change to disk.
-            crate::beacon_chain::persist_custody_ctx::<Witness<TSlotClock, E, THotStore, TColdStore>>(
+            crate::beacon_components::persist_custody_ctx::<
+                Witness<TSlotClock, E, THotStore, TColdStore>,
+            >(
                 &beacon_chain.spec,
                 &beacon_chain.data_availability_checker,
                 &beacon_chain.store,
@@ -1192,7 +1197,7 @@ where
     TColdStore: ItemStore<E> + 'static,
     E: EthSpec + 'static,
 {
-    /// Sets the `BeaconChain` slot clock to `TestingSlotClock`.
+    /// Sets the `BeaconComponents` slot clock to `TestingSlotClock`.
     ///
     /// Requires the state to be initialized.
     pub fn testing_slot_clock(self, slot_duration: Duration) -> Result<Self, String> {
