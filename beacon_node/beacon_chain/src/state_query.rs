@@ -776,4 +776,118 @@ mod tests {
         let expected_root = *head_state.get_state_root(query_slot).unwrap();
         assert_eq!(result.unwrap(), expected_root);
     }
+
+    #[tokio::test]
+    async fn given_chain_with_blocks_when_querying_state_root_then_correct_root_returned() {
+        // Given a chain that has produced blocks at slots 1..=5
+        let spec = Arc::new(test_spec::<E>());
+        let harness = get_harness(spec);
+        harness.extend_slots(5).await;
+
+        // When we query the state root at each produced slot
+        for slot_num in 1..=5u64 {
+            let query_slot = Slot::new(slot_num);
+            let result = state_root_at_slot(
+                &harness.chain.store,
+                &harness.chain.canonical_head,
+                &harness.chain.spec,
+                &harness.chain.slot_clock,
+                harness.chain.genesis_state_root,
+                query_slot,
+            )
+            .unwrap();
+
+            // Then a non-zero root is returned for each slot
+            assert!(
+                result.is_some(),
+                "state root should exist at slot {}",
+                slot_num
+            );
+            assert_ne!(
+                result.unwrap(),
+                Hash256::zero(),
+                "state root at slot {} should be non-zero",
+                slot_num
+            );
+        }
+
+        // And querying the same slot twice yields the same root (deterministic)
+        let root_a = state_root_at_slot(
+            &harness.chain.store,
+            &harness.chain.canonical_head,
+            &harness.chain.spec,
+            &harness.chain.slot_clock,
+            harness.chain.genesis_state_root,
+            Slot::new(3),
+        )
+        .unwrap();
+        let root_b = state_root_at_slot(
+            &harness.chain.store,
+            &harness.chain.canonical_head,
+            &harness.chain.spec,
+            &harness.chain.slot_clock,
+            harness.chain.genesis_state_root,
+            Slot::new(3),
+        )
+        .unwrap();
+        assert_eq!(
+            root_a, root_b,
+            "repeated queries for same slot should be deterministic"
+        );
+    }
+
+    #[tokio::test]
+    async fn given_slot_beyond_head_when_querying_block_root_then_none_returned() {
+        // Given a chain with blocks at slots 1..=3
+        let spec = Arc::new(test_spec::<E>());
+        let harness = get_harness(spec);
+        harness.extend_slots(3).await;
+
+        // When we query a slot far beyond the head
+        let future_slot = Slot::new(1000);
+        let result = block_root_at_slot(
+            &harness.chain.store,
+            &harness.chain.canonical_head,
+            &harness.chain.spec,
+            &harness.chain.slot_clock,
+            harness.chain.genesis_block_root,
+            future_slot,
+            WhenSlotSkipped::None,
+        )
+        .unwrap();
+
+        // Then None is returned (not an error)
+        assert_eq!(
+            result, None,
+            "querying a slot beyond the wall clock should return None"
+        );
+    }
+
+    #[tokio::test]
+    async fn given_genesis_slot_when_querying_block_root_then_genesis_root_returned() {
+        // Given a chain with some blocks produced
+        let spec = Arc::new(test_spec::<E>());
+        let harness = get_harness(spec);
+        harness.extend_slots(2).await;
+
+        // When we query the genesis slot
+        let genesis_slot = harness.chain.spec.genesis_slot;
+        let result = block_root_at_slot(
+            &harness.chain.store,
+            &harness.chain.canonical_head,
+            &harness.chain.spec,
+            &harness.chain.slot_clock,
+            harness.chain.genesis_block_root,
+            genesis_slot,
+            WhenSlotSkipped::None,
+        )
+        .unwrap();
+
+        // Then the genesis block root is returned
+        assert_eq!(
+            result,
+            Some(harness.chain.genesis_block_root),
+            "genesis slot should always return the genesis block root"
+        );
+    }
 }

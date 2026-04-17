@@ -658,3 +658,145 @@ fn get_pre_electra_aggregated_attestation_by_slot_and_root_returns_none_on_miss(
         "should return None when no matching attestation exists"
     );
 }
+
+// ============================================================================
+// BDD acceptance tests — each documents a real invariant
+// ============================================================================
+
+#[test]
+fn given_attestation_in_pool_when_execution_valid_then_aggregated_returned() {
+    // Given an AttestationManager with one attestation referencing a valid block
+    let manager = make_manager();
+    let spec = make_spec();
+    let slot = Slot::new(1);
+    let block_root = Hash256::repeat_byte(0xaa);
+    let attestation = make_attestation(&spec, slot, block_root, 0);
+    manager
+        .add_to_naive_aggregation_pool(attestation.to_ref())
+        .expect("pool insert should succeed");
+
+    // When we retrieve the aggregated attestation with execution status = Valid
+    let result = manager
+        .get_aggregated_attestation(attestation.to_ref(), |_root| {
+            Some(ExecutionStatus::Valid(ExecutionBlockHash::zero()))
+        })
+        .expect("should not error");
+
+    // Then the matching attestation is returned
+    assert!(
+        result.is_some(),
+        "valid block attestation should be returned"
+    );
+    assert_eq!(
+        result.unwrap().data(),
+        attestation.data(),
+        "returned attestation data should match the inserted one"
+    );
+}
+
+#[test]
+fn given_attestation_from_optimistic_block_when_aggregated_then_rejected() {
+    // Given an AttestationManager with one attestation in the pool
+    let manager = make_manager();
+    let spec = make_spec();
+    let slot = Slot::new(1);
+    let block_root = Hash256::repeat_byte(0xaa);
+    let attestation = make_attestation(&spec, slot, block_root, 0);
+    manager
+        .add_to_naive_aggregation_pool(attestation.to_ref())
+        .expect("pool insert should succeed");
+
+    // When we attempt to retrieve it with execution status = Optimistic
+    let result = manager.get_aggregated_attestation(attestation.to_ref(), |_root| {
+        Some(ExecutionStatus::Optimistic(ExecutionBlockHash::zero()))
+    });
+
+    // Then the request is rejected with HeadBlockNotFullyVerified
+    assert!(
+        result.is_err(),
+        "optimistic block attestation should be rejected"
+    );
+    assert!(
+        matches!(result, Err(Error::HeadBlockNotFullyVerified { .. })),
+        "error should indicate the head block is not fully verified"
+    );
+}
+
+#[test]
+fn given_attestation_for_finalized_block_when_aggregated_then_rejected() {
+    // Given an AttestationManager with one attestation in the pool
+    let manager = make_manager();
+    let spec = make_spec();
+    let slot = Slot::new(1);
+    let block_root = Hash256::repeat_byte(0xaa);
+    let attestation = make_attestation(&spec, slot, block_root, 0);
+    manager
+        .add_to_naive_aggregation_pool(attestation.to_ref())
+        .expect("pool insert should succeed");
+
+    // When we attempt to retrieve it with block root absent from fork choice (finalized)
+    let result = manager.get_aggregated_attestation(attestation.to_ref(), |_root| {
+        // Returning None means "not in fork choice" = finalized
+        None
+    });
+
+    // Then the request is rejected with CannotAttestToFinalizedBlock
+    assert!(
+        result.is_err(),
+        "finalized block attestation should be rejected"
+    );
+    assert!(
+        matches!(result, Err(Error::CannotAttestToFinalizedBlock { .. })),
+        "error should indicate cannot attest to finalized block"
+    );
+}
+
+#[test]
+fn given_multiple_committees_when_attestations_inserted_then_each_retrievable() {
+    // Given an AttestationManager
+    let manager = make_manager();
+    let spec = make_spec();
+    let slot = Slot::new(1);
+    let block_root = Hash256::repeat_byte(0xaa);
+
+    // When we insert attestations from two different committees (different committee indices)
+    let att_committee_0 = make_attestation(&spec, slot, block_root, 0);
+    let att_committee_1 = make_attestation(&spec, slot, block_root, 1);
+    manager
+        .add_to_naive_aggregation_pool(att_committee_0.to_ref())
+        .expect("committee 0 insert should succeed");
+    manager
+        .add_to_naive_aggregation_pool(att_committee_1.to_ref())
+        .expect("committee 1 insert should succeed");
+
+    // Then the pool contains both attestations
+    let pool = manager.naive_aggregation_pool.read();
+    let count = pool.iter().count();
+    assert_eq!(
+        count, 2,
+        "pool should contain attestations from both committees"
+    );
+}
+
+#[test]
+fn given_validator_attested_via_gossip_when_checked_then_seen() {
+    // Given an AttestationManager with a validator observed via gossip
+    let manager = make_manager();
+    let epoch = Epoch::new(0);
+    let validator_index = 7;
+    manager
+        .observed_gossip_attesters
+        .write()
+        .observe_validator(epoch, validator_index)
+        .expect("should observe");
+
+    // When we check if the validator was seen at that epoch
+    let seen = manager.validator_seen_at_epoch(validator_index, epoch);
+
+    // Then the validator is recognized as seen
+    assert!(seen, "gossip-attested validator should be seen at epoch");
+
+    // And a different validator is NOT seen
+    let unseen = manager.validator_seen_at_epoch(validator_index + 1, epoch);
+    assert!(!unseen, "unobserved validator should not be seen at epoch");
+}

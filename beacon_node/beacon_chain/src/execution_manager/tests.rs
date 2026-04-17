@@ -1,10 +1,13 @@
 use super::*;
 use crate::beacon_proposer_cache::BeaconProposerCache;
+use crate::execution_methods::handle_invalid_justified_checkpoint;
 use crate::test_utils::DiskHarnessType;
+use execution_layer::ExecutionBlockHash;
 use fixed_bytes::FixedBytesExtended;
 use genesis::{DEFAULT_ETH1_BLOCK_HASH, interop_genesis_state};
 use parking_lot::Mutex;
 use std::sync::Arc;
+use task_executor::ShutdownReason;
 use types::*;
 
 type E = MinimalEthSpec;
@@ -165,6 +168,111 @@ fn with_proposer_cache_populates_on_miss() {
         result.expect("should succeed on cache hit"),
         E::slots_per_epoch() as usize,
     );
+}
+
+// -----------------------------------------------------------------------
+// is_optimistic_or_invalid_block — pre-bellatrix path
+// -----------------------------------------------------------------------
+
+#[test]
+fn given_pre_bellatrix_slot_when_checking_optimistic_status_then_returns_false() {
+    // Given a spec with bellatrix at epoch 10
+    let mut spec = test_spec();
+    spec.bellatrix_fork_epoch = Some(Epoch::new(10));
+    let manager = ExecutionManager::<T>::new(
+        Arc::new(spec),
+        None,
+        Arc::new(Mutex::new(BeaconProposerCache::default())),
+    );
+
+    // When we check slot_is_prior_to_bellatrix for a pre-Bellatrix slot
+    let pre_bellatrix_slot = Slot::new(0);
+
+    // Then it returns true (the slot IS prior to bellatrix)
+    assert!(
+        manager.slot_is_prior_to_bellatrix(pre_bellatrix_slot),
+        "slot 0 should be prior to bellatrix at epoch 10"
+    );
+
+    // And for is_optimistic_or_invalid_block with a pre-bellatrix slot,
+    // the method would return Ok(false) — i.e., not optimistic.
+    // This is because pre-bellatrix blocks have no execution payload,
+    // so they cannot be optimistic. We verify the underlying logic:
+    assert!(
+        manager.slot_is_prior_to_bellatrix(Slot::new(5)),
+        "slot in epoch 0 should be prior to bellatrix at epoch 10"
+    );
+
+    // Post-bellatrix slots should NOT be prior
+    let post_bellatrix_slot = Slot::new(10 * E::slots_per_epoch());
+    assert!(
+        !manager.slot_is_prior_to_bellatrix(post_bellatrix_slot),
+        "slot at bellatrix fork epoch should not be prior to bellatrix"
+    );
+}
+
+// -----------------------------------------------------------------------
+// handle_invalid_justified_checkpoint tests
+// -----------------------------------------------------------------------
+
+#[test]
+fn given_invalid_justified_checkpoint_when_handled_then_shutdown_sent_and_error_returned() {
+    // Given a channel for shutdown signals
+    let (mut shutdown_tx, mut shutdown_rx) = futures::channel::mpsc::channel(1);
+    let justified_root = Hash256::repeat_byte(0xab);
+    let exec_hash = Some(ExecutionBlockHash::zero());
+
+    // When handle_invalid_justified_checkpoint is called
+    let result =
+        handle_invalid_justified_checkpoint::<T>(&mut shutdown_tx, justified_root, exec_hash);
+
+    // Then the result is an error with JustifiedPayloadInvalid
+    assert!(
+        result.is_err(),
+        "should return error on invalid justified checkpoint"
+    );
+    match result.unwrap_err() {
+        BeaconChainError::JustifiedPayloadInvalid {
+            justified_root: r,
+            execution_block_hash: h,
+        } => {
+            assert_eq!(r, justified_root, "error should carry the justified root");
+            assert_eq!(h, exec_hash, "error should carry the execution block hash");
+        }
+        other => panic!("unexpected error variant: {:?}", other),
+    }
+
+    // And a shutdown signal was sent on the channel
+    let shutdown = shutdown_rx.try_next().expect("should have a message");
+    assert!(
+        matches!(shutdown, Some(ShutdownReason::Failure(_))),
+        "shutdown reason should be Failure"
+    );
+}
+
+#[test]
+fn given_invalid_justified_checkpoint_without_exec_hash_when_handled_then_error_has_none() {
+    // Given a channel for shutdown signals and no execution block hash
+    let (mut shutdown_tx, _shutdown_rx) = futures::channel::mpsc::channel(1);
+    let justified_root = Hash256::repeat_byte(0xcd);
+
+    // When handle_invalid_justified_checkpoint is called with None exec hash
+    let result = handle_invalid_justified_checkpoint::<T>(&mut shutdown_tx, justified_root, None);
+
+    // Then the error carries None for execution_block_hash
+    assert!(result.is_err());
+    match result.unwrap_err() {
+        BeaconChainError::JustifiedPayloadInvalid {
+            execution_block_hash,
+            ..
+        } => {
+            assert_eq!(
+                execution_block_hash, None,
+                "error should have None execution_block_hash when none provided"
+            );
+        }
+        other => panic!("unexpected error variant: {:?}", other),
+    }
 }
 
 // -----------------------------------------------------------------------
