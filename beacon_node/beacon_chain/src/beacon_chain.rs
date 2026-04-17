@@ -1758,7 +1758,8 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
     where
         I: Iterator<Item = (&'a SingleAttestation, Option<SubnetId>)> + ExactSizeIterator,
     {
-        batch_verify_unaggregated_attestations(attestations, self)
+        let ctx = crate::attestation_verification::AttestationVerificationContext::from_chain(self);
+        batch_verify_unaggregated_attestations(attestations, &ctx)
     }
 
     /// Accepts some `Attestation` from the network and attempts to verify it, returning `Ok(_)` if
@@ -1775,7 +1776,8 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         let _timer =
             metrics::start_timer(&metrics::UNAGGREGATED_ATTESTATION_GOSSIP_VERIFICATION_TIMES);
 
-        VerifiedUnaggregatedAttestation::verify(unaggregated_attestation, subnet_id, self).inspect(
+        let ctx = crate::attestation_verification::AttestationVerificationContext::from_chain(self);
+        VerifiedUnaggregatedAttestation::verify(unaggregated_attestation, subnet_id, &ctx).inspect(
             |v| {
                 // This method is called for API and gossip attestations, so this covers all unaggregated attestation events
                 if let Some(event_handler) = self.event_handler.as_ref() {
@@ -1816,7 +1818,8 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
     where
         I: Iterator<Item = &'a SignedAggregateAndProof<T::EthSpec>> + ExactSizeIterator,
     {
-        batch_verify_aggregated_attestations(aggregates, self)
+        let ctx = crate::attestation_verification::AttestationVerificationContext::from_chain(self);
+        batch_verify_aggregated_attestations(aggregates, &ctx)
     }
 
     /// Accepts some `SignedAggregateAndProof` from the network and attempts to verify it,
@@ -1829,7 +1832,8 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         let _timer =
             metrics::start_timer(&metrics::AGGREGATED_ATTESTATION_GOSSIP_VERIFICATION_TIMES);
 
-        VerifiedAggregatedAttestation::verify(signed_aggregate, self).inspect(|v| {
+        let ctx = crate::attestation_verification::AttestationVerificationContext::from_chain(self);
+        VerifiedAggregatedAttestation::verify(signed_aggregate, &ctx).inspect(|v| {
             // This method is called for API and gossip attestations, so this covers all aggregated attestation events
             if let Some(event_handler) = self.event_handler.as_ref()
                 && event_handler.has_attestation_subscribers()

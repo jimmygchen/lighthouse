@@ -101,6 +101,54 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
 }
 
 impl PreFinalizationBlockCache {
+    /// Check whether the block with `block_root` is known to be pre-finalization.
+    ///
+    /// This is a standalone version that accepts component refs instead of requiring
+    /// `&BeaconChain<T>`, enabling use from `AttestationVerificationContext`.
+    pub fn is_pre_finalization_block<T: BeaconChainTypes>(
+        &self,
+        block_root: Hash256,
+        head_snapshot: &crate::beacon_snapshot::BeaconSnapshot<T::EthSpec>,
+        store: &crate::BeaconStore<T>,
+        spec: &types::ChainSpec,
+    ) -> Result<bool, BeaconChainError> {
+        let mut cache = self.cache.lock();
+
+        // Check the cache to see if we already know this pre-finalization block root.
+        if cache.block_roots.contains(&block_root) {
+            return Ok(true);
+        }
+
+        // Avoid repeating the disk lookup for blocks that are already subject to a network lookup.
+        if cache.in_progress_lookups.contains(&block_root) {
+            return Ok(false);
+        }
+
+        // 1. Check memory for a recent pre-finalization block.
+        let is_recent_finalized_block = process_results(
+            head_snapshot.beacon_state.rev_iter_block_roots(spec),
+            |mut iter| iter.any(|(_, root)| root == block_root),
+        )
+        .map_err(BeaconChainError::BeaconStateError)?;
+        if is_recent_finalized_block {
+            cache.block_roots.put(block_root, ());
+            return Ok(true);
+        }
+
+        // 2. Check on disk.
+        if store.get_blinded_block(&block_root)?.is_some() {
+            cache.block_roots.put(block_root, ());
+            return Ok(true);
+        }
+
+        // 3. Check the network with a single block lookup.
+        cache.in_progress_lookups.put(block_root, ());
+        if cache.in_progress_lookups.len() == LOOKUP_LIMIT.get() {
+            debug!("Pre-finalization lookup cache is full");
+        }
+        Ok(false)
+    }
+
     pub fn block_processed(&self, block_root: Hash256) {
         // Future requests will find this block in fork choice, so no need to cache it in the
         // ongoing lookup cache any longer.

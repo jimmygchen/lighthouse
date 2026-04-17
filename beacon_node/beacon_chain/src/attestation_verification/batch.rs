@@ -9,11 +9,12 @@
 //! The outcome of each function is a `Vec<Result>` with a one-to-one mapping to the attestations
 //! supplied as input. Each result provides the exact success or failure result of the corresponding
 //! attestation, with no loss of fidelity when compared to individual verification.
+use super::AttestationVerificationContext;
 use super::{
     CheckAttestationSignature, Error, IndexedAggregatedAttestation, IndexedUnaggregatedAttestation,
     VerifiedAggregatedAttestation, VerifiedUnaggregatedAttestation,
 };
-use crate::{BeaconChain, BeaconChainError, BeaconChainTypes, metrics};
+use crate::{BeaconChainError, BeaconChainTypes, metrics};
 use bls::verify_signature_sets;
 use state_processing::signature_sets::{
     indexed_attestation_signature_set_from_pubkeys, signed_aggregate_selection_proof_signature_set,
@@ -27,7 +28,7 @@ use types::*;
 /// See module-level docs for more info.
 pub fn batch_verify_aggregated_attestations<'a, T, I>(
     aggregates: I,
-    chain: &BeaconChain<T>,
+    chain: &AttestationVerificationContext<'_, T>,
 ) -> Result<Vec<Result<VerifiedAggregatedAttestation<'a, T>, Error>>, Error>
 where
     T: BeaconChainTypes,
@@ -132,7 +133,7 @@ where
 /// See module-level docs for more info.
 pub fn batch_verify_unaggregated_attestations<'a, T, I>(
     attestations: I,
-    chain: &BeaconChain<T>,
+    chain: &AttestationVerificationContext<'_, T>,
 ) -> Result<Vec<Result<VerifiedUnaggregatedAttestation<'a, T>, Error>>, Error>
 where
     T: BeaconChainTypes,

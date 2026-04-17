@@ -66,6 +66,187 @@ use types::{
     SubnetId,
 };
 
+use crate::BeaconStore;
+use crate::attestation_manager::AttestationManager;
+use crate::canonical_head::CanonicalHead;
+use crate::chain_config::ChainConfig;
+use crate::pre_finalization_cache::PreFinalizationBlockCache;
+use crate::validator_query_service::ValidatorQueryService;
+use parking_lot::RwLock;
+use slasher::Slasher;
+use std::sync::Arc;
+
+/// Context for attestation verification — holds refs to the components needed.
+///
+/// This replaces `&BeaconChain<T>` in all attestation verification functions,
+/// making them independently testable by constructing this struct directly.
+pub struct AttestationVerificationContext<'a, T: BeaconChainTypes> {
+    pub canonical_head: &'a CanonicalHead<T>,
+    pub attestation_manager: &'a AttestationManager<T::EthSpec>,
+    pub validator_query: &'a ValidatorQueryService<T>,
+    pub store: &'a BeaconStore<T>,
+    pub slot_clock: &'a T::SlotClock,
+    pub spec: &'a ChainSpec,
+    pub config: &'a ChainConfig,
+    pub genesis_validators_root: Hash256,
+    pub slasher: Option<&'a Slasher<T::EthSpec>>,
+    pub pre_finalization_block_cache: &'a PreFinalizationBlockCache,
+}
+
+impl<'a, T: BeaconChainTypes> AttestationVerificationContext<'a, T> {
+    /// Create a context from a `BeaconChain` reference — convenience for callers
+    /// that haven't yet migrated to holding component refs directly.
+    pub fn from_chain(chain: &'a crate::BeaconChain<T>) -> Self {
+        Self {
+            canonical_head: &chain.canonical_head,
+            attestation_manager: &chain.attestation_manager,
+            validator_query: &chain.validator_query,
+            store: &chain.store,
+            slot_clock: &chain.slot_clock,
+            spec: &chain.spec,
+            config: &chain.config,
+            genesis_validators_root: chain.genesis_validators_root,
+            slasher: chain.slasher.as_deref(),
+            pre_finalization_block_cache: &chain.pre_finalization_block_cache,
+        }
+    }
+
+    /// Check if a block root is a pre-finalization block.
+    pub fn is_pre_finalization_block(&self, block_root: Hash256) -> Result<bool, BeaconChainError> {
+        let head_snapshot = self.canonical_head.cached_head().snapshot.clone();
+        self.pre_finalization_block_cache
+            .is_pre_finalization_block::<T>(block_root, &head_snapshot, self.store, self.spec)
+    }
+
+    /// Provides access to the committee cache via the attestation manager's shuffling cache
+    /// and the store for state loading on cache miss.
+    pub fn with_committee_cache<F, R>(
+        &self,
+        head_block_root: Hash256,
+        shuffling_epoch: Epoch,
+        map_fn: F,
+    ) -> Result<R, BeaconChainError>
+    where
+        F: Fn(&types::CommitteeCache, Hash256) -> Result<R, BeaconChainError>,
+    {
+        // Delegate to the with_committee_cache on BeaconChain for now.
+        // TODO: Extract this to a free function that takes component refs directly.
+        // For now we use a simplified version that only checks the cache.
+        use crate::errors::BeaconChainError as Error;
+        use crate::shuffling_cache::BlockShufflingIds;
+        use state_processing::state_advance::partial_state_advance;
+
+        let head_block = self
+            .canonical_head
+            .fork_choice_read_lock()
+            .get_block(&head_block_root)
+            .ok_or(Error::MissingBeaconBlock(head_block_root))?;
+
+        let shuffling_id = BlockShufflingIds {
+            current: head_block.current_epoch_shuffling_id.clone(),
+            next: head_block.next_epoch_shuffling_id.clone(),
+            previous: None,
+            block_root: head_block.root,
+        }
+        .id_for_epoch(shuffling_epoch)
+        .ok_or_else(|| Error::InvalidShufflingId {
+            shuffling_epoch,
+            head_block_epoch: head_block.slot.epoch(T::EthSpec::slots_per_epoch()),
+        })?;
+
+        // Check the shuffling cache first
+        let mut shuffling_cache = {
+            let _ =
+                metrics::start_timer(&metrics::ATTESTATION_PROCESSING_SHUFFLING_CACHE_WAIT_TIMES);
+            self.attestation_manager.shuffling_cache.write()
+        };
+
+        if let Some(cache_item) = shuffling_cache.get(&shuffling_id) {
+            drop(shuffling_cache);
+            let committee_cache = cache_item.wait()?;
+            map_fn(&committee_cache, shuffling_id.shuffling_decision_block)
+        } else {
+            // Cache miss — need to load state and build cache
+            let sender = shuffling_cache.create_promise(shuffling_id.clone())?;
+            drop(shuffling_cache);
+
+            let head_block_epoch = head_block.slot.epoch(T::EthSpec::slots_per_epoch());
+            if head_block_epoch > shuffling_epoch + 1 {
+                return Err(Error::InvalidStateForShuffling {
+                    state_epoch: head_block_epoch,
+                    shuffling_epoch,
+                });
+            }
+
+            let state_read_timer =
+                metrics::start_timer(&metrics::ATTESTATION_PROCESSING_STATE_READ_TIMES);
+
+            // Try head state first
+            let head_state_opt = {
+                let cached_head = self.canonical_head.cached_head();
+                let snapshot = &cached_head.snapshot;
+                if snapshot.beacon_block_root == head_block_root {
+                    Some((snapshot.beacon_state.clone(), snapshot.beacon_state_root()))
+                } else {
+                    None
+                }
+            };
+
+            let target_slot = std::cmp::max(
+                shuffling_epoch
+                    .saturating_sub(1_u64)
+                    .start_slot(T::EthSpec::slots_per_epoch()),
+                head_block.slot,
+            );
+
+            let (mut state, state_root) = if let Some((state, state_root)) = head_state_opt {
+                (state, state_root)
+            } else {
+                let (state_root, state) = self
+                    .store
+                    .get_advanced_hot_state(
+                        head_block_root,
+                        types::StatePayloadStatus::Pending,
+                        target_slot,
+                        head_block.state_root,
+                    )?
+                    .ok_or(Error::MissingBeaconState(head_block.state_root))?;
+                (state, state_root)
+            };
+
+            metrics::stop_timer(state_read_timer);
+            let state_skip_timer =
+                metrics::start_timer(&metrics::ATTESTATION_PROCESSING_STATE_SKIP_TIMES);
+
+            if state.current_epoch() + 1 < shuffling_epoch {
+                partial_state_advance(&mut state, Some(state_root), target_slot, self.spec)?;
+            }
+            metrics::stop_timer(state_skip_timer);
+
+            let committee_building_timer =
+                metrics::start_timer(&metrics::ATTESTATION_PROCESSING_COMMITTEE_BUILDING_TIMES);
+
+            let relative_epoch =
+                types::RelativeEpoch::from_epoch(state.current_epoch(), shuffling_epoch)
+                    .map_err(Error::IncorrectStateForAttestation)?;
+
+            state.build_committee_cache(relative_epoch, self.spec)?;
+            let committee_cache = state.committee_cache(relative_epoch)?.clone();
+            let shuffling_decision_block = shuffling_id.shuffling_decision_block;
+
+            self.attestation_manager
+                .shuffling_cache
+                .write()
+                .insert_committee_cache(shuffling_id, &committee_cache);
+
+            metrics::stop_timer(committee_building_timer);
+            sender.send(committee_cache.clone());
+
+            map_fn(&committee_cache, shuffling_decision_block)
+        }
+    }
+}
+
 pub use batch::{batch_verify_aggregated_attestations, batch_verify_unaggregated_attestations};
 
 /// Returned when an attestation was not successfully verified. It might not have been verified for
@@ -427,11 +608,11 @@ pub enum AttestationSlashInfo<'a, T: BeaconChainTypes, TErr> {
 /// No substantial extra work will be done if there is no slasher configured.
 fn process_slash_info<T: BeaconChainTypes>(
     slash_info: AttestationSlashInfo<T, Error>,
-    chain: &BeaconChain<T>,
+    chain: &AttestationVerificationContext<'_, T>,
 ) -> Error {
     use AttestationSlashInfo::*;
 
-    if let Some(slasher) = chain.slasher.as_ref() {
+    if let Some(slasher) = chain.slasher {
         let (indexed_attestation, check_signature, err) = match slash_info {
             SignatureNotChecked(attestation, err) => {
                 if let Error::UnknownHeadBlock { .. } = err
@@ -511,11 +692,11 @@ impl<'a, T: BeaconChainTypes> IndexedAggregatedAttestation<'a, T> {
     /// network.
     pub fn verify(
         signed_aggregate: &'a SignedAggregateAndProof<T::EthSpec>,
-        chain: &BeaconChain<T>,
+        chain: &AttestationVerificationContext<'_, T>,
     ) -> Result<Self, Error> {
         Self::verify_slashable(signed_aggregate, chain)
             .inspect(|verified_aggregate| {
-                if let Some(slasher) = chain.slasher.as_ref() {
+                if let Some(slasher) = chain.slasher {
                     slasher.accept_attestation(verified_aggregate.indexed_attestation.clone());
                 }
             })
@@ -525,7 +706,7 @@ impl<'a, T: BeaconChainTypes> IndexedAggregatedAttestation<'a, T> {
     /// Run the checks that happen before an indexed attestation is constructed.
     fn verify_early_checks(
         signed_aggregate: &SignedAggregateAndProof<T::EthSpec>,
-        chain: &BeaconChain<T>,
+        chain: &AttestationVerificationContext<'_, T>,
     ) -> Result<Hash256, Error> {
         let attestation = signed_aggregate.message().aggregate();
 
@@ -534,7 +715,7 @@ impl<'a, T: BeaconChainTypes> IndexedAggregatedAttestation<'a, T> {
         //
         // We do not queue future attestations for later processing.
         verify_propagation_slot_range::<_, T::EthSpec>(
-            &chain.slot_clock,
+            chain.slot_clock,
             attestation.data(),
             &chain.spec,
         )?;
@@ -639,7 +820,7 @@ impl<'a, T: BeaconChainTypes> IndexedAggregatedAttestation<'a, T> {
     /// Verify the attestation, producing extra information about whether it might be slashable.
     pub fn verify_slashable(
         signed_aggregate: &'a SignedAggregateAndProof<T::EthSpec>,
-        chain: &BeaconChain<T>,
+        chain: &AttestationVerificationContext<'_, T>,
     ) -> Result<Self, AttestationSlashInfo<'a, T, Error>> {
         use AttestationSlashInfo::*;
         let observed_attestation_key_root = match Self::verify_early_checks(signed_aggregate, chain)
@@ -741,7 +922,7 @@ impl<'a, T: BeaconChainTypes> VerifiedAggregatedAttestation<'a, T> {
     fn verify_late_checks(
         signed_aggregate: &SignedAggregateAndProof<T::EthSpec>,
         observed_attestation_key_root: Hash256,
-        chain: &BeaconChain<T>,
+        chain: &AttestationVerificationContext<'_, T>,
     ) -> Result<(), Error> {
         let attestation = signed_aggregate.message().aggregate();
         let aggregator_index = signed_aggregate.message().aggregator_index();
@@ -786,7 +967,7 @@ impl<'a, T: BeaconChainTypes> VerifiedAggregatedAttestation<'a, T> {
     /// Verify the `signed_aggregate`.
     pub fn verify(
         signed_aggregate: &'a SignedAggregateAndProof<T::EthSpec>,
-        chain: &BeaconChain<T>,
+        chain: &AttestationVerificationContext<'_, T>,
     ) -> Result<Self, Error> {
         let indexed = IndexedAggregatedAttestation::verify(signed_aggregate, chain)?;
         Self::from_indexed(indexed, chain, CheckAttestationSignature::Yes)
@@ -795,7 +976,7 @@ impl<'a, T: BeaconChainTypes> VerifiedAggregatedAttestation<'a, T> {
     /// Complete the verification of an indexed attestation.
     fn from_indexed(
         signed_aggregate: IndexedAggregatedAttestation<'a, T>,
-        chain: &BeaconChain<T>,
+        chain: &AttestationVerificationContext<'_, T>,
         check_signature: CheckAttestationSignature,
     ) -> Result<Self, Error> {
         Self::verify_slashable(signed_aggregate, chain, check_signature)
@@ -803,8 +984,8 @@ impl<'a, T: BeaconChainTypes> VerifiedAggregatedAttestation<'a, T> {
             .map_err(|slash_info| process_slash_info(slash_info, chain))
     }
 
-    fn apply_to_slasher(self, chain: &BeaconChain<T>) -> Self {
-        if let Some(slasher) = chain.slasher.as_ref() {
+    fn apply_to_slasher(self, chain: &AttestationVerificationContext<'_, T>) -> Self {
+        if let Some(slasher) = chain.slasher {
             slasher.accept_attestation(self.indexed_attestation.clone());
         }
         self
@@ -813,7 +994,7 @@ impl<'a, T: BeaconChainTypes> VerifiedAggregatedAttestation<'a, T> {
     /// Verify the attestation, producing extra information about whether it might be slashable.
     fn verify_slashable(
         signed_aggregate: IndexedAggregatedAttestation<'a, T>,
-        chain: &BeaconChain<T>,
+        chain: &AttestationVerificationContext<'_, T>,
         check_signature: CheckAttestationSignature,
     ) -> Result<Self, AttestationSlashInfo<'a, T, Error>> {
         use AttestationSlashInfo::*;
@@ -872,7 +1053,7 @@ impl<'a, T: BeaconChainTypes> IndexedUnaggregatedAttestation<'a, T> {
     /// Run the checks that happen before an indexed attestation is constructed.
     pub fn verify_early_checks(
         attestation: &'a SingleAttestation,
-        chain: &BeaconChain<T>,
+        chain: &AttestationVerificationContext<'_, T>,
     ) -> Result<(), Error> {
         let attestation_epoch = attestation.data.slot.epoch(T::EthSpec::slots_per_epoch());
 
@@ -889,7 +1070,7 @@ impl<'a, T: BeaconChainTypes> IndexedUnaggregatedAttestation<'a, T> {
         //
         // We do not queue future attestations for later processing.
         verify_propagation_slot_range::<_, T::EthSpec>(
-            &chain.slot_clock,
+            chain.slot_clock,
             &attestation.data,
             &chain.spec,
         )?;
@@ -941,7 +1122,7 @@ impl<'a, T: BeaconChainTypes> IndexedUnaggregatedAttestation<'a, T> {
     /// Run the checks that apply to the indexed attestation before the signature is checked.
     pub fn verify_middle_checks(
         attestation: &'a SingleAttestation,
-        chain: &BeaconChain<T>,
+        chain: &AttestationVerificationContext<'_, T>,
     ) -> Result<u64, Error> {
         let validator_index = attestation.attester_index;
 
@@ -973,11 +1154,11 @@ impl<'a, T: BeaconChainTypes> IndexedUnaggregatedAttestation<'a, T> {
     pub fn verify(
         attestation: &'a SingleAttestation,
         subnet_id: Option<SubnetId>,
-        chain: &BeaconChain<T>,
+        chain: &AttestationVerificationContext<'_, T>,
     ) -> Result<Self, Error> {
         Self::verify_slashable(attestation, subnet_id, chain)
             .inspect(|verified_unaggregated| {
-                if let Some(slasher) = chain.slasher.as_ref() {
+                if let Some(slasher) = chain.slasher {
                     slasher.accept_attestation(verified_unaggregated.indexed_attestation.clone());
                 }
             })
@@ -988,7 +1169,7 @@ impl<'a, T: BeaconChainTypes> IndexedUnaggregatedAttestation<'a, T> {
     pub fn verify_slashable(
         attestation: &'a SingleAttestation,
         subnet_id: Option<SubnetId>,
-        chain: &BeaconChain<T>,
+        chain: &AttestationVerificationContext<'_, T>,
     ) -> Result<Self, AttestationSlashInfo<'a, T, Error>> {
         use AttestationSlashInfo::*;
 
@@ -1032,7 +1213,7 @@ impl<'a, T: BeaconChainTypes> VerifiedUnaggregatedAttestation<'a, T> {
         attestation: &'a SingleAttestation,
         validator_index: u64,
         subnet_id: Option<SubnetId>,
-        chain: &BeaconChain<T>,
+        chain: &AttestationVerificationContext<'_, T>,
     ) -> Result<(Attestation<T::EthSpec>, SubnetId), Error> {
         // Check that the attester is a member of the committee
         let (committee_opt, committees_per_slot) = chain.with_committee_cache(
@@ -1111,7 +1292,7 @@ impl<'a, T: BeaconChainTypes> VerifiedUnaggregatedAttestation<'a, T> {
     pub fn verify(
         unaggregated_attestation: &'a SingleAttestation,
         subnet_id: Option<SubnetId>,
-        chain: &BeaconChain<T>,
+        chain: &AttestationVerificationContext<'_, T>,
     ) -> Result<Self, Error> {
         let indexed =
             IndexedUnaggregatedAttestation::verify(unaggregated_attestation, subnet_id, chain)?;
@@ -1121,7 +1302,7 @@ impl<'a, T: BeaconChainTypes> VerifiedUnaggregatedAttestation<'a, T> {
     /// Complete the verification of an indexed attestation.
     fn from_indexed(
         attestation: IndexedUnaggregatedAttestation<'a, T>,
-        chain: &BeaconChain<T>,
+        chain: &AttestationVerificationContext<'_, T>,
         check_signature: CheckAttestationSignature,
     ) -> Result<Self, Error> {
         Self::verify_slashable(attestation, chain, check_signature)
@@ -1129,8 +1310,8 @@ impl<'a, T: BeaconChainTypes> VerifiedUnaggregatedAttestation<'a, T> {
             .map_err(|slash_info| process_slash_info(slash_info, chain))
     }
 
-    fn apply_to_slasher(self, chain: &BeaconChain<T>) -> Self {
-        if let Some(slasher) = chain.slasher.as_ref() {
+    fn apply_to_slasher(self, chain: &AttestationVerificationContext<'_, T>) -> Self {
+        if let Some(slasher) = chain.slasher {
             slasher.accept_attestation(self.indexed_attestation.clone());
         }
         self
@@ -1139,7 +1320,7 @@ impl<'a, T: BeaconChainTypes> VerifiedUnaggregatedAttestation<'a, T> {
     /// Verify the attestation, producing extra information about whether it might be slashable.
     fn verify_slashable(
         attestation: IndexedUnaggregatedAttestation<'a, T>,
-        chain: &BeaconChain<T>,
+        chain: &AttestationVerificationContext<'_, T>,
         check_signature: CheckAttestationSignature,
     ) -> Result<Self, AttestationSlashInfo<'a, T, Error>> {
         use AttestationSlashInfo::*;
@@ -1204,7 +1385,7 @@ impl<'a, T: BeaconChainTypes> VerifiedUnaggregatedAttestation<'a, T> {
 /// it's still fine to reject here because there's no need for us to handle attestations that are
 /// already finalized.
 fn verify_head_block_is_known<T: BeaconChainTypes>(
-    chain: &BeaconChain<T>,
+    chain: &AttestationVerificationContext<'_, T>,
     attestation_data: &AttestationData,
     max_skip_slots: Option<u64>,
 ) -> Result<ProtoBlock, Error> {
@@ -1304,7 +1485,7 @@ pub fn verify_propagation_slot_range<S: SlotClock, E: EthSpec>(
 
 /// Verifies that the signature of the `indexed_attestation` is valid.
 pub fn verify_attestation_signature<T: BeaconChainTypes>(
-    chain: &BeaconChain<T>,
+    chain: &AttestationVerificationContext<'_, T>,
     indexed_attestation: &IndexedAttestation<T::EthSpec>,
 ) -> Result<(), Error> {
     let signature_setup_timer =
@@ -1401,7 +1582,7 @@ pub fn verify_attestation_target_root<E: EthSpec>(
 /// - `Ok(false)`: if one or more signatures are invalid.
 /// - `Err(e)`: if there was an error preventing signature verification.
 pub fn verify_signed_aggregate_signatures<T: BeaconChainTypes>(
-    chain: &BeaconChain<T>,
+    chain: &AttestationVerificationContext<'_, T>,
     signed_aggregate: &SignedAggregateAndProof<T::EthSpec>,
     indexed_attestation: &IndexedAttestation<T::EthSpec>,
 ) -> Result<bool, Error> {
@@ -1481,7 +1662,7 @@ pub fn verify_committee_index<E: EthSpec>(
 
 fn verify_attestation_is_finalized_checkpoint_or_descendant<T: BeaconChainTypes>(
     attestation_data: &AttestationData,
-    chain: &BeaconChain<T>,
+    chain: &AttestationVerificationContext<'_, T>,
 ) -> bool {
     // If we have a split block newer than finalization then we also ban attestations which are not
     // descended from that split block. It's important not to try checking `is_descendant` if
@@ -1508,7 +1689,7 @@ type CommitteesPerSlot = u64;
 /// Returns the `indexed_attestation` and committee count per slot for the `attestation` using the
 /// public keys cached in the `chain`.
 pub fn obtain_indexed_attestation_and_committees_per_slot<T: BeaconChainTypes>(
-    chain: &BeaconChain<T>,
+    chain: &AttestationVerificationContext<'_, T>,
     attestation: AttestationRef<T::EthSpec>,
 ) -> Result<(IndexedAttestation<T::EthSpec>, CommitteesPerSlot), Error> {
     map_attestation_committees(chain, attestation, |(committees, committees_per_slot)| {
@@ -1564,7 +1745,7 @@ pub fn obtain_indexed_attestation_and_committees_per_slot<T: BeaconChainTypes>(
 ///
 /// Committees are sorted by ascending index order 0..committees_per_slot
 fn map_attestation_committees<T, F, R>(
-    chain: &BeaconChain<T>,
+    chain: &AttestationVerificationContext<'_, T>,
     attestation: AttestationRef<T::EthSpec>,
     map_fn: F,
 ) -> Result<R, Error>
