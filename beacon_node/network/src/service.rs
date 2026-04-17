@@ -400,7 +400,7 @@ impl<T: BeaconChainTypes> NetworkService<T> {
     pub fn required_gossip_fork_digests(&self) -> Vec<[u8; 4]> {
         let fork_context = &self.fork_context;
         let spec = &self.beacon_chain.spec;
-        let current_slot = self.beacon_beacon_chain::state_query::current_slot(&chain.slot_clock).unwrap_or(spec.genesis_slot);
+        let current_slot = beacon_chain::state_query::current_slot(&self.beacon_chain.slot_clock).unwrap_or(spec.genesis_slot);
         let current_epoch = current_slot.epoch(T::EthSpec::slots_per_epoch());
 
         let mut result = vec![fork_context.context_bytes(current_epoch)];
@@ -774,7 +774,7 @@ impl<T: BeaconChainTypes> NetworkService<T> {
     }
 
     fn update_gossipsub_parameters(&mut self) {
-        if let Ok(slot) = self.beacon_beacon_chain::state_query::current_slot(&chain.slot_clock) {
+        if let Ok(slot) = beacon_chain::state_query::current_slot(&self.beacon_chain.slot_clock) {
             let active_validators_opt = self
                 .beacon_chain
                 .canonical_head
