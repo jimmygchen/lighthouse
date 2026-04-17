@@ -1,25 +1,129 @@
 //! Execution layer integration and fork choice update methods.
 //!
-//! These methods are split from `beacon_chain.rs` for organization.
+//! Complex async workflows like `process_invalid_execution_payload`,
+//! `prepare_beacon_proposer`, and `update_execution_engine_forkchoice` remain
+//! as `impl BeaconChain<T>` methods because they need `self.clone()` and
+//! `self.spawn_blocking_handle()`. Non-async helpers are extracted as free
+//! functions taking an `ExecutionOrchestrationContext`.
 
 use crate::beacon_chain::{
     BeaconChainTypes, INVALID_JUSTIFIED_PAYLOAD_SHUTDOWN_REASON, OverrideForkchoiceUpdate,
     PrePayloadAttributes,
 };
+use crate::canonical_head::CanonicalHead;
+use crate::chain_config::ChainConfig;
 use crate::errors::BeaconChainError as Error;
-use crate::{BeaconChain, BeaconChainError, CachedHead, metrics};
+use crate::events::ServerSentEventHandler;
+use crate::execution_manager::ExecutionManager;
+use crate::{BeaconChain, BeaconChainError};
 use eth2::beacon_response::ForkVersionedResponse;
 use eth2::types::{EventKind, SseExtendedPayloadAttributes};
-use execution_layer::{ExecutionBlockHash, PayloadAttributes, PayloadStatus};
-use fixed_bytes::FixedBytesExtended;
+use execution_layer::{ExecutionBlockHash, ExecutionLayer, PayloadAttributes, PayloadStatus};
 use fork_choice::{ForkchoiceUpdateParameters, InvalidationOperation};
+use futures::channel::mpsc::Sender;
 use logging::crit;
-use proto_array::DoNotReOrg;
 use slot_clock::SlotClock;
 use std::sync::Arc;
-use task_executor::ShutdownReason;
-use tracing::{debug, error, info, instrument, trace, warn};
+use task_executor::{ShutdownReason, TaskExecutor};
+use tracing::{debug, error, info, warn};
 use types::*;
+
+/// Context struct providing the dependencies needed by execution orchestration
+/// free functions. Borrows from `BeaconChain<T>` fields so that helpers can be
+/// tested independently.
+pub(crate) struct ExecutionOrchestrationContext<'a, T: BeaconChainTypes> {
+    pub canonical_head: &'a CanonicalHead<T>,
+    pub execution_layer: Option<&'a ExecutionLayer<T::EthSpec>>,
+    pub execution_manager: &'a Arc<ExecutionManager<T>>,
+    pub spec: &'a ChainSpec,
+    pub slot_clock: &'a T::SlotClock,
+    pub config: &'a ChainConfig,
+    pub event_handler: Option<&'a ServerSentEventHandler<T::EthSpec>>,
+    pub shutdown_sender: &'a Sender<ShutdownReason>,
+    pub task_executor: &'a TaskExecutor,
+}
+
+impl<'a, T: BeaconChainTypes> ExecutionOrchestrationContext<'a, T> {
+    /// Construct from a `BeaconChain` reference.
+    pub fn from_chain(chain: &'a BeaconChain<T>) -> Self {
+        Self {
+            canonical_head: &chain.canonical_head,
+            execution_layer: chain.execution_layer.as_ref(),
+            execution_manager: &chain.execution_manager,
+            spec: &chain.spec,
+            slot_clock: &chain.slot_clock,
+            config: &chain.config,
+            event_handler: chain.event_handler.as_ref(),
+            shutdown_sender: &chain.shutdown_sender,
+            task_executor: &chain.task_executor,
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Free functions
+// ---------------------------------------------------------------------------
+
+/// Send a shutdown signal when the justified checkpoint is detected as invalid.
+///
+/// Returns `Err` to halt upstream processing after the shutdown is triggered.
+pub(crate) fn handle_invalid_justified_checkpoint<T: BeaconChainTypes>(
+    shutdown_sender: &mut Sender<ShutdownReason>,
+    justified_root: Hash256,
+    execution_block_hash: Option<ExecutionBlockHash>,
+) -> Result<(), Error> {
+    crit!(
+        msg = "ensure you are not connected to a malicious network. This error is not \
+        recoverable, please reach out to the lighthouse developers for assistance.",
+        "The justified checkpoint is invalid"
+    );
+
+    if let Err(e) = shutdown_sender.try_send(ShutdownReason::Failure(
+        INVALID_JUSTIFIED_PAYLOAD_SHUTDOWN_REASON,
+    )) {
+        crit!(
+            msg = "shut down may already be under way",
+            error = ?e,
+            "Unable to trigger client shut down"
+        );
+    }
+
+    Err(Error::JustifiedPayloadInvalid {
+        justified_root,
+        execution_block_hash,
+    })
+}
+
+/// Emit a `PayloadAttributes` server-sent event if there are subscribers and
+/// the required data is available.
+pub(crate) fn emit_payload_attributes_event<E: EthSpec>(
+    event_handler: Option<&ServerSentEventHandler<E>>,
+    pre_payload_attributes: &PrePayloadAttributes,
+    payload_attributes: PayloadAttributes,
+    forkchoice_update_params: &ForkchoiceUpdateParameters,
+    prepare_slot: Slot,
+    proposer: u64,
+    spec: &ChainSpec,
+) {
+    if let Some(event_handler) = event_handler
+        && event_handler.has_payload_attributes_subscribers()
+        && let Some(parent_block_number) = pre_payload_attributes.parent_block_number
+    {
+        let head_root = forkchoice_update_params.head_root;
+        event_handler.register(EventKind::PayloadAttributes(ForkVersionedResponse {
+            data: SseExtendedPayloadAttributes {
+                proposal_slot: prepare_slot,
+                proposer_index: proposer,
+                parent_block_root: head_root,
+                parent_block_number,
+                parent_block_hash: forkchoice_update_params.head_hash.unwrap_or_default(),
+                payload_attributes: payload_attributes.into(),
+            },
+            metadata: Default::default(),
+            version: spec.fork_name_at_slot::<E>(prepare_slot),
+        }));
+    }
+}
 
 impl<T: BeaconChainTypes> BeaconChain<T> {
     pub async fn process_invalid_execution_payload(
@@ -78,37 +182,21 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             .await??;
 
         if justified_block.execution_status.is_invalid() {
-            crit!(
-                msg = "ensure you are not connected to a malicious network. This error is not \
-                recoverable, please reach out to the lighthouse developers for assistance.",
-                "The justified checkpoint is invalid"
-            );
-
+            // Delegate to the free function for shutdown signalling.
             let mut shutdown_sender = self.shutdown_sender();
-            if let Err(e) = shutdown_sender.try_send(ShutdownReason::Failure(
-                INVALID_JUSTIFIED_PAYLOAD_SHUTDOWN_REASON,
-            )) {
-                crit!(
-                    msg = "shut down may already be under way",
-                    error = ?e,
-                    "Unable to trigger client shut down"
-                );
-            }
-
-            // Return an error here to try and prevent progression by upstream functions.
-            return Err(Error::JustifiedPayloadInvalid {
-                justified_root: justified_block.root,
-                execution_block_hash: justified_block.execution_status.block_hash(),
-            });
+            return handle_invalid_justified_checkpoint::<T>(
+                &mut shutdown_sender,
+                justified_block.root,
+                justified_block.execution_status.block_hash(),
+            );
         }
 
         Ok(())
     }
 
     pub fn block_is_known_to_fork_choice(&self, root: &Hash256) -> bool {
-        self.canonical_head
-            .fork_choice_read_lock()
-            .contains_block(root)
+        self.execution_manager
+            .block_is_known_to_fork_choice(&self.canonical_head, root)
     }
 
     /// Determines the beacon proposer for the next slot. If that proposer is registered in the
@@ -264,23 +352,15 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         };
 
         // Push a server-sent event (probably to a block builder or relay).
-        if let Some(event_handler) = &self.event_handler
-            && event_handler.has_payload_attributes_subscribers()
-            && let Some(parent_block_number) = pre_payload_attributes.parent_block_number
-        {
-            event_handler.register(EventKind::PayloadAttributes(ForkVersionedResponse {
-                data: SseExtendedPayloadAttributes {
-                    proposal_slot: prepare_slot,
-                    proposer_index: proposer,
-                    parent_block_root: head_root,
-                    parent_block_number,
-                    parent_block_hash: forkchoice_update_params.head_hash.unwrap_or_default(),
-                    payload_attributes: payload_attributes.into(),
-                },
-                metadata: Default::default(),
-                version: self.spec.fork_name_at_slot::<T::EthSpec>(prepare_slot),
-            }));
-        }
+        emit_payload_attributes_event(
+            self.event_handler.as_ref(),
+            &pre_payload_attributes,
+            payload_attributes,
+            &forkchoice_update_params,
+            prepare_slot,
+            proposer,
+            &self.spec,
+        );
 
         let Some(till_prepare_slot) = self.slot_clock.duration_to_slot(prepare_slot) else {
             // `SlotClock::duration_to_slot` will return `None` when we are past the start

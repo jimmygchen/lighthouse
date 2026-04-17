@@ -62,6 +62,15 @@ impl<T: BeaconChainTypes> ExecutionManager<T> {
             .is_none_or(|bellatrix| slot.epoch(T::EthSpec::slots_per_epoch()) < bellatrix)
     }
 
+    /// Returns `true` if the given block root is known to fork choice.
+    pub fn block_is_known_to_fork_choice(
+        &self,
+        canonical_head: &CanonicalHead<T>,
+        root: &Hash256,
+    ) -> bool {
+        canonical_head.fork_choice_read_lock().contains_block(root)
+    }
+
     /// Returns `Ok(true)` if the block has `ExecutionStatus::Optimistic` or `Invalid`.
     /// Returns `Ok(false)` if the block is pre-Bellatrix or has `ExecutionStatus::Valid`.
     pub fn is_optimistic_or_invalid_block<Payload: AbstractExecPayload<T::EthSpec>>(
