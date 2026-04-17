@@ -58,7 +58,7 @@ use parking_lot::{RwLock, RwLockWriteGuard};
 use slasher::Slasher;
 use slot_clock::SlotClock;
 use state_processing::ConsensusContext;
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, OnceLock, Weak};
 use std::time::Duration;
 use store::StoreOp;
 use task_executor::{RayonPoolType, ShutdownReason, TaskExecutor};
@@ -115,11 +115,11 @@ pub struct BlockImporter<T: BeaconChainTypes> {
     // Utilities.
     pub(crate) task_executor: TaskExecutor,
     pub(crate) shutdown_sender: Sender<ShutdownReason>,
-    // Strong back-reference to the parent `BeaconSystem`, installed post-construction by the
-    // builder. Retained (despite creating a reference cycle) because a number of cross-module
-    // verification helpers still take `&BeaconSystem<T>`; refactoring their signatures is
-    // out of scope for this phase. Accessed via `self.system()` inside method bodies.
-    pub(crate) system: OnceLock<Arc<BeaconSystem<T>>>,
+    // Weak back-reference to the parent `BeaconSystem`, installed post-construction by the
+    // builder. Uses `Weak` to avoid a reference cycle that would prevent cleanup in tests.
+    // Upgraded via `self.system()` inside method bodies; the upgrade never fails during the
+    // lifetime of a running beacon chain.
+    pub(crate) system: OnceLock<Weak<BeaconSystem<T>>>,
 }
 
 impl<T: BeaconChainTypes> BlockImporter<T> {
@@ -176,22 +176,22 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
         }
     }
 
-    /// Install the strong back-reference to the parent `BeaconSystem`.
+    /// Install the weak back-reference to the parent `BeaconSystem`.
     ///
     /// Must be called once by the builder after `BeaconSystem` has been wrapped in an `Arc`.
-    /// This installs a reference cycle, released only at process shutdown.
     pub fn set_system(&self, system: &Arc<BeaconSystem<T>>) {
-        let _ = self.system.set(system.clone());
+        let _ = self.system.set(Arc::downgrade(system));
     }
 
-    /// Get the strong parent reference.
+    /// Get the parent reference by upgrading the `Weak`.
     ///
-    /// Panics if the parent has not been installed yet. This indicates a programming error: the
-    /// block importer is never usable before the parent is installed.
-    pub(crate) fn system(&self) -> &Arc<BeaconSystem<T>> {
+    /// Panics if the parent has been dropped (programming error) or not installed yet.
+    pub(crate) fn system(&self) -> Arc<BeaconSystem<T>> {
         self.system
             .get()
             .expect("BlockImporter system not installed; builder bug")
+            .upgrade()
+            .expect("BeaconSystem dropped while BlockImporter still alive")
     }
 
     pub fn filter_chain_segment(
@@ -1023,7 +1023,7 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
         blobs: FixedBlobSidecarList<T::EthSpec>,
     ) -> Result<AvailabilityProcessingStatus, BlockError> {
         check_blob_header_signature_and_slashability(
-            self.system(),
+            &self.system(),
             block_root,
             blobs.iter().flatten().map(Arc::as_ref),
         )?;
@@ -1044,7 +1044,7 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
         let availability = match engine_get_blobs_output {
             EngineGetBlobsOutput::Blobs(blobs) => {
                 check_blob_header_signature_and_slashability(
-                    self.system(),
+                    &self.system(),
                     block_root,
                     blobs.iter().map(|b| b.as_blob()),
                 )?;
@@ -1054,7 +1054,7 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
             EngineGetBlobsOutput::CustodyColumns(data_columns) => {
                 // TODO(gloas) verify that this check is no longer relevant for gloas
                 check_data_column_sidecar_header_signature_and_slashability(
-                    self.system(),
+                    &self.system(),
                     block_root,
                     data_columns
                         .iter()
@@ -1082,7 +1082,7 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
     ) -> Result<AvailabilityProcessingStatus, BlockError> {
         // TODO(gloas) ensure that this check is no longer relevant post gloas
         check_data_column_sidecar_header_signature_and_slashability(
-            self.system(),
+            &self.system(),
             block_root,
             custody_columns.iter().filter_map(|c| match c.as_ref() {
                 DataColumnSidecar::Fulu(fulu) => Some(fulu),
@@ -1510,7 +1510,7 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
         if current_head_finalized_checkpoint.epoch < wss_checkpoint.epoch
             && wss_checkpoint.epoch <= new_finalized_checkpoint.epoch
             && let Err(e) = crate::beacon_components::verify_weak_subjectivity_checkpoint(
-                self.system(),
+                &self.system(),
                 wss_checkpoint,
                 block_root,
                 state,

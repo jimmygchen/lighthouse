@@ -38,7 +38,7 @@ use state_processing::{
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::marker::PhantomData;
-use std::sync::OnceLock;
+use std::sync::{OnceLock, Weak};
 use task_executor::TaskExecutor;
 use tracing::{debug, debug_span, error, info, instrument, trace, warn};
 use types::execution::BlockProductionVersion;
@@ -92,12 +92,11 @@ pub struct BlockProducer<T: BeaconChainTypes> {
     pub(crate) genesis_block_root: Hash256,
     // Utilities.
     pub(crate) task_executor: TaskExecutor,
-    // Strong back-reference to the parent `BeaconSystem`, installed post-construction by the
-    // builder. Retained (despite creating a reference cycle) because a number of cross-module
-    // helpers still take `&BeaconSystem<T>` / `Arc<BeaconSystem<T>>`; refactoring
-    // their signatures is out of scope for this phase. Accessed via `self.system()` inside
-    // method bodies.
-    pub(crate) system: OnceLock<Arc<BeaconSystem<T>>>,
+    // Weak back-reference to the parent `BeaconSystem`, installed post-construction by the
+    // builder. Uses `Weak` to avoid a reference cycle that would prevent cleanup in tests.
+    // Upgraded via `self.system()` inside method bodies; the upgrade never fails during the
+    // lifetime of a running beacon chain.
+    pub(crate) system: OnceLock<Weak<BeaconSystem<T>>>,
 }
 
 impl<T: BeaconChainTypes> BlockProducer<T> {
@@ -140,22 +139,22 @@ impl<T: BeaconChainTypes> BlockProducer<T> {
         }
     }
 
-    /// Install the strong back-reference to the parent `BeaconSystem`.
+    /// Install the weak back-reference to the parent `BeaconSystem`.
     ///
     /// Must be called once by the builder after `BeaconSystem` has been wrapped in an `Arc`.
-    /// This installs a reference cycle, released only at process shutdown.
     pub fn set_system(&self, system: &Arc<BeaconSystem<T>>) {
-        let _ = self.system.set(system.clone());
+        let _ = self.system.set(Arc::downgrade(system));
     }
 
-    /// Get the strong parent reference.
+    /// Get the parent reference by upgrading the `Weak`.
     ///
-    /// Panics if the parent has not been installed yet. This indicates a programming error: the
-    /// block producer is never usable before the parent is installed.
-    pub(crate) fn system(&self) -> &Arc<BeaconSystem<T>> {
+    /// Panics if the parent has been dropped (programming error) or not installed yet.
+    pub(crate) fn system(&self) -> Arc<BeaconSystem<T>> {
         self.system
             .get()
             .expect("BlockProducer system not installed; builder bug")
+            .upgrade()
+            .expect("BeaconSystem dropped while BlockProducer still alive")
     }
 
     /// Check if the block with `block_root` was observed after the attestation deadline of `slot`.
