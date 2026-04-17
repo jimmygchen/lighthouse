@@ -66,9 +66,7 @@ Builder (startup)
   │
   ├── ExecutionManager ───── Arc ──── HTTP API Context
   │
-  ├── ValidatorQueryService ─ Arc ── HTTP API Context
-  │
-  └── BlockImportState ───── Arc ──── NetworkBeaconProcessor
+  └── ValidatorQueryService ─ Arc ── HTTP API Context
 ```
 
 Callers are bags of refs — they hold dependencies but don't implement
@@ -186,16 +184,13 @@ access for persistence. This is a known exception to the general pattern.
 
 **Holds:** `spec`
 
-### `BlockImportState<E: EthSpec>`
-
-Block import caches and observation tracking. Used by the composed
-block import workflow function — not an orchestrator.
-
-**Owns:** `block_times_cache`, `envelope_times_cache`,
-`pre_finalization_block_cache`, `observed_block_producers`,
-`observed_slashable`
-
 ### Unmapped fields
+
+Block import caches (`block_times_cache`, `envelope_times_cache`,
+`pre_finalization_block_cache`, `observed_block_producers`,
+`observed_slashable`) remain on `BeaconChain` directly. They are
+tightly coupled to `block_import_methods.rs` and `canonical_head.rs`,
+which access them through `&self`/`&chain`.
 
 Several `BeaconChain<T>` fields don't have a clear home in the above
 components and need further design work:
@@ -377,7 +372,6 @@ struct NetworkBeaconProcessor<T: BeaconChainTypes> {
     attestations:      Arc<AttestationManager<T::EthSpec>>,
     sync_committee:    Arc<SyncCommitteeManager<T::EthSpec>>,
     data_availability: Arc<DataAvailabilityManager<T>>,
-    block_import:      Arc<BlockImportState<T::EthSpec>>,
     canonical_head:    Arc<CanonicalHead<T>>,
     slot_clock:        T::SlotClock,
     event_handler:     Option<ServerSentEventHandler<T::EthSpec>>,

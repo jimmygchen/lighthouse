@@ -372,6 +372,10 @@ pub struct BeaconChain<T: BeaconChainTypes> {
     pub slot_clock: T::SlotClock,
     /// Stores all operations (e.g., `Attestation`, `Deposit`, etc) that are candidates for
     /// inclusion in a block.
+    ///
+    /// Shared `Arc` also held by `OperationsManager` and `SyncCommitteeManager`.
+    /// New code should prefer accessing through those components; this top-level
+    /// field exists for callers not yet migrated.
     pub op_pool: Arc<OperationPool<T::EthSpec>>,
     /// Manages attestation pools, observation tracking, and shuffling caches.
     pub attestation_manager: AttestationManager<T::EthSpec>,
@@ -393,6 +397,10 @@ pub struct BeaconChain<T: BeaconChainTypes> {
     /// Envelopes are stored here during block production and eventually published.
     pub pending_payload_envelopes: RwLock<PendingPayloadEnvelopes<T::EthSpec>>,
     /// Interfaces with the execution client.
+    ///
+    /// Also held by `ExecutionManager`. New code should prefer
+    /// `execution_manager.execution_layer()`; this field exists for callers not
+    /// yet migrated.
     pub execution_layer: Option<ExecutionLayer<T::EthSpec>>,
     /// Stores information about the canonical head and finalized/justified checkpoints of the
     /// chain. Also contains the fork choice struct, for computing the canonical head.
@@ -413,6 +421,10 @@ pub struct BeaconChain<T: BeaconChainTypes> {
     /// HTTP server is enabled.
     pub event_handler: Option<ServerSentEventHandler<T::EthSpec>>,
     /// Caches the beacon block proposer shuffling for a given epoch and shuffling key root.
+    ///
+    /// Shared `Arc` also held by `ExecutionManager`. New code should prefer
+    /// `execution_manager.with_proposer_cache()`; this field exists for callers
+    /// not yet migrated.
     pub beacon_proposer_cache: Arc<Mutex<BeaconProposerCache>>,
     /// Handles validator public key and index lookups.
     pub validator_query: ValidatorQueryService<T>,
@@ -443,8 +455,16 @@ pub struct BeaconChain<T: BeaconChainTypes> {
     pub genesis_backfill_slot: Slot,
     /// Provides a KZG verification and temporary storage for blocks and blobs as
     /// they are collected and combined.
+    ///
+    /// Shared `Arc` also held by `DataAvailabilityManager`. New code should
+    /// prefer accessing through `data_availability_manager`; this field exists
+    /// for callers not yet migrated.
     pub data_availability_checker: Arc<DataAvailabilityChecker<T>>,
     /// The KZG trusted setup used by this chain.
+    ///
+    /// Shared `Arc` also held by `DataAvailabilityManager`. New code should
+    /// prefer accessing through `data_availability_manager`; this field exists
+    /// for callers not yet migrated.
     pub kzg: Arc<Kzg>,
     /// RNG instance used by the chain. Currently used for shuffling column sidecars in block publishing.
     pub rng: Arc<Mutex<Box<dyn RngCore + Send>>>,
@@ -597,410 +617,11 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         Ok(())
     }
 
-    /// Returns the slot _right now_ according to `self.slot_clock`. Returns `Err` if the slot is
-    /// unavailable.
-    pub fn slot(&self) -> Result<Slot, Error> {
-        self.slot_clock.now().ok_or(Error::UnableToReadSlot)
-    }
-
-    /// Returns the epoch _right now_ according to `self.slot_clock`. Returns `Err` if the epoch is
-    /// unavailable.
-    pub fn epoch(&self) -> Result<Epoch, Error> {
-        self.slot()
-            .map(|slot| slot.epoch(T::EthSpec::slots_per_epoch()))
-    }
-
-    /// Iterates across all `(block_root, slot)` pairs from `start_slot`
-    /// to the head of the chain (inclusive).
-    ///
-    /// ## Notes
-    ///
-    /// - `slot` always increases by `1`.
-    /// - Skipped slots contain the root of the closest prior
-    ///   non-skipped slot (identical to the way they are stored in `state.block_roots`).
-    /// - Iterator returns `(Hash256, Slot)`.
-    ///
-    /// Will return a `BlockOutOfRange` error if the requested start slot is before the period of
-    /// history for which we have blocks stored. See `get_oldest_block_slot`.
-    pub fn forwards_iter_block_roots(
-        &self,
-        start_slot: Slot,
-    ) -> Result<impl Iterator<Item = Result<(Hash256, Slot), Error>> + '_, Error> {
-        let oldest_block_slot = self.store.get_oldest_block_slot();
-        if start_slot < oldest_block_slot {
-            return Err(Error::HistoricalBlockOutOfRange {
-                slot: start_slot,
-                oldest_block_slot,
-            });
-        }
-
-        let local_head = self.head_snapshot();
-
-        let iter = self.store.forwards_block_roots_iterator(
-            start_slot,
-            local_head.beacon_state.clone(),
-            local_head.beacon_block_root,
-        )?;
-
-        Ok(iter.map(|result| result.map_err(Into::into)))
-    }
-
-    /// Even more efficient variant of `forwards_iter_block_roots` that will avoid cloning the head
-    /// state if it isn't required for the requested range of blocks.
-    /// The range [start_slot, end_slot] is inclusive (ie `start_slot <= end_slot`)
-    pub fn forwards_iter_block_roots_until(
-        &self,
-        start_slot: Slot,
-        end_slot: Slot,
-    ) -> Result<impl Iterator<Item = Result<(Hash256, Slot), Error>> + '_, Error> {
-        let oldest_block_slot = self.store.get_oldest_block_slot();
-        if start_slot < oldest_block_slot {
-            return Err(Error::HistoricalBlockOutOfRange {
-                slot: start_slot,
-                oldest_block_slot,
-            });
-        }
-
-        self.with_head(move |head| {
-            let iter =
-                self.store
-                    .forwards_block_roots_iterator_until(start_slot, end_slot, || {
-                        Ok((head.beacon_state.clone(), head.beacon_block_root))
-                    })?;
-            Ok(iter
-                .map(|result| result.map_err(Into::into))
-                .take_while(move |result| {
-                    result.as_ref().map_or(true, |(_, slot)| *slot <= end_slot)
-                }))
-        })
-    }
-
-    /// Traverse backwards from `block_root` to find the block roots of its ancestors.
-    ///
-    /// ## Notes
-    ///
-    /// - `slot` always decreases by `1`.
-    /// - Skipped slots contain the root of the closest prior
-    ///   non-skipped slot (identical to the way they are stored in `state.block_roots`) .
-    /// - Iterator returns `(Hash256, Slot)`.
-    /// - The provided `block_root` is included as the first item in the iterator.
-    pub fn rev_iter_block_roots_from(
-        &self,
-        block_root: Hash256,
-    ) -> Result<impl Iterator<Item = Result<(Hash256, Slot), Error>> + '_, Error> {
-        let block = self
-            .store
-            .get_blinded_block(&block_root)?
-            .ok_or(Error::MissingBeaconBlock(block_root))?;
-        // This method is only used in tests, so we may as well cache states to make CI go brr.
-        // TODO(release-v7) move this method out of beacon chain and into `store_tests`` or something equivalent.
-        let state = self
-            .store
-            .get_state(&block.state_root(), Some(block.slot()), true)?
-            .ok_or_else(|| Error::MissingBeaconState(block.state_root()))?;
-        let iter = BlockRootsIterator::owned(&self.store, state);
-        Ok(std::iter::once(Ok((block_root, block.slot())))
-            .chain(iter)
-            .map(|result| result.map_err(|e| e.into())))
-    }
-
-    /// Iterates backwards across all `(state_root, slot)` pairs starting from
-    /// an arbitrary `BeaconState` to the earliest reachable ancestor (may or may not be genesis).
-    ///
-    /// ## Notes
-    ///
-    /// - `slot` always decreases by `1`.
-    /// - Iterator returns `(Hash256, Slot)`.
-    /// - As this iterator starts at the `head` of the chain (viz., the best block), the first slot
-    ///   returned may be earlier than the wall-clock slot.
-    pub fn rev_iter_state_roots_from<'a>(
-        &'a self,
-        state_root: Hash256,
-        state: &'a BeaconState<T::EthSpec>,
-    ) -> impl Iterator<Item = Result<(Hash256, Slot), Error>> + 'a {
-        std::iter::once(Ok((state_root, state.slot())))
-            .chain(StateRootsIterator::new(&self.store, state))
-            .map(|result| result.map_err(Into::into))
-    }
-
-    /// Iterates across all `(state_root, slot)` pairs from `start_slot`
-    /// to the head of the chain (inclusive).
-    ///
-    /// ## Notes
-    ///
-    /// - `slot` always increases by `1`.
-    /// - Iterator returns `(Hash256, Slot)`.
-    pub fn forwards_iter_state_roots(
-        &self,
-        start_slot: Slot,
-    ) -> Result<impl Iterator<Item = Result<(Hash256, Slot), Error>> + '_, Error> {
-        let local_head = self.head_snapshot();
-
-        let iter = self.store.forwards_state_roots_iterator(
-            start_slot,
-            local_head.beacon_state_root(),
-            local_head.beacon_state.clone(),
-        )?;
-
-        Ok(iter.map(|result| result.map_err(Into::into)))
-    }
-
-    /// Super-efficient forwards state roots iterator that avoids cloning the head if the state
-    /// roots lie entirely within the freezer database.
-    ///
-    /// The iterator returned will include roots for `start_slot..=end_slot`, i.e.  it
-    /// is endpoint inclusive.
-    pub fn forwards_iter_state_roots_until(
-        &self,
-        start_slot: Slot,
-        end_slot: Slot,
-    ) -> Result<impl Iterator<Item = Result<(Hash256, Slot), Error>> + '_, Error> {
-        self.with_head(move |head| {
-            let iter =
-                self.store
-                    .forwards_state_roots_iterator_until(start_slot, end_slot, || {
-                        Ok((head.beacon_state.clone(), head.beacon_state_root()))
-                    })?;
-            Ok(iter
-                .map(|result| result.map_err(Into::into))
-                .take_while(move |result| {
-                    result.as_ref().map_or(true, |(_, slot)| *slot <= end_slot)
-                }))
-        })
-    }
-
-    /// Returns the block at the given slot, if any. Only returns blocks in the canonical chain.
-    ///
-    /// Use the `skips` parameter to define the behaviour when `request_slot` is a skipped slot.
-    ///
-    /// ## Errors
-    ///
-    /// May return a database error.
-    pub fn block_at_slot(
-        &self,
-        request_slot: Slot,
-        skips: WhenSlotSkipped,
-    ) -> Result<Option<SignedBlindedBeaconBlock<T::EthSpec>>, Error> {
-        let root = self.block_root_at_slot(request_slot, skips)?;
-
-        if let Some(block_root) = root {
-            Ok(self.store.get_blinded_block(&block_root)?)
-        } else {
-            Ok(None)
-        }
-    }
-
-    /// Returns the state root at the given slot, if any. Only returns state roots in the canonical chain.
-    ///
-    /// ## Errors
-    ///
-    /// May return a database error.
-    pub fn state_root_at_slot(&self, request_slot: Slot) -> Result<Option<Hash256>, Error> {
-        if request_slot == self.spec.genesis_slot {
-            return Ok(Some(self.genesis_state_root));
-        } else if request_slot > self.slot_clock.now().ok_or(Error::UnableToReadSlot)? {
-            return Ok(None);
-        }
-
-        // Check limits w.r.t historic state bounds.
-        let (historic_lower_limit, historic_upper_limit) = self.store.get_historic_state_limits();
-        if request_slot > historic_lower_limit && request_slot < historic_upper_limit {
-            return Ok(None);
-        }
-
-        // Fast-path for the split slot (which usually corresponds to the finalized slot).
-        // Post-Gloas, the split state root is always the Pending root but the canonical state root
-        // at the finalized slot may be the Full root (from the state_roots vector). Skip the
-        // fast-path for Gloas to ensure consistency with the forwards state root iterator.
-        // TODO(gloas): revisit this if spec changes to finalize payload status.
-        let split = self.store.get_split_info();
-        if request_slot == split.slot
-            && !self
-                .spec
-                .fork_name_at_slot::<T::EthSpec>(split.slot)
-                .gloas_enabled()
-        {
-            return Ok(Some(split.state_root));
-        }
-
-        // Try an optimized path of reading the root directly from the head state.
-        let fast_lookup: Option<Hash256> = self.with_head(|head| {
-            if head.beacon_block.slot() <= request_slot {
-                // Return the head state root if all slots between the request and the head are skipped.
-                Ok(Some(head.beacon_state_root()))
-            } else if let Ok(root) = head.beacon_state.get_state_root(request_slot) {
-                // Return the root if it's easily accessible from the head state.
-                Ok(Some(*root))
-            } else {
-                // Fast lookup is not possible.
-                Ok::<_, Error>(None)
-            }
-        })?;
-
-        if let Some(root) = fast_lookup {
-            return Ok(Some(root));
-        }
-
-        process_results(
-            self.forwards_iter_state_roots_until(request_slot, request_slot)?,
-            |mut iter| {
-                if let Some((root, slot)) = iter.next() {
-                    if slot == request_slot {
-                        Ok(Some(root))
-                    } else {
-                        // Sanity check.
-                        Err(Error::InconsistentForwardsIter { request_slot, slot })
-                    }
-                } else {
-                    Ok(None)
-                }
-            },
-        )?
-    }
-
-    /// Returns the block root at the given slot, if any. Only returns roots in the canonical chain.
-    ///
-    /// ## Notes
-    ///
-    /// - Use the `skips` parameter to define the behaviour when `request_slot` is a skipped slot.
-    /// - Returns `Ok(None)` for any slot higher than the current wall-clock slot, or less than
-    ///   the oldest known block slot.
-    pub fn block_root_at_slot(
-        &self,
-        request_slot: Slot,
-        skips: WhenSlotSkipped,
-    ) -> Result<Option<Hash256>, Error> {
-        match skips {
-            WhenSlotSkipped::None => self.block_root_at_slot_skips_none(request_slot),
-            WhenSlotSkipped::Prev => self.block_root_at_slot_skips_prev(request_slot),
-        }
-        .or_else(|e| match e {
-            Error::HistoricalBlockOutOfRange { .. } => Ok(None),
-            e => Err(e),
-        })
-    }
-
-    /// Returns the block root at the given slot, if any. Only returns roots in the canonical chain.
-    ///
-    /// ## Notes
-    ///
-    /// - Returns `Ok(None)` if the given `Slot` was skipped.
-    /// - Returns `Ok(None)` for any slot higher than the current wall-clock slot.
-    ///
-    /// ## Errors
-    ///
-    /// May return a database error.
-    fn block_root_at_slot_skips_none(&self, request_slot: Slot) -> Result<Option<Hash256>, Error> {
-        if request_slot == self.spec.genesis_slot {
-            return Ok(Some(self.genesis_block_root));
-        } else if request_slot > self.slot_clock.now().ok_or(Error::UnableToReadSlot)? {
-            return Ok(None);
-        }
-
-        let prev_slot = request_slot.saturating_sub(1_u64);
-
-        // Try an optimized path of reading the root directly from the head state.
-        let fast_lookup: Option<Option<Hash256>> = self.with_head(|head| {
-            let state = &head.beacon_state;
-
-            // Try find the root for the `request_slot`.
-            let request_root_opt = match state.slot().cmp(&request_slot) {
-                // It's always a skip slot if the head is less than the request slot, return early.
-                Ordering::Less => return Ok(Some(None)),
-                // The request slot is the head slot.
-                Ordering::Equal => Some(head.beacon_block_root),
-                // Try find the request slot in the state.
-                Ordering::Greater => state.get_block_root(request_slot).ok().copied(),
-            };
-
-            if let Some(request_root) = request_root_opt
-                && let Ok(prev_root) = state.get_block_root(prev_slot)
-            {
-                return Ok(Some((*prev_root != request_root).then_some(request_root)));
-            }
-
-            // Fast lookup is not possible.
-            Ok::<_, Error>(None)
-        })?;
-        if let Some(root_opt) = fast_lookup {
-            return Ok(root_opt);
-        }
-
-        // Do not try to access the previous slot if it's older than the oldest block root
-        // stored in the database. Instead, load just the block root at `oldest_block_slot`,
-        // under the assumption that the `oldest_block_slot` *is not* a skipped slot (should be
-        // true because it is set by the oldest *block*).
-        if request_slot == self.store.get_anchor_info().oldest_block_slot {
-            return self.block_root_at_slot_skips_prev(request_slot);
-        }
-
-        if let Some(((prev_root, _), (curr_root, curr_slot))) = process_results(
-            self.forwards_iter_block_roots_until(prev_slot, request_slot)?,
-            |iter| iter.tuple_windows().next(),
-        )? {
-            // Sanity check.
-            if curr_slot != request_slot {
-                return Err(Error::InconsistentForwardsIter {
-                    request_slot,
-                    slot: curr_slot,
-                });
-            }
-            Ok((curr_root != prev_root).then_some(curr_root))
-        } else {
-            Ok(None)
-        }
-    }
-
-    /// Returns the block root at the given slot, if any. Only returns roots in the canonical chain.
-    ///
-    /// ## Notes
-    ///
-    /// - Returns the root at the previous non-skipped slot if the given `Slot` was skipped.
-    /// - Returns `Ok(None)` for any slot higher than the current wall-clock slot.
-    ///
-    /// ## Errors
-    ///
-    /// May return a database error.
-    fn block_root_at_slot_skips_prev(&self, request_slot: Slot) -> Result<Option<Hash256>, Error> {
-        if request_slot == self.spec.genesis_slot {
-            return Ok(Some(self.genesis_block_root));
-        } else if request_slot > self.slot_clock.now().ok_or(Error::UnableToReadSlot)? {
-            return Ok(None);
-        }
-
-        // Try an optimized path of reading the root directly from the head state.
-        let fast_lookup: Option<Hash256> = self.with_head(|head| {
-            if head.beacon_block.slot() <= request_slot {
-                // Return the head root if all slots between the request and the head are skipped.
-                Ok(Some(head.beacon_block_root))
-            } else if let Ok(root) = head.beacon_state.get_block_root(request_slot) {
-                // Return the root if it's easily accessible from the head state.
-                Ok(Some(*root))
-            } else {
-                // Fast lookup is not possible.
-                Ok::<_, Error>(None)
-            }
-        })?;
-        if let Some(root) = fast_lookup {
-            return Ok(Some(root));
-        }
-
-        process_results(
-            self.forwards_iter_block_roots_until(request_slot, request_slot)?,
-            |mut iter| {
-                if let Some((root, slot)) = iter.next() {
-                    if slot == request_slot {
-                        Ok(Some(root))
-                    } else {
-                        // Sanity check.
-                        Err(Error::InconsistentForwardsIter { request_slot, slot })
-                    }
-                } else {
-                    Ok(None)
-                }
-            },
-        )?
-    }
+    // -----------------------------------------------------------------------
+    // State query methods: delegated to `state_query` free functions.
+    // See `state_query.rs` for implementations and `impl BeaconChain<T>`
+    // thin delegations.
+    // -----------------------------------------------------------------------
 
     /// Returns the block at the given root, if any.
     ///
@@ -1239,110 +860,6 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             .iter()
             .map(|node| (node.root(), node.slot()))
             .collect()
-    }
-
-    /// Returns the `BeaconState` at the given slot.
-    ///
-    /// Returns `None` when the state is not found in the database or there is an error skipping
-    /// to a future state.
-    #[instrument(level = "debug", skip_all)]
-    pub fn state_at_slot(
-        &self,
-        slot: Slot,
-        config: StateSkipConfig,
-    ) -> Result<BeaconState<T::EthSpec>, Error> {
-        let head_state = self.head_beacon_state_cloned();
-
-        match slot.cmp(&head_state.slot()) {
-            Ordering::Equal => Ok(head_state),
-            Ordering::Greater => {
-                if slot > head_state.slot() + T::EthSpec::slots_per_epoch() {
-                    warn!(
-                        head_slot = %head_state.slot(),
-                        request_slot = %slot,
-                        "Skipping more than an epoch"
-                    )
-                }
-
-                let head_state_slot = head_state.slot();
-                let mut state = head_state;
-
-                let skip_state_root = match config {
-                    StateSkipConfig::WithStateRoots => None,
-                    StateSkipConfig::WithoutStateRoots => Some(Hash256::zero()),
-                };
-
-                while state.slot() < slot {
-                    // Note: supplying some `state_root` when it is known would be a cheap and easy
-                    // optimization.
-                    match per_slot_processing(&mut state, skip_state_root, &self.spec) {
-                        Ok(_) => (),
-                        Err(e) => {
-                            warn!(
-                                error = ?e,
-                                head_slot= %head_state_slot,
-                                requested_slot = %slot,
-                                "Unable to load state at slot"
-                            );
-                            return Err(Error::NoStateForSlot(slot));
-                        }
-                    };
-                }
-                Ok(state)
-            }
-            Ordering::Less => {
-                let state_root =
-                    process_results(self.forwards_iter_state_roots_until(slot, slot)?, |iter| {
-                        iter.take_while(|(_, current_slot)| *current_slot >= slot)
-                            .find(|(_, current_slot)| *current_slot == slot)
-                            .map(|(root, _slot)| root)
-                    })?
-                    .ok_or(Error::NoStateForSlot(slot))?;
-
-                // This branch is mostly reached from the HTTP API when doing analysis, or in niche
-                // situations when producing a block. In the HTTP API case we assume the user wants
-                // to cache states so that future calls are faster, and that if the cache is
-                // struggling due to non-finality that they will dial down inessential calls. In the
-                // block proposal case we want to cache the state so that we can process the block
-                // quickly after it has been signed.
-                Ok(self
-                    .store
-                    .get_state(&state_root, Some(slot), true)?
-                    .ok_or(Error::NoStateForSlot(slot))?)
-            }
-        }
-    }
-
-    /// Returns the `BeaconState` at the current slot (viz., `self.slot()`).
-    ///
-    ///  - A reference to the head state (note: this keeps a read lock on the head, try to use
-    ///    sparingly).
-    ///  - The head state, but with skipped slots (for states later than the head).
-    ///
-    ///  Returns `None` when there is an error skipping to a future state or the slot clock cannot
-    ///  be read.
-    pub fn wall_clock_state(&self) -> Result<BeaconState<T::EthSpec>, Error> {
-        self.state_at_slot(self.slot()?, StateSkipConfig::WithStateRoots)
-    }
-
-    /// Returns the block canonical root of the current canonical chain at a given slot, starting from the given state.
-    ///
-    /// Returns `None` if the given slot doesn't exist in the chain.
-    pub fn root_at_slot_from_state(
-        &self,
-        target_slot: Slot,
-        beacon_block_root: Hash256,
-        state: &BeaconState<T::EthSpec>,
-    ) -> Result<Option<Hash256>, Error> {
-        let iter = BlockRootsIterator::new(&self.store, state);
-        let iter_with_head = std::iter::once(Ok((beacon_block_root, state.slot())))
-            .chain(iter)
-            .map(|result| result.map_err(|e| e.into()));
-
-        process_results(iter_with_head, |mut iter| {
-            iter.find(|(_, slot)| *slot == target_slot)
-                .map(|(root, _)| root)
-        })
     }
 
     /// Returns the attestation duties for the given validator indices using the shuffling cache.
