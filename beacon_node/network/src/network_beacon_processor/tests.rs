@@ -17,7 +17,7 @@ use beacon_chain::test_utils::{
     AttestationStrategy, BeaconChainHarness, BlockStrategy, EphemeralHarnessType, get_kzg,
     test_spec,
 };
-use beacon_chain::{BeaconChain, WhenSlotSkipped};
+use beacon_chain::{BeaconComponents, WhenSlotSkipped};
 use beacon_processor::{work_reprocessing_queue::*, *};
 use bls::Signature;
 use fixed_bytes::FixedBytesExtended;
@@ -68,7 +68,7 @@ const STANDARD_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// Provides utilities for testing the `BeaconProcessor`.
 struct TestRig {
-    chain: Arc<BeaconChain<T>>,
+    chain: Arc<BeaconComponents<T>>,
     next_block: Arc<SignedBeaconBlock<E>>,
     next_blobs: Option<BlobSidecarList<E>>,
     next_data_columns: Option<DataColumnSidecarList<E>>,

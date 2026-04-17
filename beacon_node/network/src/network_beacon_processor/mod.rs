@@ -7,7 +7,7 @@ use beacon_chain::data_column_verification::{GossipDataColumnError, observe_goss
 use beacon_chain::fetch_blobs::{
     EngineGetBlobsOutput, FetchEngineBlobError, fetch_and_process_engine_blobs,
 };
-use beacon_chain::{AvailabilityProcessingStatus, BeaconChain, BeaconChainTypes, BlockError};
+use beacon_chain::{AvailabilityProcessingStatus, BeaconChainTypes, BeaconComponents, BlockError};
 use beacon_processor::{
     BeaconProcessorSend, DuplicateCache, GossipAggregatePackage, GossipAttestationPackage, Work,
     WorkEvent as BeaconWorkEvent,
@@ -57,7 +57,7 @@ pub enum InvalidBlockStorage {
 pub struct NetworkBeaconProcessor<T: BeaconChainTypes> {
     pub beacon_processor_send: BeaconProcessorSend<T::EthSpec>,
     pub duplicate_cache: DuplicateCache,
-    pub chain: Arc<BeaconChain<T>>,
+    pub chain: Arc<BeaconComponents<T>>,
     pub network_tx: mpsc::UnboundedSender<NetworkMessage<T::EthSpec>>,
     pub sync_tx: mpsc::UnboundedSender<SyncMessage<T::EthSpec>>,
     pub network_globals: Arc<NetworkGlobals<T::EthSpec>>,
@@ -1206,7 +1206,7 @@ impl<E: EthSpec> NetworkBeaconProcessor<TestBeaconChainType<E>> {
     pub fn null_for_testing(
         network_globals: Arc<NetworkGlobals<E>>,
         sync_tx: UnboundedSender<SyncMessage<E>>,
-        chain: Arc<BeaconChain<TestBeaconChainType<E>>>,
+        chain: Arc<BeaconComponents<TestBeaconChainType<E>>>,
         executor: TaskExecutor,
     ) -> (Self, mpsc::Receiver<BeaconWorkEvent<E>>) {
         let BeaconProcessorChannels {

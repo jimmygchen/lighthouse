@@ -5,7 +5,7 @@ use beacon_chain::naive_aggregation_pool::Error as NaiveAggregationError;
 use beacon_chain::sync_committee_verification::{
     Error as SyncVerificationError, VerifiedSyncCommitteeMessage,
 };
-use beacon_chain::{BeaconChain, BeaconChainError, BeaconChainTypes, StateSkipConfig};
+use beacon_chain::{BeaconChainError, BeaconChainTypes, BeaconComponents, StateSkipConfig};
 use eth2::types::{self as api_types};
 use lighthouse_network::PubsubMessage;
 use network::NetworkMessage;
@@ -26,7 +26,7 @@ type SyncDuties = api_types::ExecutionOptimisticResponse<Vec<SyncDuty>>;
 pub fn sync_committee_duties<T: BeaconChainTypes>(
     request_epoch: Epoch,
     request_indices: &[u64],
-    chain: &BeaconChain<T>,
+    chain: &BeaconComponents<T>,
 ) -> Result<SyncDuties, warp::reject::Rejection> {
     let Some(altair_fork_epoch) = chain.spec.altair_fork_epoch else {
         // Empty response for networks with Altair disabled.
@@ -84,7 +84,7 @@ fn duties_from_state_load<T: BeaconChainTypes>(
     request_epoch: Epoch,
     request_indices: &[u64],
     altair_fork_epoch: Epoch,
-    chain: &BeaconChain<T>,
+    chain: &BeaconComponents<T>,
 ) -> Result<Vec<Result<Option<SyncDuty>, BeaconStateError>>, Box<BeaconChainError>> {
     // Determine what the current epoch would be if we fast-forward our system clock by
     // `MAXIMUM_GOSSIP_CLOCK_DISPARITY`.
@@ -150,7 +150,7 @@ fn duties_from_state_load<T: BeaconChainTypes>(
 fn verify_unknown_validators<T: BeaconChainTypes>(
     duties: Vec<Result<Option<SyncDuty>, BeaconStateError>>,
     request_epoch: Epoch,
-    chain: &BeaconChain<T>,
+    chain: &BeaconComponents<T>,
 ) -> Result<Vec<Option<SyncDuty>>, warp::reject::Rejection> {
     // Lazily load the request_epoch_state, as it is only needed if there are any UnknownValidator
     let mut request_epoch_state = None;
@@ -200,7 +200,7 @@ fn convert_to_response(duties: Vec<Option<SyncDuty>>, execution_optimistic: bool
 pub fn process_sync_committee_signatures<T: BeaconChainTypes>(
     sync_committee_signatures: Vec<SyncCommitteeMessage>,
     network_tx: UnboundedSender<NetworkMessage<T::EthSpec>>,
-    chain: &BeaconChain<T>,
+    chain: &BeaconComponents<T>,
 ) -> Result<(), warp::reject::Rejection> {
     let mut failures = vec![];
 
@@ -325,7 +325,7 @@ pub fn process_sync_committee_signatures<T: BeaconChainTypes>(
 /// Get the set of all subnet assignments for a `SyncCommitteeMessage`.
 pub fn get_subnet_positions_for_sync_committee_message<T: BeaconChainTypes>(
     sync_message: &SyncCommitteeMessage,
-    chain: &BeaconChain<T>,
+    chain: &BeaconComponents<T>,
 ) -> Result<HashMap<SyncSubnetId, Vec<usize>>, SyncVerificationError> {
     let pubkey = chain
         .validator_query
@@ -359,7 +359,7 @@ pub fn get_subnet_positions_for_sync_committee_message<T: BeaconChainTypes>(
 pub fn process_signed_contribution_and_proofs<T: BeaconChainTypes>(
     signed_contribution_and_proofs: Vec<SignedContributionAndProof<T::EthSpec>>,
     network_tx: UnboundedSender<NetworkMessage<T::EthSpec>>,
-    chain: &BeaconChain<T>,
+    chain: &BeaconComponents<T>,
 ) -> Result<(), warp::reject::Rejection> {
     let mut verified_contributions = Vec::with_capacity(signed_contribution_and_proofs.len());
     let mut failures = vec![];
@@ -520,7 +520,7 @@ pub fn process_signed_contribution_and_proofs<T: BeaconChainTypes>(
 /// Inlined from the `BeaconChain::add_to_naive_sync_aggregation_pool` delegation wrapper
 /// following the caller-DI pattern: the caller accesses the pool directly.
 fn add_to_naive_sync_aggregation_pool<T: BeaconChainTypes>(
-    chain: &BeaconChain<T>,
+    chain: &BeaconComponents<T>,
     verified: VerifiedSyncCommitteeMessage,
 ) -> Result<VerifiedSyncCommitteeMessage, SyncVerificationError> {
     let sync_message = verified.sync_message();

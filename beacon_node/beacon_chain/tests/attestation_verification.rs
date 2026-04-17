@@ -7,7 +7,7 @@ use beacon_chain::attestation_verification::{
 use beacon_chain::observed_aggregates::ObservedAttestationKey;
 use beacon_chain::test_utils::{HARNESS_GENESIS_TIME, MakeAttestationOptions};
 use beacon_chain::{
-    BeaconChain, BeaconChainError, BeaconChainTypes, ChainConfig, WhenSlotSkipped,
+    BeaconChainError, BeaconChainTypes, BeaconComponents, ChainConfig, WhenSlotSkipped,
     attestation_verification::Error as AttnError,
     test_utils::{
         AttestationStrategy, BeaconChainHarness, BlockStrategy, EphemeralHarnessType,
@@ -119,7 +119,7 @@ fn get_harness_capella_spec(
 ///
 /// Also returns some info about who created it.
 fn get_valid_unaggregated_attestation<T: BeaconChainTypes>(
-    chain: &BeaconChain<T>,
+    chain: &BeaconComponents<T>,
 ) -> (SingleAttestation, SecretKey, SubnetId) {
     let head = chain.canonical_head.head_snapshot();
     let current_slot = chain.slot().expect("should get slot");
@@ -181,7 +181,7 @@ fn get_valid_unaggregated_attestation<T: BeaconChainTypes>(
 }
 
 fn get_valid_aggregated_attestation<T: BeaconChainTypes>(
-    chain: &BeaconChain<T>,
+    chain: &BeaconComponents<T>,
     aggregate: Attestation<T::EthSpec>,
 ) -> (SignedAggregateAndProof<T::EthSpec>, usize, SecretKey) {
     let head = chain.canonical_head.head_snapshot();
@@ -236,7 +236,7 @@ fn get_valid_aggregated_attestation<T: BeaconChainTypes>(
 /// Returns a proof and index for a validator that is **not** an aggregator for the given
 /// attestation.
 fn get_non_aggregator<T: BeaconChainTypes>(
-    chain: &BeaconChain<T>,
+    chain: &BeaconComponents<T>,
     aggregate: AttestationRef<T::EthSpec>,
 ) -> (usize, SecretKey) {
     let head = chain.canonical_head.head_snapshot();

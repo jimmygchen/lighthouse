@@ -1,4 +1,4 @@
-use beacon_chain::{BeaconChain, BeaconChainTypes, LightClientProducerEvent};
+use beacon_chain::{BeaconChainTypes, BeaconComponents, LightClientProducerEvent};
 use beacon_processor::work_reprocessing_queue::ReprocessQueueMessage;
 use beacon_processor::{BeaconProcessorSend, Work, WorkEvent};
 use futures::StreamExt;
@@ -12,7 +12,7 @@ use tracing::{debug, error};
 pub(crate) const LIGHT_CLIENT_SERVER_CHANNEL_CAPACITY: usize = 32;
 
 pub async fn compute_light_client_updates<T: BeaconChainTypes>(
-    chain: &BeaconChain<T>,
+    chain: &BeaconComponents<T>,
     mut light_client_server_rv: Receiver<LightClientProducerEvent<T::EthSpec>>,
     beacon_processor_send: BeaconProcessorSend<T::EthSpec>,
 ) {

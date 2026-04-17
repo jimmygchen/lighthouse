@@ -2,7 +2,7 @@
 
 use crate::state_id::StateId;
 use beacon_chain::{
-    BeaconChain, BeaconChainError, BeaconChainTypes,
+    BeaconChainError, BeaconChainTypes, BeaconComponents,
     beacon_proposer_cache::{
         compute_proposer_duties_from_head, ensure_state_can_determine_proposers_for_epoch,
     },
@@ -32,7 +32,7 @@ type ApiDuties = api_types::DutiesResponse<Vec<api_types::ProposerData>>;
 /// Returns the legacy dependent root (block root at end of epoch N-1) for backwards compatibility.
 pub fn proposer_duties<T: BeaconChainTypes>(
     request_epoch: Epoch,
-    chain: &BeaconChain<T>,
+    chain: &BeaconComponents<T>,
 ) -> Result<ApiDuties, warp::reject::Rejection> {
     proposer_duties_internal(request_epoch, chain, DependentRootSelection::Legacy)
 }
@@ -43,14 +43,14 @@ pub fn proposer_duties<T: BeaconChainTypes>(
 /// uses epoch N-2 due to deterministic proposer lookahead with `min_seed_lookahead`.
 pub fn proposer_duties_v2<T: BeaconChainTypes>(
     request_epoch: Epoch,
-    chain: &BeaconChain<T>,
+    chain: &BeaconComponents<T>,
 ) -> Result<ApiDuties, warp::reject::Rejection> {
     proposer_duties_internal(request_epoch, chain, DependentRootSelection::True)
 }
 
 fn proposer_duties_internal<T: BeaconChainTypes>(
     request_epoch: Epoch,
-    chain: &BeaconChain<T>,
+    chain: &BeaconComponents<T>,
     root_selection: DependentRootSelection,
 ) -> Result<ApiDuties, warp::reject::Rejection> {
     let current_epoch = chain
@@ -134,7 +134,7 @@ fn proposer_duties_internal<T: BeaconChainTypes>(
 /// tolerance), otherwise we risk washing out the proposer cache at the expense of block processing.
 fn try_proposer_duties_from_cache<T: BeaconChainTypes>(
     request_epoch: Epoch,
-    chain: &BeaconChain<T>,
+    chain: &BeaconComponents<T>,
     root_selection: DependentRootSelection,
 ) -> Result<Option<ApiDuties>, warp::reject::Rejection> {
     let head = chain.canonical_head.cached_head();
@@ -195,7 +195,7 @@ fn try_proposer_duties_from_cache<T: BeaconChainTypes>(
 /// washing out the proposer cache at the expense of block processing.
 fn compute_and_cache_proposer_duties<T: BeaconChainTypes>(
     current_epoch: Epoch,
-    chain: &BeaconChain<T>,
+    chain: &BeaconComponents<T>,
     root_selection: DependentRootSelection,
 ) -> Result<ApiDuties, warp::reject::Rejection> {
     let (indices, dependent_root, legacy_dependent_root, execution_status, fork) =
@@ -227,7 +227,7 @@ fn compute_and_cache_proposer_duties<T: BeaconChainTypes>(
 /// `beacon_proposer_cache`.
 fn compute_historic_proposer_duties<T: BeaconChainTypes>(
     epoch: Epoch,
-    chain: &BeaconChain<T>,
+    chain: &BeaconComponents<T>,
     root_selection: DependentRootSelection,
 ) -> Result<ApiDuties, warp::reject::Rejection> {
     // If the head is quite old then it might still be relevant for a historical request.
@@ -298,7 +298,7 @@ fn compute_historic_proposer_duties<T: BeaconChainTypes>(
 /// Converts the internal representation of proposer duties into one that is compatible with the
 /// standard API.
 fn convert_to_api_response<T: BeaconChainTypes>(
-    chain: &BeaconChain<T>,
+    chain: &BeaconComponents<T>,
     epoch: Epoch,
     dependent_root: Hash256,
     execution_optimistic: bool,

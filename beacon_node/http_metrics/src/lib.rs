@@ -3,7 +3,7 @@
 //! For other endpoints, see the `http_api` crate.
 mod metrics;
 
-use beacon_chain::{BeaconChain, BeaconChainTypes};
+use beacon_chain::{BeaconChainTypes, BeaconComponents};
 use lighthouse_network::prometheus_client::registry::Registry;
 use lighthouse_version::version_with_platform;
 use logging::crit;
@@ -38,7 +38,7 @@ impl From<String> for Error {
 /// The server will gracefully handle the case where any fields are `None`.
 pub struct Context<T: BeaconChainTypes> {
     pub config: Config,
-    pub chain: Option<Arc<BeaconChain<T>>>,
+    pub chain: Option<Arc<BeaconComponents<T>>>,
     pub db_path: Option<PathBuf>,
     pub freezer_db_path: Option<PathBuf>,
     pub gossipsub_registry: Option<std::sync::Mutex<Registry>>,

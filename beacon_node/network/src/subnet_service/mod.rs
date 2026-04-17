@@ -10,7 +10,7 @@ use std::task::{Context, Poll};
 use std::time::Duration;
 use tokio::time::Instant;
 
-use beacon_chain::{BeaconChain, BeaconChainTypes};
+use beacon_chain::{BeaconChainTypes, BeaconComponents};
 use delay_map::HashSetDelay;
 use futures::prelude::*;
 use lighthouse_network::{NetworkConfig, Subnet, SubnetDiscovery, discv5::enr::NodeId};
@@ -76,7 +76,7 @@ pub struct SubnetService<T: BeaconChainTypes> {
     events: VecDeque<SubnetServiceMessage>,
 
     /// A reference to the beacon chain to process received attestations.
-    pub(crate) beacon_chain: Arc<BeaconChain<T>>,
+    pub(crate) beacon_chain: Arc<BeaconComponents<T>>,
 
     /// Subnets we are currently subscribed to as short lived subscriptions.
     ///
@@ -113,7 +113,11 @@ impl<T: BeaconChainTypes> SubnetService<T> {
     /* Public functions */
 
     /// Establish the service based on the passed configuration.
-    pub fn new(beacon_chain: Arc<BeaconChain<T>>, node_id: NodeId, config: &NetworkConfig) -> Self {
+    pub fn new(
+        beacon_chain: Arc<BeaconComponents<T>>,
+        node_id: NodeId,
+        config: &NetworkConfig,
+    ) -> Self {
         let slot_duration = beacon_chain.slot_clock.slot_duration();
 
         if config.subscribe_all_subnets {

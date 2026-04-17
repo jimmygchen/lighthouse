@@ -484,7 +484,7 @@ pub struct Config {
 }
 
 /// Provides access to one execution engine and provides a neat interface for consumption by the
-/// `BeaconChain`.
+/// `BeaconComponents`.
 #[derive(Clone)]
 pub struct ExecutionLayer<E: EthSpec> {
     inner: Arc<Inner<E>>,

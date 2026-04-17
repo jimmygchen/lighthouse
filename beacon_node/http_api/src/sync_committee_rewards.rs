@@ -1,5 +1,5 @@
 use crate::{BlockId, ExecutionOptimistic};
-use beacon_chain::{BeaconChain, BeaconChainError, BeaconChainTypes};
+use beacon_chain::{BeaconChainError, BeaconChainTypes, BeaconComponents};
 use eth2::types::{SyncCommitteeReward, ValidatorId};
 use state_processing::BlockReplayer;
 use std::sync::Arc;
@@ -8,7 +8,7 @@ use types::{BeaconState, SignedBlindedBeaconBlock};
 use warp_utils::reject::{custom_not_found, unhandled_error};
 
 pub fn compute_sync_committee_rewards<T: BeaconChainTypes>(
-    chain: Arc<BeaconChain<T>>,
+    chain: Arc<BeaconComponents<T>>,
     block_id: BlockId,
     validators: Vec<ValidatorId>,
 ) -> Result<(Option<Vec<SyncCommitteeReward>>, ExecutionOptimistic, bool), warp::Rejection> {
@@ -50,7 +50,7 @@ pub fn compute_sync_committee_rewards<T: BeaconChainTypes>(
 }
 
 pub fn get_state_before_applying_block<T: BeaconChainTypes>(
-    chain: Arc<BeaconChain<T>>,
+    chain: Arc<BeaconComponents<T>>,
     block: &SignedBlindedBeaconBlock<T::EthSpec>,
 ) -> Result<BeaconState<T::EthSpec>, warp::reject::Rejection> {
     let parent_block: SignedBlindedBeaconBlock<T::EthSpec> = chain

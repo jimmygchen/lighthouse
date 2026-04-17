@@ -50,7 +50,7 @@ use crate::sync::custody_backfill_sync::CustodyBackFillSync;
 use crate::sync::network_context::{PeerGroup, RpcResponseResult};
 use beacon_chain::block_verification_types::AsBlock;
 use beacon_chain::{
-    AvailabilityProcessingStatus, BeaconChain, BeaconChainTypes, BlockError, EngineState,
+    AvailabilityProcessingStatus, BeaconChainTypes, BeaconComponents, BlockError, EngineState,
 };
 use futures::StreamExt;
 use lighthouse_network::SyncInfo;
@@ -237,7 +237,7 @@ pub enum CustodyBatchProcessResult {
 /// look-up of blocks.
 pub struct SyncManager<T: BeaconChainTypes> {
     /// A reference to the underlying beacon chain.
-    chain: Arc<BeaconChain<T>>,
+    chain: Arc<BeaconComponents<T>>,
 
     /// A receiving channel sent by the message processor thread.
     input_channel: mpsc::UnboundedReceiver<SyncMessage<T::EthSpec>>,
@@ -266,7 +266,7 @@ pub struct SyncManager<T: BeaconChainTypes> {
 /// dropped during the syncing process which will gracefully end the `SyncManager`.
 pub fn spawn<T: BeaconChainTypes>(
     executor: task_executor::TaskExecutor,
-    beacon_chain: Arc<BeaconChain<T>>,
+    beacon_chain: Arc<BeaconComponents<T>>,
     network_send: mpsc::UnboundedSender<NetworkMessage<T::EthSpec>>,
     beacon_processor: Arc<NetworkBeaconProcessor<T>>,
     sync_recv: mpsc::UnboundedReceiver<SyncMessage<T::EthSpec>>,
@@ -296,7 +296,7 @@ pub fn spawn<T: BeaconChainTypes>(
 
 impl<T: BeaconChainTypes> SyncManager<T> {
     pub(crate) fn new(
-        beacon_chain: Arc<BeaconChain<T>>,
+        beacon_chain: Arc<BeaconComponents<T>>,
         network_send: mpsc::UnboundedSender<NetworkMessage<T::EthSpec>>,
         beacon_processor: Arc<NetworkBeaconProcessor<T>>,
         sync_recv: mpsc::UnboundedReceiver<SyncMessage<T::EthSpec>>,

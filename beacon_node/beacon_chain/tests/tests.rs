@@ -1,7 +1,7 @@
 #![cfg(not(debug_assertions))]
 
 use beacon_chain::{
-    BeaconChain, ChainConfig, NotifyExecutionLayer, StateSkipConfig, WhenSlotSkipped,
+    BeaconComponents, ChainConfig, NotifyExecutionLayer, StateSkipConfig, WhenSlotSkipped,
     attestation_verification::Error as AttnError,
     custody_context::NodeCustodyType,
     test_utils::{
@@ -213,7 +213,7 @@ async fn iterators() {
 }
 
 fn find_reorg_slot(
-    chain: &BeaconChain<EphemeralHarnessType<MinimalEthSpec>>,
+    chain: &BeaconComponents<EphemeralHarnessType<MinimalEthSpec>>,
     new_state: &BeaconState<MinimalEthSpec>,
     new_block_root: Hash256,
 ) -> Slot {

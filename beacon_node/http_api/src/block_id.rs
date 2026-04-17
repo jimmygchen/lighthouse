@@ -1,7 +1,7 @@
 use crate::version::inconsistent_fork_rejection;
 use crate::{ExecutionOptimistic, state_id::checkpoint_block_and_execution_optimistic};
 use beacon_chain::kzg_utils::reconstruct_blobs;
-use beacon_chain::{BeaconChain, BeaconChainError, BeaconChainTypes, WhenSlotSkipped};
+use beacon_chain::{BeaconChainError, BeaconChainTypes, BeaconComponents, WhenSlotSkipped};
 use eth2::beacon_response::{ExecutionOptimisticFinalizedMetadata, UnversionedResponse};
 use eth2::types::BlockId as CoreBlockId;
 use eth2::types::DataColumnIndicesQuery;
@@ -42,7 +42,7 @@ impl BlockId {
     /// Return the block root identified by `self`.
     pub fn root<T: BeaconChainTypes>(
         &self,
-        chain: &BeaconChain<T>,
+        chain: &BeaconComponents<T>,
     ) -> Result<(Hash256, ExecutionOptimistic, Finalized), warp::Rejection> {
         match &self.0 {
             CoreBlockId::Head => {
@@ -158,7 +158,7 @@ impl BlockId {
 
     pub fn blinded_block_by_root<T: BeaconChainTypes>(
         root: &Hash256,
-        chain: &BeaconChain<T>,
+        chain: &BeaconComponents<T>,
     ) -> Result<Option<SignedBlindedBeaconBlock<T::EthSpec>>, warp::Rejection> {
         chain
             .store
@@ -169,7 +169,7 @@ impl BlockId {
     /// Return the `SignedBeaconBlock` identified by `self`.
     pub fn blinded_block<T: BeaconChainTypes>(
         &self,
-        chain: &BeaconChain<T>,
+        chain: &BeaconComponents<T>,
     ) -> Result<
         (
             SignedBlindedBeaconBlock<T::EthSpec>,
@@ -226,7 +226,7 @@ impl BlockId {
     /// Return the `SignedBeaconBlock` identified by `self`.
     pub async fn full_block<T: BeaconChainTypes>(
         &self,
-        chain: &BeaconChain<T>,
+        chain: &BeaconComponents<T>,
     ) -> Result<
         (
             Arc<SignedBeaconBlock<T::EthSpec>>,
@@ -300,7 +300,7 @@ impl BlockId {
     pub fn get_data_columns<T: BeaconChainTypes>(
         &self,
         query: DataColumnIndicesQuery,
-        chain: &BeaconChain<T>,
+        chain: &BeaconComponents<T>,
     ) -> Result<DataColumnsResponse<T>, Rejection> {
         let (root, execution_optimistic, finalized) = self.root(chain)?;
         let block = BlockId::blinded_block_by_root(&root, chain)?.ok_or_else(|| {
@@ -350,7 +350,7 @@ impl BlockId {
     pub fn get_blinded_block_and_blob_list_filtered<T: BeaconChainTypes>(
         &self,
         query: BlobIndicesQuery,
-        chain: &BeaconChain<T>,
+        chain: &BeaconComponents<T>,
     ) -> Result<
         (
             SignedBlindedBeaconBlock<T::EthSpec>,
@@ -392,7 +392,7 @@ impl BlockId {
     pub fn get_blobs_by_versioned_hashes<T: BeaconChainTypes>(
         &self,
         query: BlobsVersionedHashesQuery,
-        chain: &BeaconChain<T>,
+        chain: &BeaconComponents<T>,
     ) -> Result<
         UnversionedResponse<Vec<BlobWrapper<T::EthSpec>>, ExecutionOptimisticFinalizedMetadata>,
         warp::Rejection,
@@ -451,7 +451,7 @@ impl BlockId {
     }
 
     fn get_blobs<T: BeaconChainTypes>(
-        chain: &BeaconChain<T>,
+        chain: &BeaconComponents<T>,
         root: Hash256,
         indices: Option<Vec<u64>>,
         max_blobs_per_block: usize,
@@ -482,7 +482,7 @@ impl BlockId {
     }
 
     fn get_blobs_from_data_columns<T: BeaconChainTypes>(
-        chain: &BeaconChain<T>,
+        chain: &BeaconComponents<T>,
         root: Hash256,
         blob_indices: Option<Vec<u64>>,
         block: &SignedBlindedBeaconBlock<<T as BeaconChainTypes>::EthSpec>,

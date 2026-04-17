@@ -1,5 +1,5 @@
 use beacon_chain::store::metadata::CURRENT_SCHEMA_VERSION;
-use beacon_chain::{BeaconChain, BeaconChainTypes};
+use beacon_chain::{BeaconChainTypes, BeaconComponents};
 use serde::Serialize;
 use std::sync::Arc;
 use store::invariants::InvariantCheckResult;
@@ -15,7 +15,7 @@ pub struct DatabaseInfo {
 }
 
 pub fn info<T: BeaconChainTypes>(
-    chain: Arc<BeaconChain<T>>,
+    chain: Arc<BeaconComponents<T>>,
 ) -> Result<DatabaseInfo, warp::Rejection> {
     let store = &chain.store;
     let split = store.get_split_info();
@@ -33,7 +33,7 @@ pub fn info<T: BeaconChainTypes>(
 }
 
 pub fn check_invariants<T: BeaconChainTypes>(
-    chain: Arc<BeaconChain<T>>,
+    chain: Arc<BeaconComponents<T>>,
 ) -> Result<InvariantCheckResult, warp::Rejection> {
     beacon_chain::invariants::check_database_invariants(&chain).map_err(|e| {
         warp_utils::reject::custom_bad_request(format!("error checking database invariants: {e:?}"))

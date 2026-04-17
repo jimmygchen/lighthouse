@@ -1,5 +1,5 @@
 use crate::state_id::StateId;
-use beacon_chain::{BeaconChain, BeaconChainTypes};
+use beacon_chain::{BeaconChainTypes, BeaconComponents};
 use eth2::{
     lighthouse::{GlobalValidatorInclusionData, ValidatorInclusionData},
     types::ValidatorId,
@@ -10,7 +10,7 @@ use types::{BeaconState, BeaconStateError, ChainSpec, Epoch, EthSpec};
 /// Returns the state in the last slot of `epoch`.
 fn end_of_epoch_state<T: BeaconChainTypes>(
     epoch: Epoch,
-    chain: &BeaconChain<T>,
+    chain: &BeaconComponents<T>,
 ) -> Result<BeaconState<T::EthSpec>, warp::reject::Rejection> {
     let target_slot = epoch.end_slot(T::EthSpec::slots_per_epoch());
     // The execution status is not returned, any functions which rely upon this method might return
@@ -40,7 +40,7 @@ fn convert_cache_error(error: BeaconStateError) -> warp::reject::Rejection {
 /// epoch.
 pub fn global_validator_inclusion_data<T: BeaconChainTypes>(
     epoch: Epoch,
-    chain: &BeaconChain<T>,
+    chain: &BeaconComponents<T>,
 ) -> Result<GlobalValidatorInclusionData, warp::Rejection> {
     let mut state = end_of_epoch_state(epoch, chain)?;
     let summary = get_epoch_processing_summary(&mut state, &chain.spec)?;
@@ -63,7 +63,7 @@ pub fn global_validator_inclusion_data<T: BeaconChainTypes>(
 pub fn validator_inclusion_data<T: BeaconChainTypes>(
     epoch: Epoch,
     validator_id: &ValidatorId,
-    chain: &BeaconChain<T>,
+    chain: &BeaconComponents<T>,
 ) -> Result<Option<ValidatorInclusionData>, warp::Rejection> {
     let mut state = end_of_epoch_state(epoch, chain)?;
 

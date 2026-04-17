@@ -1,6 +1,6 @@
 use beacon_chain::events::EventKind;
 use beacon_chain::{
-    BeaconChain, BeaconChainError, BeaconChainTypes, observed_operations::ObservationOutcome,
+    BeaconChainError, BeaconChainTypes, BeaconComponents, observed_operations::ObservationOutcome,
 };
 use directory::size_of_dir;
 use lighthouse_network::PubsubMessage;
@@ -25,14 +25,14 @@ use tracing::{debug, error, info, trace, warn};
 use types::{AttesterSlashing, Epoch, EthSpec, ProposerSlashing};
 
 pub struct SlasherService<T: BeaconChainTypes> {
-    beacon_chain: Arc<BeaconChain<T>>,
+    beacon_chain: Arc<BeaconComponents<T>>,
     network_sender: UnboundedSender<NetworkMessage<T::EthSpec>>,
 }
 
 impl<T: BeaconChainTypes> SlasherService<T> {
     /// Create a new service but don't start any tasks yet.
     pub fn new(
-        beacon_chain: Arc<BeaconChain<T>>,
+        beacon_chain: Arc<BeaconComponents<T>>,
         network_sender: UnboundedSender<NetworkMessage<T::EthSpec>>,
     ) -> Self {
         Self {
@@ -81,7 +81,7 @@ impl<T: BeaconChainTypes> SlasherService<T> {
 
     /// Run the async notifier which periodically prompts the processor to run.
     async fn run_notifier(
-        beacon_chain: Arc<BeaconChain<T>>,
+        beacon_chain: Arc<BeaconComponents<T>>,
         update_period: u64,
         slot_offset: f64,
         notif_sender: SyncSender<Epoch>,
@@ -111,7 +111,7 @@ impl<T: BeaconChainTypes> SlasherService<T> {
 
     /// Run the blocking task that performs work.
     fn run_processor(
-        beacon_chain: Arc<BeaconChain<T>>,
+        beacon_chain: Arc<BeaconComponents<T>>,
         slasher: Arc<Slasher<T::EthSpec>>,
         notif_receiver: Receiver<Epoch>,
         network_sender: UnboundedSender<NetworkMessage<T::EthSpec>>,
@@ -164,7 +164,7 @@ impl<T: BeaconChainTypes> SlasherService<T> {
 
     /// Push any slashings found to the beacon chain, optionally publishing them on the network.
     fn process_slashings(
-        beacon_chain: &BeaconChain<T>,
+        beacon_chain: &BeaconComponents<T>,
         slasher: &Slasher<T::EthSpec>,
         network_sender: &UnboundedSender<NetworkMessage<T::EthSpec>>,
     ) {
@@ -173,7 +173,7 @@ impl<T: BeaconChainTypes> SlasherService<T> {
     }
 
     fn process_attester_slashings(
-        beacon_chain: &BeaconChain<T>,
+        beacon_chain: &BeaconComponents<T>,
         slasher: &Slasher<T::EthSpec>,
         network_sender: &UnboundedSender<NetworkMessage<T::EthSpec>>,
     ) {
@@ -240,7 +240,7 @@ impl<T: BeaconChainTypes> SlasherService<T> {
     }
 
     fn process_proposer_slashings(
-        beacon_chain: &BeaconChain<T>,
+        beacon_chain: &BeaconComponents<T>,
         slasher: &Slasher<T::EthSpec>,
         network_sender: &UnboundedSender<NetworkMessage<T::EthSpec>>,
     ) {
@@ -295,7 +295,7 @@ impl<T: BeaconChainTypes> SlasherService<T> {
     }
 
     fn publish_attester_slashing(
-        beacon_chain: &BeaconChain<T>,
+        beacon_chain: &BeaconComponents<T>,
         network_sender: &UnboundedSender<NetworkMessage<T::EthSpec>>,
         slashing: AttesterSlashing<T::EthSpec>,
     ) -> Result<(), String> {
@@ -324,7 +324,7 @@ impl<T: BeaconChainTypes> SlasherService<T> {
     }
 
     fn publish_proposer_slashing(
-        beacon_chain: &BeaconChain<T>,
+        beacon_chain: &BeaconComponents<T>,
         network_sender: &UnboundedSender<NetworkMessage<T::EthSpec>>,
         slashing: ProposerSlashing,
     ) -> Result<(), String> {

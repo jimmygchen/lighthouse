@@ -16,7 +16,7 @@ use beacon_chain::test_utils::{
     SyncCommitteeStrategy, fork_name_from_env, generate_data_column_indices_rand_order,
 };
 use beacon_chain::{
-    BeaconChain, BeaconChainError, BeaconChainTypes, BeaconSnapshot, BlockError, ChainConfig,
+    BeaconChainError, BeaconChainTypes, BeaconComponents, BeaconSnapshot, BlockError, ChainConfig,
     NotifyExecutionLayer, ServerSentEventHandler, WhenSlotSkipped,
     beacon_chain::shuffling_is_compatible_with_fork_choice,
     beacon_proposer_cache::{
@@ -2945,7 +2945,7 @@ async fn reproduction_unaligned_checkpoint_sync_pruned_payload() {
     );
     let all_custody_columns = (0..spec.number_of_custody_groups).collect::<Vec<_>>();
 
-    // Attempt to build the BeaconChain.
+    // Attempt to build the BeaconComponents.
     // If the bug is present, this will panic with `MissingFullBlockExecutionPayloadPruned`.
     let beacon_chain = BeaconChainBuilder::<DiskHarnessType<E>>::new(MinimalEthSpec, trusted_setup)
         .chain_config(chain_config)
@@ -5453,7 +5453,10 @@ async fn test_safely_backfill_data_column_custody_info() {
 /// Checks that two chains are the same, for the purpose of these tests.
 ///
 /// Several fields that are hard/impossible to check are ignored (e.g., the store).
-fn assert_chains_pretty_much_the_same<T: BeaconChainTypes>(a: &BeaconChain<T>, b: &BeaconChain<T>) {
+fn assert_chains_pretty_much_the_same<T: BeaconChainTypes>(
+    a: &BeaconComponents<T>,
+    b: &BeaconComponents<T>,
+) {
     assert_eq!(a.spec, b.spec, "spec should be equal");
     assert_eq!(a.op_pool, b.op_pool, "op_pool should be equal");
     let a_head = a.canonical_head.head_snapshot();

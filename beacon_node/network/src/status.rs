@@ -1,24 +1,26 @@
-use beacon_chain::{BeaconChain, BeaconChainTypes, enr_fork_id};
+use beacon_chain::{BeaconChainTypes, BeaconComponents, enr_fork_id};
 use fixed_bytes::FixedBytesExtended;
 use types::{EthSpec, Hash256};
 
 use lighthouse_network::rpc::{StatusMessage, methods::StatusMessageV2};
 /// Trait to produce a `StatusMessage` representing the state of the given `beacon_chain`.
 ///
-/// NOTE: The purpose of this is simply to obtain a `StatusMessage` from the `BeaconChain` without
+/// NOTE: The purpose of this is simply to obtain a `StatusMessage` from the `BeaconComponents` without
 /// polluting/coupling the type with RPC concepts.
 pub trait ToStatusMessage {
     fn status_message(&self) -> StatusMessage;
 }
 
-impl<T: BeaconChainTypes> ToStatusMessage for BeaconChain<T> {
+impl<T: BeaconChainTypes> ToStatusMessage for BeaconComponents<T> {
     fn status_message(&self) -> StatusMessage {
         status_message(self)
     }
 }
 
 /// Build a `StatusMessage` representing the state of the given `beacon_chain`.
-pub(crate) fn status_message<T: BeaconChainTypes>(beacon_chain: &BeaconChain<T>) -> StatusMessage {
+pub(crate) fn status_message<T: BeaconChainTypes>(
+    beacon_chain: &BeaconComponents<T>,
+) -> StatusMessage {
     let fork_digest = enr_fork_id::<T>(
         &beacon_chain.slot_clock,
         &beacon_chain.spec,

@@ -16,7 +16,7 @@ const DEFAULT_FREEZER_DB_DIR: &str = "freezer_db";
 /// Default directory name for the blobs database under the top-level data dir.
 const DEFAULT_BLOBS_DB_DIR: &str = "blobs_db";
 
-/// Defines how the client should initialize the `BeaconChain` and other components.
+/// Defines how the client should initialize the `BeaconComponents` and other components.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub enum ClientGenesis {
     /// Creates a genesis state as per the 2019 Canada interop specifications.

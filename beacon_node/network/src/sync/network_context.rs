@@ -19,7 +19,7 @@ use crate::sync::network_context::requests::BlobsByRootSingleBlockRequest;
 use crate::sync::range_data_column_batch_request::RangeDataColumnBatchRequest;
 use beacon_chain::block_verification_types::LookupBlock;
 use beacon_chain::block_verification_types::{AsBlock, RangeSyncBlock};
-use beacon_chain::{BeaconChain, BeaconChainTypes, BlockProcessStatus, EngineState};
+use beacon_chain::{BeaconChainTypes, BeaconComponents, BlockProcessStatus, EngineState};
 use custody::CustodyRequestResult;
 use fnv::FnvHashMap;
 use lighthouse_network::rpc::methods::{BlobsByRangeRequest, DataColumnsByRangeRequest};
@@ -231,7 +231,7 @@ pub struct SyncNetworkContext<T: BeaconChainTypes> {
     /// Sends work to the beacon processor via a channel.
     network_beacon_processor: Arc<NetworkBeaconProcessor<T>>,
 
-    pub chain: Arc<BeaconChain<T>>,
+    pub chain: Arc<BeaconComponents<T>>,
 
     fork_context: Arc<ForkContext>,
 }
@@ -255,7 +255,7 @@ pub enum RangeBlockComponent<E: EthSpec> {
 #[cfg(test)]
 impl<E: EthSpec> SyncNetworkContext<TestBeaconChainType<E>> {
     pub fn new_for_testing(
-        beacon_chain: Arc<BeaconChain<TestBeaconChainType<E>>>,
+        beacon_chain: Arc<BeaconComponents<TestBeaconChainType<E>>>,
         network_globals: Arc<NetworkGlobals<E>>,
         task_executor: TaskExecutor,
     ) -> Self {
@@ -285,7 +285,7 @@ impl<T: BeaconChainTypes> SyncNetworkContext<T> {
     pub fn new(
         network_send: mpsc::UnboundedSender<NetworkMessage<T::EthSpec>>,
         network_beacon_processor: Arc<NetworkBeaconProcessor<T>>,
-        chain: Arc<BeaconChain<T>>,
+        chain: Arc<BeaconComponents<T>>,
         fork_context: Arc<ForkContext>,
     ) -> Self {
         SyncNetworkContext {

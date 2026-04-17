@@ -246,7 +246,7 @@ impl<E: EthSpec> OperationPool<E> {
     ///
     /// The `validity_filter` is a closure that provides extra filtering of the attestations
     /// before an approximately optimal bundle is constructed. We use it to provide access
-    /// to the fork choice data from the `BeaconChain` struct that doesn't logically belong
+    /// to the fork choice data from the `BeaconComponents` struct that doesn't logically belong
     /// in the operation pool.
     pub fn get_attestations(
         &self,

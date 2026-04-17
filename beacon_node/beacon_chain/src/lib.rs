@@ -78,7 +78,6 @@ pub use self::beacon_components::{
     AvailabilityProcessingStatus,
     BeaconBlockResponse,
     BeaconBlockResponseWrapper,
-    BeaconChain,
     BeaconChainTypes,
     BeaconComponents,
     BeaconStore,

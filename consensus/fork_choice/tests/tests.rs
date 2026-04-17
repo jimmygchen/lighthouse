@@ -4,7 +4,7 @@ use beacon_chain::test_utils::{
     AttestationStrategy, BeaconChainHarness, BlockStrategy, EphemeralHarnessType,
 };
 use beacon_chain::{
-    BeaconChain, BeaconChainError, BeaconForkChoiceStore, ChainConfig, ForkChoiceError,
+    BeaconChainError, BeaconComponents, BeaconForkChoiceStore, ChainConfig, ForkChoiceError,
     StateSkipConfig, WhenSlotSkipped,
 };
 use bls::AggregateSignature;
@@ -419,7 +419,7 @@ impl ForkChoiceTest {
         mut comparison_func: G,
     ) -> Self
     where
-        F: FnMut(&mut IndexedAttestation<E>, &BeaconChain<EphemeralHarnessType<E>>),
+        F: FnMut(&mut IndexedAttestation<E>, &BeaconComponents<EphemeralHarnessType<E>>),
         G: FnMut(Result<(), BeaconChainError>),
     {
         let head = self.harness.chain.head_snapshot();

@@ -9,7 +9,7 @@ use crate::{
 use beacon_chain::block_production;
 use beacon_chain::graffiti_calculator::GraffitiSettings;
 use beacon_chain::{
-    BeaconBlockResponseWrapper, BeaconChain, BeaconChainTypes, ProduceBlockVerification,
+    BeaconBlockResponseWrapper, BeaconChainTypes, BeaconComponents, ProduceBlockVerification,
 };
 use eth2::types::{self as api_types, ProduceBlockV3Metadata, SkipRandaoVerification};
 use eth2::{beacon_response::ForkVersionedResponse, types::ProduceBlockV4Metadata};
@@ -51,7 +51,7 @@ pub fn get_randao_verification(
 )]
 pub async fn produce_block_v4<T: BeaconChainTypes>(
     accept_header: Option<api_types::Accept>,
-    chain: Arc<BeaconChain<T>>,
+    chain: Arc<BeaconComponents<T>>,
     slot: Slot,
     query: api_types::ValidatorBlocksQuery,
 ) -> Result<Response<Body>, warp::Rejection> {
@@ -95,7 +95,7 @@ pub async fn produce_block_v4<T: BeaconChainTypes>(
 )]
 pub async fn produce_block_v3<T: BeaconChainTypes>(
     accept_header: Option<api_types::Accept>,
-    chain: Arc<BeaconChain<T>>,
+    chain: Arc<BeaconComponents<T>>,
     slot: Slot,
     query: api_types::ValidatorBlocksQuery,
 ) -> Result<Response<Body>, warp::Rejection> {
@@ -172,7 +172,7 @@ pub fn build_response_v4<T: BeaconChainTypes>(
 }
 
 pub fn build_response_v3<T: BeaconChainTypes>(
-    chain: Arc<BeaconChain<T>>,
+    chain: Arc<BeaconComponents<T>>,
     block_response: BeaconBlockResponseWrapper<T::EthSpec>,
     accept_header: Option<api_types::Accept>,
 ) -> Result<Response<Body>, warp::Rejection> {
@@ -222,7 +222,7 @@ pub fn build_response_v3<T: BeaconChainTypes>(
 
 pub async fn produce_blinded_block_v2<T: BeaconChainTypes>(
     accept_header: Option<api_types::Accept>,
-    chain: Arc<BeaconChain<T>>,
+    chain: Arc<BeaconComponents<T>>,
     slot: Slot,
     query: api_types::ValidatorBlocksQuery,
 ) -> Result<Response<Body>, warp::Rejection> {
@@ -258,7 +258,7 @@ pub async fn produce_blinded_block_v2<T: BeaconChainTypes>(
 )]
 pub async fn produce_block_v2<T: BeaconChainTypes>(
     accept_header: Option<api_types::Accept>,
-    chain: Arc<BeaconChain<T>>,
+    chain: Arc<BeaconComponents<T>>,
     slot: Slot,
     query: api_types::ValidatorBlocksQuery,
 ) -> Result<Response<Body>, warp::Rejection> {
@@ -288,7 +288,7 @@ pub async fn produce_block_v2<T: BeaconChainTypes>(
 }
 
 pub fn build_response_v2<T: BeaconChainTypes>(
-    chain: Arc<BeaconChain<T>>,
+    chain: Arc<BeaconComponents<T>>,
     block_response: BeaconBlockResponseWrapper<T::EthSpec>,
     accept_header: Option<api_types::Accept>,
 ) -> Result<Response<Body>, warp::Rejection> {

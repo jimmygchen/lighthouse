@@ -1,5 +1,5 @@
 use crate::task_spawner::TaskSpawner;
-use beacon_chain::{BeaconChain, BeaconChainTypes};
+use beacon_chain::{BeaconChainTypes, BeaconComponents};
 use eth2::types::EndpointVersion;
 use lighthouse_network::PubsubMessage;
 use lighthouse_network::rpc::methods::MetaData;
@@ -14,7 +14,7 @@ use warp::filters::BoxedFilter;
 pub type ResponseFilter = BoxedFilter<(warp::reply::Response,)>;
 pub type AnyVersionFilter = BoxedFilter<(EndpointVersion,)>;
 pub type EthV1Filter = BoxedFilter<()>;
-pub type ChainFilter<T> = BoxedFilter<(Arc<BeaconChain<T>>,)>;
+pub type ChainFilter<T> = BoxedFilter<(Arc<BeaconComponents<T>>,)>;
 pub type NotWhileSyncingFilter = BoxedFilter<(Result<(), Rejection>,)>;
 pub type TaskSpawnerFilter<T> = BoxedFilter<(TaskSpawner<<T as BeaconChainTypes>::EthSpec>,)>;
 pub type ValidatorSubscriptionTxFilter = BoxedFilter<(Sender<ValidatorSubscriptionMessage>,)>;
