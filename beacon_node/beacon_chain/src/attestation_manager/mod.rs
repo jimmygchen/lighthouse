@@ -4,26 +4,23 @@
 //! tracking, early attester cache, and shuffling cache. It provides side-effect-free methods that
 //! operate on these owned data structures.
 //!
+//! The free function `with_committee_cache` provides shared committee cache access logic used by
+//! both `AttestationManager` methods and `AttestationVerificationContext`.
+//!
 //! ## What stays on `BeaconChain`
 //!
 //! The following attestation-related methods remain on `BeaconChain` because they depend on
 //! components the manager intentionally does not hold:
 //!
 //! - **Verification methods** (`verify_unaggregated_attestation_for_gossip`, etc.): The
-//!   `attestation_verification` module takes `&BeaconChain<T>` directly and accesses fields like
-//!   `canonical_head`, `observed_attestations`, `observed_aggregators`, and `with_committee_cache`.
-//!   Refactoring that module is out of scope for this extraction.
+//!   `attestation_verification` module takes `AttestationVerificationContext` and accesses fields
+//!   like `canonical_head`, `observed_attestations`, `observed_aggregators`, and
+//!   `with_committee_cache`. Refactoring that module is out of scope for this extraction.
 //!
-//! - **`produce_unaggregated_attestation`**: Needs `head_snapshot`, `store`, and `canonical_head`
-//!   (fork choice) for optimistic block filtering.
+//! - **`apply_attestation_to_fork_choice`**: Needs `fork_choice_write_lock` and `slot_clock`.
 //!
-//! - **`validator_attestation_duties`**: Needs `canonical_head` (fork choice read lock) and
-//!   `with_committee_cache` which itself needs `canonical_head`, `with_head`, and `store`.
-//!
-//! - **`apply_attestation_to_fork_choice`**: Needs `fork_choice_write_lock`.
-//!
-//! - **`with_committee_cache`**: Needs `canonical_head`, `with_head`, and `store` to load states
-//!   and build committee caches on cache miss.
+//! - **`add_to_block_inclusion_pool`**: Directly accesses `op_pool` which is not owned by the
+//!   manager (wrapping it in `Arc` would be too invasive).
 //!
 //! - **`get_aggregated_attestation`** and variants: Need `filter_optimistic_attestation` which
 //!   reads `canonical_head.fork_choice_read_lock()` to check execution status.
@@ -34,13 +31,11 @@
 //! - **`shuffling_is_compatible`**: Needs `canonical_head.fork_choice_read_lock()` to load block
 //!   shuffling IDs from fork choice. The `BeaconChain` wrapper obtains the block from fork choice
 //!   and then delegates the pure shuffling comparison to this manager.
-//!
-//! - **`add_to_block_inclusion_pool`**: Directly accesses `op_pool` which is not owned by the
-//!   manager (wrapping it in `Arc` would be too invasive).
 
 #[cfg(test)]
 mod tests;
 
+use crate::canonical_head::CanonicalHead;
 use crate::early_attester_cache::EarlyAttesterCache;
 use crate::errors::BeaconChainError as Error;
 use crate::naive_aggregation_pool::{
@@ -48,12 +43,13 @@ use crate::naive_aggregation_pool::{
 };
 use crate::observed_aggregates::ObservedAggregateAttestations;
 use crate::observed_attesters::{ObservedAggregators, ObservedAttesters};
-use crate::shuffling_cache::ShufflingCache;
-use crate::{BeaconChainError, metrics};
-use fork_choice;
+use crate::shuffling_cache::{BlockShufflingIds, ShufflingCache};
+use crate::{BeaconChainError, BeaconChainTypes, BeaconStore, metrics};
+use fork_choice::{self, ExecutionStatus};
 use parking_lot::RwLock;
+use state_processing::state_advance::partial_state_advance;
 use std::sync::Arc;
-use tracing::{error, trace, warn};
+use tracing::{debug, error, trace, warn};
 use tree_hash::TreeHash;
 use types::*;
 
@@ -330,5 +326,411 @@ impl<E: EthSpec> AttestationManager<E> {
             );
             Ok(false)
         }
+    }
+
+    /// Produce an unaggregated `Attestation` that is valid for the given `slot` and `index`.
+    ///
+    /// The produced `Attestation` will not be valid until it has been signed by exactly one
+    /// validator that is in the committee for `slot` and `index` in the canonical chain.
+    ///
+    /// Always attests to the canonical chain.
+    ///
+    /// ## Errors
+    ///
+    /// May return an error if the `request_slot` is too far behind the head state.
+    #[allow(clippy::too_many_arguments)]
+    pub fn produce_unaggregated_attestation<T: BeaconChainTypes<EthSpec = E>>(
+        &self,
+        request_slot: Slot,
+        request_index: CommitteeIndex,
+        canonical_head: &CanonicalHead<T>,
+        store: &BeaconStore<T>,
+        spec: &ChainSpec,
+    ) -> Result<Attestation<E>, Error> {
+        let _total_timer = metrics::start_timer(&metrics::ATTESTATION_PRODUCTION_SECONDS);
+
+        // The early attester cache will return `Some(attestation)` in the scenario where there is a
+        // block being imported that will become the head block, but that block has not yet been
+        // inserted into the database and set as `self.canonical_head`.
+        //
+        // In effect, the early attester cache prevents slow database IO from causing missed
+        // head/target votes.
+        //
+        // The early attester cache should never contain an optimistically imported block.
+        match self
+            .early_attester_cache
+            .try_attest(request_slot, request_index, spec)
+        {
+            // The cache matched this request, return the value.
+            Ok(Some(attestation)) => return Ok(attestation),
+            // The cache did not match this request, proceed with the rest of this function.
+            Ok(None) => (),
+            // The cache returned an error. Log the error and proceed with the rest of this
+            // function.
+            Err(e) => warn!(
+                error = ?e,
+                "Early attester cache failed"
+            ),
+        }
+
+        let slots_per_epoch = E::slots_per_epoch();
+        let request_epoch = request_slot.epoch(slots_per_epoch);
+
+        /*
+         * Phase 1/2:
+         *
+         * Take a short-lived read-lock on the head and copy the necessary information from it.
+         *
+         * It is important that this first phase is as quick as possible; creating contention for
+         * the head-lock is not desirable.
+         */
+
+        let beacon_block_root;
+        let beacon_state_root;
+        let target;
+        let current_epoch_attesting_info: Option<(Checkpoint, usize)>;
+        let head_timer = metrics::start_timer(&metrics::ATTESTATION_PRODUCTION_HEAD_SCRAPE_SECONDS);
+        {
+            let head = canonical_head.cached_head().snapshot;
+            let head_state = &head.beacon_state;
+
+            // There is no value in producing an attestation to a block that is pre-finalization and
+            // it is likely to cause expensive and pointless reads to the freezer database. Exit
+            // early if this is the case.
+            let finalized_slot = head_state
+                .finalized_checkpoint()
+                .epoch
+                .start_slot(slots_per_epoch);
+            if request_slot < finalized_slot {
+                return Err(Error::AttestingToFinalizedSlot {
+                    finalized_slot,
+                    request_slot,
+                });
+            }
+
+            // This function will eventually fail when trying to access a slot which is
+            // out-of-bounds of `state.block_roots`. This explicit error is intended to provide a
+            // clearer message to the user than an ambiguous `SlotOutOfBounds` error.
+            let slots_per_historical_root = E::slots_per_historical_root() as u64;
+            let lowest_permissible_slot =
+                head_state.slot().saturating_sub(slots_per_historical_root);
+            if request_slot < lowest_permissible_slot {
+                return Err(Error::AttestingToAncientSlot {
+                    lowest_permissible_slot,
+                    request_slot,
+                });
+            }
+
+            if request_slot >= head_state.slot() {
+                // When attesting to the head slot or later, always use the head of the chain.
+                beacon_block_root = head.beacon_block_root;
+                beacon_state_root = head.beacon_state_root();
+            } else {
+                // Permit attesting to slots *prior* to the current head. This is desirable when
+                // the VC and BN are out-of-sync due to time issues or overloading.
+                beacon_block_root = *head_state.get_block_root(request_slot)?;
+                beacon_state_root = *head_state.get_state_root(request_slot)?;
+            };
+
+            let target_slot = request_epoch.start_slot(E::slots_per_epoch());
+            let target_root = if head_state.slot() <= target_slot {
+                // If the state is earlier than the target slot then the target *must* be the head
+                // block root.
+                beacon_block_root
+            } else {
+                *head_state.get_block_root(target_slot)?
+            };
+            target = Checkpoint {
+                epoch: request_epoch,
+                root: target_root,
+            };
+
+            current_epoch_attesting_info = if head_state.current_epoch() == request_epoch {
+                // When the head state is in the same epoch as the request, all the information
+                // required to attest is available on the head state.
+                Some((
+                    head_state.current_justified_checkpoint(),
+                    head_state
+                        .get_beacon_committee(request_slot, request_index)?
+                        .committee
+                        .len(),
+                ))
+            } else {
+                // If the head state is in a *different* epoch to the request, more work is required
+                // to determine the justified checkpoint and committee length.
+                None
+            };
+        }
+        drop(head_timer);
+
+        // Only attest to a block if it is fully verified (i.e. not optimistic or invalid).
+        match canonical_head
+            .fork_choice_read_lock()
+            .get_block_execution_status(&beacon_block_root)
+        {
+            Some(execution_status) if execution_status.is_valid_or_irrelevant() => (),
+            Some(execution_status) => {
+                return Err(Error::HeadBlockNotFullyVerified {
+                    beacon_block_root,
+                    execution_status,
+                });
+            }
+            None => return Err(Error::HeadMissingFromForkChoice(beacon_block_root)),
+        };
+
+        /*
+         *  Phase 2/2:
+         *
+         *  If the justified checkpoint and committee length from the head are suitable for this
+         *  attestation, use them. If not, use the database, which will hit the state cache.
+         */
+        let (justified_checkpoint, committee_len) =
+            if let Some((justified_checkpoint, committee_len)) = current_epoch_attesting_info {
+                // The head state is in the same epoch as the attestation, so there is no more
+                // required information.
+                (justified_checkpoint, committee_len)
+            } else {
+                // We assume that the `Pending` state has the same shufflings as a `Full` state
+                // for the same block. Analysis: https://hackmd.io/@dapplion/gloas_dependant_root
+                let (advanced_state_root, mut state) = store
+                    .get_advanced_hot_state(
+                        beacon_block_root,
+                        StatePayloadStatus::Pending,
+                        request_slot,
+                        beacon_state_root,
+                    )?
+                    .ok_or(Error::MissingBeaconState(beacon_state_root))?;
+                if state.current_epoch() < request_epoch {
+                    partial_state_advance(
+                        &mut state,
+                        Some(advanced_state_root),
+                        request_epoch.start_slot(E::slots_per_epoch()),
+                        spec,
+                    )
+                    .map_err(Error::StateAdvanceError)?;
+
+                    state.build_committee_cache(RelativeEpoch::Current, spec)?;
+                }
+
+                (
+                    state.current_justified_checkpoint(),
+                    state
+                        .get_beacon_committee(request_slot, request_index)?
+                        .committee
+                        .len(),
+                )
+            };
+
+        Ok(Attestation::<E>::empty_for_signing(
+            request_index,
+            committee_len,
+            request_slot,
+            beacon_block_root,
+            justified_checkpoint,
+            target,
+            spec,
+        )?)
+    }
+
+    /// Return the attestation duties for the given `validator_indices` at `epoch`.
+    ///
+    /// Uses the shuffling cache when available, falling back to state loading on cache miss.
+    pub fn validator_attestation_duties<T: BeaconChainTypes<EthSpec = E>>(
+        &self,
+        validator_indices: &[u64],
+        epoch: Epoch,
+        head_block_root: Hash256,
+        canonical_head: &CanonicalHead<T>,
+        store: &BeaconStore<T>,
+        spec: &ChainSpec,
+    ) -> Result<(Vec<Option<AttestationDuty>>, Hash256, ExecutionStatus), Error> {
+        let execution_status = canonical_head
+            .fork_choice_read_lock()
+            .get_block_execution_status(&head_block_root)
+            .ok_or(Error::AttestationHeadNotInForkChoice(head_block_root))?;
+
+        let (duties, dependent_root) = with_committee_cache(
+            head_block_root,
+            epoch,
+            canonical_head,
+            self,
+            store,
+            spec,
+            |committee_cache, dependent_root| {
+                let duties = validator_indices
+                    .iter()
+                    .map(|validator_index| {
+                        let validator_index = *validator_index as usize;
+                        committee_cache.get_attestation_duties(validator_index)
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+
+                Ok((duties, dependent_root))
+            },
+        )?;
+        Ok((duties, dependent_root, execution_status))
+    }
+}
+
+/// Provides access to the committee cache, loading from the store on cache miss.
+///
+/// This is a free function rather than a method to allow both `BeaconChain` and
+/// `AttestationVerificationContext` to share the same implementation.
+///
+/// The `map_fn` is applied to the committee cache and the shuffling decision block root.
+pub fn with_committee_cache<T, F, R>(
+    head_block_root: Hash256,
+    shuffling_epoch: Epoch,
+    canonical_head: &CanonicalHead<T>,
+    attestation_manager: &AttestationManager<T::EthSpec>,
+    store: &BeaconStore<T>,
+    spec: &ChainSpec,
+    map_fn: F,
+) -> Result<R, Error>
+where
+    T: BeaconChainTypes,
+    F: Fn(&CommitteeCache, Hash256) -> Result<R, Error>,
+{
+    let head_block = canonical_head
+        .fork_choice_read_lock()
+        .get_block(&head_block_root)
+        .ok_or(Error::MissingBeaconBlock(head_block_root))?;
+
+    let shuffling_id = BlockShufflingIds {
+        current: head_block.current_epoch_shuffling_id.clone(),
+        next: head_block.next_epoch_shuffling_id.clone(),
+        previous: None,
+        block_root: head_block.root,
+    }
+    .id_for_epoch(shuffling_epoch)
+    .ok_or_else(|| Error::InvalidShufflingId {
+        shuffling_epoch,
+        head_block_epoch: head_block.slot.epoch(T::EthSpec::slots_per_epoch()),
+    })?;
+
+    // Obtain the shuffling cache, timing how long we wait.
+    let mut shuffling_cache = {
+        let _ = metrics::start_timer(&metrics::ATTESTATION_PROCESSING_SHUFFLING_CACHE_WAIT_TIMES);
+        attestation_manager.shuffling_cache.write()
+    };
+
+    if let Some(cache_item) = shuffling_cache.get(&shuffling_id) {
+        // The shuffling cache is no longer required, drop the write-lock to allow concurrent
+        // access.
+        drop(shuffling_cache);
+
+        let committee_cache = cache_item.wait()?;
+        map_fn(&committee_cache, shuffling_id.shuffling_decision_block)
+    } else {
+        // Create an entry in the cache that "promises" this value will eventually be computed.
+        // This avoids the case where multiple threads attempt to produce the same value at the
+        // same time.
+        //
+        // Creating the promise whilst we hold the `shuffling_cache` lock will prevent the same
+        // promise from being created twice.
+        let sender = shuffling_cache.create_promise(shuffling_id.clone())?;
+
+        // Drop the shuffling cache to avoid holding the lock for any longer than
+        // required.
+        drop(shuffling_cache);
+
+        debug!(
+            shuffling_id = ?shuffling_epoch,
+            head_block_root = head_block_root.to_string(),
+            "Committee cache miss"
+        );
+
+        // If the block's state will be so far ahead of `shuffling_epoch` that even its
+        // previous epoch committee cache will be too new, then error. Callers of this function
+        // shouldn't be requesting such old shufflings for this `head_block_root`.
+        let head_block_epoch = head_block.slot.epoch(T::EthSpec::slots_per_epoch());
+        if head_block_epoch > shuffling_epoch + 1 {
+            return Err(Error::InvalidStateForShuffling {
+                state_epoch: head_block_epoch,
+                shuffling_epoch,
+            });
+        }
+
+        let state_read_timer =
+            metrics::start_timer(&metrics::ATTESTATION_PROCESSING_STATE_READ_TIMES);
+
+        // If the head of the chain can serve this request, use it.
+        let head_state_opt = {
+            let cached_head = canonical_head.cached_head();
+            let snapshot = &cached_head.snapshot;
+            if snapshot.beacon_block_root == head_block_root {
+                Some((snapshot.beacon_state.clone(), snapshot.beacon_state_root()))
+            } else {
+                None
+            }
+        };
+
+        // Compute the `target_slot` to advance the block's state to.
+        //
+        // Since there's a one-epoch look-ahead on the attester shuffling, it suffices to
+        // only advance into the first slot of the epoch prior to `shuffling_epoch`.
+        //
+        // If the `head_block` is already ahead of that slot, then we should load the state
+        // at that slot, as we've determined above that the `shuffling_epoch` cache will
+        // not be too far in the past.
+        let target_slot = std::cmp::max(
+            shuffling_epoch
+                .saturating_sub(1_u64)
+                .start_slot(T::EthSpec::slots_per_epoch()),
+            head_block.slot,
+        );
+
+        // If the head state is useful for this request, use it. Otherwise, read a state from
+        // disk that is advanced as close as possible to `target_slot`.
+        let (mut state, state_root) = if let Some((state, state_root)) = head_state_opt {
+            (state, state_root)
+        } else {
+            // We assume that the `Pending` state has the same shufflings as a `Full` state
+            // for the same block. Analysis: https://hackmd.io/@dapplion/gloas_dependant_root
+            let (state_root, state) = store
+                .get_advanced_hot_state(
+                    head_block_root,
+                    StatePayloadStatus::Pending,
+                    target_slot,
+                    head_block.state_root,
+                )?
+                .ok_or(Error::MissingBeaconState(head_block.state_root))?;
+            (state, state_root)
+        };
+
+        metrics::stop_timer(state_read_timer);
+        let state_skip_timer =
+            metrics::start_timer(&metrics::ATTESTATION_PROCESSING_STATE_SKIP_TIMES);
+
+        // If the state is still in an earlier epoch, advance it to the `target_slot` so
+        // that its next epoch committee cache matches the `shuffling_epoch`.
+        if state.current_epoch() + 1 < shuffling_epoch {
+            // Advance the state into the required slot, using the "partial" method since the
+            // state roots are not relevant for the shuffling.
+            partial_state_advance(&mut state, Some(state_root), target_slot, spec)?;
+        }
+        metrics::stop_timer(state_skip_timer);
+
+        let committee_building_timer =
+            metrics::start_timer(&metrics::ATTESTATION_PROCESSING_COMMITTEE_BUILDING_TIMES);
+
+        let relative_epoch = RelativeEpoch::from_epoch(state.current_epoch(), shuffling_epoch)
+            .map_err(Error::IncorrectStateForAttestation)?;
+
+        state.build_committee_cache(relative_epoch, spec)?;
+
+        let committee_cache = state.committee_cache(relative_epoch)?.clone();
+        let shuffling_decision_block = shuffling_id.shuffling_decision_block;
+
+        attestation_manager
+            .shuffling_cache
+            .write()
+            .insert_committee_cache(shuffling_id, &committee_cache);
+
+        metrics::stop_timer(committee_building_timer);
+
+        sender.send(committee_cache.clone());
+
+        map_fn(&committee_cache, shuffling_decision_block)
     }
 }

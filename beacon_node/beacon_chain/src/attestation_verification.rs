@@ -35,7 +35,7 @@
 mod batch;
 
 use crate::{
-    BeaconChain, BeaconChainError, BeaconChainTypes, metrics,
+    BeaconChainError, BeaconChainTypes, metrics,
     observed_aggregates::{ObserveOutcome, ObservedAttestationKey},
     observed_attesters::Error as ObservedAttestersError,
     single_attestation::single_attestation_to_attestation,
@@ -72,9 +72,7 @@ use crate::canonical_head::CanonicalHead;
 use crate::chain_config::ChainConfig;
 use crate::pre_finalization_cache::PreFinalizationBlockCache;
 use crate::validator_query_service::ValidatorQueryService;
-use parking_lot::RwLock;
 use slasher::Slasher;
-use std::sync::Arc;
 
 /// Context for attestation verification — holds refs to the components needed.
 ///
@@ -120,6 +118,8 @@ impl<'a, T: BeaconChainTypes> AttestationVerificationContext<'a, T> {
 
     /// Provides access to the committee cache via the attestation manager's shuffling cache
     /// and the store for state loading on cache miss.
+    ///
+    /// Delegates to the shared `with_committee_cache` free function in `attestation_manager`.
     pub fn with_committee_cache<F, R>(
         &self,
         head_block_root: Hash256,
@@ -129,121 +129,15 @@ impl<'a, T: BeaconChainTypes> AttestationVerificationContext<'a, T> {
     where
         F: Fn(&types::CommitteeCache, Hash256) -> Result<R, BeaconChainError>,
     {
-        // Delegate to the with_committee_cache on BeaconChain for now.
-        // TODO: Extract this to a free function that takes component refs directly.
-        // For now we use a simplified version that only checks the cache.
-        use crate::errors::BeaconChainError as Error;
-        use crate::shuffling_cache::BlockShufflingIds;
-        use state_processing::state_advance::partial_state_advance;
-
-        let head_block = self
-            .canonical_head
-            .fork_choice_read_lock()
-            .get_block(&head_block_root)
-            .ok_or(Error::MissingBeaconBlock(head_block_root))?;
-
-        let shuffling_id = BlockShufflingIds {
-            current: head_block.current_epoch_shuffling_id.clone(),
-            next: head_block.next_epoch_shuffling_id.clone(),
-            previous: None,
-            block_root: head_block.root,
-        }
-        .id_for_epoch(shuffling_epoch)
-        .ok_or_else(|| Error::InvalidShufflingId {
+        crate::attestation_manager::with_committee_cache(
+            head_block_root,
             shuffling_epoch,
-            head_block_epoch: head_block.slot.epoch(T::EthSpec::slots_per_epoch()),
-        })?;
-
-        // Check the shuffling cache first
-        let mut shuffling_cache = {
-            let _ =
-                metrics::start_timer(&metrics::ATTESTATION_PROCESSING_SHUFFLING_CACHE_WAIT_TIMES);
-            self.attestation_manager.shuffling_cache.write()
-        };
-
-        if let Some(cache_item) = shuffling_cache.get(&shuffling_id) {
-            drop(shuffling_cache);
-            let committee_cache = cache_item.wait()?;
-            map_fn(&committee_cache, shuffling_id.shuffling_decision_block)
-        } else {
-            // Cache miss — need to load state and build cache
-            let sender = shuffling_cache.create_promise(shuffling_id.clone())?;
-            drop(shuffling_cache);
-
-            let head_block_epoch = head_block.slot.epoch(T::EthSpec::slots_per_epoch());
-            if head_block_epoch > shuffling_epoch + 1 {
-                return Err(Error::InvalidStateForShuffling {
-                    state_epoch: head_block_epoch,
-                    shuffling_epoch,
-                });
-            }
-
-            let state_read_timer =
-                metrics::start_timer(&metrics::ATTESTATION_PROCESSING_STATE_READ_TIMES);
-
-            // Try head state first
-            let head_state_opt = {
-                let cached_head = self.canonical_head.cached_head();
-                let snapshot = &cached_head.snapshot;
-                if snapshot.beacon_block_root == head_block_root {
-                    Some((snapshot.beacon_state.clone(), snapshot.beacon_state_root()))
-                } else {
-                    None
-                }
-            };
-
-            let target_slot = std::cmp::max(
-                shuffling_epoch
-                    .saturating_sub(1_u64)
-                    .start_slot(T::EthSpec::slots_per_epoch()),
-                head_block.slot,
-            );
-
-            let (mut state, state_root) = if let Some((state, state_root)) = head_state_opt {
-                (state, state_root)
-            } else {
-                let (state_root, state) = self
-                    .store
-                    .get_advanced_hot_state(
-                        head_block_root,
-                        types::StatePayloadStatus::Pending,
-                        target_slot,
-                        head_block.state_root,
-                    )?
-                    .ok_or(Error::MissingBeaconState(head_block.state_root))?;
-                (state, state_root)
-            };
-
-            metrics::stop_timer(state_read_timer);
-            let state_skip_timer =
-                metrics::start_timer(&metrics::ATTESTATION_PROCESSING_STATE_SKIP_TIMES);
-
-            if state.current_epoch() + 1 < shuffling_epoch {
-                partial_state_advance(&mut state, Some(state_root), target_slot, self.spec)?;
-            }
-            metrics::stop_timer(state_skip_timer);
-
-            let committee_building_timer =
-                metrics::start_timer(&metrics::ATTESTATION_PROCESSING_COMMITTEE_BUILDING_TIMES);
-
-            let relative_epoch =
-                types::RelativeEpoch::from_epoch(state.current_epoch(), shuffling_epoch)
-                    .map_err(Error::IncorrectStateForAttestation)?;
-
-            state.build_committee_cache(relative_epoch, self.spec)?;
-            let committee_cache = state.committee_cache(relative_epoch)?.clone();
-            let shuffling_decision_block = shuffling_id.shuffling_decision_block;
-
-            self.attestation_manager
-                .shuffling_cache
-                .write()
-                .insert_committee_cache(shuffling_id, &committee_cache);
-
-            metrics::stop_timer(committee_building_timer);
-            sender.send(committee_cache.clone());
-
-            map_fn(&committee_cache, shuffling_decision_block)
-        }
+            self.canonical_head,
+            self.attestation_manager,
+            self.store,
+            self.spec,
+            map_fn,
+        )
     }
 }
 
