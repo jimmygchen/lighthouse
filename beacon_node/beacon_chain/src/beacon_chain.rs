@@ -46,7 +46,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use store::{DatabaseBlock, Error as DBError, HotColdDB, HotStateSummary, StoreOp};
 use task_executor::{ShutdownReason, TaskExecutor};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 use types::data::ColumnIndex;
 use types::*;
 
@@ -449,25 +449,6 @@ pub struct BeaconBlockResponse<E: EthSpec, Payload: AbstractExecPayload<E>> {
 impl FinalizationAndCanonicity {
     pub fn is_finalized(self) -> bool {
         self.slot_is_finalized && self.canonical
-    }
-}
-
-impl<T: BeaconChainTypes> Drop for BeaconChain<T> {
-    fn drop(&mut self) {
-        let drop = || -> Result<(), Error> {
-            self.persist_fork_choice()?;
-            persist_op_pool(&self.store, &self.op_pool)?;
-            persist_custody_ctx::<T>(&self.spec, &self.data_availability_checker, &self.store)
-        };
-
-        if let Err(e) = drop() {
-            error!(
-                error = ?e,
-                "Failed to persist on BeaconChain drop"
-            )
-        } else {
-            info!("Saved beacon chain to disk")
-        }
     }
 }
 

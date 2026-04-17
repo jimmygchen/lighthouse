@@ -260,14 +260,30 @@ pub struct CanonicalHead<T: BeaconChainTypes> {
     ///
     /// This lock **should not be made public**, it should only be used inside this module.
     recompute_head_lock: Mutex<()>,
+    /// Store reference used for persisting fork choice on drop.
+    /// `None` only in lightweight test fixtures that don't need persistence.
+    store: Option<BeaconStore<T>>,
 }
 
 impl<T: BeaconChainTypes> CanonicalHead<T> {
-    /// Instantiate `Self`.
+    /// Instantiate `Self` without a store reference.
+    ///
+    /// Fork choice will **not** be persisted on drop. Use `with_store` for production
+    /// chains that need persistence.
     pub fn new(
         fork_choice: BeaconForkChoice<T>,
         snapshot: Arc<BeaconSnapshot<T::EthSpec>>,
         head_payload_status: proto_array::PayloadStatus,
+    ) -> Self {
+        Self::with_store(fork_choice, snapshot, head_payload_status, None)
+    }
+
+    /// Instantiate `Self`, optionally with a store for persisting fork choice on drop.
+    pub fn with_store(
+        fork_choice: BeaconForkChoice<T>,
+        snapshot: Arc<BeaconSnapshot<T::EthSpec>>,
+        head_payload_status: proto_array::PayloadStatus,
+        store: Option<BeaconStore<T>>,
     ) -> Self {
         let fork_choice_view = fork_choice.cached_fork_choice_view();
         let forkchoice_update_params = fork_choice.get_forkchoice_update_parameters();
@@ -285,7 +301,24 @@ impl<T: BeaconChainTypes> CanonicalHead<T> {
             fork_choice: CanonicalHeadRwLock::new(fork_choice),
             cached_head: CanonicalHeadRwLock::new(cached_head),
             recompute_head_lock: Mutex::new(()),
+            store,
         }
+    }
+
+    /// Persist fork choice to disk, writing immediately.
+    pub fn persist_fork_choice(&self) -> Result<(), Error> {
+        let store = self
+            .store
+            .as_ref()
+            .ok_or(Error::PersistenceError("no store in CanonicalHead".into()))?;
+        let _fork_choice_timer = metrics::start_timer(&metrics::PERSIST_FORK_CHOICE);
+        let fork_choice = self.fork_choice_read_lock();
+        let batch = vec![BeaconChain::<T>::persist_fork_choice_in_batch_standalone(
+            &fork_choice,
+            store.get_config(),
+        )?];
+        store.hot_db.do_atomically(batch)?;
+        Ok(())
     }
 
     /// Load a persisted version of `BeaconForkChoice` from the `store` and restore `self` to that
@@ -437,6 +470,19 @@ impl<T: BeaconChainTypes> CanonicalHead<T> {
     pub fn fork_choice_write_lock(&self) -> RwLockWriteGuard<'_, BeaconForkChoice<T>> {
         let _timer = metrics::start_timer(&metrics::FORK_CHOICE_WRITE_LOCK_AQUIRE_TIMES);
         self.fork_choice.write()
+    }
+}
+
+impl<T: BeaconChainTypes> Drop for CanonicalHead<T> {
+    fn drop(&mut self) {
+        if self.store.is_some() {
+            if let Err(e) = self.persist_fork_choice() {
+                error!(
+                    error = ?e,
+                    "Failed to persist fork choice on CanonicalHead drop"
+                );
+            }
+        }
     }
 }
 
@@ -907,7 +953,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         );
 
         if is_epoch_transition || reorg_distance.is_some() {
-            self.persist_fork_choice()?;
+            self.canonical_head.persist_fork_choice()?;
             self.op_pool.prune_attestations(
                 self.slot_clock
                     .now()
@@ -1072,14 +1118,6 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         // Take a write-lock on the canonical head and signal for it to prune.
         self.canonical_head.fork_choice_write_lock().prune()?;
 
-        Ok(())
-    }
-
-    /// Persist fork choice to disk, writing immediately.
-    pub fn persist_fork_choice(&self) -> Result<(), Error> {
-        let _fork_choice_timer = metrics::start_timer(&metrics::PERSIST_FORK_CHOICE);
-        let batch = vec![self.persist_fork_choice_in_batch()?];
-        self.store.hot_db.do_atomically(batch)?;
         Ok(())
     }
 

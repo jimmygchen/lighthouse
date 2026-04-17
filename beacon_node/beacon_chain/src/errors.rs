@@ -45,6 +45,7 @@ macro_rules! easy_from_to {
 
 #[derive(Debug)]
 pub enum BeaconChainError {
+    PersistenceError(String),
     InsufficientValidators,
     UnableToReadSlot,
     UnableToComputeTimeAtSlot,

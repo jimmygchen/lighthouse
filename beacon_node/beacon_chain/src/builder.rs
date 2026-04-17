@@ -944,8 +944,12 @@ where
 
         let genesis_validators_root = head_snapshot.beacon_state.genesis_validators_root();
         let genesis_time = head_snapshot.beacon_state.genesis_time();
-        let canonical_head =
-            CanonicalHead::new(fork_choice, Arc::new(head_snapshot), head_payload_status);
+        let canonical_head = CanonicalHead::with_store(
+            fork_choice,
+            Arc::new(head_snapshot),
+            head_payload_status,
+            Some(store.clone()),
+        );
         let shuffling_cache_size = self.chain_config.shuffling_cache_size;
         let complete_blob_backfill = self.chain_config.complete_blob_backfill;
 
@@ -1034,7 +1038,12 @@ where
 
         let op_pool = Arc::new(self.op_pool.ok_or("Cannot build without op pool")?);
 
-        let operations = OperationsManager::new(self.spec.clone(), op_pool.clone());
+        let persist_store = store.clone();
+        let operations = OperationsManager::with_persist_fn(
+            self.spec.clone(),
+            op_pool.clone(),
+            Box::new(move |op_pool| crate::beacon_chain::persist_op_pool(&persist_store, op_pool)),
+        );
         let sync_committee_manager = SyncCommitteeManager::new(self.spec.clone(), op_pool.clone());
 
         let beacon_chain = BeaconChain {

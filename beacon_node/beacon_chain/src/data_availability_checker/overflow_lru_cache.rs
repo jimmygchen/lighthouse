@@ -870,6 +870,7 @@ mod test {
         let target_slot = chain.slot().expect("should get slot") + 1;
         let parent_root = head.beacon_block_root;
         let parent_block = chain
+            .store
             .get_blinded_block(&parent_root)
             .expect("should get block")
             .expect("should have block");

@@ -309,3 +309,18 @@ impl<T: BeaconChainTypes> DataAvailabilityManager<T> {
         }
     }
 }
+
+impl<T: BeaconChainTypes> Drop for DataAvailabilityManager<T> {
+    fn drop(&mut self) {
+        if let Err(e) = crate::beacon_chain::persist_custody_ctx::<T>(
+            &self.spec,
+            &self.data_availability_checker,
+            &self.store,
+        ) {
+            error!(
+                error = ?e,
+                "Failed to persist custody context on DataAvailabilityManager drop"
+            );
+        }
+    }
+}

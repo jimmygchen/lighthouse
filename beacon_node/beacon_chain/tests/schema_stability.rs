@@ -86,7 +86,7 @@ async fn schema_stability() {
     let chain = &harness.chain;
 
     beacon_chain::persist_op_pool(&chain.store, &chain.op_pool).unwrap();
-    beacon_chain::persist_custody_ctx::<EphemeralHarnessType<E>>(
+    beacon_chain::persist_custody_ctx::<DiskHarnessType<E>>(
         &chain.spec,
         &chain.data_availability_checker,
         &chain.store,

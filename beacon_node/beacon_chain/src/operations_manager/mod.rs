@@ -7,10 +7,15 @@ use operation_pool::{OperationPool, ReceivedPreCapella};
 use parking_lot::Mutex;
 use state_processing::SigVerifiedOp;
 use std::sync::Arc;
+use tracing::error;
 use types::{
     AttesterSlashing, BeaconState, ChainSpec, Epoch, EthSpec, ProposerSlashing,
     SignedBlsToExecutionChange, SignedVoluntaryExit,
 };
+
+/// Type-erased persistence callback so `OperationsManager` can persist its
+/// op pool without being generic over store types.
+type PersistFn<E> = Box<dyn Fn(&OperationPool<E>) -> Result<(), Error> + Send + Sync>;
 
 /// Manages verification and import of voluntary exits, proposer slashings,
 /// attester slashings, and BLS-to-execution changes.
@@ -28,10 +33,13 @@ pub struct OperationsManager<E: EthSpec> {
     pub(crate) observed_attester_slashings: Mutex<ObservedOperations<AttesterSlashing<E>, E>>,
     pub(crate) observed_bls_to_execution_changes:
         Mutex<ObservedOperations<SignedBlsToExecutionChange, E>>,
+    /// Optional persistence callback, set when a store is available.
+    /// `None` in lightweight test fixtures that don't need persistence.
+    persist_fn: Option<PersistFn<E>>,
 }
 
 impl<E: EthSpec> OperationsManager<E> {
-    /// Create a new `OperationsManager`.
+    /// Create a new `OperationsManager` without persistence.
     pub fn new(spec: Arc<ChainSpec>, op_pool: Arc<OperationPool<E>>) -> Self {
         Self {
             spec,
@@ -40,6 +48,24 @@ impl<E: EthSpec> OperationsManager<E> {
             observed_proposer_slashings: <_>::default(),
             observed_attester_slashings: <_>::default(),
             observed_bls_to_execution_changes: <_>::default(),
+            persist_fn: None,
+        }
+    }
+
+    /// Create a new `OperationsManager` with a persistence callback for the op pool.
+    pub fn with_persist_fn(
+        spec: Arc<ChainSpec>,
+        op_pool: Arc<OperationPool<E>>,
+        persist_fn: PersistFn<E>,
+    ) -> Self {
+        Self {
+            spec,
+            op_pool,
+            observed_voluntary_exits: <_>::default(),
+            observed_proposer_slashings: <_>::default(),
+            observed_attester_slashings: <_>::default(),
+            observed_bls_to_execution_changes: <_>::default(),
+            persist_fn: Some(persist_fn),
         }
     }
 
@@ -191,5 +217,18 @@ impl<E: EthSpec> OperationsManager<E> {
     ) -> bool {
         self.op_pool
             .insert_bls_to_execution_change(bls_to_execution_change, received_pre_capella)
+    }
+}
+
+impl<E: EthSpec> Drop for OperationsManager<E> {
+    fn drop(&mut self) {
+        if let Some(persist_fn) = &self.persist_fn {
+            if let Err(e) = persist_fn(&self.op_pool) {
+                error!(
+                    error = ?e,
+                    "Failed to persist op pool on OperationsManager drop"
+                );
+            }
+        }
     }
 }

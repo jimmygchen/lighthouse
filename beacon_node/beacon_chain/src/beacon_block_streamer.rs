@@ -817,7 +817,7 @@ mod tests {
         let mut expected_blocks = vec![];
         // get all blocks the old fashioned way
         for root in &block_roots {
-            let block = crate::beacon_chain::get_block(
+            let block = crate::beacon_chain::get_block::<EphemeralHarnessType<MinimalEthSpec>>(
                 &harness.chain.store,
                 harness.chain.execution_layer.as_ref(),
                 &harness.chain.spec,
