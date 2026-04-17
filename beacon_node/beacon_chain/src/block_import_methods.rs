@@ -1,13 +1,16 @@
 //! Block import, chain segment processing, blob/data column processing, and availability methods.
 //!
-//! These methods are split from `beacon_chain.rs` for organization. They are still `impl` methods
-//! on `BeaconChain<T>`.
+//! Public methods remain as `impl BeaconChain<T>`. Private helper functions are free functions
+//! that take a `BlockImportContext` with explicit dependencies instead of `&self`.
 
+use crate::attestation_manager::AttestationManager;
 use crate::beacon_chain::{
-    AvailabilityProcessingStatus, BeaconChainTypes, BeaconForkChoice, ChainSegmentResult,
-    EARLY_ATTESTER_CACHE_HISTORIC_SLOTS, HashBlockTuple,
+    AvailabilityProcessingStatus, BeaconChainTypes, BeaconForkChoice, BeaconStore,
+    ChainSegmentResult, EARLY_ATTESTER_CACHE_HISTORIC_SLOTS, HashBlockTuple,
+    LightClientProducerEvent,
 };
-use crate::blob_verification::{GossipBlobError, GossipVerifiedBlob};
+use crate::blob_verification::GossipVerifiedBlob;
+use crate::block_times_cache::BlockTimesCache;
 use crate::block_verification::{
     BlockError, ExecutionPendingBlock, GossipVerifiedBlock, IntoExecutionPendingBlock,
     check_block_is_finalized_checkpoint_or_descendant, check_block_relevancy,
@@ -16,34 +19,78 @@ use crate::block_verification::{
 use crate::block_verification_types::{
     AsBlock, AvailableExecutedBlock, BlockImportData, ExecutedBlock, RangeSyncBlock,
 };
+use crate::canonical_head::CanonicalHead;
+use crate::chain_config::ChainConfig;
+use crate::data_availability_checker::DataAvailabilityChecker;
 use crate::data_availability_checker::{
-    Availability, AvailabilityCheckError, AvailableBlock, AvailableBlockData,
-    DataColumnReconstructionResult,
+    Availability, AvailabilityCheckError, AvailableBlock, DataColumnReconstructionResult,
 };
-use crate::data_column_verification::{GossipDataColumnError, GossipVerifiedDataColumn};
+use crate::data_column_verification::GossipVerifiedDataColumn;
 use crate::errors::BeaconChainError as Error;
+use crate::events::ServerSentEventHandler;
 use crate::execution_payload::NotifyExecutionLayer;
 use crate::fetch_blobs::EngineGetBlobsOutput;
 use crate::observed_aggregates::Error as AttestationObservationError;
+use crate::observed_slashable::ObservedSlashable;
 use crate::validator_monitor::{
-    HISTORIC_EPOCHS as VALIDATOR_MONITOR_HISTORIC_EPOCHS, get_slot_delay_ms,
+    HISTORIC_EPOCHS as VALIDATOR_MONITOR_HISTORIC_EPOCHS, ValidatorMonitor, get_slot_delay_ms,
 };
 use crate::{AvailabilityPendingExecutedBlock, BeaconChain, BeaconChainError, metrics};
 use eth2::types::{EventKind, SseBlobSidecar, SseBlock, SseDataColumnSidecar, SseHead};
-use fixed_bytes::FixedBytesExtended;
 use fork_choice::{PayloadVerificationStatus, ResetPayloadStatuses};
+use futures::channel::mpsc::Sender;
 use itertools::Itertools;
 use logging::crit;
-use parking_lot::RwLockWriteGuard;
+use parking_lot::{RwLock, RwLockWriteGuard};
+use slasher::Slasher;
 use slot_clock::SlotClock;
 use state_processing::ConsensusContext;
-use state_processing::common::get_attesting_indices_from_state;
 use std::sync::Arc;
 use std::time::Duration;
 use store::StoreOp;
 use task_executor::{RayonPoolType, ShutdownReason};
-use tracing::{debug, debug_span, error, info, info_span, instrument, trace, warn};
+use tracing::{debug, debug_span, error, info_span, instrument, warn};
 use types::*;
+
+/// Context struct providing explicit dependencies for block import helper functions.
+///
+/// This replaces implicit `&self` access to `BeaconChain` fields, making each helper's
+/// dependencies visible and enabling independent testability.
+pub(crate) struct BlockImportContext<'a, T: BeaconChainTypes> {
+    pub canonical_head: &'a CanonicalHead<T>,
+    pub store: &'a BeaconStore<T>,
+    pub attestation_manager: &'a AttestationManager<T::EthSpec>,
+    pub validator_monitor: &'a RwLock<ValidatorMonitor<T::EthSpec>>,
+    pub slasher: Option<&'a Arc<Slasher<T::EthSpec>>>,
+    pub event_handler: Option<&'a ServerSentEventHandler<T::EthSpec>>,
+    pub data_availability_checker: &'a Arc<DataAvailabilityChecker<T>>,
+    pub observed_slashable: &'a RwLock<ObservedSlashable<T::EthSpec>>,
+    pub spec: &'a ChainSpec,
+    pub slot_clock: &'a T::SlotClock,
+    pub config: &'a ChainConfig,
+    pub block_times_cache: &'a Arc<RwLock<BlockTimesCache>>,
+    pub light_client_server_tx: &'a Option<Sender<LightClientProducerEvent<T::EthSpec>>>,
+}
+
+impl<'a, T: BeaconChainTypes> BlockImportContext<'a, T> {
+    pub fn from_chain(chain: &'a BeaconChain<T>) -> Self {
+        Self {
+            canonical_head: &chain.canonical_head,
+            store: &chain.store,
+            attestation_manager: &chain.attestation_manager,
+            validator_monitor: &chain.validator_monitor,
+            slasher: chain.slasher.as_ref(),
+            event_handler: chain.event_handler.as_ref(),
+            data_availability_checker: &chain.data_availability_checker,
+            observed_slashable: &chain.observed_slashable,
+            spec: &chain.spec,
+            slot_clock: &chain.slot_clock,
+            config: &chain.config,
+            block_times_cache: &chain.block_times_cache,
+            light_client_server_tx: &chain.light_client_server_tx,
+        }
+    }
+}
 
 impl<T: BeaconChainTypes> BeaconChain<T> {
     pub fn filter_chain_segment(
@@ -359,7 +406,8 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             return Err(BlockError::BlobNotRequired(blob.slot()));
         }
 
-        self.emit_sse_blob_sidecar_events(&block_root, std::iter::once(blob.as_blob()));
+        let ctx = BlockImportContext::from_chain(self);
+        emit_sse_blob_sidecar_events(&ctx, &block_root, std::iter::once(blob.as_blob()));
 
         self.check_gossip_blob_availability_and_import(blob).await
     }
@@ -393,7 +441,9 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             return Err(BlockError::DuplicateFullyImported(block_root));
         }
 
-        self.emit_sse_data_column_sidecar_events(
+        let ctx = BlockImportContext::from_chain(self);
+        emit_sse_data_column_sidecar_events(
+            &ctx,
             &block_root,
             data_columns.iter().map(|column| column.as_data_column()),
         );
@@ -441,7 +491,8 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             return Err(BlockError::ParentUnknown { parent_root });
         }
 
-        self.emit_sse_blob_sidecar_events(&block_root, blobs.iter().flatten().map(Arc::as_ref));
+        let ctx = BlockImportContext::from_chain(self);
+        emit_sse_blob_sidecar_events(&ctx, &block_root, blobs.iter().flatten().map(Arc::as_ref));
 
         self.check_rpc_blob_availability_and_import(slot, block_root, blobs)
             .await
@@ -464,12 +515,14 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             return Err(BlockError::DuplicateFullyImported(block_root));
         }
 
+        let ctx = BlockImportContext::from_chain(self);
         match &engine_get_blobs_output {
             EngineGetBlobsOutput::Blobs(blobs) => {
-                self.emit_sse_blob_sidecar_events(&block_root, blobs.iter().map(|b| b.as_blob()));
+                emit_sse_blob_sidecar_events(&ctx, &block_root, blobs.iter().map(|b| b.as_blob()));
             }
             EngineGetBlobsOutput::CustodyColumns(columns) => {
-                self.emit_sse_data_column_sidecar_events(
+                emit_sse_data_column_sidecar_events(
+                    &ctx,
                     &block_root,
                     columns.iter().map(|column| column.as_data_column()),
                 );
@@ -478,52 +531,6 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
 
         self.check_engine_blobs_availability_and_import(slot, block_root, engine_get_blobs_output)
             .await
-    }
-
-    fn emit_sse_blob_sidecar_events<'a, I>(self: &Arc<Self>, block_root: &Hash256, blobs_iter: I)
-    where
-        I: Iterator<Item = &'a BlobSidecar<T::EthSpec>>,
-    {
-        if let Some(event_handler) = self.event_handler.as_ref()
-            && event_handler.has_blob_sidecar_subscribers()
-        {
-            let imported_blobs = self
-                .data_availability_checker
-                .cached_blob_indexes(block_root)
-                .unwrap_or_default();
-            let new_blobs = blobs_iter.filter(|b| !imported_blobs.contains(&b.index));
-
-            for blob in new_blobs {
-                event_handler.register(EventKind::BlobSidecar(SseBlobSidecar::from_blob_sidecar(
-                    blob,
-                )));
-            }
-        }
-    }
-
-    fn emit_sse_data_column_sidecar_events<'a, I>(
-        self: &Arc<Self>,
-        block_root: &Hash256,
-        data_columns_iter: I,
-    ) where
-        I: Iterator<Item = &'a DataColumnSidecar<T::EthSpec>>,
-    {
-        if let Some(event_handler) = self.event_handler.as_ref()
-            && event_handler.has_data_column_sidecar_subscribers()
-        {
-            let imported_data_columns = self
-                .data_availability_checker
-                .cached_data_column_indexes(block_root)
-                .unwrap_or_default();
-            let new_data_columns =
-                data_columns_iter.filter(|b| !imported_data_columns.contains(b.index()));
-
-            for data_column in new_data_columns {
-                event_handler.register(EventKind::DataColumnSidecar(
-                    SseDataColumnSidecar::from_data_column_sidecar(data_column),
-                ));
-            }
-        }
     }
 
     /// Cache the columns in the processing cache, process it, then evict it from the cache if it was
@@ -575,7 +582,9 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             return Err(BlockError::ParentUnknown { parent_root });
         }
 
-        self.emit_sse_data_column_sidecar_events(
+        let ctx = BlockImportContext::from_chain(self);
+        emit_sse_data_column_sidecar_events(
+            &ctx,
             &block_root,
             custody_columns.iter().map(|column| column.as_ref()),
         );
@@ -887,36 +896,6 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             .await
     }
 
-    fn check_blob_header_signature_and_slashability<'a>(
-        self: &Arc<Self>,
-        block_root: Hash256,
-        blobs: impl IntoIterator<Item = &'a BlobSidecar<T::EthSpec>>,
-    ) -> Result<(), BlockError> {
-        let mut slashable_cache = self.observed_slashable.write();
-        for header in blobs
-            .into_iter()
-            .map(|b| b.signed_block_header.clone())
-            .unique()
-        {
-            // Return an error if *any* header signature is invalid, we do not want to import this
-            // list of blobs into the DA checker. However, we will process any valid headers prior
-            // to the first invalid header in the slashable cache & slasher.
-            verify_header_signature::<T, BlockError>(self, &header)?;
-
-            slashable_cache
-                .observe_slashable(
-                    header.message.slot,
-                    header.message.proposer_index,
-                    block_root,
-                )
-                .map_err(|e| BlockError::BeaconChainError(Box::new(e.into())))?;
-            if let Some(slasher) = self.slasher.as_ref() {
-                slasher.accept_block_header(header);
-            }
-        }
-        Ok(())
-    }
-
     /// Checks if the provided blobs can make any cached blocks available, and imports immediately
     /// if so, otherwise caches the blob in the data availability checker.
     async fn check_rpc_blob_availability_and_import(
@@ -925,7 +904,10 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         block_root: Hash256,
         blobs: FixedBlobSidecarList<T::EthSpec>,
     ) -> Result<AvailabilityProcessingStatus, BlockError> {
-        self.check_blob_header_signature_and_slashability(
+        let ctx = BlockImportContext::from_chain(self);
+        check_blob_header_signature_and_slashability(
+            &ctx,
+            self,
             block_root,
             blobs.iter().flatten().map(Arc::as_ref),
         )?;
@@ -943,9 +925,12 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         block_root: Hash256,
         engine_get_blobs_output: EngineGetBlobsOutput<T>,
     ) -> Result<AvailabilityProcessingStatus, BlockError> {
+        let ctx = BlockImportContext::from_chain(self);
         let availability = match engine_get_blobs_output {
             EngineGetBlobsOutput::Blobs(blobs) => {
-                self.check_blob_header_signature_and_slashability(
+                check_blob_header_signature_and_slashability(
+                    &ctx,
+                    self,
                     block_root,
                     blobs.iter().map(|b| b.as_blob()),
                 )?;
@@ -954,7 +939,9 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             }
             EngineGetBlobsOutput::CustodyColumns(data_columns) => {
                 // TODO(gloas) verify that this check is no longer relevant for gloas
-                self.check_data_column_sidecar_header_signature_and_slashability(
+                check_data_column_sidecar_header_signature_and_slashability(
+                    &ctx,
+                    self,
                     block_root,
                     data_columns
                         .iter()
@@ -981,7 +968,10 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         custody_columns: DataColumnSidecarList<T::EthSpec>,
     ) -> Result<AvailabilityProcessingStatus, BlockError> {
         // TODO(gloas) ensure that this check is no longer relevant post gloas
-        self.check_data_column_sidecar_header_signature_and_slashability(
+        let ctx = BlockImportContext::from_chain(self);
+        check_data_column_sidecar_header_signature_and_slashability(
+            &ctx,
+            self,
             block_root,
             custody_columns.iter().filter_map(|c| match c.as_ref() {
                 DataColumnSidecar::Fulu(fulu) => Some(fulu),
@@ -999,39 +989,6 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
 
         self.process_availability(slot, availability, || Ok(()))
             .await
-    }
-
-    fn check_data_column_sidecar_header_signature_and_slashability<'a>(
-        self: &Arc<Self>,
-        block_root: Hash256,
-        custody_columns: impl IntoIterator<Item = &'a DataColumnSidecarFulu<T::EthSpec>>,
-    ) -> Result<(), BlockError> {
-        let mut slashable_cache = self.observed_slashable.write();
-        // Process all unique block headers - previous logic assumed all headers were identical and
-        // only processed the first one. However, we should not make assumptions about data received
-        // from RPC.
-        for header in custody_columns
-            .into_iter()
-            .map(|c| c.signed_block_header.clone())
-            .unique()
-        {
-            // Return an error if *any* header signature is invalid, we do not want to import this
-            // list of blobs into the DA checker. However, we will process any valid headers prior
-            // to the first invalid header in the slashable cache & slasher.
-            verify_header_signature::<T, BlockError>(self, &header)?;
-
-            slashable_cache
-                .observe_slashable(
-                    header.message.slot,
-                    header.message.proposer_index,
-                    block_root,
-                )
-                .map_err(|e| BlockError::BeaconChainError(Box::new(e.into())))?;
-            if let Some(slasher) = self.slasher.as_ref() {
-                slasher.accept_block_header(header);
-            }
-        }
-        Ok(())
     }
 
     /// Imports a fully available block. Otherwise, returns `AvailabilityProcessingStatus::MissingComponents`
@@ -1312,22 +1269,26 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         // state if we returned early without committing. In other words, an error here would
         // corrupt the node's database permanently.
         // -----------------------------------------------------------------------------------------
+        let ctx = BlockImportContext::from_chain(self);
         self.attestation_manager
             .import_block_update_shuffling_cache(block_root, &mut state);
-        self.import_block_observe_attestations(
+        import_block_observe_attestations(
+            &ctx,
             block,
             &state,
             &mut consensus_context,
             current_epoch,
         );
-        self.import_block_update_validator_monitor(
+        import_block_update_validator_monitor(
+            &ctx,
+            self,
             block,
             &state,
             &mut consensus_context,
             current_slot,
             parent_block.slot(),
         );
-        self.import_block_update_slasher(block, &state, &mut consensus_context);
+        import_block_update_slasher(&ctx, block, &state, &mut consensus_context);
 
         // Store the block and its state, and execute the confirmation batch for the intermediate
         // states, which will delete their temporary flags.
@@ -1355,8 +1316,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
                 error = ?e,
                 "Database write failed!"
             );
-            return Err(self
-                .handle_import_block_db_write_error(fork_choice)
+            return Err(handle_import_block_db_write_error(&ctx, fork_choice)
                 .err()
                 .unwrap_or(e.into()));
         }
@@ -1393,7 +1353,8 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         self.pre_finalization_block_cache
             .block_processed(block_root);
 
-        self.import_block_update_metrics_and_events(
+        import_block_update_metrics_and_events(
+            &ctx,
             block,
             block_root,
             block_time_imported,
@@ -1402,39 +1363,6 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         );
 
         Ok(block_root)
-    }
-
-    fn handle_import_block_db_write_error(
-        &self,
-        // We don't actually need this value, however it's always present when we call this function
-        // and it needs to be dropped to prevent a dead-lock. Requiring it to be passed here is
-        // defensive programming.
-        fork_choice_write_lock: RwLockWriteGuard<BeaconForkChoice<T>>,
-    ) -> Result<(), BlockError> {
-        // Clear the early attester cache to prevent attestations which we would later be unable
-        // to verify due to the failure.
-        self.attestation_manager.early_attester_cache.clear();
-
-        // Since the write failed, try to revert the canonical head back to what was stored
-        // in the database. This attempts to prevent inconsistency between the database and
-        // fork choice.
-        if let Err(e) = self.canonical_head.restore_from_store(
-            fork_choice_write_lock,
-            ResetPayloadStatuses::always_reset_conditionally(
-                self.config.always_reset_payload_statuses,
-            ),
-            &self.store,
-            &self.spec,
-        ) {
-            crit!(
-                error = ?e,
-                warning = "The database is likely corrupt now, consider --purge-db",
-                "No stored fork choice found to restore from"
-            );
-            Err(BlockError::BeaconChainError(Box::new(e)))
-        } else {
-            Ok(())
-        }
     }
 
     /// Check block's consistentency with any configured weak subjectivity checkpoint.
@@ -1494,73 +1422,189 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
 
         Ok(())
     }
+}
 
-    /// Process a block for the validator monitor, including all its constituent messages.
-    #[instrument(skip_all, level = "debug")]
-    fn import_block_update_validator_monitor(
-        &self,
-        block: BeaconBlockRef<T::EthSpec>,
-        state: &BeaconState<T::EthSpec>,
-        ctxt: &mut ConsensusContext<T::EthSpec>,
-        current_slot: Slot,
-        parent_block_slot: Slot,
-    ) {
-        // Only register blocks with the validator monitor when the block is sufficiently close to
-        // the current slot.
-        if VALIDATOR_MONITOR_HISTORIC_EPOCHS as u64 * T::EthSpec::slots_per_epoch()
-            + block.slot().as_u64()
-            < current_slot.as_u64()
-        {
-            return;
+// --- Free functions extracted from `impl BeaconChain<T>` ---
+
+/// Process a block for the validator monitor, including all its constituent messages.
+#[instrument(skip_all, level = "debug")]
+fn import_block_update_validator_monitor<T: BeaconChainTypes>(
+    ctx: &BlockImportContext<T>,
+    chain: &BeaconChain<T>,
+    block: BeaconBlockRef<T::EthSpec>,
+    state: &BeaconState<T::EthSpec>,
+    ctxt: &mut ConsensusContext<T::EthSpec>,
+    current_slot: Slot,
+    parent_block_slot: Slot,
+) {
+    // Only register blocks with the validator monitor when the block is sufficiently close to
+    // the current slot.
+    if VALIDATOR_MONITOR_HISTORIC_EPOCHS as u64 * T::EthSpec::slots_per_epoch()
+        + block.slot().as_u64()
+        < current_slot.as_u64()
+    {
+        return;
+    }
+
+    // Allow the validator monitor to learn about a new valid state.
+    ctx.validator_monitor.write().process_valid_state(
+        current_slot.epoch(T::EthSpec::slots_per_epoch()),
+        state,
+        ctx.spec,
+    );
+
+    let validator_monitor = ctx.validator_monitor.read();
+
+    // Sync aggregate.
+    if let Ok(sync_aggregate) = block.body().sync_aggregate() {
+        // `SyncCommittee` for the sync_aggregate should correspond to the duty slot
+        let duty_epoch = block.epoch();
+
+        match chain.sync_committee_at_epoch(duty_epoch) {
+            Ok(sync_committee) => {
+                let participant_pubkeys = sync_committee
+                    .pubkeys
+                    .iter()
+                    .zip(sync_aggregate.sync_committee_bits.iter())
+                    .filter_map(|(pubkey, bit)| bit.then_some(pubkey))
+                    .collect::<Vec<_>>();
+
+                validator_monitor.register_sync_aggregate_in_block(
+                    block.slot(),
+                    block.parent_root(),
+                    participant_pubkeys,
+                );
+            }
+            Err(e) => {
+                warn!(
+                    epoch = %duty_epoch,
+                    purpose = "validator monitor",
+                    error = ?e,
+                    "Unable to fetch sync committee"
+                );
+            }
         }
+    }
 
-        // Allow the validator monitor to learn about a new valid state.
-        self.validator_monitor.write().process_valid_state(
-            current_slot.epoch(T::EthSpec::slots_per_epoch()),
-            state,
-            &self.spec,
+    // Attestations.
+    for attestation in block.body().attestations() {
+        let indexed_attestation = match ctxt.get_indexed_attestation(state, attestation) {
+            Ok(indexed) => indexed,
+            Err(e) => {
+                debug!(
+                    purpose = "validator monitor",
+                    attestation_slot = %attestation.data().slot,
+                    error = ?e,
+                    "Failed to get indexed attestation"
+                );
+                continue;
+            }
+        };
+        validator_monitor.register_attestation_in_block(
+            indexed_attestation,
+            parent_block_slot,
+            ctx.spec,
         );
+    }
 
-        let validator_monitor = self.validator_monitor.read();
+    for exit in block.body().voluntary_exits() {
+        validator_monitor.register_block_voluntary_exit(&exit.message)
+    }
 
-        // Sync aggregate.
-        if let Ok(sync_aggregate) = block.body().sync_aggregate() {
-            // `SyncCommittee` for the sync_aggregate should correspond to the duty slot
-            let duty_epoch = block.epoch();
+    for slashing in block.body().attester_slashings() {
+        validator_monitor.register_block_attester_slashing(slashing)
+    }
 
-            match self.sync_committee_at_epoch(duty_epoch) {
-                Ok(sync_committee) => {
-                    let participant_pubkeys = sync_committee
-                        .pubkeys
-                        .iter()
-                        .zip(sync_aggregate.sync_committee_bits.iter())
-                        .filter_map(|(pubkey, bit)| bit.then_some(pubkey))
-                        .collect::<Vec<_>>();
+    for slashing in block.body().proposer_slashings() {
+        validator_monitor.register_block_proposer_slashing(slashing)
+    }
+}
 
-                    validator_monitor.register_sync_aggregate_in_block(
-                        block.slot(),
-                        block.parent_root(),
-                        participant_pubkeys,
-                    );
-                }
-                Err(e) => {
-                    warn!(
-                        epoch = %duty_epoch,
-                        purpose = "validator monitor",
-                        error = ?e,
-                        "Unable to fetch sync committee"
-                    );
-                }
+/// Iterate through the attestations in the block and register them as "observed".
+///
+/// This will stop us from propagating them on the gossip network.
+#[instrument(skip_all, level = "debug")]
+fn import_block_observe_attestations<T: BeaconChainTypes>(
+    ctx: &BlockImportContext<T>,
+    block: BeaconBlockRef<T::EthSpec>,
+    state: &BeaconState<T::EthSpec>,
+    ctxt: &mut ConsensusContext<T::EthSpec>,
+    current_epoch: Epoch,
+) {
+    // To avoid slowing down sync, only observe attestations if the block is from the
+    // previous epoch or later.
+    if state.current_epoch() + 1 < current_epoch {
+        return;
+    }
+
+    let _timer = metrics::start_timer(&metrics::BLOCK_PROCESSING_ATTESTATION_OBSERVATION);
+
+    for a in block.body().attestations() {
+        match ctx
+            .attestation_manager
+            .observed_attestations
+            .write()
+            .observe_item(a, None)
+        {
+            // If the observation was successful or if the slot for the attestation was too
+            // low, continue.
+            //
+            // We ignore `SlotTooLow` since this will be very common whilst syncing.
+            Ok(_) | Err(AttestationObservationError::SlotTooLow { .. }) => {}
+            Err(e) => {
+                debug!(
+                    error = ?e,
+                    epoch = %a.data().target.epoch,
+                    "Failed to register observed attestation"
+                );
             }
         }
 
-        // Attestations.
+        let indexed_attestation = match ctxt.get_indexed_attestation(state, a) {
+            Ok(indexed) => indexed,
+            Err(e) => {
+                debug!(
+                    purpose = "observation",
+                    attestation_slot = %a.data().slot,
+                    error = ?e,
+                    "Failed to get indexed attestation"
+                );
+                continue;
+            }
+        };
+
+        let mut observed_block_attesters = ctx.attestation_manager.observed_block_attesters.write();
+
+        for &validator_index in indexed_attestation.attesting_indices_iter() {
+            if let Err(e) = observed_block_attesters
+                .observe_validator(a.data().target.epoch, validator_index as usize)
+            {
+                debug!(
+                    error = ?e,
+                    epoch = %a.data().target.epoch,
+                    validator_index,
+                    "Failed to register observed block attester"
+                )
+            }
+        }
+    }
+}
+
+/// If a slasher is configured, provide the attestations from the block.
+#[instrument(skip_all, level = "debug")]
+fn import_block_update_slasher<T: BeaconChainTypes>(
+    ctx: &BlockImportContext<T>,
+    block: BeaconBlockRef<T::EthSpec>,
+    state: &BeaconState<T::EthSpec>,
+    ctxt: &mut ConsensusContext<T::EthSpec>,
+) {
+    if let Some(slasher) = ctx.slasher {
         for attestation in block.body().attestations() {
             let indexed_attestation = match ctxt.get_indexed_attestation(state, attestation) {
                 Ok(indexed) => indexed,
                 Err(e) => {
                     debug!(
-                        purpose = "validator monitor",
+                        purpose = "slasher",
                         attestation_slot = %attestation.data().slot,
                         error = ?e,
                         "Failed to get indexed attestation"
@@ -1568,189 +1612,219 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
                     continue;
                 }
             };
-            validator_monitor.register_attestation_in_block(
-                indexed_attestation,
-                parent_block_slot,
-                &self.spec,
+            slasher.accept_attestation(indexed_attestation.clone_as_indexed_attestation());
+        }
+    }
+}
+
+fn import_block_update_metrics_and_events<T: BeaconChainTypes>(
+    ctx: &BlockImportContext<T>,
+    block: BeaconBlockRef<T::EthSpec>,
+    block_root: Hash256,
+    block_time_imported: Duration,
+    payload_verification_status: PayloadVerificationStatus,
+    current_slot: Slot,
+) {
+    // Only present some metrics for blocks from the previous epoch or later.
+    //
+    // This helps avoid noise in the metrics during sync.
+    if block.slot() + 2 * T::EthSpec::slots_per_epoch() >= current_slot {
+        metrics::observe(
+            &metrics::OPERATIONS_PER_BLOCK_ATTESTATION,
+            block.body().attestations_len() as f64,
+        );
+
+        if let Ok(sync_aggregate) = block.body().sync_aggregate() {
+            metrics::set_gauge(
+                &metrics::BLOCK_SYNC_AGGREGATE_SET_BITS,
+                sync_aggregate.num_set_bits() as i64,
             );
         }
-
-        for exit in block.body().voluntary_exits() {
-            validator_monitor.register_block_voluntary_exit(&exit.message)
-        }
-
-        for slashing in block.body().attester_slashings() {
-            validator_monitor.register_block_attester_slashing(slashing)
-        }
-
-        for slashing in block.body().proposer_slashings() {
-            validator_monitor.register_block_proposer_slashing(slashing)
-        }
     }
 
-    /// Iterate through the attestations in the block and register them as "observed".
-    ///
-    /// This will stop us from propagating them on the gossip network.
-    #[instrument(skip_all, level = "debug")]
-    fn import_block_observe_attestations(
-        &self,
-        block: BeaconBlockRef<T::EthSpec>,
-        state: &BeaconState<T::EthSpec>,
-        ctxt: &mut ConsensusContext<T::EthSpec>,
-        current_epoch: Epoch,
-    ) {
-        // To avoid slowing down sync, only observe attestations if the block is from the
-        // previous epoch or later.
-        if state.current_epoch() + 1 < current_epoch {
-            return;
-        }
+    let block_delay_total = get_slot_delay_ms(block_time_imported, block.slot(), ctx.slot_clock);
 
-        let _timer = metrics::start_timer(&metrics::BLOCK_PROCESSING_ATTESTATION_OBSERVATION);
-
-        for a in block.body().attestations() {
-            match self
-                .attestation_manager
-                .observed_attestations
-                .write()
-                .observe_item(a, None)
-            {
-                // If the observation was successful or if the slot for the attestation was too
-                // low, continue.
-                //
-                // We ignore `SlotTooLow` since this will be very common whilst syncing.
-                Ok(_) | Err(AttestationObservationError::SlotTooLow { .. }) => {}
-                Err(e) => {
-                    debug!(
-                        error = ?e,
-                        epoch = %a.data().target.epoch,
-                        "Failed to register observed attestation"
-                    );
-                }
-            }
-
-            let indexed_attestation = match ctxt.get_indexed_attestation(state, a) {
-                Ok(indexed) => indexed,
-                Err(e) => {
-                    debug!(
-                        purpose = "observation",
-                        attestation_slot = %a.data().slot,
-                        error = ?e,
-                        "Failed to get indexed attestation"
-                    );
-                    continue;
-                }
-            };
-
-            let mut observed_block_attesters =
-                self.attestation_manager.observed_block_attesters.write();
-
-            for &validator_index in indexed_attestation.attesting_indices_iter() {
-                if let Err(e) = observed_block_attesters
-                    .observe_validator(a.data().target.epoch, validator_index as usize)
-                {
-                    debug!(
-                        error = ?e,
-                        epoch = %a.data().target.epoch,
-                        validator_index,
-                        "Failed to register observed block attester"
-                    )
-                }
-            }
-        }
+    // Do not write to the cache for blocks older than 2 epochs, this helps reduce writes to
+    // the cache during sync.
+    if block_delay_total < ctx.slot_clock.slot_duration() * 64 {
+        // Store the timestamp of the block being imported into the cache.
+        ctx.block_times_cache.write().set_time_imported(
+            block_root,
+            current_slot,
+            block_time_imported,
+        );
     }
 
-    /// If a slasher is configured, provide the attestations from the block.
-    #[instrument(skip_all, level = "debug")]
-    fn import_block_update_slasher(
-        &self,
-        block: BeaconBlockRef<T::EthSpec>,
-        state: &BeaconState<T::EthSpec>,
-        ctxt: &mut ConsensusContext<T::EthSpec>,
-    ) {
-        if let Some(slasher) = self.slasher.as_ref() {
-            for attestation in block.body().attestations() {
-                let indexed_attestation = match ctxt.get_indexed_attestation(state, attestation) {
-                    Ok(indexed) => indexed,
-                    Err(e) => {
-                        debug!(
-                            purpose = "slasher",
-                            attestation_slot = %attestation.data().slot,
-                            error = ?e,
-                            "Failed to get indexed attestation"
-                        );
-                        continue;
-                    }
-                };
-                slasher.accept_attestation(indexed_attestation.clone_as_indexed_attestation());
-            }
-        }
+    if let Some(event_handler) = ctx.event_handler
+        && event_handler.has_block_subscribers()
+    {
+        event_handler.register(EventKind::Block(SseBlock {
+            slot: block.slot(),
+            block: block_root,
+            execution_optimistic: payload_verification_status.is_optimistic(),
+        }));
     }
 
-    fn import_block_update_metrics_and_events(
-        &self,
-        block: BeaconBlockRef<T::EthSpec>,
-        block_root: Hash256,
-        block_time_imported: Duration,
-        payload_verification_status: PayloadVerificationStatus,
-        current_slot: Slot,
-    ) {
-        // Only present some metrics for blocks from the previous epoch or later.
-        //
-        // This helps avoid noise in the metrics during sync.
-        if block.slot() + 2 * T::EthSpec::slots_per_epoch() >= current_slot {
-            metrics::observe(
-                &metrics::OPERATIONS_PER_BLOCK_ATTESTATION,
-                block.body().attestations_len() as f64,
-            );
+    // Do not trigger light_client server update producer for old blocks, to extra work
+    // during sync.
+    if ctx.config.enable_light_client_server
+        && block_delay_total < ctx.slot_clock.slot_duration() * 32
+        && let Some(mut light_client_server_tx) = ctx.light_client_server_tx.clone()
+        && let Ok(sync_aggregate) = block.body().sync_aggregate()
+        && let Err(e) = light_client_server_tx.try_send((
+            block.parent_root(),
+            block.slot(),
+            sync_aggregate.clone(),
+        ))
+    {
+        warn!(
+            error = ?e,
+            "Failed to send light_client server event"
+        );
+    }
+}
 
-            if let Ok(sync_aggregate) = block.body().sync_aggregate() {
-                metrics::set_gauge(
-                    &metrics::BLOCK_SYNC_AGGREGATE_SET_BITS,
-                    sync_aggregate.num_set_bits() as i64,
-                );
-            }
+fn emit_sse_blob_sidecar_events<'a, T: BeaconChainTypes, I>(
+    ctx: &BlockImportContext<T>,
+    block_root: &Hash256,
+    blobs_iter: I,
+) where
+    I: Iterator<Item = &'a BlobSidecar<T::EthSpec>>,
+{
+    if let Some(event_handler) = ctx.event_handler
+        && event_handler.has_blob_sidecar_subscribers()
+    {
+        let imported_blobs = ctx
+            .data_availability_checker
+            .cached_blob_indexes(block_root)
+            .unwrap_or_default();
+        let new_blobs = blobs_iter.filter(|b| !imported_blobs.contains(&b.index));
+
+        for blob in new_blobs {
+            event_handler.register(EventKind::BlobSidecar(SseBlobSidecar::from_blob_sidecar(
+                blob,
+            )));
         }
+    }
+}
 
-        let block_delay_total =
-            get_slot_delay_ms(block_time_imported, block.slot(), &self.slot_clock);
+fn emit_sse_data_column_sidecar_events<'a, T: BeaconChainTypes, I>(
+    ctx: &BlockImportContext<T>,
+    block_root: &Hash256,
+    data_columns_iter: I,
+) where
+    I: Iterator<Item = &'a DataColumnSidecar<T::EthSpec>>,
+{
+    if let Some(event_handler) = ctx.event_handler
+        && event_handler.has_data_column_sidecar_subscribers()
+    {
+        let imported_data_columns = ctx
+            .data_availability_checker
+            .cached_data_column_indexes(block_root)
+            .unwrap_or_default();
+        let new_data_columns =
+            data_columns_iter.filter(|b| !imported_data_columns.contains(b.index()));
 
-        // Do not write to the cache for blocks older than 2 epochs, this helps reduce writes to
-        // the cache during sync.
-        if block_delay_total < self.slot_clock.slot_duration() * 64 {
-            // Store the timestamp of the block being imported into the cache.
-            self.block_times_cache.write().set_time_imported(
+        for data_column in new_data_columns {
+            event_handler.register(EventKind::DataColumnSidecar(
+                SseDataColumnSidecar::from_data_column_sidecar(data_column),
+            ));
+        }
+    }
+}
+
+fn check_blob_header_signature_and_slashability<'a, T: BeaconChainTypes>(
+    ctx: &BlockImportContext<T>,
+    chain: &BeaconChain<T>,
+    block_root: Hash256,
+    blobs: impl IntoIterator<Item = &'a BlobSidecar<T::EthSpec>>,
+) -> Result<(), BlockError> {
+    let mut slashable_cache = ctx.observed_slashable.write();
+    for header in blobs
+        .into_iter()
+        .map(|b| b.signed_block_header.clone())
+        .unique()
+    {
+        // Return an error if *any* header signature is invalid, we do not want to import this
+        // list of blobs into the DA checker. However, we will process any valid headers prior
+        // to the first invalid header in the slashable cache & slasher.
+        verify_header_signature::<T, BlockError>(chain, &header)?;
+
+        slashable_cache
+            .observe_slashable(
+                header.message.slot,
+                header.message.proposer_index,
                 block_root,
-                current_slot,
-                block_time_imported,
-            );
+            )
+            .map_err(|e| BlockError::BeaconChainError(Box::new(e.into())))?;
+        if let Some(slasher) = ctx.slasher {
+            slasher.accept_block_header(header);
         }
+    }
+    Ok(())
+}
 
-        if let Some(event_handler) = self.event_handler.as_ref()
-            && event_handler.has_block_subscribers()
-        {
-            event_handler.register(EventKind::Block(SseBlock {
-                slot: block.slot(),
-                block: block_root,
-                execution_optimistic: payload_verification_status.is_optimistic(),
-            }));
-        }
+fn check_data_column_sidecar_header_signature_and_slashability<'a, T: BeaconChainTypes>(
+    ctx: &BlockImportContext<T>,
+    chain: &BeaconChain<T>,
+    block_root: Hash256,
+    custody_columns: impl IntoIterator<Item = &'a DataColumnSidecarFulu<T::EthSpec>>,
+) -> Result<(), BlockError> {
+    let mut slashable_cache = ctx.observed_slashable.write();
+    // Process all unique block headers - previous logic assumed all headers were identical and
+    // only processed the first one. However, we should not make assumptions about data received
+    // from RPC.
+    for header in custody_columns
+        .into_iter()
+        .map(|c| c.signed_block_header.clone())
+        .unique()
+    {
+        // Return an error if *any* header signature is invalid, we do not want to import this
+        // list of blobs into the DA checker. However, we will process any valid headers prior
+        // to the first invalid header in the slashable cache & slasher.
+        verify_header_signature::<T, BlockError>(chain, &header)?;
 
-        // Do not trigger light_client server update producer for old blocks, to extra work
-        // during sync.
-        if self.config.enable_light_client_server
-            && block_delay_total < self.slot_clock.slot_duration() * 32
-            && let Some(mut light_client_server_tx) = self.light_client_server_tx.clone()
-            && let Ok(sync_aggregate) = block.body().sync_aggregate()
-            && let Err(e) = light_client_server_tx.try_send((
-                block.parent_root(),
-                block.slot(),
-                sync_aggregate.clone(),
-            ))
-        {
-            warn!(
-                error = ?e,
-                "Failed to send light_client server event"
-            );
+        slashable_cache
+            .observe_slashable(
+                header.message.slot,
+                header.message.proposer_index,
+                block_root,
+            )
+            .map_err(|e| BlockError::BeaconChainError(Box::new(e.into())))?;
+        if let Some(slasher) = ctx.slasher {
+            slasher.accept_block_header(header);
         }
+    }
+    Ok(())
+}
+
+fn handle_import_block_db_write_error<T: BeaconChainTypes>(
+    ctx: &BlockImportContext<T>,
+    // We don't actually need this value, however it's always present when we call this function
+    // and it needs to be dropped to prevent a dead-lock. Requiring it to be passed here is
+    // defensive programming.
+    fork_choice_write_lock: RwLockWriteGuard<BeaconForkChoice<T>>,
+) -> Result<(), BlockError> {
+    // Clear the early attester cache to prevent attestations which we would later be unable
+    // to verify due to the failure.
+    ctx.attestation_manager.early_attester_cache.clear();
+
+    // Since the write failed, try to revert the canonical head back to what was stored
+    // in the database. This attempts to prevent inconsistency between the database and
+    // fork choice.
+    if let Err(e) = ctx.canonical_head.restore_from_store(
+        fork_choice_write_lock,
+        ResetPayloadStatuses::always_reset_conditionally(ctx.config.always_reset_payload_statuses),
+        ctx.store,
+        ctx.spec,
+    ) {
+        crit!(
+            error = ?e,
+            warning = "The database is likely corrupt now, consider --purge-db",
+            "No stored fork choice found to restore from"
+        );
+        Err(BlockError::BeaconChainError(Box::new(e)))
+    } else {
+        Ok(())
     }
 }
