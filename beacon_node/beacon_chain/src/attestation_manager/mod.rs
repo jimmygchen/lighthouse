@@ -50,9 +50,11 @@ use crate::observed_aggregates::ObservedAggregateAttestations;
 use crate::observed_attesters::{ObservedAggregators, ObservedAttesters};
 use crate::shuffling_cache::ShufflingCache;
 use crate::{BeaconChainError, metrics};
+use fork_choice;
 use parking_lot::RwLock;
 use std::sync::Arc;
 use tracing::{error, trace, warn};
+use tree_hash::TreeHash;
 use types::*;
 
 /// Manages attestation-related pools, observation tracking, and the shuffling cache.
@@ -175,6 +177,77 @@ impl<E: EthSpec> AttestationManager<E> {
             }
         }
         Ok(())
+    }
+
+    /// Returns an aggregated `Attestation`, if any, that has a matching `attestation.data`.
+    ///
+    /// Uses `execution_status_fn` to filter out attestations that reference optimistic/invalid
+    /// blocks. The caller provides this function from fork choice.
+    pub fn get_aggregated_attestation(
+        &self,
+        attestation: AttestationRef<'_, E>,
+        execution_status_fn: impl Fn(&Hash256) -> Option<fork_choice::ExecutionStatus>,
+    ) -> Result<Option<Attestation<E>>, Error> {
+        match attestation {
+            AttestationRef::Base(att) => {
+                let key = crate::naive_aggregation_pool::AttestationKey::new_base(&att.data);
+                self.get_from_pool_filtered(&key, &execution_status_fn)
+            }
+            AttestationRef::Electra(att) => {
+                let committee_index = att
+                    .committee_index()
+                    .ok_or(Error::AttestationCommitteeIndexNotSet)?;
+                let key = crate::naive_aggregation_pool::AttestationKey::new_electra(
+                    att.data.slot,
+                    att.data.tree_hash_root(),
+                    committee_index,
+                );
+                self.get_from_pool_filtered(&key, &execution_status_fn)
+            }
+        }
+    }
+
+    /// Returns a pre-electra aggregated `Attestation`, if any, matching the given slot and root.
+    pub fn get_pre_electra_aggregated_attestation_by_slot_and_root(
+        &self,
+        slot: Slot,
+        attestation_data_root: &Hash256,
+        execution_status_fn: impl Fn(&Hash256) -> Option<fork_choice::ExecutionStatus>,
+    ) -> Result<Option<Attestation<E>>, Error> {
+        let key = crate::naive_aggregation_pool::AttestationKey::new_base_from_slot_and_root(
+            slot,
+            *attestation_data_root,
+        );
+        self.get_from_pool_filtered(&key, &execution_status_fn)
+    }
+
+    /// Look up an attestation in the pool and filter it for optimistic/invalid execution status.
+    fn get_from_pool_filtered(
+        &self,
+        key: &crate::naive_aggregation_pool::AttestationKey,
+        execution_status_fn: &impl Fn(&Hash256) -> Option<fork_choice::ExecutionStatus>,
+    ) -> Result<Option<Attestation<E>>, Error> {
+        if let Some(attestation) = self.naive_aggregation_pool.read().get(key) {
+            Self::filter_optimistic_attestation(attestation, execution_status_fn).map(Option::Some)
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Returns `Ok(attestation)` if the attestation references a fully verified block.
+    fn filter_optimistic_attestation(
+        attestation: Attestation<E>,
+        execution_status_fn: &impl Fn(&Hash256) -> Option<fork_choice::ExecutionStatus>,
+    ) -> Result<Attestation<E>, Error> {
+        let beacon_block_root = attestation.data().beacon_block_root;
+        match execution_status_fn(&beacon_block_root) {
+            None => Err(Error::CannotAttestToFinalizedBlock { beacon_block_root }),
+            Some(execution_status) if execution_status.is_valid_or_irrelevant() => Ok(attestation),
+            Some(execution_status) => Err(Error::HeadBlockNotFullyVerified {
+                beacon_block_root,
+                execution_status,
+            }),
+        }
     }
 
     /// Prune the naive aggregation pool, removing attestations with slots older than allowed.

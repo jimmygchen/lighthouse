@@ -1474,15 +1474,12 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         &self,
         attestation: AttestationRef<T::EthSpec>,
     ) -> Result<Option<Attestation<T::EthSpec>>, Error> {
-        match attestation {
-            AttestationRef::Base(att) => self.get_aggregated_attestation_base(&att.data),
-            AttestationRef::Electra(att) => self.get_aggregated_attestation_electra(
-                att.data.slot,
-                &att.data.tree_hash_root(),
-                att.committee_index()
-                    .ok_or(Error::AttestationCommitteeIndexNotSet)?,
-            ),
-        }
+        self.attestation_manager
+            .get_aggregated_attestation(attestation, |block_root| {
+                self.canonical_head
+                    .fork_choice_read_lock()
+                    .get_block_execution_status(block_root)
+            })
     }
 
     pub fn manually_compact_database(&self) {
@@ -1522,106 +1519,22 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         Ok(())
     }
 
-    /// Returns an aggregated `Attestation`, if any, that has a matching `attestation.data`.
-    ///
-    /// The attestation will be obtained from `self.attestation_manager.naive_aggregation_pool`.
-    pub fn get_aggregated_attestation_base(
-        &self,
-        data: &AttestationData,
-    ) -> Result<Option<Attestation<T::EthSpec>>, Error> {
-        let attestation_key = crate::naive_aggregation_pool::AttestationKey::new_base(data);
-        if let Some(attestation) = self
-            .attestation_manager
-            .naive_aggregation_pool
-            .read()
-            .get(&attestation_key)
-        {
-            self.filter_optimistic_attestation(attestation)
-                .map(Option::Some)
-        } else {
-            Ok(None)
-        }
-    }
-
-    pub fn get_aggregated_attestation_electra(
-        &self,
-        slot: Slot,
-        attestation_data_root: &Hash256,
-        committee_index: CommitteeIndex,
-    ) -> Result<Option<Attestation<T::EthSpec>>, Error> {
-        let attestation_key = crate::naive_aggregation_pool::AttestationKey::new_electra(
-            slot,
-            *attestation_data_root,
-            committee_index,
-        );
-        if let Some(attestation) = self
-            .attestation_manager
-            .naive_aggregation_pool
-            .read()
-            .get(&attestation_key)
-        {
-            self.filter_optimistic_attestation(attestation)
-                .map(Option::Some)
-        } else {
-            Ok(None)
-        }
-    }
-
-    /// Returns an aggregated `Attestation`, if any, that has a matching
-    /// `attestation.data.tree_hash_root()`.
-    ///
-    /// The attestation will be obtained from `self.attestation_manager.naive_aggregation_pool`.
-    ///
-    /// NOTE: This function will *only* work with pre-electra attestations and it only
-    ///       exists to support the pre-electra validator API method.
+    /// Delegates to `AttestationManager::get_pre_electra_aggregated_attestation_by_slot_and_root`.
     pub fn get_pre_electra_aggregated_attestation_by_slot_and_root(
         &self,
         slot: Slot,
         attestation_data_root: &Hash256,
     ) -> Result<Option<Attestation<T::EthSpec>>, Error> {
-        let attestation_key =
-            crate::naive_aggregation_pool::AttestationKey::new_base_from_slot_and_root(
+        self.attestation_manager
+            .get_pre_electra_aggregated_attestation_by_slot_and_root(
                 slot,
-                *attestation_data_root,
-            );
-
-        if let Some(attestation) = self
-            .attestation_manager
-            .naive_aggregation_pool
-            .read()
-            .get(&attestation_key)
-        {
-            self.filter_optimistic_attestation(attestation)
-                .map(Option::Some)
-        } else {
-            Ok(None)
-        }
-    }
-
-    /// Returns `Ok(attestation)` if the supplied `attestation` references a valid
-    /// `beacon_block_root`.
-    fn filter_optimistic_attestation(
-        &self,
-        attestation: Attestation<T::EthSpec>,
-    ) -> Result<Attestation<T::EthSpec>, Error> {
-        let beacon_block_root = attestation.data().beacon_block_root;
-        match self
-            .canonical_head
-            .fork_choice_read_lock()
-            .get_block_execution_status(&beacon_block_root)
-        {
-            // The attestation references a block that is not in fork choice, it must be
-            // pre-finalization.
-            None => Err(Error::CannotAttestToFinalizedBlock { beacon_block_root }),
-            // The attestation references a fully valid `beacon_block_root`.
-            Some(execution_status) if execution_status.is_valid_or_irrelevant() => Ok(attestation),
-            // The attestation references a block that has not been verified by an EL (i.e. it
-            // is optimistic or invalid). Don't return the block, return an error instead.
-            Some(execution_status) => Err(Error::HeadBlockNotFullyVerified {
-                beacon_block_root,
-                execution_status,
-            }),
-        }
+                attestation_data_root,
+                |block_root| {
+                    self.canonical_head
+                        .fork_choice_read_lock()
+                        .get_block_execution_status(block_root)
+                },
+            )
     }
 
     /// Produce an unaggregated `Attestation` that is valid for the given `slot` and `index`.
@@ -2090,7 +2003,6 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
     ///
     /// This method is potentially long-running and should not run on the core executor.
     #[instrument(skip_all, level = "debug")]
-
 
     /// This function takes a configured weak subjectivity `Checkpoint` and the latest finalized `Checkpoint`.
     /// If the weak subjectivity checkpoint and finalized checkpoint share the same epoch, we compare

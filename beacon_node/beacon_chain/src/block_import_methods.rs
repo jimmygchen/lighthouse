@@ -5,8 +5,9 @@
 
 use crate::beacon_chain::{
     AvailabilityProcessingStatus, BeaconChainTypes, BeaconForkChoice, ChainSegmentResult,
-    HashBlockTuple, EARLY_ATTESTER_CACHE_HISTORIC_SLOTS,
+    EARLY_ATTESTER_CACHE_HISTORIC_SLOTS, HashBlockTuple,
 };
+use crate::blob_verification::{GossipBlobError, GossipVerifiedBlob};
 use crate::block_verification::{
     BlockError, ExecutionPendingBlock, GossipVerifiedBlock, IntoExecutionPendingBlock,
     check_block_is_finalized_checkpoint_or_descendant, check_block_relevancy,
@@ -20,7 +21,6 @@ use crate::data_availability_checker::{
     DataColumnReconstructionResult,
 };
 use crate::data_column_verification::{GossipDataColumnError, GossipVerifiedDataColumn};
-use crate::blob_verification::{GossipBlobError, GossipVerifiedBlob};
 use crate::errors::BeaconChainError as Error;
 use crate::execution_payload::NotifyExecutionLayer;
 use crate::fetch_blobs::EngineGetBlobsOutput;
@@ -36,8 +36,8 @@ use itertools::Itertools;
 use logging::crit;
 use parking_lot::RwLockWriteGuard;
 use slot_clock::SlotClock;
-use state_processing::common::get_attesting_indices_from_state;
 use state_processing::ConsensusContext;
+use state_processing::common::get_attesting_indices_from_state;
 use std::sync::Arc;
 use std::time::Duration;
 use store::StoreOp;

@@ -1968,26 +1968,19 @@ where
 
                         let fork_name = self.spec.fork_name_at_slot::<E>(slot);
 
-                        let aggregate = if fork_name.electra_enabled() {
-                            self.chain.get_aggregated_attestation_electra(
-                                slot,
-                                &attestation.data().tree_hash_root(),
-                                bc.index,
-                            )
-                        } else {
-                            self.chain
-                                .get_aggregated_attestation_base(attestation.data())
-                        }
-                        .unwrap()
-                        .unwrap_or_else(|| {
-                            committee_attestations.iter().skip(1).fold(
-                                attestation.clone(),
-                                |mut agg, (att, _)| {
-                                    agg.aggregate(att.to_ref());
-                                    agg
-                                },
-                            )
-                        });
+                        let aggregate = self
+                            .chain
+                            .get_aggregated_attestation(attestation.to_ref())
+                            .unwrap()
+                            .unwrap_or_else(|| {
+                                committee_attestations.iter().skip(1).fold(
+                                    attestation.clone(),
+                                    |mut agg, (att, _)| {
+                                        agg.aggregate(att.to_ref());
+                                        agg
+                                    },
+                                )
+                            });
 
                         // If the chain is able to produce an aggregate, use that. Otherwise, build an
                         // aggregate locally.

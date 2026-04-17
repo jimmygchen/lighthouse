@@ -3,11 +3,15 @@ mod tests;
 
 use crate::BeaconChainTypes;
 use crate::beacon_proposer_cache::{BeaconProposerCache, EpochBlockProposers};
+use crate::canonical_head::CanonicalHead;
 use crate::errors::BeaconChainError;
 use execution_layer::ExecutionLayer;
 use parking_lot::Mutex;
 use std::sync::Arc;
-use types::{BeaconState, BeaconStateError, ChainSpec, Epoch, EthSpec, Hash256, Slot};
+use types::{
+    AbstractExecPayload, BeaconState, BeaconStateError, ChainSpec, Epoch, EthSpec, Hash256,
+    SignedBeaconBlock, Slot,
+};
 
 /// Manages execution layer integration and proposer cache access.
 ///
@@ -56,6 +60,50 @@ impl<T: BeaconChainTypes> ExecutionManager<T> {
         self.spec
             .bellatrix_fork_epoch
             .is_none_or(|bellatrix| slot.epoch(T::EthSpec::slots_per_epoch()) < bellatrix)
+    }
+
+    /// Returns `Ok(true)` if the block has `ExecutionStatus::Optimistic` or `Invalid`.
+    /// Returns `Ok(false)` if the block is pre-Bellatrix or has `ExecutionStatus::Valid`.
+    pub fn is_optimistic_or_invalid_block<Payload: AbstractExecPayload<T::EthSpec>>(
+        &self,
+        canonical_head: &CanonicalHead<T>,
+        block: &SignedBeaconBlock<T::EthSpec, Payload>,
+    ) -> Result<bool, BeaconChainError> {
+        if self.slot_is_prior_to_bellatrix(block.slot()) {
+            Ok(false)
+        } else {
+            canonical_head
+                .fork_choice_read_lock()
+                .is_optimistic_or_invalid_block(&block.canonical_root())
+                .map_err(BeaconChainError::ForkChoiceError)
+        }
+    }
+
+    /// Like `is_optimistic_or_invalid_block` but uses `no_fallback` variant.
+    /// Should only be used on the head block or when the block is expected in fork choice.
+    pub fn is_optimistic_or_invalid_head_block<Payload: AbstractExecPayload<T::EthSpec>>(
+        &self,
+        canonical_head: &CanonicalHead<T>,
+        head_block: &SignedBeaconBlock<T::EthSpec, Payload>,
+    ) -> Result<bool, BeaconChainError> {
+        if self.slot_is_prior_to_bellatrix(head_block.slot()) {
+            Ok(false)
+        } else {
+            canonical_head
+                .fork_choice_read_lock()
+                .is_optimistic_or_invalid_block_no_fallback(&head_block.canonical_root())
+                .map_err(BeaconChainError::ForkChoiceError)
+        }
+    }
+
+    /// Returns the value of `execution_optimistic` for the current head block.
+    pub fn is_optimistic_or_invalid_head(
+        &self,
+        canonical_head: &CanonicalHead<T>,
+    ) -> Result<bool, BeaconChainError> {
+        canonical_head
+            .head_execution_status()
+            .map(|status| status.is_optimistic_or_invalid())
     }
 
     /// Provides safe and efficient multi-threaded access to the beacon proposer

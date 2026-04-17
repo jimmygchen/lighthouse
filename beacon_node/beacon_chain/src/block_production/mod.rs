@@ -252,20 +252,32 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
 
         Some((state, state_root))
     }
-
 }
 
 // Additional imports for methods moved from beacon_chain.rs
-use std::borrow::Cow;
-use bls::Signature;
-use execution_layer::{
-    BlockProposalContents, BlockProposalContentsType, BuilderParams, ChainHealth,
-    FailedCondition, PayloadAttributes,
+use crate::beacon_chain::{
+    BeaconBlockResponse, BeaconBlockResponseWrapper, OverrideForkchoiceUpdate, PartialBeaconBlock,
+    PrePayloadAttributes, ProduceBlockVerification, shuffling_is_compatible_with_fork_choice,
 };
+use crate::errors::BeaconChainError as Error;
+use crate::execution_payload::{PreparePayloadHandle, get_execution_payload};
+use crate::graffiti_calculator::GraffitiSettings;
+use crate::{BeaconChainError, CachedHead};
+use bls::Signature;
+use eth2::beacon_response::ForkVersionedResponse;
+use eth2::types::{EventKind, SseExtendedPayloadAttributes, SseHead};
+use execution_layer::{
+    BlockProposalContents, BlockProposalContentsType, BuilderParams, ChainHealth, FailedCondition,
+    PayloadAttributes,
+};
+use fixed_bytes::FixedBytesExtended;
 use fork_choice::ForkchoiceUpdateParameters;
 use operation_pool::CompactAttestationRef;
+use parking_lot::Mutex;
 use proto_array::DoNotReOrg;
 use safe_arith::SafeArith;
+use ssz::Encode;
+use state_processing::VerifyOperation as _;
 use state_processing::{
     BlockSignatureStrategy, ConsensusContext, VerifyBlockRoot, VerifyOperation,
     common::get_attesting_indices_from_state,
@@ -277,27 +289,13 @@ use state_processing::{
     },
     state_advance::{complete_state_advance, partial_state_advance},
 };
-use crate::beacon_chain::{
-    BeaconBlockResponse, BeaconBlockResponseWrapper, OverrideForkchoiceUpdate,
-    PrePayloadAttributes, ProduceBlockVerification, PartialBeaconBlock,
-    shuffling_is_compatible_with_fork_choice,
-};
-use crate::errors::BeaconChainError as Error;
-use crate::execution_payload::{get_execution_payload, PreparePayloadHandle};
-use crate::graffiti_calculator::GraffitiSettings;
-use eth2::types::{EventKind, SseExtendedPayloadAttributes, SseHead};
-use eth2::beacon_response::ForkVersionedResponse;
-use crate::{BeaconChainError, CachedHead};
-use fixed_bytes::FixedBytesExtended;
-use state_processing::VerifyOperation as _;
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::marker::PhantomData;
+use tracing::trace;
+use tree_hash::TreeHash;
 use types::execution::BlockProductionVersion;
 use types::*;
-use tree_hash::TreeHash;
-use ssz::Encode;
-use parking_lot::Mutex;
-use tracing::trace;
 
 impl<T: BeaconChainTypes> BeaconChain<T> {
     pub async fn produce_block_with_verification(

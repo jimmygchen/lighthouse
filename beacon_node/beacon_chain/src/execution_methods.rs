@@ -3,8 +3,8 @@
 //! These methods are split from `beacon_chain.rs` for organization.
 
 use crate::beacon_chain::{
-    BeaconChainTypes, OverrideForkchoiceUpdate, PrePayloadAttributes,
-    INVALID_JUSTIFIED_PAYLOAD_SHUTDOWN_REASON,
+    BeaconChainTypes, INVALID_JUSTIFIED_PAYLOAD_SHUTDOWN_REASON, OverrideForkchoiceUpdate,
+    PrePayloadAttributes,
 };
 use crate::errors::BeaconChainError as Error;
 use crate::{BeaconChain, BeaconChainError, CachedHead, metrics};
@@ -516,83 +516,27 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
     /// Returns `Ok(false)` if the block is pre-Bellatrix, or has `ExecutionStatus::Valid`.
     /// Returns `Ok(true)` if the block has `ExecutionStatus::Optimistic` or has
     /// `ExecutionStatus::Invalid`.
+    /// Delegates to `ExecutionManager::is_optimistic_or_invalid_block`.
     pub fn is_optimistic_or_invalid_block<Payload: AbstractExecPayload<T::EthSpec>>(
         &self,
         block: &SignedBeaconBlock<T::EthSpec, Payload>,
     ) -> Result<bool, BeaconChainError> {
-        // Check if the block is pre-Bellatrix.
-        if self
-            .execution_manager
-            .slot_is_prior_to_bellatrix(block.slot())
-        {
-            Ok(false)
-        } else {
-            self.canonical_head
-                .fork_choice_read_lock()
-                .is_optimistic_or_invalid_block(&block.canonical_root())
-                .map_err(BeaconChainError::ForkChoiceError)
-        }
+        self.execution_manager
+            .is_optimistic_or_invalid_block(&self.canonical_head, block)
     }
 
-    /// Returns the value of `execution_optimistic` for `head_block`.
-    ///
-    /// Returns `Ok(false)` if the block is pre-Bellatrix, or has `ExecutionStatus::Valid`.
-    /// Returns `Ok(true)` if the block has `ExecutionStatus::Optimistic` or `ExecutionStatus::Invalid`.
-    ///
-    /// This function will return an error if `head_block` is not present in the fork choice store
-    /// and so should only be used on the head block or when the block *should* be present in the
-    /// fork choice store.
-    ///
-    /// There is a potential race condition when syncing where the block_root of `head_block` could
-    /// be pruned from the fork choice store before being read.
+    /// Delegates to `ExecutionManager::is_optimistic_or_invalid_head_block`.
     pub fn is_optimistic_or_invalid_head_block<Payload: AbstractExecPayload<T::EthSpec>>(
         &self,
         head_block: &SignedBeaconBlock<T::EthSpec, Payload>,
     ) -> Result<bool, BeaconChainError> {
-        // Check if the block is pre-Bellatrix.
-        if self
-            .execution_manager
-            .slot_is_prior_to_bellatrix(head_block.slot())
-        {
-            Ok(false)
-        } else {
-            self.canonical_head
-                .fork_choice_read_lock()
-                .is_optimistic_or_invalid_block_no_fallback(&head_block.canonical_root())
-                .map_err(BeaconChainError::ForkChoiceError)
-        }
+        self.execution_manager
+            .is_optimistic_or_invalid_head_block(&self.canonical_head, head_block)
     }
 
-    /// Returns the value of `execution_optimistic` for the current head block.
-    /// You can optionally provide `head_info` if it was computed previously.
-    ///
-    /// Returns `Ok(false)` if the head block is pre-Bellatrix, or has `ExecutionStatus::Valid`.
-    /// Returns `Ok(true)` if the head block has `ExecutionStatus::Optimistic` or `ExecutionStatus::Invalid`.
-    ///
-    /// There is a potential race condition when syncing where the block root of `head_info` could
-    /// be pruned from the fork choice store before being read.
+    /// Delegates to `ExecutionManager::is_optimistic_or_invalid_head`.
     pub fn is_optimistic_or_invalid_head(&self) -> Result<bool, BeaconChainError> {
-        self.canonical_head
-            .head_execution_status()
-            .map(|status| status.is_optimistic_or_invalid())
-    }
-
-    pub fn is_optimistic_or_invalid_block_root(
-        &self,
-        block_slot: Slot,
-        block_root: &Hash256,
-    ) -> Result<bool, BeaconChainError> {
-        // Check if the block is pre-Bellatrix.
-        if self
-            .execution_manager
-            .slot_is_prior_to_bellatrix(block_slot)
-        {
-            Ok(false)
-        } else {
-            self.canonical_head
-                .fork_choice_read_lock()
-                .is_optimistic_or_invalid_block_no_fallback(block_root)
-                .map_err(BeaconChainError::ForkChoiceError)
-        }
+        self.execution_manager
+            .is_optimistic_or_invalid_head(&self.canonical_head)
     }
 }
