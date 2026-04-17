@@ -63,6 +63,7 @@ pub mod schema_change;
 pub mod shuffling_cache;
 pub mod single_attestation;
 pub mod state_advance_timer;
+pub mod state_query;
 pub mod summaries_dag;
 pub mod sync_committee_manager;
 pub mod sync_committee_rewards;

@@ -85,8 +85,6 @@ use fork_choice::{
     InvalidationOperation, PayloadVerificationStatus, ResetPayloadStatuses,
 };
 use futures::channel::mpsc::Sender;
-use itertools::Itertools;
-use itertools::process_results;
 use kzg::Kzg;
 use logging::crit;
 use operation_pool::{CompactAttestationRef, OperationPool, PersistedOperationPool};
@@ -106,18 +104,16 @@ use state_processing::{
         VerifySignatures, errors::AttestationValidationError, get_expected_withdrawals,
         verify_attestation_for_block_inclusion,
     },
-    per_slot_processing,
     state_advance::{complete_state_advance, partial_state_advance},
 };
 use std::borrow::Cow;
-use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::io::prelude::*;
 use std::marker::PhantomData;
 use std::sync::Arc;
 use std::time::Duration;
-use store::iter::{BlockRootsIterator, ParentRootBlockIterator, StateRootsIterator};
+use store::iter::ParentRootBlockIterator;
 use store::{
     BlobSidecarListFromRoot, DBColumn, DatabaseBlock, Error as DBError, HotColdDB, HotStateSummary,
     KeyValueStore, KeyValueStoreOp, StoreItem, StoreOp,
@@ -1786,7 +1782,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         let mut epoch_skips = 0;
         for slot in start_slot.as_u64()..current_slot.as_u64() {
             if self
-                .block_root_at_slot_skips_none(Slot::new(slot))?
+                .block_root_at_slot(Slot::new(slot), WhenSlotSkipped::None)?
                 .is_none()
             {
                 epoch_skips += 1;
