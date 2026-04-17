@@ -220,7 +220,8 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
 
         // Filter uninteresting blocks from the chain segment in a blocking task.
         let chain = self.clone();
-        let filtered_chain_segment_future = self.spawn_blocking_handle(
+        let filtered_chain_segment_future = crate::beacon_chain::spawn_blocking_handle(
+            &self.task_executor,
             move || chain.filter_chain_segment(chain_segment),
             "filter_chain_segment",
         );
@@ -252,7 +253,8 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             std::mem::swap(&mut blocks, &mut filtered_chain_segment);
 
             let chain = self.clone();
-            let signature_verification_future = self.spawn_blocking_handle(
+            let signature_verification_future = crate::beacon_chain::spawn_blocking_handle(
+                &self.task_executor,
                 move || signature_verify_chain_segment(blocks, &chain),
                 "signature_verify_chain_segment",
             );
@@ -1042,7 +1044,8 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
 
         let block_root = {
             let chain = self.clone();
-            self.spawn_blocking_handle(
+            crate::beacon_chain::spawn_blocking_handle(
+                &self.task_executor,
                 move || {
                     chain.import_block(
                         block,
@@ -1297,9 +1300,13 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         // See https://github.com/sigp/lighthouse/issues/2028
         let (_, signed_block, block_data) = signed_block.deconstruct();
 
-        if let Some(blobs_or_columns_store_op) =
-            self.get_blobs_or_columns_store_op(block_root, signed_block.slot(), block_data)
-        {
+        if let Some(blobs_or_columns_store_op) = crate::beacon_chain::get_blobs_or_columns_store_op(
+            &self.data_availability_manager,
+            &self.spec,
+            block_root,
+            signed_block.slot(),
+            block_data,
+        ) {
             ops.push(blobs_or_columns_store_op);
         }
 
@@ -1390,8 +1397,12 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         // This ensures we only perform the check once.
         if current_head_finalized_checkpoint.epoch < wss_checkpoint.epoch
             && wss_checkpoint.epoch <= new_finalized_checkpoint.epoch
-            && let Err(e) =
-                self.verify_weak_subjectivity_checkpoint(wss_checkpoint, block_root, state)
+            && let Err(e) = crate::beacon_chain::verify_weak_subjectivity_checkpoint(
+                self,
+                wss_checkpoint,
+                block_root,
+                state,
+            )
         {
             let mut shutdown_sender = self.shutdown_sender.clone();
             crit!(
@@ -1460,7 +1471,19 @@ fn import_block_update_validator_monitor<T: BeaconChainTypes>(
         // `SyncCommittee` for the sync_aggregate should correspond to the duty slot
         let duty_epoch = block.epoch();
 
-        match chain.sync_committee_at_epoch(duty_epoch) {
+        match {
+            let head_state = &chain.head_snapshot().beacon_state;
+            chain.sync_committee_manager.sync_committee_at_epoch(
+                duty_epoch,
+                head_state,
+                |load_slot| {
+                    chain.state_at_slot(
+                        load_slot,
+                        crate::beacon_chain::StateSkipConfig::WithoutStateRoots,
+                    )
+                },
+            )
+        } {
             Ok(sync_committee) => {
                 let participant_pubkeys = sync_committee
                     .pubkeys

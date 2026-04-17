@@ -22,7 +22,7 @@ pub fn spawn_timer<T: BeaconChainTypes>(
             };
 
             sleep(duration_to_next_slot).await;
-            beacon_chain.per_slot_task().await;
+            beacon_chain::per_slot_task(&beacon_chain).await;
         }
     };
 

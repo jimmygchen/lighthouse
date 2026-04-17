@@ -1948,8 +1948,9 @@ fn load_parent<T: BeaconChainTypes, B: AsBlock<T::EthSpec>>(
         // indicate that we don't yet know the parent.
         let root = block.parent_root();
         let parent_block = chain
+            .store
             .get_blinded_block(&block.parent_root())
-            .map_err(|e| BlockError::BeaconChainError(Box::new(e)))?
+            .map_err(|e| BlockError::BeaconChainError(Box::new(BeaconChainError::DBError(e))))?
             .ok_or_else(|| {
                 // Return a `MissingBeaconBlock` error instead of a `ParentUnknown` error since
                 // we've already checked fork choice for this block.

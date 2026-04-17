@@ -402,7 +402,12 @@ impl<T: BeaconChainTypes> BeaconBlockStreamer<T> {
 
     fn check_caches(&self, root: Hash256) -> Option<Arc<SignedBeaconBlock<T::EthSpec>>> {
         if self.check_caches == CheckCaches::Yes {
-            match self.beacon_chain.get_block_process_status(&root) {
+            match self
+                .beacon_chain
+                .data_availability_checker
+                .get_cached_block(&root)
+                .unwrap_or(BlockProcessStatus::Unknown)
+            {
                 BlockProcessStatus::Unknown => None,
                 BlockProcessStatus::NotValidated(block, _)
                 | BlockProcessStatus::ExecutionValidated(block) => {
@@ -421,38 +426,38 @@ impl<T: BeaconChainTypes> BeaconBlockStreamer<T> {
     ) -> Result<Vec<(Hash256, LoadResult<T::EthSpec>)>, BeaconChainError> {
         let streamer = self.clone();
         // Loading from the DB is slow -> spawn a blocking task
-        self.beacon_chain
-            .spawn_blocking_handle(
-                move || {
-                    let mut db_blocks = Vec::new();
-                    for root in block_roots {
-                        if let Some(cached_block) =
-                            streamer.check_caches(root).map(LoadedBeaconBlock::Full)
-                        {
-                            db_blocks.push((root, Ok(Some(cached_block))));
-                            continue;
-                        }
-
-                        match streamer.beacon_chain.store.try_get_full_block(&root) {
-                            Err(e) => db_blocks.push((root, Err(e.into()))),
-                            Ok(opt_block) => db_blocks.push((
-                                root,
-                                Ok(opt_block.map(|db_block| match db_block {
-                                    DatabaseBlock::Full(block) => {
-                                        LoadedBeaconBlock::Full(Arc::new(block))
-                                    }
-                                    DatabaseBlock::Blinded(block) => {
-                                        LoadedBeaconBlock::Blinded(Box::new(block))
-                                    }
-                                })),
-                            )),
-                        }
+        crate::beacon_chain::spawn_blocking_handle(
+            &self.beacon_chain.task_executor,
+            move || {
+                let mut db_blocks = Vec::new();
+                for root in block_roots {
+                    if let Some(cached_block) =
+                        streamer.check_caches(root).map(LoadedBeaconBlock::Full)
+                    {
+                        db_blocks.push((root, Ok(Some(cached_block))));
+                        continue;
                     }
-                    db_blocks
-                },
-                "load_beacon_blocks",
-            )
-            .await
+
+                    match streamer.beacon_chain.store.try_get_full_block(&root) {
+                        Err(e) => db_blocks.push((root, Err(e.into()))),
+                        Ok(opt_block) => db_blocks.push((
+                            root,
+                            Ok(opt_block.map(|db_block| match db_block {
+                                DatabaseBlock::Full(block) => {
+                                    LoadedBeaconBlock::Full(Arc::new(block))
+                                }
+                                DatabaseBlock::Blinded(block) => {
+                                    LoadedBeaconBlock::Blinded(Box::new(block))
+                                }
+                            })),
+                        )),
+                    }
+                }
+                db_blocks
+            },
+            "load_beacon_blocks",
+        )
+        .await
     }
 
     /// Pre-process the loaded blocks into execution engine requests.
@@ -554,10 +559,14 @@ impl<T: BeaconChainTypes> BeaconBlockStreamer<T> {
             let block_result = if cached_block.is_some() {
                 Ok(cached_block)
             } else {
-                self.beacon_chain
-                    .get_block(&root)
-                    .await
-                    .map(|opt_block| opt_block.map(Arc::new))
+                crate::beacon_chain::get_block::<T>(
+                    &self.beacon_chain.store,
+                    self.beacon_chain.execution_layer.as_ref(),
+                    &self.beacon_chain.spec,
+                    &root,
+                )
+                .await
+                .map(|opt_block| opt_block.map(Arc::new))
             };
 
             if sender.send((root, Arc::new(block_result))).is_err() {
@@ -774,12 +783,15 @@ mod tests {
         let mut expected_blocks = vec![];
         // get all blocks the old fashioned way
         for root in &block_roots {
-            let block = harness
-                .chain
-                .get_block(root)
-                .await
-                .expect("should get block")
-                .expect("block should exist");
+            let block = crate::beacon_chain::get_block(
+                &harness.chain.store,
+                harness.chain.execution_layer.as_ref(),
+                &harness.chain.spec,
+                root,
+            )
+            .await
+            .expect("should get block")
+            .expect("block should exist");
             expected_blocks.push(block);
         }
 

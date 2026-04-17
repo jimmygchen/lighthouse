@@ -145,6 +145,7 @@ impl<T: BeaconChainTypes> RangeDataColumnBatchRequest<T> {
 
             let Some(block) = self
                 .beacon_chain
+                .store
                 .get_blinded_block(&block_root)
                 .ok()
                 .flatten()

@@ -620,7 +620,7 @@ pub async fn proposer_boost_re_org_test(
             .unwrap();
 
         harness.advance_slot();
-        harness.chain.per_slot_task().await;
+        beacon_chain::per_slot_task(&harness.chain).await;
     }
 
     // Produce block C.
@@ -841,7 +841,7 @@ pub async fn fork_choice_before_proposal() {
     // Manually prod the per-slot task, because the slot timer doesn't run in the background in
     // these tests.
     harness.advance_slot();
-    harness.chain.per_slot_task().await;
+    beacon_chain::per_slot_task(&harness.chain).await;
 
     let proposer_index = state_b
         .get_beacon_proposer_index(slot_d, &harness.chain.spec)

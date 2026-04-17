@@ -2054,28 +2054,37 @@ pub fn serve<T: BeaconChainTypes>(
              task_spawner: TaskSpawner<T::EthSpec>,
              chain: Arc<BeaconChain<T>>| {
                 task_spawner.blocking_json_task(Priority::P1, move || {
-                    let heads = chain
-                        .heads()
-                        .into_iter()
-                        .map(|(root, slot)| {
-                            let execution_optimistic = if endpoint_version == V1 {
-                                None
-                            } else if endpoint_version == V2 {
-                                chain
-                                    .canonical_head
-                                    .fork_choice_read_lock()
-                                    .is_optimistic_or_invalid_block(&root)
-                                    .ok()
-                            } else {
-                                return Err(unsupported_version_rejection(endpoint_version));
-                            };
-                            Ok(api_types::ChainHeadData {
-                                slot,
-                                root,
-                                execution_optimistic,
-                            })
+                    let heads = {
+                        let fork_choice = chain.canonical_head.fork_choice_read_lock();
+                        fork_choice
+                            .proto_array()
+                            .heads_descended_from_finalization::<T::EthSpec>(
+                                fork_choice.finalized_checkpoint(),
+                            )
+                            .iter()
+                            .map(|node| (node.root(), node.slot()))
+                            .collect::<Vec<_>>()
+                    }
+                    .into_iter()
+                    .map(|(root, slot)| {
+                        let execution_optimistic = if endpoint_version == V1 {
+                            None
+                        } else if endpoint_version == V2 {
+                            chain
+                                .canonical_head
+                                .fork_choice_read_lock()
+                                .is_optimistic_or_invalid_block(&root)
+                                .ok()
+                        } else {
+                            return Err(unsupported_version_rejection(endpoint_version));
+                        };
+                        Ok(api_types::ChainHeadData {
+                            slot,
+                            root,
+                            execution_optimistic,
                         })
-                        .collect::<Result<Vec<_>, warp::Rejection>>();
+                    })
+                    .collect::<Result<Vec<_>, warp::Rejection>>();
                     Ok(api_types::GenericResponse::from(heads?))
                 })
             },
@@ -2643,14 +2652,17 @@ pub fn serve<T: BeaconChainTypes>(
                         root: request_data.block_root,
                     };
 
-                    chain
-                        .manually_finalize_state(request_data.state_root, checkpoint)
-                        .map(|_| api_types::GenericResponse::from(request_data))
-                        .map_err(|e| {
-                            warp_utils::reject::custom_bad_request(format!(
-                                "Failed to finalize state due to error: {e:?}"
-                            ))
-                        })
+                    beacon_chain::manually_finalize_state(
+                        &chain,
+                        request_data.state_root,
+                        checkpoint,
+                    )
+                    .map(|_| api_types::GenericResponse::from(request_data))
+                    .map_err(|e| {
+                        warp_utils::reject::custom_bad_request(format!(
+                            "Failed to finalize state due to error: {e:?}"
+                        ))
+                    })
                 })
             },
         );
@@ -2770,8 +2782,11 @@ pub fn serve<T: BeaconChainTypes>(
                         .iter()
                         .cloned()
                         .map(|index| {
-                            let is_live =
-                                chain.validator_seen_at_epoch(index as usize, request_data.epoch);
+                            let is_live = beacon_chain::validator_seen_at_epoch(
+                                &chain,
+                                index as usize,
+                                request_data.epoch,
+                            );
                             api_types::LivenessResponseData {
                                 index,
                                 epoch: request_data.epoch,

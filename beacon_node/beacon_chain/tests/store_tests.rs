@@ -213,9 +213,7 @@ async fn light_client_bootstrap_test() {
 
     let block_root = finalized_checkpoint.root;
 
-    let (lc_bootstrap, _) = harness
-        .chain
-        .get_light_client_bootstrap(&block_root)
+    let (lc_bootstrap, _) = beacon_chain::get_light_client_bootstrap(&harness.chain, &block_root)
         .unwrap()
         .unwrap();
 
@@ -1135,6 +1133,7 @@ fn get_state_for_block(harness: &TestHarness, block_root: Hash256) -> BeaconStat
         .unwrap();
     harness
         .chain
+        .store
         .get_state(
             &head_block.state_root(),
             Some(head_block.slot()),
@@ -1168,37 +1167,39 @@ fn check_shuffling_compatible(
         );
 
         // Check for consistency with the more expensive shuffling lookup.
-        harness
-            .chain
-            .with_committee_cache(
-                block_root,
-                head_state.current_epoch(),
-                |committee_cache, _| {
-                    let state_cache = head_state.committee_cache(RelativeEpoch::Current).unwrap();
-                    // We used to check for false negatives here, but had to remove that check
-                    // because `shuffling_is_compatible` does not guarantee their absence.
-                    //
-                    // See: https://github.com/sigp/lighthouse/issues/6269
-                    if current_epoch_shuffling_is_compatible {
-                        assert_eq!(
-                            committee_cache,
-                            state_cache.as_ref(),
-                            "block at slot {slot}"
-                        );
-                    }
-                    Ok(())
-                },
-            )
-            .unwrap_or_else(|e| {
-                // If the lookup fails then the shuffling must be invalid in some way, e.g. the
-                // block with `block_root` is from a later epoch than `previous_epoch`.
-                assert!(
-                    !current_epoch_shuffling_is_compatible,
-                    "block at slot {slot} has compatible shuffling at epoch {} \
+        beacon_chain::attestation_manager::with_committee_cache(
+            block_root,
+            head_state.current_epoch(),
+            &harness.chain.canonical_head,
+            &harness.chain.attestation_manager,
+            &harness.chain.store,
+            &harness.chain.spec,
+            |committee_cache, _| {
+                let state_cache = head_state.committee_cache(RelativeEpoch::Current).unwrap();
+                // We used to check for false negatives here, but had to remove that check
+                // because `shuffling_is_compatible` does not guarantee their absence.
+                //
+                // See: https://github.com/sigp/lighthouse/issues/6269
+                if current_epoch_shuffling_is_compatible {
+                    assert_eq!(
+                        committee_cache,
+                        state_cache.as_ref(),
+                        "block at slot {slot}"
+                    );
+                }
+                Ok(())
+            },
+        )
+        .unwrap_or_else(|e| {
+            // If the lookup fails then the shuffling must be invalid in some way, e.g. the
+            // block with `block_root` is from a later epoch than `previous_epoch`.
+            assert!(
+                !current_epoch_shuffling_is_compatible,
+                "block at slot {slot} has compatible shuffling at epoch {} \
                      but should be incompatible due to error: {e:?}",
-                    head_state.current_epoch()
-                );
-            });
+                head_state.current_epoch()
+            );
+        });
 
         // Similarly for the previous epoch
         let previous_epoch_shuffling_is_compatible = shuffling_is_compatible_with_fork_choice(
@@ -1208,29 +1209,27 @@ fn check_shuffling_compatible(
             &harness.chain.canonical_head,
             &harness.chain.attestation_manager,
         );
-        harness
-            .chain
-            .with_committee_cache(
-                block_root,
-                head_state.previous_epoch(),
-                |committee_cache, _| {
-                    let state_cache = head_state.committee_cache(RelativeEpoch::Previous).unwrap();
-                    if previous_epoch_shuffling_is_compatible {
-                        assert_eq!(committee_cache, state_cache.as_ref());
-                    }
-                    Ok(())
-                },
-            )
-            .unwrap_or_else(|e| {
-                // If the lookup fails then the shuffling must be invalid in some way, e.g. the
-                // block with `block_root` is from a later epoch than `previous_epoch`.
-                assert!(
-                    !previous_epoch_shuffling_is_compatible,
-                    "block at slot {slot} has compatible shuffling at epoch {} \
+        beacon_chain::attestation_manager::with_committee_cache(
+            block_root,
+            head_state.previous_epoch(),
+            |committee_cache, _| {
+                let state_cache = head_state.committee_cache(RelativeEpoch::Previous).unwrap();
+                if previous_epoch_shuffling_is_compatible {
+                    assert_eq!(committee_cache, state_cache.as_ref());
+                }
+                Ok(())
+            },
+        )
+        .unwrap_or_else(|e| {
+            // If the lookup fails then the shuffling must be invalid in some way, e.g. the
+            // block with `block_root` is from a later epoch than `previous_epoch`.
+            assert!(
+                !previous_epoch_shuffling_is_compatible,
+                "block at slot {slot} has compatible shuffling at epoch {} \
                      but should be incompatible due to error: {e:?}",
-                    head_state.previous_epoch()
-                );
-            });
+                head_state.previous_epoch()
+            );
+        });
 
         // Targeting two epochs before the current epoch should always return false
         if head_state.current_epoch() >= 2 {
@@ -2425,7 +2424,11 @@ fn check_all_blocks_exist<'a>(
     blocks: impl Iterator<Item = &'a SignedBeaconBlockHash>,
 ) {
     for &block_hash in blocks {
-        let block = harness.chain.get_blinded_block(&block_hash.into()).unwrap();
+        let block = harness
+            .chain
+            .store
+            .get_blinded_block(&block_hash.into())
+            .unwrap();
         assert!(
             block.is_some(),
             "expected block {:?} to be in DB",
@@ -2441,6 +2444,7 @@ fn check_all_states_exist<'a>(
     for &state_hash in states {
         let state = harness
             .chain
+            .store
             .get_state(&state_hash.into(), None, CACHE_STATE_IN_TESTS)
             .unwrap();
         assert!(
@@ -2460,6 +2464,7 @@ fn check_no_states_exist<'a>(
         assert!(
             harness
                 .chain
+                .store
                 .get_state(&state_root.into(), None, CACHE_STATE_IN_TESTS)
                 .unwrap()
                 .is_none(),
@@ -2475,7 +2480,11 @@ fn check_no_blocks_exist<'a>(
     blocks: impl Iterator<Item = &'a SignedBeaconBlockHash>,
 ) {
     for &block_hash in blocks {
-        let block = harness.chain.get_blinded_block(&block_hash.into()).unwrap();
+        let block = harness
+            .chain
+            .store
+            .get_blinded_block(&block_hash.into())
+            .unwrap();
         assert!(
             block.is_none(),
             "did not expect block {:?} to be in the DB",
@@ -3919,9 +3928,7 @@ async fn finalizes_after_resuming_from_db() {
         .chain
         .persist_fork_choice()
         .expect("should persist fork choice");
-    harness
-        .chain
-        .persist_op_pool()
+    beacon_chain::persist_op_pool(&harness.chain.store, &harness.chain.op_pool)
         .expect("should persist the op pool");
 
     let original_chain = harness.chain;
@@ -4954,6 +4961,7 @@ async fn prune_historic_states() {
 
     let genesis_state = harness
         .chain
+        .store
         .get_state(&genesis_state_root, None, CACHE_STATE_IN_TESTS)
         .unwrap()
         .unwrap();
@@ -5442,7 +5450,11 @@ fn assert_chains_pretty_much_the_same<T: BeaconChainTypes>(a: &BeaconChain<T>, b
     let mut b_head_state = b_head.beacon_state.clone();
     b_head_state.drop_all_caches().unwrap();
     assert_eq!(a_head_state, b_head_state, "head states should be equal");
-    assert_eq!(a.heads(), b.heads(), "heads() should be equal");
+    assert_eq!(
+        beacon_chain::beacon_chain::heads(&a.canonical_head),
+        beacon_chain::beacon_chain::heads(&b.canonical_head),
+        "heads() should be equal"
+    );
     assert_eq!(
         a.genesis_block_root, b.genesis_block_root,
         "genesis_block_root should be equal"

@@ -313,7 +313,16 @@ pub fn get_subnet_positions_for_sync_committee_message<T: BeaconChainTypes>(
         .ok_or(SyncVerificationError::UnknownValidatorIndex(
             sync_message.validator_index as usize,
         ))?;
-    let sync_committee = chain.sync_committee_at_next_slot(sync_message.get_slot())?;
+    let sync_committee = {
+        let head_state = &chain.head_snapshot().beacon_state;
+        chain.sync_committee_manager.sync_committee_at_next_slot(
+            sync_message.get_slot(),
+            head_state,
+            |load_slot| {
+                chain.state_at_slot(load_slot, beacon_chain::StateSkipConfig::WithoutStateRoots)
+            },
+        )?
+    };
     Ok(sync_committee.subcommittee_positions_for_public_key(&pubkey)?)
 }
 

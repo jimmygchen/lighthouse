@@ -125,7 +125,14 @@ fn get_valid_unaggregated_attestation<T: BeaconChainTypes>(
     let current_slot = chain.slot().expect("should get slot");
 
     let mut valid_attestation = chain
-        .produce_unaggregated_attestation(current_slot, 0)
+        .attestation_manager
+        .produce_unaggregated_attestation(
+            current_slot,
+            0,
+            &chain.canonical_head,
+            &chain.store,
+            &chain.spec,
+        )
         .expect("should not error while producing attestation");
 
     let validator_committee_index = 0;
@@ -1206,6 +1213,7 @@ async fn attestation_that_skips_epochs() {
 
     let mut state = harness
         .chain
+        .store
         .get_state(
             &earlier_block.state_root(),
             Some(earlier_slot),
@@ -1317,6 +1325,7 @@ async fn attestation_validator_receive_proposer_reward_and_withdrawals() {
 
     let mut state = harness
         .chain
+        .store
         .get_state(
             &earlier_block.state_root(),
             Some(earlier_slot),
@@ -1389,6 +1398,7 @@ async fn attestation_to_finalized_block() {
 
     let mut state = harness
         .chain
+        .store
         .get_state(
             &earlier_block.state_root(),
             Some(earlier_slot),
@@ -1488,7 +1498,11 @@ async fn verify_aggregate_for_gossip_doppelganger_detection() {
 
     let epoch = valid_aggregate.message().aggregate().data().target.epoch;
     let index = valid_aggregate.message().aggregator_index() as usize;
-    assert!(harness.chain.validator_seen_at_epoch(index, epoch));
+    assert!(beacon_chain::validator_seen_at_epoch(
+        &harness.chain,
+        index,
+        epoch
+    ));
 
     // Check the correct beacon cache is populated
     assert!(
@@ -1551,7 +1565,11 @@ async fn verify_attestation_for_gossip_doppelganger_detection() {
         .expect("should verify attestation");
 
     let epoch = valid_attestation.data.target.epoch;
-    assert!(harness.chain.validator_seen_at_epoch(index, epoch));
+    assert!(beacon_chain::validator_seen_at_epoch(
+        &harness.chain,
+        index,
+        epoch
+    ));
 
     // Check the correct beacon cache is populated
     assert!(

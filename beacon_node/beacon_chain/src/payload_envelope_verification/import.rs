@@ -203,7 +203,8 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
 
         let block_root = {
             let chain = self.clone();
-            self.spawn_blocking_handle(
+            crate::beacon_chain::spawn_blocking_handle(
+                &self.task_executor,
                 move || {
                     chain.import_execution_payload_envelope(
                         envelope,
@@ -271,7 +272,9 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
 
         let mut ops = vec![];
 
-        if let Some(blobs_or_columns_store_op) = self.get_blobs_or_columns_store_op(
+        if let Some(blobs_or_columns_store_op) = crate::beacon_chain::get_blobs_or_columns_store_op(
+            &self.data_availability_manager,
+            &self.spec,
             block_root,
             signed_envelope.slot(),
             AvailableBlockData::DataColumns(columns),

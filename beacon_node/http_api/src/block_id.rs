@@ -116,8 +116,11 @@ impl BlockId {
                         .map_err(BeaconChainError::ForkChoiceError)
                         .map_err(warp_utils::reject::unhandled_error)?;
                     let blinded_block = chain
+                        .store
                         .get_blinded_block(root)
-                        .map_err(warp_utils::reject::unhandled_error)?
+                        .map_err(|e| {
+                            warp_utils::reject::unhandled_error(BeaconChainError::DBError(e))
+                        })?
                         .ok_or_else(|| {
                             warp_utils::reject::custom_not_found(format!(
                                 "beacon block with root {}",
@@ -144,8 +147,9 @@ impl BlockId {
         chain: &BeaconChain<T>,
     ) -> Result<Option<SignedBlindedBeaconBlock<T::EthSpec>>, warp::Rejection> {
         chain
+            .store
             .get_blinded_block(root)
-            .map_err(warp_utils::reject::unhandled_error)
+            .map_err(|e| warp_utils::reject::unhandled_error(BeaconChainError::DBError(e)))
     }
 
     /// Return the `SignedBeaconBlock` identified by `self`.
@@ -231,42 +235,50 @@ impl BlockId {
             }
             CoreBlockId::Slot(slot) => {
                 let (root, execution_optimistic, finalized) = self.root(chain)?;
-                chain
-                    .get_block(&root)
-                    .await
-                    .map_err(warp_utils::reject::unhandled_error)
-                    .and_then(|block_opt| match block_opt {
-                        Some(block) => {
-                            if block.slot() != *slot {
-                                return Err(warp_utils::reject::custom_not_found(format!(
-                                    "slot {} was skipped",
-                                    slot
-                                )));
-                            }
-                            Ok((Arc::new(block), execution_optimistic, finalized))
+                beacon_chain::get_block::<T>(
+                    &chain.store,
+                    chain.execution_layer.as_ref(),
+                    &chain.spec,
+                    &root,
+                )
+                .await
+                .map_err(warp_utils::reject::unhandled_error)
+                .and_then(|block_opt| match block_opt {
+                    Some(block) => {
+                        if block.slot() != *slot {
+                            return Err(warp_utils::reject::custom_not_found(format!(
+                                "slot {} was skipped",
+                                slot
+                            )));
                         }
-                        None => Err(warp_utils::reject::custom_not_found(format!(
-                            "beacon block with root {}",
-                            root
-                        ))),
-                    })
+                        Ok((Arc::new(block), execution_optimistic, finalized))
+                    }
+                    None => Err(warp_utils::reject::custom_not_found(format!(
+                        "beacon block with root {}",
+                        root
+                    ))),
+                })
             }
             _ => {
                 let (root, execution_optimistic, finalized) = self.root(chain)?;
-                chain
-                    .get_block(&root)
-                    .await
-                    .map_err(warp_utils::reject::unhandled_error)
-                    .and_then(|block_opt| {
-                        block_opt
-                            .map(|block| (Arc::new(block), execution_optimistic, finalized))
-                            .ok_or_else(|| {
-                                warp_utils::reject::custom_not_found(format!(
-                                    "beacon block with root {}",
-                                    root
-                                ))
-                            })
-                    })
+                beacon_chain::get_block::<T>(
+                    &chain.store,
+                    chain.execution_layer.as_ref(),
+                    &chain.spec,
+                    &root,
+                )
+                .await
+                .map_err(warp_utils::reject::unhandled_error)
+                .and_then(|block_opt| {
+                    block_opt
+                        .map(|block| (Arc::new(block), execution_optimistic, finalized))
+                        .ok_or_else(|| {
+                            warp_utils::reject::custom_not_found(format!(
+                                "beacon block with root {}",
+                                root
+                            ))
+                        })
+                })
             }
         }
     }

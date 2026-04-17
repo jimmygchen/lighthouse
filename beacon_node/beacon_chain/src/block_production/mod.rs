@@ -1011,9 +1011,7 @@ pub(crate) fn produce_partial_beacon_block<T: BeaconChainTypes>(
     let builder_params = BuilderParams {
         pubkey,
         slot: state.slot(),
-        chain_health: ctx
-            .chain
-            .is_healthy(&parent_root)
+        chain_health: crate::beacon_chain::is_healthy(ctx.chain, &parent_root)
             .map_err(|e| BlockProductionError::BeaconChain(Box::new(e)))?,
     };
 

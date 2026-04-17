@@ -115,11 +115,13 @@ async fn test_sync_committee_rewards() {
 
     let block = harness.get_block(block_root).unwrap();
     let parent_block = chain
+        .store
         .get_blinded_block(&block.parent_root())
         .unwrap()
         .unwrap();
 
     let parent_state = chain
+        .store
         .get_state(
             &parent_block.state_root(),
             Some(parent_block.slot()),

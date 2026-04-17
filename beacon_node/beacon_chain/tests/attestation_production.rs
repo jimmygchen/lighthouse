@@ -185,7 +185,14 @@ async fn produces_attestations() {
                 .len();
 
             let attestation = chain
-                .produce_unaggregated_attestation(slot, index)
+                .attestation_manager
+                .produce_unaggregated_attestation(
+                    slot,
+                    index,
+                    &chain.canonical_head,
+                    &chain.store,
+                    &chain.spec,
+                )
                 .expect("should produce attestation");
 
             let (aggregation_bits_len, aggregation_bits_zero) = match &attestation {
@@ -302,12 +309,20 @@ async fn early_attester_cache_old_request() {
     let attest_slot = head.beacon_block.slot() - 1;
     let attestation = harness
         .chain
-        .produce_unaggregated_attestation(attest_slot, 0)
+        .attestation_manager
+        .produce_unaggregated_attestation(
+            attest_slot,
+            0,
+            &harness.chain.canonical_head,
+            &harness.chain.store,
+            &harness.chain.spec,
+        )
         .unwrap();
 
     assert_eq!(attestation.data().slot, attest_slot);
     let attested_block = harness
         .chain
+        .store
         .get_blinded_block(&attestation.data().beacon_block_root)
         .unwrap()
         .unwrap();

@@ -556,7 +556,8 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                 .copied()
                 .filter(|c| available_columns.contains(c))
                 .collect::<Vec<_>>();
-            match self.chain.get_data_columns_checking_all_caches(
+            match beacon_chain::get_data_columns_checking_all_caches(
+                &self.chain,
                 data_column_ids_by_root.block_root,
                 &indices_to_retrieve,
             ) {
@@ -718,7 +719,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         self.terminate_response_single_item(
             peer_id,
             inbound_request_id,
-            match self.chain.get_light_client_bootstrap(&request.root) {
+            match beacon_chain::get_light_client_bootstrap(&self.chain, &request.root) {
                 Ok(Some((bootstrap, _))) => Ok(Arc::new(bootstrap)),
                 Ok(None) => Err((
                     RpcErrorResponse::ResourceUnavailable,

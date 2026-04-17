@@ -1099,7 +1099,8 @@ where
 
         // Only perform the check if it was configured.
         if let Some(wss_checkpoint) = beacon_chain.config.weak_subjectivity_checkpoint
-            && let Err(e) = beacon_chain.verify_weak_subjectivity_checkpoint(
+            && let Err(e) = crate::beacon_chain::verify_weak_subjectivity_checkpoint(
+                &beacon_chain,
                 wss_checkpoint,
                 head.beacon_block_root,
                 &head.beacon_state,
@@ -1129,9 +1130,12 @@ where
                 .update_data_column_custody_info(Some(cgc_change_effective_slot));
 
             // Persist change to disk.
-            beacon_chain
-                .persist_custody_context()
-                .map_err(|e| format!("Failed writing updated CGC: {e:?}"))?;
+            crate::beacon_chain::persist_custody_ctx::<Witness<TSlotClock, E, THotStore, TColdStore>>(
+                &beacon_chain.spec,
+                &beacon_chain.data_availability_checker,
+                &beacon_chain.store,
+            )
+            .map_err(|e| format!("Failed writing updated CGC: {e:?}"))?;
         }
 
         info!(

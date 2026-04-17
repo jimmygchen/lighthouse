@@ -260,7 +260,14 @@ pub fn get_validator_attestation_data<T: BeaconChainTypes>(
                     }
 
                     chain
-                        .produce_unaggregated_attestation(query.slot, query.committee_index)
+                        .attestation_manager
+                        .produce_unaggregated_attestation(
+                            query.slot,
+                            query.committee_index,
+                            &chain.canonical_head,
+                            &chain.store,
+                            &chain.spec,
+                        )
                         .map(|attestation| attestation.data().clone())
                         .map(GenericResponse::from)
                         .map_err(warp_utils::reject::unhandled_error)
@@ -394,7 +401,11 @@ pub fn post_validator_liveness_epoch<T: BeaconChainTypes>(
                         .iter()
                         .cloned()
                         .map(|index| {
-                            let is_live = chain.validator_seen_at_epoch(index as usize, epoch);
+                            let is_live = beacon_chain::validator_seen_at_epoch(
+                                &chain,
+                                index as usize,
+                                epoch,
+                            );
                             StandardLivenessResponseData { index, is_live }
                         })
                         .collect();
@@ -756,7 +767,11 @@ pub fn post_validator_prepare_beacon_proposer<T: BeaconChainTypes>(
                             // write here we risk forgetting custody backfill progress upon an
                             // unclean shutdown. The custody context is otherwise only persisted in
                             // `BeaconChain::drop`.
-                            if let Err(error) = chain.persist_custody_context() {
+                            if let Err(error) = beacon_chain::persist_custody_ctx::<T>(
+                                &chain.spec,
+                                &chain.data_availability_checker,
+                                &chain.store,
+                            ) {
                                 error!(
                                     ?error,
                                     "Failed to persist custody context after CGC update"
@@ -901,7 +916,22 @@ pub fn post_validator_aggregate_and_proofs<T: BeaconChainTypes>(
 
                     // Verify that all messages in the post are valid before processing further
                     for (index, aggregate) in aggregates.iter().enumerate() {
-                        match chain.verify_aggregated_attestation_for_gossip(aggregate) {
+                        match {
+                            beacon_chain::metrics::inc_counter(&beacon_chain::metrics::AGGREGATED_ATTESTATION_PROCESSING_REQUESTS);
+                            let _timer = beacon_chain::metrics::start_timer(&beacon_chain::metrics::AGGREGATED_ATTESTATION_GOSSIP_VERIFICATION_TIMES);
+                            let ctx = beacon_chain::attestation_verification::AttestationVerificationContext::from_chain(&chain);
+                            beacon_chain::attestation_verification::VerifiedAggregatedAttestation::verify(aggregate, &ctx)
+                                .inspect(|v| {
+                                    if let Some(event_handler) = chain.event_handler.as_ref()
+                                        && event_handler.has_attestation_subscribers()
+                                    {
+                                        event_handler.register(beacon_chain::events::EventKind::Attestation(Box::new(
+                                            v.attestation().clone_as_attestation(),
+                                        )));
+                                    }
+                                    beacon_chain::metrics::inc_counter(&beacon_chain::metrics::AGGREGATED_ATTESTATION_PROCESSING_SUCCESSES);
+                                })
+                        } {
                             Ok(verified_aggregate) => {
                                 messages.push(PubsubMessage::AggregateAndProofAttestation(Box::new(
                                     verified_aggregate.aggregate().clone(),
@@ -959,7 +989,12 @@ pub fn post_validator_aggregate_and_proofs<T: BeaconChainTypes>(
 
                     // Import aggregate attestations
                     for (index, verified_aggregate) in verified_aggregates {
-                        if let Err(e) = chain.apply_attestation_to_fork_choice(&verified_aggregate) {
+                        if let Err(e) = chain.canonical_head.fork_choice_write_lock().on_attestation(
+                            chain.slot_clock.now().unwrap(),
+                            verified_aggregate.indexed_attestation().to_ref(),
+                            beacon_chain::AttestationFromBlock::False,
+                            &chain.spec,
+                        ).map_err(beacon_chain::BeaconChainError::from) {
                             error!(
                                 error = ?e,
                                 request_index = index,
@@ -970,7 +1005,12 @@ pub fn post_validator_aggregate_and_proofs<T: BeaconChainTypes>(
                                 );
                             failures.push(Failure::new(index, format!("Fork choice: {:?}", e)));
                         }
-                        if let Err(e) = chain.add_to_block_inclusion_pool(verified_aggregate) {
+                        if let Err(e) = {
+                            let _timer = beacon_chain::metrics::start_timer(&beacon_chain::metrics::ATTESTATION_PROCESSING_APPLY_TO_OP_POOL);
+                            let (attestation, attesting_indices) = verified_aggregate.into_attestation_and_indices();
+                            chain.op_pool.insert_attestation(attestation, attesting_indices)
+                                .map_err(beacon_chain::BeaconChainError::from)
+                        } {
                             warn!(
                                 error = ?e,
                                 request_index = index,

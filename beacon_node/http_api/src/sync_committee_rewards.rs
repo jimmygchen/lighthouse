@@ -50,7 +50,9 @@ pub fn get_state_before_applying_block<T: BeaconChainTypes>(
     block: &SignedBlindedBeaconBlock<T::EthSpec>,
 ) -> Result<BeaconState<T::EthSpec>, warp::reject::Rejection> {
     let parent_block: SignedBlindedBeaconBlock<T::EthSpec> = chain
+        .store
         .get_blinded_block(&block.parent_root())
+        .map_err(BeaconChainError::DBError)
         .and_then(|maybe_block| {
             maybe_block.ok_or_else(|| BeaconChainError::MissingBeaconBlock(block.parent_root()))
         })
@@ -59,7 +61,9 @@ pub fn get_state_before_applying_block<T: BeaconChainTypes>(
     // We are about to apply a new block to the chain. It's parent state
     // is a useful/recent state, we elect to cache it.
     let parent_state = chain
+        .store
         .get_state(&parent_block.state_root(), Some(parent_block.slot()), true)
+        .map_err(BeaconChainError::DBError)
         .and_then(|maybe_state| {
             maybe_state
                 .ok_or_else(|| BeaconChainError::MissingBeaconState(parent_block.state_root()))

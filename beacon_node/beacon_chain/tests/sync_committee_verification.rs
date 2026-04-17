@@ -763,8 +763,17 @@ async fn unaggregated_gossip_verification() {
         chain.op_pool.insert_sync_contribution(aggregate).unwrap();
 
         // Load the block and state for the given root.
-        let block = chain.get_block(&root).await.unwrap().unwrap();
+        let block = beacon_chain::get_block(
+            &chain.store,
+            chain.execution_layer.as_ref(),
+            &chain.spec,
+            &root,
+        )
+        .await
+        .unwrap()
+        .unwrap();
         let mut state = chain
+            .store
             .get_state(&block.state_root(), None, CACHE_STATE_IN_TESTS)
             .unwrap()
             .unwrap();

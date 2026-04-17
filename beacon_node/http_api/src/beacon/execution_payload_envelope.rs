@@ -153,8 +153,13 @@ pub(crate) fn get_beacon_execution_payload_envelope<T: BeaconChainTypes>(
                     let (root, execution_optimistic, finalized) = block_id.root(&chain)?;
 
                     let envelope = chain
+                        .store
                         .get_payload_envelope(&root)
-                        .map_err(warp_utils::reject::unhandled_error)?
+                        .map_err(|e| {
+                            warp_utils::reject::unhandled_error(
+                                beacon_chain::BeaconChainError::DBError(e),
+                            )
+                        })?
                         .ok_or_else(|| {
                             warp_utils::reject::custom_not_found(format!(
                                 "execution payload envelope for block root {root}"

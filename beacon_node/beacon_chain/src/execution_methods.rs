@@ -3,7 +3,7 @@
 //! Complex async workflows like `process_invalid_execution_payload`,
 //! `prepare_beacon_proposer`, and `update_execution_engine_forkchoice` remain
 //! as `impl BeaconChain<T>` methods because they need `self.clone()` and
-//! `self.spawn_blocking_handle()`. Non-async helpers are extracted as free
+//! `crate::beacon_chain::spawn_blocking_handle(&self.task_executor,)`. Non-async helpers are extracted as free
 //! functions taking an `ExecutionOrchestrationContext`.
 
 use crate::beacon_chain::{
@@ -138,17 +138,17 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         // on the core executor is bad.
         let chain = self.clone();
         let inner_op = op.clone();
-        let fork_choice_result = self
-            .spawn_blocking_handle(
-                move || {
-                    chain
-                        .canonical_head
-                        .fork_choice_write_lock()
-                        .on_invalid_execution_payload(&inner_op)
-                },
-                "invalid_payload_fork_choice_update",
-            )
-            .await?;
+        let fork_choice_result = crate::beacon_chain::spawn_blocking_handle(
+            &self.task_executor,
+            move || {
+                chain
+                    .canonical_head
+                    .fork_choice_write_lock()
+                    .on_invalid_execution_payload(&inner_op)
+            },
+            "invalid_payload_fork_choice_update",
+        )
+        .await?;
 
         // Update fork choice.
         if let Err(e) = fork_choice_result {
@@ -169,17 +169,17 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         // Use a blocking task since it interacts with the `canonical_head` lock. Lock contention
         // on the core executor is bad.
         let chain = self.clone();
-        let justified_block = self
-            .spawn_blocking_handle(
-                move || {
-                    chain
-                        .canonical_head
-                        .fork_choice_read_lock()
-                        .get_justified_block()
-                },
-                "invalid_payload_fork_choice_get_justified",
-            )
-            .await??;
+        let justified_block = crate::beacon_chain::spawn_blocking_handle(
+            &self.task_executor,
+            move || {
+                chain
+                    .canonical_head
+                    .fork_choice_read_lock()
+                    .get_justified_block()
+            },
+            "invalid_payload_fork_choice_get_justified",
+        )
+        .await??;
 
         if justified_block.execution_status.is_invalid() {
             // Delegate to the free function for shutdown signalling.
@@ -244,34 +244,33 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         // block the core tokio executor.
         let chain = self.clone();
         let tolerance_slots = self.config.sync_tolerance_epochs * T::EthSpec::slots_per_epoch();
-        let maybe_prep_data = self
-            .spawn_blocking_handle(
-                move || {
-                    let cached_head = chain.canonical_head.cached_head();
+        let maybe_prep_data = crate::beacon_chain::spawn_blocking_handle(
+            &self.task_executor,
+            move || {
+                let cached_head = chain.canonical_head.cached_head();
 
-                    // Don't bother with proposer prep if the head is more than
-                    // `sync_tolerance_epochs` prior to the current slot.
-                    //
-                    // This prevents the routine from running during sync.
-                    let head_slot = cached_head.head_slot();
-                    if head_slot + tolerance_slots < current_slot {
-                        debug!(%head_slot, %current_slot, "Head too old for proposer prep");
-                        return Ok(None);
-                    }
+                // Don't bother with proposer prep if the head is more than
+                // `sync_tolerance_epochs` prior to the current slot.
+                //
+                // This prevents the routine from running during sync.
+                let head_slot = cached_head.head_slot();
+                if head_slot + tolerance_slots < current_slot {
+                    debug!(%head_slot, %current_slot, "Head too old for proposer prep");
+                    return Ok(None);
+                }
 
-                    let canonical_fcu_params = cached_head.forkchoice_update_parameters();
-                    let fcu_params =
-                        chain.overridden_forkchoice_update_params(canonical_fcu_params)?;
-                    let pre_payload_attributes = chain.get_pre_payload_attributes(
-                        prepare_slot,
-                        fcu_params.head_root,
-                        &cached_head,
-                    )?;
-                    Ok::<_, Error>(Some((fcu_params, pre_payload_attributes)))
-                },
-                "prepare_beacon_proposer_head_read",
-            )
-            .await??;
+                let canonical_fcu_params = cached_head.forkchoice_update_parameters();
+                let fcu_params = chain.overridden_forkchoice_update_params(canonical_fcu_params)?;
+                let pre_payload_attributes = chain.get_pre_payload_attributes(
+                    prepare_slot,
+                    fcu_params.head_root,
+                    &cached_head,
+                )?;
+                Ok::<_, Error>(Some((fcu_params, pre_payload_attributes)))
+            },
+            "prepare_beacon_proposer_head_read",
+        )
+        .await??;
 
         let Some((forkchoice_update_params, Some(pre_payload_attributes))) = maybe_prep_data else {
             // Appropriate log messages have already been logged above and in
@@ -304,7 +303,8 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
 
             let withdrawals = if prepare_slot_fork.capella_enabled() {
                 let chain = self.clone();
-                self.spawn_blocking_handle(
+                crate::beacon_chain::spawn_blocking_handle(
+                    &self.task_executor,
                     move || chain.get_expected_withdrawals(&forkchoice_update_params, prepare_slot),
                     "prepare_beacon_proposer_withdrawals",
                 )
@@ -413,7 +413,8 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         // the current head at the next slot.
         let params = if override_forkchoice_update == OverrideForkchoiceUpdate::Yes {
             let chain = self.clone();
-            self.spawn_blocking_handle(
+            crate::beacon_chain::spawn_blocking_handle(
+                &self.task_executor,
                 move || chain.overridden_forkchoice_update_params(input_params),
                 "update_execution_engine_forkchoice_override",
             )
@@ -475,17 +476,17 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
                 PayloadStatus::Valid => {
                     // Ensure that fork choice knows that the block is no longer optimistic.
                     let chain = self.clone();
-                    let fork_choice_update_result = self
-                        .spawn_blocking_handle(
-                            move || {
-                                chain
-                                    .canonical_head
-                                    .fork_choice_write_lock()
-                                    .on_valid_execution_payload(head_block_root)
-                            },
-                            "update_execution_engine_valid_payload",
-                        )
-                        .await?;
+                    let fork_choice_update_result = crate::beacon_chain::spawn_blocking_handle(
+                        &self.task_executor,
+                        move || {
+                            chain
+                                .canonical_head
+                                .fork_choice_write_lock()
+                                .on_valid_execution_payload(head_block_root)
+                        },
+                        "update_execution_engine_valid_payload",
+                    )
+                    .await?;
                     if let Err(e) = fork_choice_update_result {
                         error!(
                             error= ?e,

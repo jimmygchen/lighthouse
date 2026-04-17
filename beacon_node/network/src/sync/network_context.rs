@@ -847,7 +847,12 @@ impl<T: BeaconChainTypes> SyncNetworkContext<T> {
             return Ok(LookupRequestResult::Pending("no peers"));
         };
 
-        match self.chain.get_block_process_status(&block_root) {
+        match self
+            .chain
+            .data_availability_checker
+            .get_cached_block(&block_root)
+            .unwrap_or(BlockProcessStatus::Unknown)
+        {
             // Unknown block, continue request to download
             BlockProcessStatus::Unknown => {}
             // Block is known and currently processing. Imports from gossip and HTTP API insert the

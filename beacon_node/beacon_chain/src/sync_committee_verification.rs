@@ -316,9 +316,20 @@ impl<T: BeaconChainTypes> VerifiedSyncContribution<T> {
             .validator_query
             .validator_pubkey_bytes(aggregator_index as usize)?
             .ok_or(Error::UnknownValidatorIndex(aggregator_index as usize))?;
-        let sync_subcommittee_pubkeys = chain
-            .sync_committee_at_next_slot(contribution.get_slot())?
-            .get_subcommittee_pubkeys(subcommittee_index)?;
+        let sync_subcommittee_pubkeys = {
+            let head_state = &chain.head_snapshot().beacon_state;
+            chain.sync_committee_manager.sync_committee_at_next_slot(
+                contribution.get_slot(),
+                head_state,
+                |load_slot| {
+                    chain.state_at_slot(
+                        load_slot,
+                        crate::beacon_chain::StateSkipConfig::WithoutStateRoots,
+                    )
+                },
+            )?
+        }
+        .get_subcommittee_pubkeys(subcommittee_index)?;
 
         if !sync_subcommittee_pubkeys.contains(&pubkey_bytes) {
             return Err(Error::AggregatorNotInCommittee { aggregator_index });
@@ -476,7 +487,19 @@ impl VerifiedSyncCommitteeMessage {
                 sync_message.validator_index as usize,
             ))?;
 
-        let sync_committee = chain.sync_committee_at_next_slot(sync_message.get_slot())?;
+        let sync_committee = {
+            let head_state = &chain.head_snapshot().beacon_state;
+            chain.sync_committee_manager.sync_committee_at_next_slot(
+                sync_message.get_slot(),
+                head_state,
+                |load_slot| {
+                    chain.state_at_slot(
+                        load_slot,
+                        crate::beacon_chain::StateSkipConfig::WithoutStateRoots,
+                    )
+                },
+            )?
+        };
         let subnet_positions = sync_committee.subcommittee_positions_for_public_key(&pubkey)?;
 
         if !subnet_positions.contains_key(&subnet_id) {

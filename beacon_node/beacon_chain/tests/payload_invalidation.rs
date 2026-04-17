@@ -80,6 +80,7 @@ impl InvalidPayloadRig {
     fn block_hash(&self, block_root: Hash256) -> ExecutionBlockHash {
         self.harness
             .chain
+            .store
             .get_blinded_block(&block_root)
             .unwrap()
             .unwrap()
@@ -734,6 +735,7 @@ async fn invalidates_all_descendants() {
         let slot = rig
             .harness
             .chain
+            .store
             .get_blinded_block(&root)
             .unwrap()
             .unwrap()
@@ -834,6 +836,7 @@ async fn switches_heads() {
         let slot = rig
             .harness
             .chain
+            .store
             .get_blinded_block(&root)
             .unwrap()
             .unwrap()
@@ -881,13 +884,18 @@ async fn invalid_during_processing() {
     assert!(
         rig.harness
             .chain
+            .store
             .get_blinded_block(&roots[0])
             .unwrap()
             .is_some()
     );
     // 1 should *not* be present in the chain.
     assert_eq!(
-        rig.harness.chain.get_blinded_block(&roots[1]).unwrap(),
+        rig.harness
+            .chain
+            .store
+            .get_blinded_block(&roots[1])
+            .unwrap(),
         None
     );
     // 2 should be the head.
@@ -910,7 +918,14 @@ async fn invalid_after_optimistic_sync() {
     ];
 
     for root in &roots {
-        assert!(rig.harness.chain.get_blinded_block(root).unwrap().is_some());
+        assert!(
+            rig.harness
+                .chain
+                .store
+                .get_blinded_block(root)
+                .unwrap()
+                .is_some()
+        );
     }
 
     // 2 should be the head.
@@ -1135,7 +1150,14 @@ async fn attesting_to_optimistic_head() {
         let mut attestation = rig
             .harness
             .chain
-            .produce_unaggregated_attestation(Slot::new(0), 0)
+            .attestation_manager
+            .produce_unaggregated_attestation(
+                Slot::new(0),
+                0,
+                &rig.harness.chain.canonical_head,
+                &rig.harness.chain.store,
+                &rig.harness.chain.spec,
+            )
             .unwrap();
 
         match &mut attestation {
@@ -1164,7 +1186,18 @@ async fn attesting_to_optimistic_head() {
      * Define some closures to produce attestations.
      */
 
-    let produce_unaggregated = || rig.harness.chain.produce_unaggregated_attestation(slot, 0);
+    let produce_unaggregated = || {
+        rig.harness
+            .chain
+            .attestation_manager
+            .produce_unaggregated_attestation(
+                slot,
+                0,
+                &rig.harness.chain.canonical_head,
+                &rig.harness.chain.store,
+                &rig.harness.chain.spec,
+            )
+    };
 
     let get_aggregated = || {
         rig.harness

@@ -165,9 +165,13 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             }
 
             // Store the blobs or data columns too
-            if let Some(op) =
-                self.get_blobs_or_columns_store_op(block_root, block.slot(), block_data)
-            {
+            if let Some(op) = crate::beacon_chain::get_blobs_or_columns_store_op(
+                &self.data_availability_manager,
+                &self.spec,
+                block_root,
+                block.slot(),
+                block_data,
+            ) {
                 blob_batch.extend(self.store.convert_to_kv_batch(vec![op])?);
             }
 

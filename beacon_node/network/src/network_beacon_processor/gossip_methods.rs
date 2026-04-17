@@ -217,10 +217,28 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         allow_reprocess: bool,
         seen_timestamp: Duration,
     ) {
-        let result = match self
-            .chain
-            .verify_unaggregated_attestation_for_gossip(&attestation, Some(subnet_id))
-        {
+        let result = match {
+            beacon_chain::metrics::inc_counter(
+                &beacon_chain::metrics::UNAGGREGATED_ATTESTATION_PROCESSING_REQUESTS,
+            );
+            let _timer = beacon_chain::metrics::start_timer(
+                &beacon_chain::metrics::UNAGGREGATED_ATTESTATION_GOSSIP_VERIFICATION_TIMES,
+            );
+            let ctx =
+                beacon_chain::attestation_verification::AttestationVerificationContext::from_chain(
+                    &self.chain,
+                );
+            beacon_chain::attestation_verification::VerifiedUnaggregatedAttestation::verify(
+                &attestation,
+                Some(subnet_id),
+                &ctx,
+            )
+            .inspect(|_| {
+                beacon_chain::metrics::inc_counter(
+                    &beacon_chain::metrics::UNAGGREGATED_ATTESTATION_PROCESSING_SUCCESSES,
+                );
+            })
+        } {
             Ok(verified_attestation) => {
                 let attestation =
                     Box::new(verified_attestation.attestation().clone_as_attestation());
@@ -252,10 +270,16 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             .iter()
             .map(|package| (package.attestation.as_ref(), Some(package.subnet_id)));
 
-        let results = match self
-            .chain
-            .batch_verify_unaggregated_attestations_for_gossip(attestations_and_subnets)
-        {
+        let results = match {
+            let ctx =
+                beacon_chain::attestation_verification::AttestationVerificationContext::from_chain(
+                    &self.chain,
+                );
+            beacon_chain::attestation_verification::batch_verify_unaggregated_attestations(
+                attestations_and_subnets,
+                &ctx,
+            )
+        } {
             Ok(results) => results,
             Err(e) => {
                 error!(
@@ -359,7 +383,19 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
 
                 if let Err(e) = self
                     .chain
-                    .apply_attestation_to_fork_choice(&verified_attestation)
+                    .canonical_head
+                    .fork_choice_write_lock()
+                    .on_attestation(
+                        self.chain
+                            .slot_clock
+                            .now()
+                            .ok_or(beacon_chain::BeaconChainError::UnableToReadSlot)
+                            .unwrap(),
+                        verified_attestation.indexed_attestation().to_ref(),
+                        beacon_chain::AttestationFromBlock::False,
+                        &self.chain.spec,
+                    )
+                    .map_err(beacon_chain::BeaconChainError::from)
                 {
                     match e {
                         BeaconChainError::ForkChoiceError(ForkChoiceError::InvalidAttestation(
@@ -433,10 +469,33 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
     ) {
         let beacon_block_root = aggregate.message().aggregate().data().beacon_block_root;
 
-        let result = match self
-            .chain
-            .verify_aggregated_attestation_for_gossip(&aggregate)
-        {
+        let result = match {
+            beacon_chain::metrics::inc_counter(
+                &beacon_chain::metrics::AGGREGATED_ATTESTATION_PROCESSING_REQUESTS,
+            );
+            let _timer = beacon_chain::metrics::start_timer(
+                &beacon_chain::metrics::AGGREGATED_ATTESTATION_GOSSIP_VERIFICATION_TIMES,
+            );
+            let ctx =
+                beacon_chain::attestation_verification::AttestationVerificationContext::from_chain(
+                    &self.chain,
+                );
+            beacon_chain::attestation_verification::VerifiedAggregatedAttestation::verify(
+                &aggregate, &ctx,
+            )
+            .inspect(|v| {
+                if let Some(event_handler) = self.chain.event_handler.as_ref()
+                    && event_handler.has_attestation_subscribers()
+                {
+                    event_handler.register(EventKind::Attestation(Box::new(
+                        v.attestation().clone_as_attestation(),
+                    )));
+                }
+                beacon_chain::metrics::inc_counter(
+                    &beacon_chain::metrics::AGGREGATED_ATTESTATION_PROCESSING_SUCCESSES,
+                );
+            })
+        } {
             Ok(verified_aggregate) => Ok(VerifiedAggregate {
                 indexed_attestation: verified_aggregate.into_indexed_attestation(),
                 signed_aggregate: aggregate,
@@ -464,10 +523,15 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
     ) {
         let aggregates = packages.iter().map(|package| package.aggregate.as_ref());
 
-        let results = match self
-            .chain
-            .batch_verify_aggregated_attestations_for_gossip(aggregates)
-        {
+        let results = match {
+            let ctx =
+                beacon_chain::attestation_verification::AttestationVerificationContext::from_chain(
+                    &self.chain,
+                );
+            beacon_chain::attestation_verification::batch_verify_aggregated_attestations(
+                aggregates, &ctx,
+            )
+        } {
             Ok(results) => results,
             Err(e) => {
                 error!(
@@ -559,7 +623,19 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
 
                 if let Err(e) = self
                     .chain
-                    .apply_attestation_to_fork_choice(&verified_aggregate)
+                    .canonical_head
+                    .fork_choice_write_lock()
+                    .on_attestation(
+                        self.chain
+                            .slot_clock
+                            .now()
+                            .ok_or(beacon_chain::BeaconChainError::UnableToReadSlot)
+                            .unwrap(),
+                        verified_aggregate.indexed_attestation().to_ref(),
+                        beacon_chain::AttestationFromBlock::False,
+                        &self.chain.spec,
+                    )
+                    .map_err(beacon_chain::BeaconChainError::from)
                 {
                     match e {
                         BeaconChainError::ForkChoiceError(ForkChoiceError::InvalidAttestation(
@@ -581,7 +657,17 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                     }
                 }
 
-                if let Err(e) = self.chain.add_to_block_inclusion_pool(verified_aggregate) {
+                if let Err(e) = {
+                    let _timer = beacon_chain::metrics::start_timer(
+                        &beacon_chain::metrics::ATTESTATION_PROCESSING_APPLY_TO_OP_POOL,
+                    );
+                    let (attestation, attesting_indices) =
+                        verified_aggregate.into_attestation_and_indices();
+                    self.chain
+                        .op_pool
+                        .insert_attestation(attestation, attesting_indices)
+                        .map_err(beacon_chain::BeaconChainError::from)
+                } {
                     debug!(
                         reason = ?e,
                         %peer_id,
@@ -2134,7 +2220,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                 if let Some(event_handler) = self.chain.event_handler.as_ref()
                     && event_handler.has_contribution_subscribers()
                 {
-                    event_handler.register(eth2::types::EventKind::ContributionAndProof(Box::new(
+                    event_handler.register(EventKind::ContributionAndProof(Box::new(
                         v.aggregate().clone(),
                     )));
                 }

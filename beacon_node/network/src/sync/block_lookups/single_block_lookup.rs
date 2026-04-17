@@ -222,7 +222,12 @@ impl<T: BeaconChainTypes> SingleBlockLookup<T> {
                 // If the block is already being processed or fully validated, retrieve how many blobs
                 // it expects. Consider any stage of the block. If the block root has been validated, we
                 // can assert that this is the correct value of `blob_kzg_commitments_count`.
-                match cx.chain.get_block_process_status(&self.block_root) {
+                match cx
+                    .chain
+                    .data_availability_checker
+                    .get_cached_block(&self.block_root)
+                    .unwrap_or(BlockProcessStatus::Unknown)
+                {
                     BlockProcessStatus::Unknown => None,
                     BlockProcessStatus::NotValidated(block, _)
                     | BlockProcessStatus::ExecutionValidated(block) => Some(block.clone()),

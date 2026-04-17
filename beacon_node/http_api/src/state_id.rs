@@ -221,8 +221,9 @@ impl StateId {
         // This branch is reached from the HTTP API. We assume the user wants
         // to cache states so that future calls are faster.
         let state = chain
+            .store
             .get_state(&state_root, slot_opt, true)
-            .map_err(warp_utils::reject::unhandled_error)
+            .map_err(|e| warp_utils::reject::unhandled_error(BeaconChainError::DBError(e)))
             .and_then(|opt| {
                 opt.ok_or_else(|| {
                     warp_utils::reject::custom_not_found(format!(

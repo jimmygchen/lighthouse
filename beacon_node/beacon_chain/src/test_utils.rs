@@ -948,14 +948,13 @@ where
     }
 
     pub fn knows_head(&self, block_hash: &SignedBeaconBlockHash) -> bool {
-        self.chain
-            .heads()
+        crate::beacon_chain::heads(&self.chain.canonical_head)
             .iter()
             .any(|(head, _)| *head == Hash256::from(*block_hash))
     }
 
     pub fn assert_knows_head(&self, head_block_root: Hash256) {
-        let heads = self.chain.heads();
+        let heads = crate::beacon_chain::heads(&self.chain.canonical_head);
         if !heads.iter().any(|(head, _)| *head == head_block_root) {
             let fork_choice = self.chain.canonical_head.fork_choice_read_lock();
             if heads.is_empty() {
@@ -2967,30 +2966,51 @@ where
             }
         }
 
-        for result in self
-            .chain
-            .batch_verify_unaggregated_attestations_for_gossip(
+        {
+            let ctx = crate::attestation_verification::AttestationVerificationContext::from_chain(
+                &self.chain,
+            );
+            for result in crate::attestation_verification::batch_verify_unaggregated_attestations(
                 unaggregated.iter().map(|(attn, subnet)| (attn, *subnet)),
+                &ctx,
             )
             .unwrap()
-        {
-            let verified = result.unwrap();
-            self.chain
-                .attestation_manager
-                .add_to_naive_aggregation_pool(verified.attestation())
-                .unwrap();
+            {
+                let verified = result.unwrap();
+                self.chain
+                    .attestation_manager
+                    .add_to_naive_aggregation_pool(verified.attestation())
+                    .unwrap();
+            }
         }
 
-        for result in self
-            .chain
-            .batch_verify_aggregated_attestations_for_gossip(aggregated.into_iter())
-            .unwrap()
         {
-            let verified = result.unwrap();
-            self.chain
-                .apply_attestation_to_fork_choice(&verified)
-                .unwrap();
-            self.chain.add_to_block_inclusion_pool(verified).unwrap();
+            let ctx = crate::attestation_verification::AttestationVerificationContext::from_chain(
+                &self.chain,
+            );
+            for result in crate::attestation_verification::batch_verify_aggregated_attestations(
+                aggregated.into_iter(),
+                &ctx,
+            )
+            .unwrap()
+            {
+                let verified = result.unwrap();
+                self.chain
+                    .canonical_head
+                    .fork_choice_write_lock()
+                    .on_attestation(
+                        self.chain.slot_clock.now().unwrap(),
+                        verified.indexed_attestation().to_ref(),
+                        fork_choice::AttestationFromBlock::False,
+                        &self.chain.spec,
+                    )
+                    .unwrap();
+                let (attestation, attesting_indices) = verified.into_attestation_and_indices();
+                self.chain
+                    .op_pool
+                    .insert_attestation(attestation, attesting_indices)
+                    .unwrap();
+            }
         }
     }
 

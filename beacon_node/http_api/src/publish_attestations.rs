@@ -74,9 +74,51 @@ fn verify_and_publish_attestation<T: BeaconChainTypes>(
     seen_timestamp: Duration,
     network_tx: &UnboundedSender<NetworkMessage<T::EthSpec>>,
 ) -> Result<(), Error> {
-    let verified_attestation = chain
-        .verify_unaggregated_attestation_for_gossip(attestation, None)
-        .map_err(Error::Validation)?;
+    let verified_attestation = {
+        beacon_chain::metrics::inc_counter(
+            &beacon_chain::metrics::UNAGGREGATED_ATTESTATION_PROCESSING_REQUESTS,
+        );
+        let _timer = beacon_chain::metrics::start_timer(
+            &beacon_chain::metrics::UNAGGREGATED_ATTESTATION_GOSSIP_VERIFICATION_TIMES,
+        );
+        let ctx =
+            beacon_chain::attestation_verification::AttestationVerificationContext::from_chain(
+                chain,
+            );
+        beacon_chain::attestation_verification::VerifiedUnaggregatedAttestation::verify(
+            attestation,
+            None,
+            &ctx,
+        )
+        .inspect(|v| {
+            if let Some(event_handler) = chain.event_handler.as_ref() {
+                if event_handler.has_single_attestation_subscribers() {
+                    let current_fork = chain
+                        .spec
+                        .fork_name_at_slot::<T::EthSpec>(v.attestation().data().slot);
+                    if current_fork.electra_enabled() {
+                        event_handler.register(beacon_chain::events::EventKind::SingleAttestation(
+                            Box::new(v.single_attestation()),
+                        ));
+                    }
+                }
+                if event_handler.has_attestation_subscribers() {
+                    let current_fork = chain
+                        .spec
+                        .fork_name_at_slot::<T::EthSpec>(v.attestation().data().slot);
+                    if !current_fork.electra_enabled() {
+                        event_handler.register(beacon_chain::events::EventKind::Attestation(
+                            Box::new(v.attestation().clone_as_attestation()),
+                        ));
+                    }
+                }
+            }
+            beacon_chain::metrics::inc_counter(
+                &beacon_chain::metrics::UNAGGREGATED_ATTESTATION_PROCESSING_SUCCESSES,
+            );
+        })
+        .map_err(Error::Validation)?
+    };
 
     network_tx
         .send(NetworkMessage::Publish {
@@ -97,7 +139,20 @@ fn verify_and_publish_attestation<T: BeaconChainTypes>(
             &chain.slot_clock,
         );
 
-    let fc_result = chain.apply_attestation_to_fork_choice(&verified_attestation);
+    let fc_result = chain
+        .canonical_head
+        .fork_choice_write_lock()
+        .on_attestation(
+            chain
+                .slot_clock
+                .now()
+                .ok_or(beacon_chain::BeaconChainError::UnableToReadSlot)
+                .map_err(|e| Error::ForkChoice(Box::new(e)))?,
+            verified_attestation.indexed_attestation().to_ref(),
+            beacon_chain::AttestationFromBlock::False,
+            &chain.spec,
+        )
+        .map_err(|e| beacon_chain::BeaconChainError::from(e));
     let naive_aggregation_result: Result<(), AttestationError> = chain
         .attestation_manager
         .add_to_naive_aggregation_pool(verified_attestation.attestation())

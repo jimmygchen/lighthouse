@@ -532,9 +532,7 @@ async fn roundtrip_operation_pool() {
     assert!(harness.chain.op_pool.num_attestations() > 0);
 
     // TODO: could add some other operations
-    harness
-        .chain
-        .persist_op_pool()
+    beacon_chain::persist_op_pool(&harness.chain.store, &harness.chain.op_pool)
         .expect("should persist op pool");
 
     let restored_op_pool = harness
@@ -850,6 +848,7 @@ async fn block_roots_skip_slot_behaviour() {
 
             let expected_block = harness
                 .chain
+                .store
                 .get_blinded_block(&skipped_root)
                 .unwrap()
                 .unwrap();
@@ -892,6 +891,7 @@ async fn block_roots_skip_slot_behaviour() {
 
             let expected_block = harness
                 .chain
+                .store
                 .get_blinded_block(&skips_prev)
                 .unwrap()
                 .unwrap();
@@ -1006,9 +1006,7 @@ async fn pseudo_finalize_test_generic(
     };
 
     // pseudo finalize
-    harness
-        .chain
-        .manually_finalize_state(head.beacon_state_root(), checkpoint)
+    beacon_chain::manually_finalize_state(&harness.chain, head.beacon_state_root(), checkpoint)
         .unwrap();
 
     let split = harness.chain.store.get_split_info();

@@ -69,12 +69,15 @@ async fn get_chain_segment() -> (Vec<BeaconSnapshot<E>>, Vec<Option<DataSidecars
         .into_iter()
         .skip(1)
     {
-        let full_block = harness
-            .chain
-            .get_block(&snapshot.beacon_block_root)
-            .await
-            .unwrap()
-            .unwrap();
+        let full_block = beacon_chain::get_block(
+            &harness.chain.store,
+            harness.chain.execution_layer.as_ref(),
+            &harness.chain.spec,
+            &snapshot.beacon_block_root,
+        )
+        .await
+        .unwrap()
+        .unwrap();
         let block_epoch = full_block.epoch();
 
         // TODO(gloas): probably need to update this test
@@ -1509,7 +1512,11 @@ async fn verify_block_for_gossip_doppelganger_detection() {
         } {
             let index = index as usize;
 
-            assert!(harness.chain.validator_seen_at_epoch(index, epoch));
+            assert!(beacon_chain::validator_seen_at_epoch(
+                &harness.chain,
+                index,
+                epoch
+            ));
 
             // Check the correct beacon cache is populated
             assert!(
@@ -2000,7 +2007,15 @@ async fn range_sync_block_construction_fails_with_wrong_blob_count() {
             .block_root_at_slot(Slot::new(slot), WhenSlotSkipped::None)
             .unwrap()
             .unwrap();
-        let block = harness.chain.get_block(&root).await.unwrap().unwrap();
+        let block = beacon_chain::get_block(
+            &harness.chain.store,
+            harness.chain.execution_layer.as_ref(),
+            &harness.chain.spec,
+            &root,
+        )
+        .await
+        .unwrap()
+        .unwrap();
 
         if let Ok(commitments) = block.message().body().blob_kzg_commitments()
             && !commitments.is_empty()
@@ -2078,7 +2093,15 @@ async fn range_sync_block_rejects_missing_custody_columns() {
             .block_root_at_slot(Slot::new(slot), WhenSlotSkipped::None)
             .unwrap()
             .unwrap();
-        let block = harness.chain.get_block(&root).await.unwrap().unwrap();
+        let block = beacon_chain::get_block(
+            &harness.chain.store,
+            harness.chain.execution_layer.as_ref(),
+            &harness.chain.spec,
+            &root,
+        )
+        .await
+        .unwrap()
+        .unwrap();
 
         if let Ok(commitments) = block.message().body().blob_kzg_commitments()
             && !commitments.is_empty()
@@ -2157,7 +2180,15 @@ async fn rpc_block_allows_construction_past_da_boundary() {
             .block_root_at_slot(Slot::new(slot), WhenSlotSkipped::None)
             .unwrap()
             .unwrap();
-        let block = harness.chain.get_block(&root).await.unwrap().unwrap();
+        let block = beacon_chain::get_block(
+            &harness.chain.store,
+            harness.chain.execution_layer.as_ref(),
+            &harness.chain.spec,
+            &root,
+        )
+        .await
+        .unwrap()
+        .unwrap();
 
         if let Ok(commitments) = block.message().body().blob_kzg_commitments()
             && !commitments.is_empty()

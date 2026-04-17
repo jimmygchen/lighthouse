@@ -3117,7 +3117,7 @@ impl ApiTester {
             .map(|head| (head.root, head.slot))
             .collect::<Vec<_>>();
 
-        let expected = self.chain.heads();
+        let expected = beacon_chain::beacon_chain::heads(&self.chain.canonical_head);
 
         assert_eq!(result, expected);
 
@@ -6887,6 +6887,7 @@ impl ApiTester {
             .unwrap();
         let finalized_block = self
             .chain
+            .store
             .get_blinded_block(&finalized_block_root)
             .unwrap()
             .unwrap();

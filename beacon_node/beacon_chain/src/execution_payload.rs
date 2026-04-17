@@ -385,19 +385,19 @@ where
     // Use a blocking task to interact with the `canonical_head` lock otherwise we risk blocking the
     // core `tokio` executor.
     let inner_chain = chain.clone();
-    let forkchoice_update_params = chain
-        .spawn_blocking_handle(
-            move || {
-                inner_chain
-                    .canonical_head
-                    .cached_head()
-                    .forkchoice_update_parameters()
-            },
-            "prepare_execution_payload_forkchoice_update_params",
-        )
-        .instrument(debug_span!("forkchoice_update_params"))
-        .await
-        .map_err(|e| BlockProductionError::BeaconChain(Box::new(e)))?;
+    let forkchoice_update_params = crate::beacon_chain::spawn_blocking_handle(
+        &chain.task_executor,
+        move || {
+            inner_chain
+                .canonical_head
+                .cached_head()
+                .forkchoice_update_parameters()
+        },
+        "prepare_execution_payload_forkchoice_update_params",
+    )
+    .instrument(debug_span!("forkchoice_update_params"))
+    .await
+    .map_err(|e| BlockProductionError::BeaconChain(Box::new(e)))?;
 
     let suggested_fee_recipient = execution_layer
         .get_suggested_fee_recipient(proposer_index)

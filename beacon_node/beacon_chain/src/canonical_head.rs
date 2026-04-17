@@ -543,12 +543,12 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         let _timer = metrics::start_timer(&metrics::FORK_CHOICE_TIMES);
 
         let chain = self.clone();
-        match self
-            .spawn_blocking_handle(
-                move || chain.recompute_head_at_slot_internal(current_slot),
-                "recompute_head_internal",
-            )
-            .await
+        match crate::beacon_chain::spawn_blocking_handle(
+            &self.task_executor,
+            move || chain.recompute_head_at_slot_internal(current_slot),
+            "recompute_head_internal",
+        )
+        .await
         {
             // Fork choice returned successfully and did not need to update the EL.
             Ok(Ok(None)) => (),
