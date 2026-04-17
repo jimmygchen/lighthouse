@@ -6,6 +6,7 @@ use crate::{
         add_ssz_content_type_header, beacon_response, inconsistent_fork_rejection,
     },
 };
+use beacon_chain::block_production;
 use beacon_chain::graffiti_calculator::GraffitiSettings;
 use beacon_chain::{
     BeaconBlockResponseWrapper, BeaconChain, BeaconChainTypes, ProduceBlockVerification,
@@ -70,8 +71,9 @@ pub async fn produce_block_v4<T: BeaconChainTypes>(
 
     let graffiti_settings = GraffitiSettings::new(query.graffiti, query.graffiti_policy);
 
-    let (block, _pending_state, consensus_block_value) = chain
-        .produce_block_with_verification_gloas(
+    let (block, _pending_state, consensus_block_value) =
+        block_production::gloas::produce_block_with_verification_gloas(
+            &chain,
             randao_reveal,
             slot,
             graffiti_settings,
@@ -113,19 +115,19 @@ pub async fn produce_block_v3<T: BeaconChainTypes>(
 
     let graffiti_settings = GraffitiSettings::new(query.graffiti, query.graffiti_policy);
 
-    let block_response_type = chain
-        .produce_block_with_verification(
-            randao_reveal,
-            slot,
-            graffiti_settings,
-            randao_verification,
-            builder_boost_factor,
-            BlockProductionVersion::V3,
-        )
-        .await
-        .map_err(|e| {
-            warp_utils::reject::custom_bad_request(format!("failed to fetch a block: {:?}", e))
-        })?;
+    let block_response_type = block_production::produce_block_with_verification(
+        &chain,
+        randao_reveal,
+        slot,
+        graffiti_settings,
+        randao_verification,
+        builder_boost_factor,
+        BlockProductionVersion::V3,
+    )
+    .await
+    .map_err(|e| {
+        warp_utils::reject::custom_bad_request(format!("failed to fetch a block: {:?}", e))
+    })?;
 
     build_response_v3(chain, block_response_type, accept_header)
 }
@@ -234,17 +236,17 @@ pub async fn produce_blinded_block_v2<T: BeaconChainTypes>(
     let randao_verification = get_randao_verification(&query, randao_reveal.is_infinity())?;
     let graffiti_settings = GraffitiSettings::new(query.graffiti, query.graffiti_policy);
 
-    let block_response_type = chain
-        .produce_block_with_verification(
-            randao_reveal,
-            slot,
-            graffiti_settings,
-            randao_verification,
-            None,
-            BlockProductionVersion::BlindedV2,
-        )
-        .await
-        .map_err(warp_utils::reject::unhandled_error)?;
+    let block_response_type = block_production::produce_block_with_verification(
+        &chain,
+        randao_reveal,
+        slot,
+        graffiti_settings,
+        randao_verification,
+        None,
+        BlockProductionVersion::BlindedV2,
+    )
+    .await
+    .map_err(warp_utils::reject::unhandled_error)?;
 
     build_response_v2(chain, block_response_type, accept_header)
 }
@@ -270,17 +272,17 @@ pub async fn produce_block_v2<T: BeaconChainTypes>(
     let randao_verification = get_randao_verification(&query, randao_reveal.is_infinity())?;
     let graffiti_settings = GraffitiSettings::new(query.graffiti, query.graffiti_policy);
 
-    let block_response_type = chain
-        .produce_block_with_verification(
-            randao_reveal,
-            slot,
-            graffiti_settings,
-            randao_verification,
-            None,
-            BlockProductionVersion::FullV2,
-        )
-        .await
-        .map_err(warp_utils::reject::unhandled_error)?;
+    let block_response_type = block_production::produce_block_with_verification(
+        &chain,
+        randao_reveal,
+        slot,
+        graffiti_settings,
+        randao_verification,
+        None,
+        BlockProductionVersion::FullV2,
+    )
+    .await
+    .map_err(warp_utils::reject::unhandled_error)?;
 
     build_response_v2(chain, block_response_type, accept_header)
 }

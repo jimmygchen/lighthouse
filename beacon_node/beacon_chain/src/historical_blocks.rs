@@ -47,284 +47,282 @@ impl From<StoreError> for HistoricalBlockError {
     }
 }
 
-impl<T: BeaconChainTypes> BeaconChain<T> {
-    /// Store a batch of historical blocks in the database.
-    ///
-    /// The `blocks` should be given in slot-ascending order. One of the blocks should have a block
-    /// root corresponding to the `oldest_block_parent` from the store's `AnchorInfo`.
-    ///
-    /// The block roots and proposer signatures are verified. If any block doesn't match the parent
-    /// root listed in its successor, then the whole batch will be discarded and
-    /// `MismatchedBlockRoot` will be returned. If any proposer signature is invalid then
-    /// `SignatureSetError` or `InvalidSignature` will be returned.
-    ///
-    /// To align with sync we allow some excess blocks with slots greater than or equal to
-    /// `oldest_block_slot` to be provided. They will be re-imported to fill the columns of the
-    /// checkpoint sync block.
-    ///
-    /// This function should not be called concurrently with any other function that mutates
-    /// the anchor info (including this function itself). If a concurrent mutation occurs that
-    /// would violate consistency then an `AnchorInfoConcurrentMutation` error will be returned.
-    ///
-    /// Return the number of blocks successfully imported.
-    #[instrument(skip_all)]
-    pub fn import_historical_block_batch(
-        &self,
-        mut blocks: Vec<AvailableBlock<T::EthSpec>>,
-    ) -> Result<usize, HistoricalBlockError> {
-        let anchor_info = self.store.get_anchor_info();
-        let blob_info = self.store.get_blob_info();
-        let data_column_info = self.store.get_data_column_info();
+/// Store a batch of historical blocks in the database.
+///
+/// The `blocks` should be given in slot-ascending order. One of the blocks should have a block
+/// root corresponding to the `oldest_block_parent` from the store's `AnchorInfo`.
+///
+/// The block roots and proposer signatures are verified. If any block doesn't match the parent
+/// root listed in its successor, then the whole batch will be discarded and
+/// `MismatchedBlockRoot` will be returned. If any proposer signature is invalid then
+/// `SignatureSetError` or `InvalidSignature` will be returned.
+///
+/// To align with sync we allow some excess blocks with slots greater than or equal to
+/// `oldest_block_slot` to be provided. They will be re-imported to fill the columns of the
+/// checkpoint sync block.
+///
+/// This function should not be called concurrently with any other function that mutates
+/// the anchor info (including this function itself). If a concurrent mutation occurs that
+/// would violate consistency then an `AnchorInfoConcurrentMutation` error will be returned.
+///
+/// Return the number of blocks successfully imported.
+#[instrument(skip_all)]
+pub fn import_historical_block_batch<T: BeaconChainTypes>(
+    chain: &BeaconChain<T>,
+    mut blocks: Vec<AvailableBlock<T::EthSpec>>,
+) -> Result<usize, HistoricalBlockError> {
+    let anchor_info = chain.store.get_anchor_info();
+    let blob_info = chain.store.get_blob_info();
+    let data_column_info = chain.store.get_data_column_info();
 
-        // Take all blocks with slots less than or equal to the oldest block slot.
-        //
-        // This allows for reimport of the blobs/columns for the finalized block after checkpoint
-        // sync.
-        let num_relevant = blocks.partition_point(|available_block| {
-            available_block.block().slot() <= anchor_info.oldest_block_slot
-        });
+    // Take all blocks with slots less than or equal to the oldest block slot.
+    //
+    // This allows for reimport of the blobs/columns for the finalized block after checkpoint
+    // sync.
+    let num_relevant = blocks.partition_point(|available_block| {
+        available_block.block().slot() <= anchor_info.oldest_block_slot
+    });
 
-        let total_blocks = blocks.len();
-        blocks.truncate(num_relevant);
-        let blocks_to_import = blocks;
+    let total_blocks = blocks.len();
+    blocks.truncate(num_relevant);
+    let blocks_to_import = blocks;
 
-        if blocks_to_import.len() != total_blocks {
-            debug!(
-                oldest_block_slot = %anchor_info.oldest_block_slot,
-                total_blocks,
-                ignored = total_blocks.saturating_sub(blocks_to_import.len()),
-                "Ignoring some historic blocks"
-            );
-        }
+    if blocks_to_import.len() != total_blocks {
+        debug!(
+            oldest_block_slot = %anchor_info.oldest_block_slot,
+            total_blocks,
+            ignored = total_blocks.saturating_sub(blocks_to_import.len()),
+            "Ignoring some historic blocks"
+        );
+    }
 
-        if blocks_to_import.is_empty() {
-            return Ok(0);
-        }
+    if blocks_to_import.is_empty() {
+        return Ok(0);
+    }
 
-        let mut expected_block_root = anchor_info.oldest_block_parent;
-        let mut last_block_root = expected_block_root;
-        let mut prev_block_slot = anchor_info.oldest_block_slot;
-        let mut new_oldest_blob_slot = blob_info.oldest_blob_slot;
-        let mut new_oldest_data_column_slot = data_column_info.oldest_data_column_slot;
+    let mut expected_block_root = anchor_info.oldest_block_parent;
+    let mut last_block_root = expected_block_root;
+    let mut prev_block_slot = anchor_info.oldest_block_slot;
+    let mut new_oldest_blob_slot = blob_info.oldest_blob_slot;
+    let mut new_oldest_data_column_slot = data_column_info.oldest_data_column_slot;
 
-        let mut blob_batch = Vec::<KeyValueStoreOp>::new();
-        let mut cold_batch = Vec::with_capacity(blocks_to_import.len());
-        let mut hot_batch = Vec::with_capacity(blocks_to_import.len());
-        let mut signed_blocks = Vec::with_capacity(blocks_to_import.len());
+    let mut blob_batch = Vec::<KeyValueStoreOp>::new();
+    let mut cold_batch = Vec::with_capacity(blocks_to_import.len());
+    let mut hot_batch = Vec::with_capacity(blocks_to_import.len());
+    let mut signed_blocks = Vec::with_capacity(blocks_to_import.len());
 
-        for available_block in blocks_to_import.into_iter().rev() {
-            let (block_root, block, block_data) = available_block.deconstruct();
+    for available_block in blocks_to_import.into_iter().rev() {
+        let (block_root, block, block_data) = available_block.deconstruct();
 
-            if block.slot() == anchor_info.oldest_block_slot {
-                // When reimporting, verify that this is actually the same block (same block root).
-                let oldest_block_root = crate::state_query::block_root_at_slot(
-                    &self.store,
-                    &self.canonical_head,
-                    &self.spec,
-                    &self.slot_clock,
-                    self.genesis_block_root,
-                    block.slot(),
-                    WhenSlotSkipped::None,
-                )
-                .ok()
-                .flatten()
-                .ok_or(HistoricalBlockError::MissingOldestBlockRoot { slot: block.slot() })?;
-                if block_root != oldest_block_root {
-                    return Err(HistoricalBlockError::MismatchedBlockRoot {
-                        block_root,
-                        expected_block_root: oldest_block_root,
-                    });
-                }
-
-                debug!(
-                    ?block_root,
-                    slot = %block.slot(),
-                    "Re-importing historic block"
-                );
-                last_block_root = block_root;
-            } else if block_root != expected_block_root {
+        if block.slot() == anchor_info.oldest_block_slot {
+            // When reimporting, verify that this is actually the same block (same block root).
+            let oldest_block_root = crate::state_query::block_root_at_slot(
+                &chain.store,
+                &chain.canonical_head,
+                &chain.spec,
+                &chain.slot_clock,
+                chain.genesis_block_root,
+                block.slot(),
+                WhenSlotSkipped::None,
+            )
+            .ok()
+            .flatten()
+            .ok_or(HistoricalBlockError::MissingOldestBlockRoot { slot: block.slot() })?;
+            if block_root != oldest_block_root {
                 return Err(HistoricalBlockError::MismatchedBlockRoot {
                     block_root,
-                    expected_block_root,
+                    expected_block_root: oldest_block_root,
                 });
             }
 
-            if !self.store.get_config().prune_payloads {
-                // If prune-payloads is set to false, store the block which includes the execution payload
-                self.store
-                    .block_as_kv_store_ops(&block_root, (*block).clone(), &mut hot_batch)?;
-            } else {
-                let blinded_block = block.clone_as_blinded();
-                // Store block in the hot database without payload.
-                self.store.blinded_block_as_kv_store_ops(
-                    &block_root,
-                    &blinded_block,
-                    &mut hot_batch,
-                );
-            }
-
-            match &block_data {
-                AvailableBlockData::NoData => (),
-                AvailableBlockData::Blobs(_) => new_oldest_blob_slot = Some(block.slot()),
-                AvailableBlockData::DataColumns(_) => {
-                    new_oldest_data_column_slot = Some(block.slot())
-                }
-            }
-
-            // Store the blobs or data columns too
-            if let Some(op) = crate::beacon_chain::get_blobs_or_columns_store_op(
-                &self.data_availability_manager,
-                &self.spec,
+            debug!(
+                ?block_root,
+                slot = %block.slot(),
+                "Re-importing historic block"
+            );
+            last_block_root = block_root;
+        } else if block_root != expected_block_root {
+            return Err(HistoricalBlockError::MismatchedBlockRoot {
                 block_root,
-                block.slot(),
-                block_data,
-            ) {
-                blob_batch.extend(self.store.convert_to_kv_batch(vec![op])?);
-            }
+                expected_block_root,
+            });
+        }
 
-            // Store block roots, including at all skip slots in the freezer DB.
-            for slot in (block.slot().as_u64()..prev_block_slot.as_u64()).rev() {
-                debug!(%slot, ?block_root, "Storing frozen block to root mapping");
+        if !chain.store.get_config().prune_payloads {
+            // If prune-payloads is set to false, store the block which includes the execution payload
+            chain
+                .store
+                .block_as_kv_store_ops(&block_root, (*block).clone(), &mut hot_batch)?;
+        } else {
+            let blinded_block = block.clone_as_blinded();
+            // Store block in the hot database without payload.
+            chain
+                .store
+                .blinded_block_as_kv_store_ops(&block_root, &blinded_block, &mut hot_batch);
+        }
+
+        match &block_data {
+            AvailableBlockData::NoData => (),
+            AvailableBlockData::Blobs(_) => new_oldest_blob_slot = Some(block.slot()),
+            AvailableBlockData::DataColumns(_) => new_oldest_data_column_slot = Some(block.slot()),
+        }
+
+        // Store the blobs or data columns too
+        if let Some(op) = crate::beacon_chain::get_blobs_or_columns_store_op(
+            &chain.data_availability_manager,
+            &chain.spec,
+            block_root,
+            block.slot(),
+            block_data,
+        ) {
+            blob_batch.extend(chain.store.convert_to_kv_batch(vec![op])?);
+        }
+
+        // Store block roots, including at all skip slots in the freezer DB.
+        for slot in (block.slot().as_u64()..prev_block_slot.as_u64()).rev() {
+            debug!(%slot, ?block_root, "Storing frozen block to root mapping");
+            cold_batch.push(KeyValueStoreOp::PutKeyValue(
+                DBColumn::BeaconBlockRoots,
+                slot.to_be_bytes().to_vec(),
+                block_root.as_slice().to_vec(),
+            ));
+        }
+
+        prev_block_slot = block.slot();
+        expected_block_root = block.message().parent_root();
+        signed_blocks.push(block);
+
+        // If we've reached genesis, add the genesis block root to the batch for all slots
+        // between 0 and the first block slot, and set the anchor slot to 0 to indicate
+        // completion.
+        if expected_block_root == chain.genesis_block_root {
+            let genesis_slot = chain.spec.genesis_slot;
+            for slot in genesis_slot.as_u64()..prev_block_slot.as_u64() {
                 cold_batch.push(KeyValueStoreOp::PutKeyValue(
                     DBColumn::BeaconBlockRoots,
                     slot.to_be_bytes().to_vec(),
-                    block_root.as_slice().to_vec(),
+                    chain.genesis_block_root.as_slice().to_vec(),
                 ));
             }
-
-            prev_block_slot = block.slot();
-            expected_block_root = block.message().parent_root();
-            signed_blocks.push(block);
-
-            // If we've reached genesis, add the genesis block root to the batch for all slots
-            // between 0 and the first block slot, and set the anchor slot to 0 to indicate
-            // completion.
-            if expected_block_root == self.genesis_block_root {
-                let genesis_slot = self.spec.genesis_slot;
-                for slot in genesis_slot.as_u64()..prev_block_slot.as_u64() {
-                    cold_batch.push(KeyValueStoreOp::PutKeyValue(
-                        DBColumn::BeaconBlockRoots,
-                        slot.to_be_bytes().to_vec(),
-                        self.genesis_block_root.as_slice().to_vec(),
-                    ));
-                }
-                prev_block_slot = genesis_slot;
-                expected_block_root = Hash256::zero();
-                break;
-            }
+            prev_block_slot = genesis_slot;
+            expected_block_root = Hash256::zero();
+            break;
         }
-        // these were pushed in reverse order so we reverse again
-        signed_blocks.reverse();
-
-        // Verify signatures in one batch, holding the pubkey cache lock for the shortest duration
-        // possible. For each block fetch the parent root from its successor. Slicing from index 1
-        // is safe because we've already checked that `blocks_to_import` is non-empty.
-        let sig_timer = metrics::start_timer(&metrics::BACKFILL_SIGNATURE_TOTAL_TIMES);
-        let setup_timer = metrics::start_timer(&metrics::BACKFILL_SIGNATURE_SETUP_TIMES);
-        let pubkey_cache = self
-            .validator_query
-            .validator_pubkey_cache
-            .try_read_for(PUBKEY_CACHE_LOCK_TIMEOUT)
-            .ok_or(HistoricalBlockError::ValidatorPubkeyCacheTimeout)?;
-        let block_roots = signed_blocks
-            .get(1..)
-            .ok_or(HistoricalBlockError::IndexOutOfBounds)?
-            .iter()
-            .map(|block| block.parent_root())
-            .chain(iter::once(last_block_root));
-        let signature_set = signed_blocks
-            .iter()
-            .zip_eq(block_roots)
-            .filter(|&(_block, block_root)| block_root != self.genesis_block_root)
-            .map(|(block, block_root)| {
-                block_proposal_signature_set_from_parts(
-                    block,
-                    Some(block_root),
-                    block.message().proposer_index(),
-                    &self.spec.fork_at_epoch(block.message().epoch()),
-                    self.genesis_validators_root,
-                    |validator_index| pubkey_cache.get(validator_index).cloned().map(Cow::Owned),
-                    &self.spec,
-                )
-            })
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(HistoricalBlockError::SignatureSet)
-            .map(ParallelSignatureSets::from)?;
-        drop(pubkey_cache);
-        drop(setup_timer);
-
-        let verify_timer = metrics::start_timer(&metrics::BACKFILL_SIGNATURE_VERIFY_TIMES);
-        if !signature_set.verify() {
-            return Err(HistoricalBlockError::InvalidSignature);
-        }
-        drop(verify_timer);
-        drop(sig_timer);
-
-        // Write the I/O batches to disk, writing the blocks themselves first, as it's better
-        // for the hot DB to contain extra blocks than for the cold DB to point to blocks that
-        // do not exist.
-        {
-            let _span = debug_span!("backfill_write_blobs_db").entered();
-            self.store.blobs_db.do_atomically(blob_batch)?;
-        }
-        {
-            let _span = debug_span!("backfill_write_hot_db").entered();
-            self.store.hot_db.do_atomically(hot_batch)?;
-        }
-        {
-            let _span = debug_span!("backfill_write_cold_db").entered();
-            self.store.cold_db.do_atomically(cold_batch)?;
-        }
-
-        let mut anchor_and_blob_batch = Vec::with_capacity(3);
-
-        // Update the blob info.
-        if new_oldest_blob_slot != blob_info.oldest_blob_slot
-            && let Some(oldest_blob_slot) = new_oldest_blob_slot
-        {
-            let new_blob_info = BlobInfo {
-                oldest_blob_slot: Some(oldest_blob_slot),
-                ..blob_info.clone()
-            };
-            anchor_and_blob_batch.push(
-                self.store
-                    .compare_and_set_blob_info(blob_info, new_blob_info)?,
-            );
-        }
-
-        // Update the data column info.
-        if new_oldest_data_column_slot != data_column_info.oldest_data_column_slot
-            && let Some(oldest_data_column_slot) = new_oldest_data_column_slot
-        {
-            let new_data_column_info = DataColumnInfo {
-                oldest_data_column_slot: Some(oldest_data_column_slot),
-            };
-            anchor_and_blob_batch.push(
-                self.store
-                    .compare_and_set_data_column_info(data_column_info, new_data_column_info)?,
-            );
-        }
-
-        // Update the anchor.
-        let new_anchor = AnchorInfo {
-            oldest_block_slot: prev_block_slot,
-            oldest_block_parent: expected_block_root,
-            ..anchor_info
-        };
-        let backfill_complete = new_anchor.block_backfill_complete(self.genesis_backfill_slot);
-        anchor_and_blob_batch.push(
-            self.store
-                .compare_and_set_anchor_info(anchor_info, new_anchor)?,
-        );
-        self.store.hot_db.do_atomically(anchor_and_blob_batch)?;
-
-        // If backfill has completed and the chain is configured to reconstruct historic states,
-        // send a message to the background migrator instructing it to begin reconstruction.
-        // This can only happen if we have backfilled all the way to genesis.
-        if backfill_complete && self.genesis_backfill_slot == Slot::new(0) && self.config.archive {
-            self.store_migrator.process_reconstruction();
-        }
-
-        Ok(num_relevant)
     }
+    // these were pushed in reverse order so we reverse again
+    signed_blocks.reverse();
+
+    // Verify signatures in one batch, holding the pubkey cache lock for the shortest duration
+    // possible. For each block fetch the parent root from its successor. Slicing from index 1
+    // is safe because we've already checked that `blocks_to_import` is non-empty.
+    let sig_timer = metrics::start_timer(&metrics::BACKFILL_SIGNATURE_TOTAL_TIMES);
+    let setup_timer = metrics::start_timer(&metrics::BACKFILL_SIGNATURE_SETUP_TIMES);
+    let pubkey_cache = chain
+        .validator_query
+        .validator_pubkey_cache
+        .try_read_for(PUBKEY_CACHE_LOCK_TIMEOUT)
+        .ok_or(HistoricalBlockError::ValidatorPubkeyCacheTimeout)?;
+    let block_roots = signed_blocks
+        .get(1..)
+        .ok_or(HistoricalBlockError::IndexOutOfBounds)?
+        .iter()
+        .map(|block| block.parent_root())
+        .chain(iter::once(last_block_root));
+    let signature_set = signed_blocks
+        .iter()
+        .zip_eq(block_roots)
+        .filter(|&(_block, block_root)| block_root != chain.genesis_block_root)
+        .map(|(block, block_root)| {
+            block_proposal_signature_set_from_parts(
+                block,
+                Some(block_root),
+                block.message().proposer_index(),
+                &chain.spec.fork_at_epoch(block.message().epoch()),
+                chain.genesis_validators_root,
+                |validator_index| pubkey_cache.get(validator_index).cloned().map(Cow::Owned),
+                &chain.spec,
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(HistoricalBlockError::SignatureSet)
+        .map(ParallelSignatureSets::from)?;
+    drop(pubkey_cache);
+    drop(setup_timer);
+
+    let verify_timer = metrics::start_timer(&metrics::BACKFILL_SIGNATURE_VERIFY_TIMES);
+    if !signature_set.verify() {
+        return Err(HistoricalBlockError::InvalidSignature);
+    }
+    drop(verify_timer);
+    drop(sig_timer);
+
+    // Write the I/O batches to disk, writing the blocks themselves first, as it's better
+    // for the hot DB to contain extra blocks than for the cold DB to point to blocks that
+    // do not exist.
+    {
+        let _span = debug_span!("backfill_write_blobs_db").entered();
+        chain.store.blobs_db.do_atomically(blob_batch)?;
+    }
+    {
+        let _span = debug_span!("backfill_write_hot_db").entered();
+        chain.store.hot_db.do_atomically(hot_batch)?;
+    }
+    {
+        let _span = debug_span!("backfill_write_cold_db").entered();
+        chain.store.cold_db.do_atomically(cold_batch)?;
+    }
+
+    let mut anchor_and_blob_batch = Vec::with_capacity(3);
+
+    // Update the blob info.
+    if new_oldest_blob_slot != blob_info.oldest_blob_slot
+        && let Some(oldest_blob_slot) = new_oldest_blob_slot
+    {
+        let new_blob_info = BlobInfo {
+            oldest_blob_slot: Some(oldest_blob_slot),
+            ..blob_info.clone()
+        };
+        anchor_and_blob_batch.push(
+            chain
+                .store
+                .compare_and_set_blob_info(blob_info, new_blob_info)?,
+        );
+    }
+
+    // Update the data column info.
+    if new_oldest_data_column_slot != data_column_info.oldest_data_column_slot
+        && let Some(oldest_data_column_slot) = new_oldest_data_column_slot
+    {
+        let new_data_column_info = DataColumnInfo {
+            oldest_data_column_slot: Some(oldest_data_column_slot),
+        };
+        anchor_and_blob_batch.push(
+            chain
+                .store
+                .compare_and_set_data_column_info(data_column_info, new_data_column_info)?,
+        );
+    }
+
+    // Update the anchor.
+    let new_anchor = AnchorInfo {
+        oldest_block_slot: prev_block_slot,
+        oldest_block_parent: expected_block_root,
+        ..anchor_info
+    };
+    let backfill_complete = new_anchor.block_backfill_complete(chain.genesis_backfill_slot);
+    anchor_and_blob_batch.push(
+        chain
+            .store
+            .compare_and_set_anchor_info(anchor_info, new_anchor)?,
+    );
+    chain.store.hot_db.do_atomically(anchor_and_blob_batch)?;
+
+    // If backfill has completed and the chain is configured to reconstruct historic states,
+    // send a message to the background migrator instructing it to begin reconstruction.
+    // This can only happen if we have backfilled all the way to genesis.
+    if backfill_complete && chain.genesis_backfill_slot == Slot::new(0) && chain.config.archive {
+        chain.store_migrator.process_reconstruction();
+    }
+
+    Ok(num_relevant)
 }

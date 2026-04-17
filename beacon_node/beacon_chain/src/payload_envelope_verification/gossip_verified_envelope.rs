@@ -11,7 +11,7 @@ use types::{
 };
 
 use crate::{
-    BeaconChain, BeaconChainError, BeaconChainTypes, BeaconStore, ServerSentEventHandler,
+    BeaconChainError, BeaconChainTypes, BeaconStore, ServerSentEventHandler,
     beacon_proposer_cache::{self, BeaconProposerCache},
     canonical_head::CanonicalHead,
     payload_envelope_verification::{
@@ -241,70 +241,56 @@ impl<T: BeaconChainTypes> GossipVerifiedEnvelope<T> {
     }
 }
 
-impl<T: BeaconChainTypes> BeaconChain<T> {
-    /// Build a `GossipVerificationContext` from this `BeaconChain` for `GossipVerifiedEnvelope`.
-    pub fn payload_envelope_gossip_verification_context(&self) -> GossipVerificationContext<'_, T> {
-        GossipVerificationContext {
-            canonical_head: &self.canonical_head,
-            store: &self.store,
-            spec: &self.spec,
-            beacon_proposer_cache: &self.beacon_proposer_cache,
-            validator_pubkey_cache: &self.validator_query.validator_pubkey_cache,
-            genesis_validators_root: self.genesis_validators_root,
-            event_handler: &self.event_handler,
-        }
+pub fn payload_envelope_gossip_verification_context<'a, T: BeaconChainTypes>(
+    canonical_head: &'a CanonicalHead<T>,
+    store: &'a BeaconStore<T>,
+    spec: &'a ChainSpec,
+    beacon_proposer_cache: &'a Mutex<BeaconProposerCache>,
+    validator_pubkey_cache: &'a RwLock<ValidatorPubkeyCache<T>>,
+    genesis_validators_root: Hash256,
+    event_handler: &'a Option<ServerSentEventHandler<T::EthSpec>>,
+) -> GossipVerificationContext<'a, T> {
+    GossipVerificationContext {
+        canonical_head,
+        store,
+        spec,
+        beacon_proposer_cache,
+        validator_pubkey_cache,
+        genesis_validators_root,
+        event_handler,
     }
+}
 
-    /// Returns `Ok(GossipVerifiedEnvelope)` if the supplied `envelope` should be forwarded onto the
-    /// gossip network. The envelope is not imported into the chain, it is just partially verified.
-    ///
-    /// The returned `GossipVerifiedEnvelope` should be provided to `Self::process_execution_payload_envelope` immediately
-    /// after it is returned, unless some other circumstance decides it should not be imported at
-    /// all.
-    ///
-    /// ## Errors
-    ///
-    /// Returns an `Err` if the given envelope was invalid, or an error was encountered during verification.
-    pub async fn verify_envelope_for_gossip(
-        self: &Arc<Self>,
-        envelope: Arc<SignedExecutionPayloadEnvelope<T::EthSpec>>,
-    ) -> Result<GossipVerifiedEnvelope<T>, EnvelopeError> {
-        let chain = self.clone();
-        self.task_executor
-            .clone()
-            .spawn_blocking_handle(
-                move || {
-                    let slot = envelope.slot();
-                    let beacon_block_root = envelope.message.beacon_block_root;
+/// Synchronously verify an envelope for gossip propagation, returning a
+/// `GossipVerifiedEnvelope` on success.
+///
+/// Callers that need async spawning (e.g. `spawn_blocking_handle`) should handle that
+/// themselves; this function performs only the verification and logging.
+pub fn verify_envelope_for_gossip<T: BeaconChainTypes>(
+    ctx: &GossipVerificationContext<'_, T>,
+    envelope: Arc<SignedExecutionPayloadEnvelope<T::EthSpec>>,
+) -> Result<GossipVerifiedEnvelope<T>, EnvelopeError> {
+    let slot = envelope.slot();
+    let beacon_block_root = envelope.message.beacon_block_root;
 
-                    let ctx = chain.payload_envelope_gossip_verification_context();
-                    match GossipVerifiedEnvelope::new(envelope, &ctx) {
-                        Ok(verified) => {
-                            debug!(
-                                %slot,
-                                ?beacon_block_root,
-                                "Successfully verified gossip envelope"
-                            );
-
-                            Ok(verified)
-                        }
-                        Err(e) => {
-                            debug!(
-                                error = e.to_string(),
-                                ?beacon_block_root,
-                                %slot,
-                                "Rejected gossip envelope"
-                            );
-
-                            Err(e)
-                        }
-                    }
-                },
-                "gossip_envelope_verification_handle",
-            )
-            .ok_or(BeaconChainError::RuntimeShutdown)?
-            .await
-            .map_err(BeaconChainError::TokioJoin)?
+    match GossipVerifiedEnvelope::new(envelope, ctx) {
+        Ok(verified) => {
+            debug!(
+                %slot,
+                ?beacon_block_root,
+                "Successfully verified gossip envelope"
+            );
+            Ok(verified)
+        }
+        Err(e) => {
+            debug!(
+                error = e.to_string(),
+                ?beacon_block_root,
+                %slot,
+                "Rejected gossip envelope"
+            );
+            Err(e)
+        }
     }
 }
 

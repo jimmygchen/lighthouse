@@ -440,88 +440,90 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         .entered();
 
         let sent_columns = downloaded_columns.len();
-        let result = match self.chain.import_historical_data_column_batch(
-            batch_id.epoch,
-            downloaded_columns,
-            expected_cgc,
-        ) {
-            Ok(imported_columns) => {
-                metrics::inc_counter_by(
-                    &metrics::BEACON_PROCESSOR_CUSTODY_BACKFILL_COLUMN_IMPORT_SUCCESS_TOTAL,
-                    imported_columns as u64,
-                );
-                CustodyBatchProcessResult::Success {
-                    sent_columns,
-                    imported_columns,
+        let result =
+            match beacon_chain::historical_data_columns::import_historical_data_column_batch(
+                &self.chain,
+                batch_id.epoch,
+                downloaded_columns,
+                expected_cgc,
+            ) {
+                Ok(imported_columns) => {
+                    metrics::inc_counter_by(
+                        &metrics::BEACON_PROCESSOR_CUSTODY_BACKFILL_COLUMN_IMPORT_SUCCESS_TOTAL,
+                        imported_columns as u64,
+                    );
+                    CustodyBatchProcessResult::Success {
+                        sent_columns,
+                        imported_columns,
+                    }
                 }
-            }
-            Err(e) => {
-                metrics::inc_counter(
-                    &metrics::BEACON_PROCESSOR_CUSTODY_BACKFILL_BATCH_FAILED_TOTAL,
-                );
-                let peer_action: Option<PeerAction> = match &e {
-                    HistoricalDataColumnError::NoBlockFound {
-                        data_column_block_root,
-                        expected_block_root,
-                    } => {
-                        debug!(
-                            error = "no_block_found",
-                            ?data_column_block_root,
-                            ?expected_block_root,
-                            "Custody backfill batch processing error"
-                        );
-                        // The peer is faulty if they send blocks with bad roots.
-                        Some(PeerAction::LowToleranceError)
-                    }
-                    HistoricalDataColumnError::MissingDataColumns { .. } => {
-                        warn!(
-                            error = ?e,
-                            "Custody backfill batch processing error",
-                        );
-                        // The peer is faulty if they don't return data columns
-                        // that they advertised as available.
-                        Some(PeerAction::LowToleranceError)
-                    }
-                    HistoricalDataColumnError::InvalidKzg => {
-                        warn!(
-                            error = ?e,
-                            "Custody backfill batch processing error",
-                        );
-                        // The peer is faulty if they don't return data columns
-                        // with valid kzg commitments.
-                        Some(PeerAction::LowToleranceError)
-                    }
-                    HistoricalDataColumnError::BeaconChainError(e) => {
-                        match &**e {
-                            beacon_chain::BeaconChainError::FailedColumnCustodyInfoUpdate => {}
-                            _ => {
-                                warn!(
-                                    error = ?e,
-                                    "Custody backfill batch processing error",
-                                );
-                            }
+                Err(e) => {
+                    metrics::inc_counter(
+                        &metrics::BEACON_PROCESSOR_CUSTODY_BACKFILL_BATCH_FAILED_TOTAL,
+                    );
+                    let peer_action: Option<PeerAction> = match &e {
+                        HistoricalDataColumnError::NoBlockFound {
+                            data_column_block_root,
+                            expected_block_root,
+                        } => {
+                            debug!(
+                                error = "no_block_found",
+                                ?data_column_block_root,
+                                ?expected_block_root,
+                                "Custody backfill batch processing error"
+                            );
+                            // The peer is faulty if they send blocks with bad roots.
+                            Some(PeerAction::LowToleranceError)
                         }
+                        HistoricalDataColumnError::MissingDataColumns { .. } => {
+                            warn!(
+                                error = ?e,
+                                "Custody backfill batch processing error",
+                            );
+                            // The peer is faulty if they don't return data columns
+                            // that they advertised as available.
+                            Some(PeerAction::LowToleranceError)
+                        }
+                        HistoricalDataColumnError::InvalidKzg => {
+                            warn!(
+                                error = ?e,
+                                "Custody backfill batch processing error",
+                            );
+                            // The peer is faulty if they don't return data columns
+                            // with valid kzg commitments.
+                            Some(PeerAction::LowToleranceError)
+                        }
+                        HistoricalDataColumnError::BeaconChainError(e) => {
+                            match &**e {
+                                beacon_chain::BeaconChainError::FailedColumnCustodyInfoUpdate => {}
+                                _ => {
+                                    warn!(
+                                        error = ?e,
+                                        "Custody backfill batch processing error",
+                                    );
+                                }
+                            }
 
-                        // This is an interal error, don't penalize the peer
-                        None
-                    }
-                    HistoricalDataColumnError::IndexOutOfBounds => {
-                        error!(
-                            error = ?e,
-                            "Custody backfill batch out of bounds error"
-                        );
-                        // This should never occur, don't penalize the peer.
-                        None
-                    }
-                    HistoricalDataColumnError::StoreError(e) => {
-                        warn!(error = ?e, "Custody backfill batch processing error");
-                        // This is an internal error, don't penalize the peer.
-                        None
-                    }
-                };
-                CustodyBatchProcessResult::Error { peer_action }
-            }
-        };
+                            // This is an interal error, don't penalize the peer
+                            None
+                        }
+                        HistoricalDataColumnError::IndexOutOfBounds => {
+                            error!(
+                                error = ?e,
+                                "Custody backfill batch out of bounds error"
+                            );
+                            // This should never occur, don't penalize the peer.
+                            None
+                        }
+                        HistoricalDataColumnError::StoreError(e) => {
+                            warn!(error = ?e, "Custody backfill batch processing error");
+                            // This is an internal error, don't penalize the peer.
+                            None
+                        }
+                    };
+                    CustodyBatchProcessResult::Error { peer_action }
+                }
+            };
         self.send_sync_message(SyncMessage::CustodyBatchProcessed { result, batch_id });
     }
 
@@ -775,7 +777,10 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             );
         }
 
-        match self.chain.import_historical_block_batch(available_blocks) {
+        match beacon_chain::historical_blocks::import_historical_block_batch(
+            &self.chain,
+            available_blocks,
+        ) {
             Ok(imported_blocks) => {
                 metrics::inc_counter(
                     &metrics::BEACON_PROCESSOR_BACKFILL_CHAIN_SEGMENT_SUCCESS_TOTAL,

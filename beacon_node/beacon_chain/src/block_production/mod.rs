@@ -12,13 +12,13 @@ use crate::{
     fork_choice_signal::ForkChoiceWaitResult, metrics,
 };
 
-mod gloas;
+pub mod gloas;
 
 /// Context struct for block production free functions.
 ///
 /// Holds references to the `BeaconChain` fields that block production depends on.
-/// Public async entry points (`produce_block_with_verification`, `produce_block_on_state`)
-/// remain as `impl BeaconChain<T>` methods that construct this context internally.
+/// Public entry points construct this from an `Arc<BeaconChain<T>>` via
+/// [`block_production_context_from_chain`].
 pub(crate) struct BlockProductionContext<'a, T: BeaconChainTypes> {
     pub canonical_head: &'a CanonicalHead<T>,
     pub store: &'a crate::BeaconStore<T>,
@@ -37,7 +37,7 @@ pub(crate) struct BlockProductionContext<'a, T: BeaconChainTypes> {
 
 /// Construct a `BlockProductionContext` from a `BeaconChain` reference.
 ///
-/// Module-private helper for `impl BeaconChain<T>` methods. External callers should
+/// Helper used by free functions in this module. External callers should
 /// construct the context from individual component refs.
 fn block_production_context_from_chain<T: BeaconChainTypes>(
     chain: &Arc<BeaconChain<T>>,
@@ -75,150 +75,143 @@ pub(crate) fn block_observed_after_attestation_deadline<T: BeaconChainTypes>(
         .is_some_and(|delay| delay >= ctx.spec.get_unaggregated_attestation_due())
 }
 
-impl<T: BeaconChainTypes> BeaconChain<T> {
-    /// Load a beacon state from the database for block production. This is a long-running process
-    /// that should not be performed in an `async` context.
-    #[instrument(skip_all, level = "debug")]
-    pub(crate) fn load_state_for_block_production(
-        self: &Arc<Self>,
-        slot: Slot,
-    ) -> Result<(BeaconState<T::EthSpec>, Option<Hash256>), BlockProductionError> {
-        let ctx = block_production_context_from_chain(self);
+/// Load a beacon state from the database for block production. This is a long-running process
+/// that should not be performed in an `async` context.
+#[instrument(skip_all, level = "debug")]
+pub(crate) fn load_state_for_block_production<T: BeaconChainTypes>(
+    chain: &Arc<BeaconChain<T>>,
+    slot: Slot,
+) -> Result<(BeaconState<T::EthSpec>, Option<Hash256>), BlockProductionError> {
+    let ctx = block_production_context_from_chain(chain);
 
-        let fork_choice_timer = metrics::start_timer(&metrics::BLOCK_PRODUCTION_FORK_CHOICE_TIMES);
-        self.wait_for_fork_choice_before_block_production(slot)?;
-        drop(fork_choice_timer);
+    let fork_choice_timer = metrics::start_timer(&metrics::BLOCK_PRODUCTION_FORK_CHOICE_TIMES);
+    wait_for_fork_choice_before_block_production(chain, slot)?;
+    drop(fork_choice_timer);
 
-        let state_load_timer = metrics::start_timer(&metrics::BLOCK_PRODUCTION_STATE_LOAD_TIMES);
+    let state_load_timer = metrics::start_timer(&metrics::BLOCK_PRODUCTION_STATE_LOAD_TIMES);
 
-        // Atomically read some values from the head whilst avoiding holding cached head `Arc` any
-        // longer than necessary.
-        let (head_slot, head_block_root, head_state_root) = {
-            let head = ctx.canonical_head.cached_head();
-            (
-                head.head_slot(),
-                head.head_block_root(),
-                head.head_state_root(),
-            )
-        };
-        let (state, state_root_opt) = if head_slot < slot {
-            // Attempt an aggressive re-org if configured and the conditions are right.
-            // TODO(gloas): re-enable reorgs
-            let gloas_enabled = ctx
-                .spec
-                .fork_name_at_slot::<T::EthSpec>(slot)
-                .gloas_enabled();
-            if !gloas_enabled
-                && let Some((re_org_state, re_org_state_root)) =
-                    get_state_for_re_org(&ctx, slot, head_slot, head_block_root)
+    // Atomically read some values from the head whilst avoiding holding cached head `Arc` any
+    // longer than necessary.
+    let (head_slot, head_block_root, head_state_root) = {
+        let head = ctx.canonical_head.cached_head();
+        (
+            head.head_slot(),
+            head.head_block_root(),
+            head.head_state_root(),
+        )
+    };
+    let (state, state_root_opt) = if head_slot < slot {
+        // Attempt an aggressive re-org if configured and the conditions are right.
+        // TODO(gloas): re-enable reorgs
+        let gloas_enabled = ctx
+            .spec
+            .fork_name_at_slot::<T::EthSpec>(slot)
+            .gloas_enabled();
+        if !gloas_enabled
+            && let Some((re_org_state, re_org_state_root)) =
+                get_state_for_re_org(&ctx, slot, head_slot, head_block_root)
+        {
+            info!(
+                %slot,
+                head_to_reorg = %head_block_root,
+                "Proposing block to re-org current head"
+            );
+            (re_org_state, Some(re_org_state_root))
+        } else {
+            // Fetch the head state advanced through to `slot`, which should be present in the
+            // state cache thanks to the state advance timer.
+            // TODO(gloas): need to fix this once fork choice understands payloads
+            // for now we just use the existence of the head's payload envelope to determine
+            // whether we should build atop it
+            let (payload_status, parent_state_root) = if gloas_enabled
+                && let Ok(Some(envelope)) = ctx.store.get_payload_envelope(&head_block_root)
             {
-                info!(
+                debug!(
                     %slot,
-                    head_to_reorg = %head_block_root,
-                    "Proposing block to re-org current head"
+                    parent_state_root = ?envelope.message.state_root,
+                    parent_block_root = ?head_block_root,
+                    "Building Gloas block on full state"
                 );
-                (re_org_state, Some(re_org_state_root))
+                (StatePayloadStatus::Full, envelope.message.state_root)
             } else {
-                // Fetch the head state advanced through to `slot`, which should be present in the
-                // state cache thanks to the state advance timer.
-                // TODO(gloas): need to fix this once fork choice understands payloads
-                // for now we just use the existence of the head's payload envelope to determine
-                // whether we should build atop it
-                let (payload_status, parent_state_root) = if gloas_enabled
-                    && let Ok(Some(envelope)) = ctx.store.get_payload_envelope(&head_block_root)
-                {
+                (StatePayloadStatus::Pending, head_state_root)
+            };
+            let (state_root, state) = ctx
+                .store
+                .get_advanced_hot_state(head_block_root, payload_status, slot, parent_state_root)
+                .map_err(BlockProductionError::FailedToLoadState)?
+                .ok_or(BlockProductionError::UnableToProduceAtSlot(slot))?;
+            (state, Some(state_root))
+        }
+    } else {
+        warn!(
+            message = "this block is more likely to be orphaned",
+            %slot,
+            "Producing block that conflicts with head"
+        );
+        let state = crate::state_query::state_at_slot(
+            &chain.store,
+            &chain.canonical_head,
+            &chain.spec,
+            slot - 1,
+            StateSkipConfig::WithStateRoots,
+        )
+        .map_err(|_| BlockProductionError::UnableToProduceAtSlot(slot))?;
+
+        (state, None)
+    };
+
+    drop(state_load_timer);
+
+    Ok((state, state_root_opt))
+}
+
+/// If configured, wait for the fork choice run at the start of the slot to complete.
+#[instrument(level = "debug", skip_all)]
+fn wait_for_fork_choice_before_block_production<T: BeaconChainTypes>(
+    chain: &BeaconChain<T>,
+    slot: Slot,
+) -> Result<(), BlockProductionError> {
+    if let Some(rx) = &chain.fork_choice_signal_rx {
+        let current_slot = crate::state_query::current_slot(&chain.slot_clock)
+            .map_err(|_| BlockProductionError::UnableToReadSlot)?;
+
+        let timeout = Duration::from_millis(chain.config.fork_choice_before_proposal_timeout_ms);
+
+        if slot == current_slot || slot == current_slot + 1 {
+            match rx.wait_for_fork_choice(slot, timeout) {
+                ForkChoiceWaitResult::Success(fc_slot) => {
                     debug!(
                         %slot,
-                        parent_state_root = ?envelope.message.state_root,
-                        parent_block_root = ?head_block_root,
-                        "Building Gloas block on full state"
+                        fork_choice_slot = %fc_slot,
+                        "Fork choice successfully updated before block production"
                     );
-                    (StatePayloadStatus::Full, envelope.message.state_root)
-                } else {
-                    (StatePayloadStatus::Pending, head_state_root)
-                };
-                let (state_root, state) = ctx
-                    .store
-                    .get_advanced_hot_state(
-                        head_block_root,
-                        payload_status,
-                        slot,
-                        parent_state_root,
-                    )
-                    .map_err(BlockProductionError::FailedToLoadState)?
-                    .ok_or(BlockProductionError::UnableToProduceAtSlot(slot))?;
-                (state, Some(state_root))
+                }
+                ForkChoiceWaitResult::Behind(fc_slot) => {
+                    warn!(
+                        fork_choice_slot = %fc_slot,
+                        %slot,
+                        message = "this block may be orphaned",
+                        "Fork choice notifier out of sync with block production"
+                    );
+                }
+                ForkChoiceWaitResult::TimeOut => {
+                    warn!(
+                        message = "this block may be orphaned",
+                        "Timed out waiting for fork choice before proposal"
+                    );
+                }
             }
         } else {
-            warn!(
-                message = "this block is more likely to be orphaned",
+            error!(
                 %slot,
-                "Producing block that conflicts with head"
+                %current_slot,
+                message = "check clock sync, this block may be orphaned",
+                "Producing block at incorrect slot"
             );
-            let state = crate::state_query::state_at_slot(
-                &self.store,
-                &self.canonical_head,
-                &self.spec,
-                slot - 1,
-                StateSkipConfig::WithStateRoots,
-            )
-            .map_err(|_| BlockProductionError::UnableToProduceAtSlot(slot))?;
-
-            (state, None)
-        };
-
-        drop(state_load_timer);
-
-        Ok((state, state_root_opt))
-    }
-
-    /// If configured, wait for the fork choice run at the start of the slot to complete.
-    #[instrument(level = "debug", skip_all)]
-    fn wait_for_fork_choice_before_block_production(
-        self: &Arc<Self>,
-        slot: Slot,
-    ) -> Result<(), BlockProductionError> {
-        if let Some(rx) = &self.fork_choice_signal_rx {
-            let current_slot = crate::state_query::current_slot(&self.slot_clock)
-                .map_err(|_| BlockProductionError::UnableToReadSlot)?;
-
-            let timeout = Duration::from_millis(self.config.fork_choice_before_proposal_timeout_ms);
-
-            if slot == current_slot || slot == current_slot + 1 {
-                match rx.wait_for_fork_choice(slot, timeout) {
-                    ForkChoiceWaitResult::Success(fc_slot) => {
-                        debug!(
-                            %slot,
-                            fork_choice_slot = %fc_slot,
-                            "Fork choice successfully updated before block production"
-                        );
-                    }
-                    ForkChoiceWaitResult::Behind(fc_slot) => {
-                        warn!(
-                            fork_choice_slot = %fc_slot,
-                            %slot,
-                            message = "this block may be orphaned",
-                            "Fork choice notifier out of sync with block production"
-                        );
-                    }
-                    ForkChoiceWaitResult::TimeOut => {
-                        warn!(
-                            message = "this block may be orphaned",
-                            "Timed out waiting for fork choice before proposal"
-                        );
-                    }
-                }
-            } else {
-                error!(
-                    %slot,
-                    %current_slot,
-                    message = "check clock sync, this block may be orphaned",
-                    "Producing block at incorrect slot"
-                );
-            }
         }
-        Ok(())
     }
+    Ok(())
 }
 
 /// Fetch the beacon state to use for producing a block if a 1-slot proposer re-org is viable.
@@ -351,246 +344,228 @@ use tracing::trace;
 use types::execution::BlockProductionVersion;
 use types::*;
 
-impl<T: BeaconChainTypes> BeaconChain<T> {
-    pub async fn produce_block_with_verification(
-        self: &Arc<Self>,
-        randao_reveal: Signature,
-        slot: Slot,
-        graffiti_settings: GraffitiSettings,
-        verification: ProduceBlockVerification,
-        builder_boost_factor: Option<u64>,
-        block_production_version: BlockProductionVersion,
-    ) -> Result<BeaconBlockResponseWrapper<T::EthSpec>, BlockProductionError> {
-        metrics::inc_counter(&metrics::BLOCK_PRODUCTION_REQUESTS);
-        let _complete_timer = metrics::start_timer(&metrics::BLOCK_PRODUCTION_TIMES);
-        // Part 1/2 (blocking)
-        //
-        // Load the parent state from disk.
-        let chain = self.clone();
-        let (state, state_root_opt) = self
-            .task_executor
-            .spawn_blocking_handle(
-                move || chain.load_state_for_block_production(slot),
-                "load_state_for_block_production",
-            )
-            .ok_or(BlockProductionError::ShuttingDown)?
-            .await
-            .map_err(BlockProductionError::TokioJoin)??;
-
-        // Part 2/2 (async, with some blocking components)
-        //
-        // Produce the block upon the state
-        self.produce_block_on_state(
-            state,
-            state_root_opt,
-            slot,
-            randao_reveal,
-            graffiti_settings,
-            verification,
-            builder_boost_factor,
-            block_production_version,
+pub async fn produce_block_with_verification<T: BeaconChainTypes>(
+    chain: &Arc<BeaconChain<T>>,
+    randao_reveal: Signature,
+    slot: Slot,
+    graffiti_settings: GraffitiSettings,
+    verification: ProduceBlockVerification,
+    builder_boost_factor: Option<u64>,
+    block_production_version: BlockProductionVersion,
+) -> Result<BeaconBlockResponseWrapper<T::EthSpec>, BlockProductionError> {
+    metrics::inc_counter(&metrics::BLOCK_PRODUCTION_REQUESTS);
+    let _complete_timer = metrics::start_timer(&metrics::BLOCK_PRODUCTION_TIMES);
+    // Part 1/2 (blocking)
+    //
+    // Load the parent state from disk.
+    let chain_clone = chain.clone();
+    let (state, state_root_opt) = chain
+        .task_executor
+        .spawn_blocking_handle(
+            move || load_state_for_block_production(&chain_clone, slot),
+            "load_state_for_block_production",
         )
+        .ok_or(BlockProductionError::ShuttingDown)?
         .await
-    }
+        .map_err(BlockProductionError::TokioJoin)??;
 
-    /// Get the proposer index and `prev_randao` value for a proposal at slot `proposal_slot`.
-    ///
-    /// Delegates to the free function [`get_pre_payload_attributes`].
-    pub fn get_pre_payload_attributes(
-        self: &Arc<Self>,
-        proposal_slot: Slot,
-        proposer_head: Hash256,
-        cached_head: &CachedHead<T::EthSpec>,
-    ) -> Result<Option<PrePayloadAttributes>, Error> {
-        let ctx = block_production_context_from_chain(self);
-        get_pre_payload_attributes(&ctx, proposal_slot, proposer_head, cached_head)
-    }
+    // Part 2/2 (async, with some blocking components)
+    //
+    // Produce the block upon the state
+    produce_block_on_state(
+        chain,
+        state,
+        state_root_opt,
+        slot,
+        randao_reveal,
+        graffiti_settings,
+        verification,
+        builder_boost_factor,
+        block_production_version,
+    )
+    .await
+}
 
-    /// Delegates to the free function [`get_expected_withdrawals_for_proposal`].
-    pub fn get_expected_withdrawals(
-        self: &Arc<Self>,
-        forkchoice_update_params: &ForkchoiceUpdateParameters,
-        proposal_slot: Slot,
-    ) -> Result<Withdrawals<T::EthSpec>, Error> {
-        let ctx = block_production_context_from_chain(self);
-        get_expected_withdrawals_for_proposal(&ctx, forkchoice_update_params, proposal_slot)
-    }
+/// Get the proposer index and `prev_randao` value for a proposal at slot `proposal_slot`.
+///
+/// Thin wrapper that constructs a [`BlockProductionContext`] from a [`BeaconChain`] and
+/// delegates to the free function [`get_pre_payload_attributes`].
+pub(crate) fn get_pre_payload_attributes_from_chain<T: BeaconChainTypes>(
+    chain: &Arc<BeaconChain<T>>,
+    proposal_slot: Slot,
+    proposer_head: Hash256,
+    cached_head: &CachedHead<T::EthSpec>,
+) -> Result<Option<PrePayloadAttributes>, Error> {
+    let ctx = block_production_context_from_chain(chain);
+    get_pre_payload_attributes(&ctx, proposal_slot, proposer_head, cached_head)
+}
 
-    /// Determine whether a fork choice update to the execution layer should be overridden.
-    ///
-    /// Delegates to the free function [`overridden_forkchoice_update_params`].
-    pub fn overridden_forkchoice_update_params(
-        self: &Arc<Self>,
-        canonical_forkchoice_params: ForkchoiceUpdateParameters,
-    ) -> Result<ForkchoiceUpdateParameters, Error> {
-        let ctx = block_production_context_from_chain(self);
-        overridden_forkchoice_update_params_fn(&ctx, canonical_forkchoice_params)
-    }
+/// Compute expected withdrawals for a proposal.
+///
+/// Thin wrapper that constructs a [`BlockProductionContext`] from a [`BeaconChain`] and
+/// delegates to [`get_expected_withdrawals_for_proposal`].
+pub(crate) fn get_expected_withdrawals_from_chain<T: BeaconChainTypes>(
+    chain: &Arc<BeaconChain<T>>,
+    forkchoice_update_params: &ForkchoiceUpdateParameters,
+    proposal_slot: Slot,
+) -> Result<Withdrawals<T::EthSpec>, Error> {
+    let ctx = block_production_context_from_chain(chain);
+    get_expected_withdrawals_for_proposal(&ctx, forkchoice_update_params, proposal_slot)
+}
 
-    /// Delegates to the free function [`overridden_forkchoice_update_params_or_failure_reason`].
-    pub fn overridden_forkchoice_update_params_or_failure_reason(
-        self: &Arc<Self>,
-        canonical_forkchoice_params: &ForkchoiceUpdateParameters,
-    ) -> Result<ForkchoiceUpdateParameters, Box<ProposerHeadError<Error>>> {
-        let ctx = block_production_context_from_chain(self);
-        overridden_forkchoice_update_params_or_failure_reason_fn(&ctx, canonical_forkchoice_params)
-    }
+/// Determine whether a fork choice update to the execution layer should be overridden.
+///
+/// Thin wrapper that constructs a [`BlockProductionContext`] from a [`BeaconChain`] and
+/// delegates to [`overridden_forkchoice_update_params_fn`].
+pub(crate) fn overridden_forkchoice_update_params_from_chain<T: BeaconChainTypes>(
+    chain: &Arc<BeaconChain<T>>,
+    canonical_forkchoice_params: ForkchoiceUpdateParameters,
+) -> Result<ForkchoiceUpdateParameters, Error> {
+    let ctx = block_production_context_from_chain(chain);
+    overridden_forkchoice_update_params_fn(&ctx, canonical_forkchoice_params)
+}
 
-    /// Check if the block with `block_root` was observed after the attestation deadline of `slot`.
-    ///
-    /// Delegates to the free function [`block_observed_after_attestation_deadline`].
-    pub(crate) fn block_observed_after_attestation_deadline(
-        self: &Arc<Self>,
-        block_root: Hash256,
-        slot: Slot,
-    ) -> bool {
-        let ctx = block_production_context_from_chain(self);
-        block_observed_after_attestation_deadline(&ctx, block_root, slot)
-    }
+/// Produce a block for some `slot` upon the given `state`.
+///
+/// Typically the `produce_block_with_verification` function should be used, instead of calling
+/// this function directly. This function is useful for purposefully creating forks or blocks at
+/// non-current slots.
+///
+/// If required, the given state will be advanced to the given `produce_at_slot`, then a block
+/// will be produced at that slot height.
+///
+/// The provided `state_root_opt` should only ever be set to `Some` if the contained value is
+/// equal to the root of `state`. Providing this value will serve as an optimization to avoid
+/// performing a tree hash in some scenarios.
+#[allow(clippy::too_many_arguments)]
+#[instrument(level = "debug", skip_all)]
+pub async fn produce_block_on_state<T: BeaconChainTypes>(
+    chain: &Arc<BeaconChain<T>>,
+    state: BeaconState<T::EthSpec>,
+    state_root_opt: Option<Hash256>,
+    produce_at_slot: Slot,
+    randao_reveal: Signature,
+    graffiti_settings: GraffitiSettings,
+    verification: ProduceBlockVerification,
+    builder_boost_factor: Option<u64>,
+    block_production_version: BlockProductionVersion,
+) -> Result<BeaconBlockResponseWrapper<T::EthSpec>, BlockProductionError> {
+    // Part 1/3 (blocking)
+    //
+    // Perform the state advance and block-packing functions.
+    let chain_clone = chain.clone();
+    let graffiti = chain
+        .graffiti_calculator
+        .get_graffiti(graffiti_settings)
+        .await;
+    let mut partial_beacon_block = chain
+        .task_executor
+        .spawn_blocking_handle(
+            move || {
+                let ctx = block_production_context_from_chain(&chain_clone);
+                produce_partial_beacon_block(
+                    &ctx,
+                    &chain_clone,
+                    state,
+                    state_root_opt,
+                    produce_at_slot,
+                    randao_reveal,
+                    graffiti,
+                    builder_boost_factor,
+                    block_production_version,
+                )
+            },
+            "produce_partial_beacon_block",
+        )
+        .ok_or(BlockProductionError::ShuttingDown)?
+        .await
+        .map_err(BlockProductionError::TokioJoin)??;
+    // Part 2/3 (async)
+    //
+    // Wait for the execution layer to return an execution payload (if one is required).
+    let prepare_payload_handle = partial_beacon_block.prepare_payload_handle.take();
+    let block_contents_type_option = if let Some(prepare_payload_handle) = prepare_payload_handle {
+        Some(
+            prepare_payload_handle
+                .await
+                .map_err(BlockProductionError::TokioJoin)?
+                .ok_or(BlockProductionError::ShuttingDown)??,
+        )
+    } else {
+        None
+    };
+    // Part 3/3 (blocking)
+    if let Some(block_contents_type) = block_contents_type_option {
+        match block_contents_type {
+            BlockProposalContentsType::Full(block_contents) => {
+                let chain_clone = chain.clone();
+                let beacon_block_response = chain
+                    .task_executor
+                    .spawn_blocking_handle(
+                        move || {
+                            let ctx = block_production_context_from_chain(&chain_clone);
+                            complete_partial_beacon_block(
+                                &ctx,
+                                &chain_clone,
+                                partial_beacon_block,
+                                Some(block_contents),
+                                verification,
+                            )
+                        },
+                        "complete_partial_beacon_block",
+                    )
+                    .ok_or(BlockProductionError::ShuttingDown)?
+                    .await
+                    .map_err(BlockProductionError::TokioJoin)??;
 
-    /// Produce a block for some `slot` upon the given `state`.
-    ///
-    /// Typically the `self.produce_block()` function should be used, instead of calling this
-    /// function directly. This function is useful for purposefully creating forks or blocks at
-    /// non-current slots.
-    ///
-    /// If required, the given state will be advanced to the given `produce_at_slot`, then a block
-    /// will be produced at that slot height.
-    ///
-    /// The provided `state_root_opt` should only ever be set to `Some` if the contained value is
-    /// equal to the root of `state`. Providing this value will serve as an optimization to avoid
-    /// performing a tree hash in some scenarios.
-    #[allow(clippy::too_many_arguments)]
-    #[instrument(level = "debug", skip_all)]
-    pub async fn produce_block_on_state(
-        self: &Arc<Self>,
-        state: BeaconState<T::EthSpec>,
-        state_root_opt: Option<Hash256>,
-        produce_at_slot: Slot,
-        randao_reveal: Signature,
-        graffiti_settings: GraffitiSettings,
-        verification: ProduceBlockVerification,
-        builder_boost_factor: Option<u64>,
-        block_production_version: BlockProductionVersion,
-    ) -> Result<BeaconBlockResponseWrapper<T::EthSpec>, BlockProductionError> {
-        // Part 1/3 (blocking)
-        //
-        // Perform the state advance and block-packing functions.
-        let chain = self.clone();
-        let graffiti = self
-            .graffiti_calculator
-            .get_graffiti(graffiti_settings)
-            .await;
-        let mut partial_beacon_block = self
+                Ok(BeaconBlockResponseWrapper::Full(beacon_block_response))
+            }
+            BlockProposalContentsType::Blinded(block_contents) => {
+                let chain_clone = chain.clone();
+                let beacon_block_response = chain
+                    .task_executor
+                    .spawn_blocking_handle(
+                        move || {
+                            let ctx = block_production_context_from_chain(&chain_clone);
+                            complete_partial_beacon_block(
+                                &ctx,
+                                &chain_clone,
+                                partial_beacon_block,
+                                Some(block_contents),
+                                verification,
+                            )
+                        },
+                        "complete_partial_beacon_block",
+                    )
+                    .ok_or(BlockProductionError::ShuttingDown)?
+                    .await
+                    .map_err(BlockProductionError::TokioJoin)??;
+
+                Ok(BeaconBlockResponseWrapper::Blinded(beacon_block_response))
+            }
+        }
+    } else {
+        let chain_clone = chain.clone();
+        let beacon_block_response = chain
             .task_executor
             .spawn_blocking_handle(
                 move || {
-                    let ctx = block_production_context_from_chain(&chain);
-                    produce_partial_beacon_block(
+                    let ctx = block_production_context_from_chain(&chain_clone);
+                    complete_partial_beacon_block(
                         &ctx,
-                        &chain,
-                        state,
-                        state_root_opt,
-                        produce_at_slot,
-                        randao_reveal,
-                        graffiti,
-                        builder_boost_factor,
-                        block_production_version,
+                        &chain_clone,
+                        partial_beacon_block,
+                        None,
+                        verification,
                     )
                 },
-                "produce_partial_beacon_block",
+                "complete_partial_beacon_block",
             )
             .ok_or(BlockProductionError::ShuttingDown)?
             .await
             .map_err(BlockProductionError::TokioJoin)??;
-        // Part 2/3 (async)
-        //
-        // Wait for the execution layer to return an execution payload (if one is required).
-        let prepare_payload_handle = partial_beacon_block.prepare_payload_handle.take();
-        let block_contents_type_option =
-            if let Some(prepare_payload_handle) = prepare_payload_handle {
-                Some(
-                    prepare_payload_handle
-                        .await
-                        .map_err(BlockProductionError::TokioJoin)?
-                        .ok_or(BlockProductionError::ShuttingDown)??,
-                )
-            } else {
-                None
-            };
-        // Part 3/3 (blocking)
-        if let Some(block_contents_type) = block_contents_type_option {
-            match block_contents_type {
-                BlockProposalContentsType::Full(block_contents) => {
-                    let chain = self.clone();
-                    let beacon_block_response = self
-                        .task_executor
-                        .spawn_blocking_handle(
-                            move || {
-                                let ctx = block_production_context_from_chain(&chain);
-                                complete_partial_beacon_block(
-                                    &ctx,
-                                    &chain,
-                                    partial_beacon_block,
-                                    Some(block_contents),
-                                    verification,
-                                )
-                            },
-                            "complete_partial_beacon_block",
-                        )
-                        .ok_or(BlockProductionError::ShuttingDown)?
-                        .await
-                        .map_err(BlockProductionError::TokioJoin)??;
 
-                    Ok(BeaconBlockResponseWrapper::Full(beacon_block_response))
-                }
-                BlockProposalContentsType::Blinded(block_contents) => {
-                    let chain = self.clone();
-                    let beacon_block_response = self
-                        .task_executor
-                        .spawn_blocking_handle(
-                            move || {
-                                let ctx = block_production_context_from_chain(&chain);
-                                complete_partial_beacon_block(
-                                    &ctx,
-                                    &chain,
-                                    partial_beacon_block,
-                                    Some(block_contents),
-                                    verification,
-                                )
-                            },
-                            "complete_partial_beacon_block",
-                        )
-                        .ok_or(BlockProductionError::ShuttingDown)?
-                        .await
-                        .map_err(BlockProductionError::TokioJoin)??;
-
-                    Ok(BeaconBlockResponseWrapper::Blinded(beacon_block_response))
-                }
-            }
-        } else {
-            let chain = self.clone();
-            let beacon_block_response = self
-                .task_executor
-                .spawn_blocking_handle(
-                    move || {
-                        let ctx = block_production_context_from_chain(&chain);
-                        complete_partial_beacon_block(
-                            &ctx,
-                            &chain,
-                            partial_beacon_block,
-                            None,
-                            verification,
-                        )
-                    },
-                    "complete_partial_beacon_block",
-                )
-                .ok_or(BlockProductionError::ShuttingDown)?
-                .await
-                .map_err(BlockProductionError::TokioJoin)??;
-
-            Ok(BeaconBlockResponseWrapper::Full(beacon_block_response))
-        }
+        Ok(BeaconBlockResponseWrapper::Full(beacon_block_response))
     }
 }
 

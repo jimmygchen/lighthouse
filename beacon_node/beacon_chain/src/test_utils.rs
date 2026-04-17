@@ -1007,9 +1007,9 @@ where
         // Always use the builder, so that we produce a "real" blinded payload.
         let builder_boost_factor = Some(u64::MAX);
 
-        let BeaconBlockResponseWrapper::Blinded(block_response) = self
-            .chain
-            .produce_block_on_state(
+        let BeaconBlockResponseWrapper::Blinded(block_response) =
+            crate::block_production::produce_block_on_state(
+                &self.chain,
                 state,
                 None,
                 slot,
@@ -1063,9 +1063,9 @@ where
 
         let randao_reveal = self.sign_randao_reveal(&state, proposer_index, slot);
 
-        let BeaconBlockResponseWrapper::Full(block_response) = self
-            .chain
-            .produce_block_on_state(
+        let BeaconBlockResponseWrapper::Full(block_response) =
+            crate::block_production::produce_block_on_state(
+                &self.chain,
                 state,
                 None,
                 slot,
@@ -1128,9 +1128,9 @@ where
                 GraffitiSettings::new(Some(graffiti), Some(GraffitiPolicy::PreserveUserGraffiti));
             let randao_reveal = self.sign_randao_reveal(&state, proposer_index, slot);
 
-            let (block, pending_state, _consensus_block_value) = self
-                .chain
-                .produce_block_on_state_gloas(
+            let (block, pending_state, _consensus_block_value) =
+                crate::block_production::gloas::produce_block_on_state_gloas(
+                    &self.chain,
                     state,
                     None,
                     slot,
@@ -1206,9 +1206,9 @@ where
 
         let pre_state = state.clone();
 
-        let BeaconBlockResponseWrapper::Full(block_response) = self
-            .chain
-            .produce_block_on_state(
+        let BeaconBlockResponseWrapper::Full(block_response) =
+            crate::block_production::produce_block_on_state(
+                &self.chain,
                 state,
                 None,
                 slot,

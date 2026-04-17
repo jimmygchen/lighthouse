@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::{
-    BeaconChain, BeaconChainTypes, CanonicalHead,
+    BeaconChainTypes, CanonicalHead,
     payload_bid_verification::{PayloadBidError, payload_bid_cache::GossipVerifiedPayloadBidCache},
     proposer_preferences_verification::proposer_preference_cache::GossipVerifiedProposerPreferenceCache,
 };
@@ -197,54 +197,66 @@ impl<T: BeaconChainTypes> GossipVerifiedPayloadBid<T> {
     }
 }
 
-impl<T: BeaconChainTypes> BeaconChain<T> {
-    /// Build a `GossipVerificationContext` from this `BeaconChain` for `GossipVerifiedPayloadBid`.
-    pub fn payload_bid_gossip_verification_context(&self) -> GossipVerificationContext<'_, T> {
-        GossipVerificationContext {
-            canonical_head: &self.canonical_head,
-            gossip_verified_payload_bid_cache: &self.gossip_verified_payload_bid_cache,
-            gossip_verified_proposer_preferences_cache: &self
-                .gossip_verified_proposer_preferences_cache,
-            slot_clock: &self.slot_clock,
-            spec: &self.spec,
-        }
+pub fn payload_bid_gossip_verification_context<'a, T: BeaconChainTypes>(
+    canonical_head: &'a CanonicalHead<T>,
+    gossip_verified_payload_bid_cache: &'a GossipVerifiedPayloadBidCache<T>,
+    gossip_verified_proposer_preferences_cache: &'a GossipVerifiedProposerPreferenceCache,
+    slot_clock: &'a T::SlotClock,
+    spec: &'a ChainSpec,
+) -> GossipVerificationContext<'a, T> {
+    GossipVerificationContext {
+        canonical_head,
+        gossip_verified_payload_bid_cache,
+        gossip_verified_proposer_preferences_cache,
+        slot_clock,
+        spec,
     }
+}
 
-    /// Returns `Ok(GossipVerifiedPayloadBid)` if the supplied `bid` should be forwarded onto the
-    /// gossip network and cached.
-    ///
-    /// ## Errors
-    ///
-    /// Returns an `Err` if the given bid was invalid, or an error was encountered during verification.
-    pub fn verify_payload_bid_for_gossip(
-        &self,
-        bid: Arc<SignedExecutionPayloadBid<T::EthSpec>>,
-    ) -> Result<GossipVerifiedPayloadBid<T>, PayloadBidError> {
-        let slot = bid.message.slot;
-        let parent_block_root = bid.message.parent_block_root;
-        let parent_block_hash = bid.message.parent_block_hash;
+/// Returns `Ok(GossipVerifiedPayloadBid)` if the supplied `bid` should be forwarded onto the
+/// gossip network and cached.
+///
+/// ## Errors
+///
+/// Returns an `Err` if the given bid was invalid, or an error was encountered during verification.
+pub fn verify_payload_bid_for_gossip<T: BeaconChainTypes>(
+    canonical_head: &CanonicalHead<T>,
+    gossip_verified_payload_bid_cache: &GossipVerifiedPayloadBidCache<T>,
+    gossip_verified_proposer_preferences_cache: &GossipVerifiedProposerPreferenceCache,
+    slot_clock: &T::SlotClock,
+    spec: &ChainSpec,
+    bid: Arc<SignedExecutionPayloadBid<T::EthSpec>>,
+) -> Result<GossipVerifiedPayloadBid<T>, PayloadBidError> {
+    let slot = bid.message.slot;
+    let parent_block_root = bid.message.parent_block_root;
+    let parent_block_hash = bid.message.parent_block_hash;
 
-        let ctx = self.payload_bid_gossip_verification_context();
-        match GossipVerifiedPayloadBid::new(bid, &ctx) {
-            Ok(verified) => {
-                debug!(
-                    %slot,
-                    %parent_block_hash,
-                    %parent_block_root,
-                    "Successfully verified gossip payload bid"
-                );
-                Ok(verified)
-            }
-            Err(e) => {
-                debug!(
-                    error = e.to_string(),
-                    %slot,
-                    %parent_block_hash,
-                    %parent_block_root,
-                    "Rejected gossip payload bid"
-                );
-                Err(e)
-            }
+    let ctx = payload_bid_gossip_verification_context(
+        canonical_head,
+        gossip_verified_payload_bid_cache,
+        gossip_verified_proposer_preferences_cache,
+        slot_clock,
+        spec,
+    );
+    match GossipVerifiedPayloadBid::new(bid, &ctx) {
+        Ok(verified) => {
+            debug!(
+                %slot,
+                %parent_block_hash,
+                %parent_block_root,
+                "Successfully verified gossip payload bid"
+            );
+            Ok(verified)
+        }
+        Err(e) => {
+            debug!(
+                error = e.to_string(),
+                %slot,
+                %parent_block_hash,
+                %parent_block_root,
+                "Rejected gossip payload bid"
+            );
+            Err(e)
         }
     }
 }

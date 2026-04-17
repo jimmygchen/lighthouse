@@ -3265,9 +3265,11 @@ async fn weak_subjectivity_sync_test(
 
         // Importing the invalid batch should error.
         assert!(matches!(
-            beacon_chain
-                .import_historical_block_batch(batch_with_invalid_first_block)
-                .unwrap_err(),
+            beacon_chain::historical_blocks::import_historical_block_batch(
+                &beacon_chain,
+                batch_with_invalid_first_block,
+            )
+            .unwrap_err(),
             HistoricalBlockError::InvalidSignature
         ));
         assert_eq!(beacon_chain.store.get_oldest_block_slot(), wss_block.slot());
@@ -3287,9 +3289,11 @@ async fn weak_subjectivity_sync_test(
 
             // Importing the batch with valid signatures should succeed.
             let available_blocks_batch1 = batch.iter().map(clone_block).collect::<Vec<_>>();
-            beacon_chain
-                .import_historical_block_batch(available_blocks_batch1)
-                .unwrap();
+            beacon_chain::historical_blocks::import_historical_block_batch(
+                &beacon_chain,
+                available_blocks_batch1,
+            )
+            .unwrap();
 
             // We should be able to load the block root at the `oldest_block_slot`.
             //
@@ -3315,9 +3319,11 @@ async fn weak_subjectivity_sync_test(
 
             // Resupplying the blocks should not fail, they can be safely ignored.
             let available_blocks_batch2 = batch.iter().map(clone_block).collect::<Vec<_>>();
-            beacon_chain
-                .import_historical_block_batch(available_blocks_batch2)
-                .unwrap();
+            beacon_chain::historical_blocks::import_historical_block_batch(
+                &beacon_chain,
+                available_blocks_batch2,
+            )
+            .unwrap();
         }
     }
     assert_eq!(beacon_chain.store.get_oldest_block_slot(), 0);
@@ -3506,10 +3512,13 @@ async fn test_import_historical_data_columns_batch() {
     }
 
     // Re-import deleted data columns
-    harness
-        .chain
-        .import_historical_data_column_batch(Epoch::new(0), data_columns_list, cgc)
-        .unwrap();
+    beacon_chain::historical_data_columns::import_historical_data_column_batch(
+        &harness.chain,
+        Epoch::new(0),
+        data_columns_list,
+        cgc,
+    )
+    .unwrap();
 
     let block_root_and_slot_iter = harness
         .chain
@@ -3629,14 +3638,13 @@ async fn test_import_historical_data_columns_batch_mismatched_block_root() {
     }
 
     // Attempt to import data columns with invalid block roots and expect a failure
-    let error = harness
-        .chain
-        .import_historical_data_column_batch(
-            start_slot.epoch(E::slots_per_epoch()),
-            data_columns_list,
-            cgc,
-        )
-        .unwrap_err();
+    let error = beacon_chain::historical_data_columns::import_historical_data_column_batch(
+        &harness.chain,
+        start_slot.epoch(E::slots_per_epoch()),
+        data_columns_list,
+        cgc,
+    )
+    .unwrap_err();
 
     assert!(matches!(
         error,
@@ -3731,10 +3739,13 @@ async fn test_import_historical_data_columns_batch_no_block_found() {
         assert!(data_columns.is_none())
     }
 
-    let error = harness
-        .chain
-        .import_historical_data_column_batch(Epoch::new(0), data_columns_list, cgc)
-        .unwrap_err();
+    let error = beacon_chain::historical_data_columns::import_historical_data_column_batch(
+        &harness.chain,
+        Epoch::new(0),
+        data_columns_list,
+        cgc,
+    )
+    .unwrap_err();
 
     assert!(matches!(
         error,

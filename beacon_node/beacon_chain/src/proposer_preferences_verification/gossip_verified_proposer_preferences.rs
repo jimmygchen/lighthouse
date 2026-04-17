@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::{
-    BeaconChain, BeaconChainTypes, CanonicalHead,
+    BeaconChainTypes, CanonicalHead,
     proposer_preferences_verification::{
         ProposerPreferencesError, proposer_preference_cache::GossipVerifiedProposerPreferenceCache,
     },
@@ -108,45 +108,53 @@ impl GossipVerifiedProposerPreferences {
     }
 }
 
-impl<T: BeaconChainTypes> BeaconChain<T> {
-    pub fn proposer_preferences_gossip_verification_context(
-        &self,
-    ) -> GossipVerificationContext<'_, T> {
-        GossipVerificationContext {
-            canonical_head: &self.canonical_head,
-            gossip_verified_proposer_preferences_cache: &self
-                .gossip_verified_proposer_preferences_cache,
-            slot_clock: &self.slot_clock,
-            spec: &self.spec,
-        }
+pub fn proposer_preferences_gossip_verification_context<'a, T: BeaconChainTypes>(
+    canonical_head: &'a CanonicalHead<T>,
+    gossip_verified_proposer_preferences_cache: &'a GossipVerifiedProposerPreferenceCache,
+    slot_clock: &'a T::SlotClock,
+    spec: &'a ChainSpec,
+) -> GossipVerificationContext<'a, T> {
+    GossipVerificationContext {
+        canonical_head,
+        gossip_verified_proposer_preferences_cache,
+        slot_clock,
+        spec,
     }
+}
 
-    pub fn verify_proposer_preferences_for_gossip(
-        &self,
-        signed_preferences: Arc<SignedProposerPreferences>,
-    ) -> Result<GossipVerifiedProposerPreferences, ProposerPreferencesError> {
-        let proposal_slot = signed_preferences.message.proposal_slot;
-        let validator_index = signed_preferences.message.validator_index;
+pub fn verify_proposer_preferences_for_gossip<T: BeaconChainTypes>(
+    canonical_head: &CanonicalHead<T>,
+    gossip_verified_proposer_preferences_cache: &GossipVerifiedProposerPreferenceCache,
+    slot_clock: &T::SlotClock,
+    spec: &ChainSpec,
+    signed_preferences: Arc<SignedProposerPreferences>,
+) -> Result<GossipVerifiedProposerPreferences, ProposerPreferencesError> {
+    let proposal_slot = signed_preferences.message.proposal_slot;
+    let validator_index = signed_preferences.message.validator_index;
 
-        let ctx = self.proposer_preferences_gossip_verification_context();
-        match GossipVerifiedProposerPreferences::new(signed_preferences, &ctx) {
-            Ok(verified) => {
-                debug!(
-                    %proposal_slot,
-                    %validator_index,
-                    "Successfully verified gossip proposer preferences"
-                );
-                Ok(verified)
-            }
-            Err(e) => {
-                debug!(
-                    error = e.to_string(),
-                    %proposal_slot,
-                    %validator_index,
-                    "Rejected gossip proposer preferences"
-                );
-                Err(e)
-            }
+    let ctx = proposer_preferences_gossip_verification_context(
+        canonical_head,
+        gossip_verified_proposer_preferences_cache,
+        slot_clock,
+        spec,
+    );
+    match GossipVerifiedProposerPreferences::new(signed_preferences, &ctx) {
+        Ok(verified) => {
+            debug!(
+                %proposal_slot,
+                %validator_index,
+                "Successfully verified gossip proposer preferences"
+            );
+            Ok(verified)
+        }
+        Err(e) => {
+            debug!(
+                error = e.to_string(),
+                %proposal_slot,
+                %validator_index,
+                "Rejected gossip proposer preferences"
+            );
+            Err(e)
         }
     }
 }

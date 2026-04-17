@@ -11,7 +11,7 @@ mod beacon_snapshot;
 pub mod bellatrix_readiness;
 pub mod blob_verification;
 pub mod block_import_methods;
-mod block_production;
+pub mod block_production;
 mod block_times_cache;
 mod block_verification;
 pub mod block_verification_types;

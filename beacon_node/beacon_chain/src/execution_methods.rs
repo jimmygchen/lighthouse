@@ -227,12 +227,17 @@ pub async fn prepare_beacon_proposer<T: BeaconChainTypes>(
 
             let canonical_fcu_params = cached_head.forkchoice_update_parameters();
             let fcu_params =
-                inner_chain.overridden_forkchoice_update_params(canonical_fcu_params)?;
-            let pre_payload_attributes = inner_chain.get_pre_payload_attributes(
-                prepare_slot,
-                fcu_params.head_root,
-                &cached_head,
-            )?;
+                crate::block_production::overridden_forkchoice_update_params_from_chain(
+                    &inner_chain,
+                    canonical_fcu_params,
+                )?;
+            let pre_payload_attributes =
+                crate::block_production::get_pre_payload_attributes_from_chain(
+                    &inner_chain,
+                    prepare_slot,
+                    fcu_params.head_root,
+                    &cached_head,
+                )?;
             Ok::<_, Error>(Some((fcu_params, pre_payload_attributes)))
         },
         "prepare_beacon_proposer_head_read",
@@ -273,7 +278,11 @@ pub async fn prepare_beacon_proposer<T: BeaconChainTypes>(
             crate::beacon_chain::spawn_blocking_handle(
                 &chain.task_executor,
                 move || {
-                    inner_chain.get_expected_withdrawals(&forkchoice_update_params, prepare_slot)
+                    crate::block_production::get_expected_withdrawals_from_chain(
+                        &inner_chain,
+                        &forkchoice_update_params,
+                        prepare_slot,
+                    )
                 },
                 "prepare_beacon_proposer_withdrawals",
             )
@@ -386,7 +395,12 @@ pub async fn update_execution_engine_forkchoice<T: BeaconChainTypes>(
         let inner_chain = chain.clone();
         crate::beacon_chain::spawn_blocking_handle(
             &chain.task_executor,
-            move || inner_chain.overridden_forkchoice_update_params(input_params),
+            move || {
+                crate::block_production::overridden_forkchoice_update_params_from_chain(
+                    &inner_chain,
+                    input_params,
+                )
+            },
             "update_execution_engine_forkchoice_override",
         )
         .await??

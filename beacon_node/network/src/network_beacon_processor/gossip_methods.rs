@@ -3651,11 +3651,35 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         let envelope_delay =
             get_slot_delay_ms(seen_duration, envelope.slot(), &self.chain.slot_clock);
 
+        let chain = self.chain.clone();
+        let envelope_for_verify = envelope.clone();
         let verification_result = self
             .chain
+            .task_executor
             .clone()
-            .verify_envelope_for_gossip(envelope.clone())
-            .await;
+            .spawn_blocking_handle(
+                move || {
+                    let ctx = beacon_chain::payload_envelope_verification::gossip_verified_envelope::payload_envelope_gossip_verification_context(
+                        &chain.canonical_head,
+                        &chain.store,
+                        &chain.spec,
+                        &chain.beacon_proposer_cache,
+                        &chain.validator_query.validator_pubkey_cache,
+                        chain.genesis_validators_root,
+                        &chain.event_handler,
+                    );
+                    beacon_chain::payload_envelope_verification::gossip_verified_envelope::verify_envelope_for_gossip(
+                        &ctx,
+                        envelope_for_verify,
+                    )
+                },
+                "gossip_envelope_verification_handle",
+            )
+            .ok_or(BeaconChainError::RuntimeShutdown)
+            .map_err(EnvelopeError::from)?
+            .await
+            .map_err(BeaconChainError::TokioJoin)
+            .map_err(EnvelopeError::from)?;
 
         let verified_envelope = match verification_result {
             Ok(verified_envelope) => {
@@ -3731,7 +3755,38 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                         let inner_self = self.clone();
                         let chain = self.chain.clone();
                         let process_fn = Box::pin(async move {
-                            match chain.verify_envelope_for_gossip(envelope).await {
+                            let chain_ref = chain.clone();
+                            let verify_result = chain
+                                .task_executor
+                                .clone()
+                                .spawn_blocking_handle(
+                                    move || {
+                                        let ctx = beacon_chain::payload_envelope_verification::gossip_verified_envelope::payload_envelope_gossip_verification_context(
+                                            &chain_ref.canonical_head,
+                                            &chain_ref.store,
+                                            &chain_ref.spec,
+                                            &chain_ref.beacon_proposer_cache,
+                                            &chain_ref.validator_query.validator_pubkey_cache,
+                                            chain_ref.genesis_validators_root,
+                                            &chain_ref.event_handler,
+                                        );
+                                        beacon_chain::payload_envelope_verification::gossip_verified_envelope::verify_envelope_for_gossip(
+                                            &ctx,
+                                            envelope,
+                                        )
+                                    },
+                                    "gossip_envelope_verification_handle",
+                                )
+                                .ok_or(BeaconChainError::RuntimeShutdown)
+                                .map_err(EnvelopeError::from);
+                            let verify_result = match verify_result {
+                                Ok(handle) => handle
+                                    .await
+                                    .map_err(BeaconChainError::TokioJoin)
+                                    .map_err(EnvelopeError::from),
+                                Err(e) => Err(e),
+                            };
+                            match verify_result {
                                 Ok(verified_envelope) => {
                                     inner_self
                                         .process_gossip_verified_execution_payload_envelope(
@@ -3842,16 +3897,15 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         let beacon_block_root = verified_envelope.signed_envelope.beacon_block_root();
 
         #[allow(clippy::result_large_err)]
-        let result = self
-            .chain
-            .process_execution_payload_envelope(
-                beacon_block_root,
-                verified_envelope,
-                NotifyExecutionLayer::Yes,
-                BlockImportSource::Gossip,
-                || Ok(()),
-            )
-            .await;
+        let result = beacon_chain::payload_envelope_verification::import::process_execution_payload_envelope(
+            &self.chain,
+            beacon_block_root,
+            verified_envelope,
+            NotifyExecutionLayer::Yes,
+            BlockImportSource::Gossip,
+            || Ok(()),
+        )
+        .await;
 
         // TODO(gloas) metrics
         // register_process_result_metrics(&result, metrics::BlockSource::Gossip, "envelope");
@@ -3910,7 +3964,15 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         peer_id: PeerId,
         bid: Arc<SignedExecutionPayloadBid<T::EthSpec>>,
     ) {
-        let verification_result = self.chain.verify_payload_bid_for_gossip(bid.clone());
+        let verification_result =
+            beacon_chain::payload_bid_verification::gossip_verified_bid::verify_payload_bid_for_gossip(
+                &self.chain.canonical_head,
+                &self.chain.gossip_verified_payload_bid_cache,
+                &self.chain.gossip_verified_proposer_preferences_cache,
+                &self.chain.slot_clock,
+                &self.chain.spec,
+                bid.clone(),
+            );
 
         match verification_result {
             Ok(_) => {
@@ -3961,9 +4023,14 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         peer_id: PeerId,
         proposer_preferences: Arc<SignedProposerPreferences>,
     ) {
-        let verification_result = self
-            .chain
-            .verify_proposer_preferences_for_gossip(proposer_preferences);
+        let verification_result =
+            beacon_chain::proposer_preferences_verification::gossip_verified_proposer_preferences::verify_proposer_preferences_for_gossip(
+                &self.chain.canonical_head,
+                &self.chain.gossip_verified_proposer_preferences_cache,
+                &self.chain.slot_clock,
+                &self.chain.spec,
+                proposer_preferences,
+            );
 
         match verification_result {
             Ok(_) => {
