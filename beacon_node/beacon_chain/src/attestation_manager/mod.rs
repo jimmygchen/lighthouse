@@ -255,6 +255,31 @@ impl<E: EthSpec> AttestationManager<E> {
         self.naive_aggregation_pool.write().prune(current_slot);
     }
 
+    /// Check whether a validator has been seen attesting or aggregating at the given epoch.
+    ///
+    /// This checks gossip attestations, block attestations, and aggregators. It does
+    /// **not** check block production -- the caller should check `ObservedBlockProducers`
+    /// separately if needed.
+    pub fn validator_seen_at_epoch(&self, validator_index: usize, epoch: Epoch) -> bool {
+        // It's necessary to assign these checks to intermediate variables to avoid a deadlock.
+        //
+        // See: https://github.com/sigp/lighthouse/pull/2230#discussion_r620013993
+        let gossip_attested = self
+            .observed_gossip_attesters
+            .read()
+            .index_seen_at_epoch(validator_index, epoch);
+        let block_attested = self
+            .observed_block_attesters
+            .read()
+            .index_seen_at_epoch(validator_index, epoch);
+        let aggregated = self
+            .observed_aggregators
+            .read()
+            .index_seen_at_epoch(validator_index, epoch);
+
+        gossip_attested || block_attested || aggregated
+    }
+
     /// Check that the shuffling at `block_root` is equal to one of the shufflings of `state`.
     ///
     /// The `block_shuffling_id` should be obtained from fork choice for the given `block_root`

@@ -13,12 +13,13 @@ use crate::sync_committee_verification::{
 use crate::{BeaconChainTypes, metrics};
 use operation_pool::OperationPool;
 use parking_lot::RwLock;
+use safe_arith::SafeArith;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{error, trace};
 use types::{
-    BeaconState, BeaconStateError, ChainSpec, Epoch, EthSpec, SyncCommitteeContribution,
-    SyncContributionData, SyncDuty, SyncSubnetId,
+    BeaconState, BeaconStateError, ChainSpec, Epoch, EthSpec, Slot, SyncCommittee,
+    SyncCommitteeContribution, SyncContributionData, SyncDuty, SyncSubnetId,
 };
 
 /// Manages sync committee message and contribution verification, and the
@@ -163,5 +164,77 @@ impl<E: EthSpec> SyncCommitteeManager<E> {
         head_state
             .get_sync_committee_duties(epoch, validator_indices, &self.spec)
             .map_err(Error::SyncDutiesError)
+    }
+
+    // -----------------------------------------------------------------------
+    // Sync committee queries
+    // -----------------------------------------------------------------------
+
+    /// Return the sync committee for `slot + 1` from the canonical chain.
+    ///
+    /// The `head_state` is the current head beacon state. `state_loader` is called
+    /// on cache miss to load a state suitable for the requested sync committee period.
+    pub fn sync_committee_at_next_slot(
+        &self,
+        slot: Slot,
+        head_state: &BeaconState<E>,
+        state_loader: impl FnOnce(Slot) -> Result<BeaconState<E>, Error>,
+    ) -> Result<Arc<SyncCommittee<E>>, Error> {
+        let epoch = slot.safe_add(1)?.epoch(E::slots_per_epoch());
+        self.sync_committee_at_epoch(epoch, head_state, state_loader)
+    }
+
+    /// Return the sync committee at `epoch` from the canonical chain.
+    ///
+    /// Tries to read from `head_state` first (fast path). Falls back to loading
+    /// a state via `state_loader` for faraway committees or skipped slots at
+    /// the Altair transition (slow path).
+    pub fn sync_committee_at_epoch(
+        &self,
+        epoch: Epoch,
+        head_state: &BeaconState<E>,
+        state_loader: impl FnOnce(Slot) -> Result<BeaconState<E>, Error>,
+    ) -> Result<Arc<SyncCommittee<E>>, Error> {
+        // Try to read a committee from the head. This will work most of the time, but will fail
+        // for faraway committees, or if there are skipped slots at the transition to Altair.
+        let committee_from_head = match head_state.get_built_sync_committee(epoch, &self.spec) {
+            Ok(committee) => Some(committee.clone()),
+            Err(BeaconStateError::SyncCommitteeNotKnown { .. })
+            | Err(BeaconStateError::IncorrectStateVariant) => None,
+            Err(e) => return Err(Error::from(e)),
+        };
+
+        if let Some(committee) = committee_from_head {
+            Ok(committee)
+        } else {
+            // Slow path: load a state (or advance the head).
+            let sync_committee_period = epoch.sync_committee_period(&self.spec)?;
+            let load_slot = self.slot_for_sync_committee_period(sync_committee_period)?;
+            let state = state_loader(load_slot)?;
+            let committee = state.get_built_sync_committee(epoch, &self.spec)?.clone();
+            Ok(committee)
+        }
+    }
+
+    /// Compute the slot at which state should be loaded for the given sync committee period.
+    ///
+    /// Specifically, the start of the *previous* sync committee period (clamped to
+    /// the Altair fork epoch).
+    pub fn slot_for_sync_committee_period(
+        &self,
+        sync_committee_period: u64,
+    ) -> Result<Slot, Error> {
+        let altair_fork_epoch = self
+            .spec
+            .altair_fork_epoch
+            .ok_or(Error::AltairForkDisabled)?;
+
+        let load_slot = std::cmp::max(
+            self.spec.epochs_per_sync_committee_period * sync_committee_period.saturating_sub(1),
+            altair_fork_epoch,
+        )
+        .start_slot(E::slots_per_epoch());
+
+        Ok(load_slot)
     }
 }

@@ -1211,59 +1211,37 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         Ok(self.store.get_state(state_root, slot, update_cache)?)
     }
 
-    /// Return the sync committee at `slot + 1` from the canonical chain.
+    /// Return the sync committee for `slot + 1` from the canonical chain.
     ///
-    /// This is useful when dealing with sync committee messages, because messages are signed
-    /// and broadcast one slot prior to the slot of the sync committee (which is relevant at
-    /// sync committee period boundaries).
+    /// Delegates to `SyncCommitteeManager::sync_committee_at_next_slot`, providing
+    /// the head state and a state-loader closure.
     pub fn sync_committee_at_next_slot(
         &self,
         slot: Slot,
     ) -> Result<Arc<SyncCommittee<T::EthSpec>>, Error> {
-        let epoch = slot.safe_add(1)?.epoch(T::EthSpec::slots_per_epoch());
-        self.sync_committee_at_epoch(epoch)
+        let head_state = &self.head_snapshot().beacon_state;
+        self.sync_committee_manager
+            .sync_committee_at_next_slot(slot, head_state, |load_slot| {
+                self.state_at_slot(load_slot, StateSkipConfig::WithoutStateRoots)
+            })
     }
 
     /// Return the sync committee at `epoch` from the canonical chain.
+    ///
+    /// Delegates to `SyncCommitteeManager::sync_committee_at_epoch`, providing
+    /// the head state and a state-loader closure.
     pub fn sync_committee_at_epoch(
         &self,
         epoch: Epoch,
     ) -> Result<Arc<SyncCommittee<T::EthSpec>>, Error> {
-        // Try to read a committee from the head. This will work most of the time, but will fail
-        // for faraway committees, or if there are skipped slots at the transition to Altair.
-        let spec = &self.spec;
-        let committee_from_head =
-            self.with_head(
-                |head| match head.beacon_state.get_built_sync_committee(epoch, spec) {
-                    Ok(committee) => Ok(Some(committee.clone())),
-                    Err(BeaconStateError::SyncCommitteeNotKnown { .. })
-                    | Err(BeaconStateError::IncorrectStateVariant) => Ok(None),
-                    Err(e) => Err(Error::from(e)),
-                },
-            )?;
-
-        if let Some(committee) = committee_from_head {
-            Ok(committee)
-        } else {
-            // Slow path: load a state (or advance the head).
-            let sync_committee_period = epoch.sync_committee_period(spec)?;
-            let committee = self
-                .state_for_sync_committee_period(sync_committee_period)?
-                .get_built_sync_committee(epoch, spec)?
-                .clone();
-            Ok(committee)
-        }
+        let head_state = &self.head_snapshot().beacon_state;
+        self.sync_committee_manager
+            .sync_committee_at_epoch(epoch, head_state, |load_slot| {
+                self.state_at_slot(load_slot, StateSkipConfig::WithoutStateRoots)
+            })
     }
 
     /// Load a state suitable for determining the sync committee for the given period.
-    ///
-    /// Specifically, the state at the start of the *previous* sync committee period.
-    ///
-    /// This is sufficient for historical duties, and efficient in the case where the head
-    /// is lagging the current period and we need duties for the next period (because we only
-    /// have to transition the head to start of the current period).
-    ///
-    /// We also need to ensure that the load slot is after the Altair fork.
     ///
     /// **WARNING**: the state returned will have dummy state roots. It should only be used
     /// for its sync committees (determining duties, etc).
@@ -1271,17 +1249,9 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         &self,
         sync_committee_period: u64,
     ) -> Result<BeaconState<T::EthSpec>, Error> {
-        let altair_fork_epoch = self
-            .spec
-            .altair_fork_epoch
-            .ok_or(Error::AltairForkDisabled)?;
-
-        let load_slot = std::cmp::max(
-            self.spec.epochs_per_sync_committee_period * sync_committee_period.saturating_sub(1),
-            altair_fork_epoch,
-        )
-        .start_slot(T::EthSpec::slots_per_epoch());
-
+        let load_slot = self
+            .sync_committee_manager
+            .slot_for_sync_committee_period(sync_committee_period)?;
         self.state_at_slot(load_slot, StateSkipConfig::WithoutStateRoots)
     }
 
@@ -1848,6 +1818,9 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
 
     /// Accepts some `SyncCommitteeMessage` from the network and attempts to verify it, returning `Ok(_)` if
     /// it is valid to be (re)broadcast on the gossip network.
+    // TODO(modularize): Remove this thin delegation once callers migrate to use
+    // VerifiedSyncCommitteeMessage::verify directly with a context struct.
+    // https://github.com/sigp/lighthouse/issues/7521
     pub fn verify_sync_committee_message_for_gossip(
         &self,
         sync_message: SyncCommitteeMessage,
@@ -1861,6 +1834,9 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         })
     }
 
+    // TODO(modularize): Remove this thin delegation once callers migrate to use
+    // VerifiedSyncContribution::verify directly with a context struct.
+    // https://github.com/sigp/lighthouse/issues/7521
     /// Accepts some `SignedContributionAndProof` from the network and attempts to verify it,
     /// returning `Ok(_)` if it is valid to be (re)broadcast on the gossip network.
     pub fn verify_sync_contribution_for_gossip(
@@ -1881,7 +1857,9 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         })
     }
 
-    /// Accepts some 'LightClientFinalityUpdate' from the network and attempts to verify it
+    // TODO(modularize): Remove this thin delegation once callers migrate to call
+    // VerifiedLightClientFinalityUpdate::verify directly.
+    // https://github.com/sigp/lighthouse/issues/7521
     pub fn verify_finality_update_for_gossip(
         self: &Arc<Self>,
         light_client_finality_update: LightClientFinalityUpdate<T::EthSpec>,
@@ -1897,6 +1875,9 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         })
     }
 
+    // TODO(modularize): Remove this thin delegation once callers migrate to call
+    // GossipVerifiedDataColumn::new directly.
+    // https://github.com/sigp/lighthouse/issues/7521
     #[instrument(skip_all, level = "trace")]
     pub fn verify_data_column_sidecar_for_gossip(
         self: &Arc<Self>,
@@ -1910,6 +1891,9 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         })
     }
 
+    // TODO(modularize): Remove this thin delegation once callers migrate to call
+    // GossipVerifiedBlob::new directly.
+    // https://github.com/sigp/lighthouse/issues/7521
     #[instrument(skip_all, level = "trace")]
     pub fn verify_blob_sidecar_for_gossip(
         self: &Arc<Self>,
@@ -1923,7 +1907,9 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         })
     }
 
-    /// Accepts some 'LightClientOptimisticUpdate' from the network and attempts to verify it
+    // TODO(modularize): Remove this thin delegation once callers migrate to call
+    // VerifiedLightClientOptimisticUpdate::verify directly.
+    // https://github.com/sigp/lighthouse/issues/7521
     pub fn verify_optimistic_update_for_gossip(
         self: &Arc<Self>,
         light_client_optimistic_update: LightClientOptimisticUpdate<T::EthSpec>,
@@ -2430,37 +2416,26 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         Ok(dump)
     }
 
-    /// Gets the current `EnrForkId`.
+    /// Returns the current ENR fork ID for this chain.
+    ///
+    /// Delegates to `enr_fork_id` free function.
     pub fn enr_fork_id(&self) -> EnrForkId {
-        // If we are unable to read the slot clock we assume that it is prior to genesis and
-        // therefore use the genesis slot.
-        let slot = self.slot().unwrap_or(self.spec.genesis_slot);
-
-        self.spec
-            .enr_fork_id::<T::EthSpec>(slot, self.genesis_validators_root)
+        enr_fork_id::<T>(&self.slot_clock, &self.spec, self.genesis_validators_root)
     }
 
     /// Returns the fork_digest corresponding to an epoch.
-    /// See [`ChainSpec::compute_fork_digest`]
+    ///
+    /// Delegates to `compute_fork_digest` free function.
     pub fn compute_fork_digest(&self, epoch: Epoch) -> [u8; 4] {
-        self.spec
-            .compute_fork_digest(self.genesis_validators_root, epoch)
+        compute_fork_digest(&self.spec, self.genesis_validators_root, epoch)
     }
 
-    /// Calculates the `Duration` to the next fork digest (this could be either a regular or BPO
-    /// hard fork) if it exists and returns it with its corresponding `Epoch`.
+    /// Calculates the `Duration` to the next fork digest and returns it with
+    /// its corresponding `Epoch`.
+    ///
+    /// Delegates to `duration_to_next_digest` free function.
     pub fn duration_to_next_digest(&self) -> Option<(Epoch, Duration)> {
-        // If we are unable to read the slot clock we assume that it is prior to genesis and
-        // therefore use the genesis slot.
-        let slot = self.slot().unwrap_or(self.spec.genesis_slot);
-        let epoch = slot.epoch(T::EthSpec::slots_per_epoch());
-
-        let next_digest_epoch = self.spec.next_digest_epoch(epoch)?;
-        let next_digest_slot = next_digest_epoch.start_slot(T::EthSpec::slots_per_epoch());
-
-        self.slot_clock
-            .duration_to_slot(next_digest_slot)
-            .map(|duration| (next_digest_epoch, duration))
+        duration_to_next_digest::<T>(&self.slot_clock, &self.spec)
     }
 
     /// This method serves to get a sense of the current chain health. It is used in block proposal
@@ -2640,32 +2615,17 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
     }
 
     /// Checks if attestations have been seen from the given `validator_index` at the
-    /// given `epoch`.
+    /// given `epoch`. Includes attestation, aggregation, and block production checks.
     pub fn validator_seen_at_epoch(&self, validator_index: usize, epoch: Epoch) -> bool {
-        // It's necessary to assign these checks to intermediate variables to avoid a deadlock.
-        //
-        // See: https://github.com/sigp/lighthouse/pull/2230#discussion_r620013993
-        let gossip_attested = self
+        let attested_or_aggregated = self
             .attestation_manager
-            .observed_gossip_attesters
-            .read()
-            .index_seen_at_epoch(validator_index, epoch);
-        let block_attested = self
-            .attestation_manager
-            .observed_block_attesters
-            .read()
-            .index_seen_at_epoch(validator_index, epoch);
-        let aggregated = self
-            .attestation_manager
-            .observed_aggregators
-            .read()
-            .index_seen_at_epoch(validator_index, epoch);
+            .validator_seen_at_epoch(validator_index, epoch);
         let produced_block = self
             .observed_block_producers
             .read()
             .index_seen_at_epoch(validator_index as u64, epoch);
 
-        gossip_attested || block_attested || aggregated || produced_block
+        attested_or_aggregated || produced_block
     }
 
     /// Gets the `LightClientBootstrap` object for a requested block root.
@@ -2800,6 +2760,50 @@ impl ChainSegmentResult {
             ChainSegmentResult::Successful { .. } => Ok(()),
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// Free functions: fork digest utilities
+// ---------------------------------------------------------------------------
+
+/// Returns the current ENR fork ID for the chain.
+///
+/// If the slot clock cannot be read, the genesis slot is used.
+pub fn enr_fork_id<T: BeaconChainTypes>(
+    slot_clock: &T::SlotClock,
+    spec: &ChainSpec,
+    genesis_validators_root: Hash256,
+) -> EnrForkId {
+    let slot = slot_clock.now().unwrap_or(spec.genesis_slot);
+    spec.enr_fork_id::<T::EthSpec>(slot, genesis_validators_root)
+}
+
+/// Returns the fork digest corresponding to an epoch.
+///
+/// See [`ChainSpec::compute_fork_digest`].
+pub fn compute_fork_digest(
+    spec: &ChainSpec,
+    genesis_validators_root: Hash256,
+    epoch: Epoch,
+) -> [u8; 4] {
+    spec.compute_fork_digest(genesis_validators_root, epoch)
+}
+
+/// Calculates the `Duration` to the next fork digest (this could be either a regular or BPO
+/// hard fork) if it exists and returns it with its corresponding `Epoch`.
+pub fn duration_to_next_digest<T: BeaconChainTypes>(
+    slot_clock: &T::SlotClock,
+    spec: &ChainSpec,
+) -> Option<(Epoch, Duration)> {
+    let slot = slot_clock.now().unwrap_or(spec.genesis_slot);
+    let epoch = slot.epoch(T::EthSpec::slots_per_epoch());
+
+    let next_digest_epoch = spec.next_digest_epoch(epoch)?;
+    let next_digest_slot = next_digest_epoch.start_slot(T::EthSpec::slots_per_epoch());
+
+    slot_clock
+        .duration_to_slot(next_digest_slot)
+        .map(|duration| (next_digest_epoch, duration))
 }
 
 /// Check that the shuffling at `block_root` is equal to one of the shufflings of `state`.
