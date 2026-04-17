@@ -83,8 +83,8 @@ pub struct BlockProducer<T: BeaconChainTypes> {
     pub(crate) block_times_cache: Arc<RwLock<BlockTimesCache>>,
     pub(crate) canonical_head: Arc<CanonicalHead<T>>,
     pub(crate) attestation_manager: Arc<AttestationManager<T::EthSpec>>,
-    pub(crate) pending_payload_envelopes: Arc<RwLock<PendingPayloadEnvelopes<T::EthSpec>>>,
-    pub(crate) graffiti_calculator: Arc<GraffitiCalculator<T>>,
+    pub pending_payload_envelopes: Arc<RwLock<PendingPayloadEnvelopes<T::EthSpec>>>,
+    pub graffiti_calculator: Arc<GraffitiCalculator<T>>,
     // Cheap-to-clone wrappers around Arc.
     pub(crate) execution_layer: Option<ExecutionLayer<T::EthSpec>>,
     // Copy/Clone value fields.

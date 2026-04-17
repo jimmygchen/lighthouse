@@ -792,7 +792,7 @@ fn check_slashable<T: BeaconChainTypes>(
     block_root: Hash256,
     block_clone: &SignedBeaconBlock<T::EthSpec, FullPayload<T::EthSpec>>,
 ) -> Result<(), BlockError> {
-    let slashable_cache = chain_clone.observed_slashable.read();
+    let slashable_cache = chain_clone.block_importer.observed_slashable.read();
     if slashable_cache
         .is_slashable(
             block_clone.slot(),

@@ -983,6 +983,7 @@ impl<T: BeaconChainTypes> GossipVerifiedBlock<T> {
         }
 
         chain
+            .block_importer
             .observed_slashable
             .write()
             .observe_slashable(block.slot(), block.message().proposer_index(), block_root)
@@ -993,6 +994,7 @@ impl<T: BeaconChainTypes> GossipVerifiedBlock<T> {
         // It's important to double-check that the proposer still hasn't been observed so we don't
         // have a race-condition when verifying two blocks simultaneously.
         match chain
+            .block_importer
             .observed_block_producers
             .write()
             .observe_proposal(block_root, block.message())
@@ -1390,12 +1392,14 @@ impl<T: BeaconChainTypes> ExecutionPendingBlock<T> {
         notify_execution_layer: NotifyExecutionLayer,
     ) -> Result<Self, BlockError> {
         chain
+            .block_importer
             .observed_slashable
             .write()
             .observe_slashable(block.slot(), block.message().proposer_index(), block_root)
             .map_err(|e| BlockError::BeaconChainError(Box::new(e.into())))?;
 
         chain
+            .block_importer
             .observed_block_producers
             .write()
             .observe_proposal(block_root, block.message())

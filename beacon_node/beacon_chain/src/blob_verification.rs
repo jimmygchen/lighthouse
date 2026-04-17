@@ -453,6 +453,7 @@ pub fn validate_blob_sidecar_for_gossip<T: BeaconChainTypes, O: ObservationStrat
     // Verify that this is the first blob sidecar received for the tuple:
     // (block_header.slot, block_header.proposer_index, blob_sidecar.index)
     if chain
+        .block_importer
         .observed_blob_sidecars
         .read()
         .observation_key_is_known(&blob_sidecar)
@@ -566,6 +567,7 @@ pub fn validate_blob_sidecar_for_gossip<T: BeaconChainTypes, O: ObservationStrat
     let blob_sidecar = &kzg_verified_blob.blob;
 
     chain
+        .block_importer
         .observed_slashable
         .write()
         .observe_slashable(
@@ -602,6 +604,7 @@ pub fn observe_gossip_blob<T: BeaconChainTypes>(
     // signing invalid messages. Issue for more background
     // https://github.com/ethereum/consensus-specs/issues/3261
     if chain
+        .block_importer
         .observed_blob_sidecars
         .write()
         .observe_sidecar(blob_sidecar)

@@ -975,28 +975,28 @@ fn after_finalization<T: BeaconChainTypes>(
         .execution_status
         .is_optimistic_or_invalid();
 
-    chain.observed_block_producers.write().prune(
+    chain.block_importer.observed_block_producers.write().prune(
         new_view
             .finalized_checkpoint
             .epoch
             .start_slot(T::EthSpec::slots_per_epoch()),
     );
 
-    chain.observed_blob_sidecars.write().prune(
+    chain.block_importer.observed_blob_sidecars.write().prune(
         new_view
             .finalized_checkpoint
             .epoch
             .start_slot(T::EthSpec::slots_per_epoch()),
     );
 
-    chain.observed_column_sidecars.write().prune(
+    chain.block_importer.observed_column_sidecars.write().prune(
         new_view
             .finalized_checkpoint
             .epoch
             .start_slot(T::EthSpec::slots_per_epoch()),
     );
 
-    chain.observed_slashable.write().prune(
+    chain.block_importer.observed_slashable.write().prune(
         new_view
             .finalized_checkpoint
             .epoch

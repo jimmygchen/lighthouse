@@ -54,6 +54,7 @@ pub fn get_validator_execution_payload_envelope<T: BeaconChainTypes>(
 
                     // Get the envelope from the pending cache (local building only)
                     let envelope = chain
+                        .block_producer
                         .pending_payload_envelopes
                         .read()
                         .get(slot)

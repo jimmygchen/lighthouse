@@ -15,15 +15,10 @@ use crate::events::ServerSentEventHandler;
 use crate::execution_manager::ExecutionManager;
 use crate::execution_payload::PreparePayloadHandle;
 use crate::fork_choice_signal::{ForkChoiceSignalRx, ForkChoiceSignalTx};
-use crate::graffiti_calculator::GraffitiCalculator;
 use crate::light_client_server_cache::LightClientServerCache;
 use crate::migrate::{BackgroundMigrator, ManualFinalizationNotification};
-use crate::observed_block_producers::ObservedBlockProducers;
-use crate::observed_data_sidecars::ObservedDataSidecars;
-use crate::observed_slashable::ObservedSlashable;
 use crate::operations_manager::OperationsManager;
 use crate::payload_bid_verification::payload_bid_cache::GossipVerifiedPayloadBidCache;
-use crate::pending_payload_envelopes::PendingPayloadEnvelopes;
 use crate::persisted_custody::persist_custody_context;
 use crate::pre_finalization_cache::PreFinalizationBlockCache;
 use crate::proposer_preferences_verification::proposer_preference_cache::GossipVerifiedProposerPreferenceCache;
@@ -300,21 +295,6 @@ pub struct BeaconSystem<T: BeaconChainTypes> {
     /// Manages sync committee message and contribution verification, and the
     /// sync aggregation pool.
     pub sync_committee_manager: Arc<SyncCommitteeManager<T::EthSpec>>,
-    /// Maintains a record of which validators have proposed blocks for each slot.
-    pub observed_block_producers: Arc<RwLock<ObservedBlockProducers<T::EthSpec>>>,
-    /// Maintains a record of blob sidecars seen over the gossip network.
-    #[allow(clippy::type_complexity)]
-    pub observed_blob_sidecars:
-        Arc<RwLock<ObservedDataSidecars<BlobSidecar<T::EthSpec>, T::EthSpec>>>,
-    /// Maintains a record of column sidecars seen over the gossip network.
-    #[allow(clippy::type_complexity)]
-    pub observed_column_sidecars:
-        Arc<RwLock<ObservedDataSidecars<DataColumnSidecar<T::EthSpec>, T::EthSpec>>>,
-    /// Maintains a record of slashable message seen over the gossip network or RPC.
-    pub observed_slashable: Arc<RwLock<ObservedSlashable<T::EthSpec>>>,
-    /// Cache of pending execution payload envelopes for local block building.
-    /// Envelopes are stored here during block production and eventually published.
-    pub pending_payload_envelopes: Arc<RwLock<PendingPayloadEnvelopes<T::EthSpec>>>,
     /// Stores information about the canonical head and finalized/justified checkpoints of the
     /// chain. Also contains the fork choice struct, for computing the canonical head.
     pub canonical_head: Arc<CanonicalHead<T>>,
@@ -352,8 +332,6 @@ pub struct BeaconSystem<T: BeaconChainTypes> {
     /// Sender given to tasks, so that if they encounter a state in which execution cannot
     /// continue they can request that everything shuts down.
     pub shutdown_sender: Sender<ShutdownReason>,
-    /// Arbitrary bytes included in the blocks.
-    pub(crate) graffiti_calculator: Arc<GraffitiCalculator<T>>,
     /// Optional slasher.
     pub slasher: Option<Arc<Slasher<T::EthSpec>>>,
     /// Provides monitoring of a set of explicitly defined validators.
@@ -893,6 +871,7 @@ pub fn validator_seen_at_epoch<T: BeaconChainTypes>(
         .attestation_manager
         .validator_seen_at_epoch(validator_index, epoch);
     let produced_block = chain
+        .block_importer
         .observed_block_producers
         .read()
         .index_seen_at_epoch(validator_index as u64, epoch);

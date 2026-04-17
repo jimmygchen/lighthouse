@@ -72,6 +72,7 @@ impl<T: BeaconChainTypes> FetchBlobsBeaconAdapter<T> {
         observation_key: ObservationKey,
     ) -> Option<HashSet<u64>> {
         self.chain
+            .block_importer
             .observed_blob_sidecars
             .read()
             .known_for_observation_key(&observation_key)
@@ -83,6 +84,7 @@ impl<T: BeaconChainTypes> FetchBlobsBeaconAdapter<T> {
         observation_key: ObservationKey,
     ) -> Option<HashSet<ColumnIndex>> {
         self.chain
+            .block_importer
             .observed_column_sidecars
             .read()
             .known_for_observation_key(&observation_key)

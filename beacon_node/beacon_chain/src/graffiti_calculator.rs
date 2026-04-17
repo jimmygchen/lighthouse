@@ -176,7 +176,7 @@ pub fn start_engine_version_cache_refresh_service<T: BeaconChainTypes>(
         return;
     };
     if matches!(
-        chain.graffiti_calculator.beacon_graffiti,
+        chain.block_producer.graffiti_calculator.beacon_graffiti,
         GraffitiOrigin::UserSpecified(_)
     ) {
         debug!("Graffiti is user-specified, not starting engine version cache refresh service");
@@ -185,7 +185,7 @@ pub fn start_engine_version_cache_refresh_service<T: BeaconChainTypes>(
 
     let execution_layer = el_ref.clone();
     let slot_clock = chain.slot_clock.clone();
-    let epoch_duration = chain.graffiti_calculator.epoch_duration;
+    let epoch_duration = chain.block_producer.graffiti_calculator.epoch_duration;
     executor.spawn(
         async move {
             engine_version_cache_refresh_service::<T>(execution_layer, slot_clock, epoch_duration)
@@ -313,6 +313,7 @@ mod tests {
         // grab the slice of the graffiti that corresponds to the lighthouse version
         let graffiti_slice = &harness
             .chain
+            .block_producer
             .graffiti_calculator
             .get_graffiti(GraffitiSettings::Unspecified)
             .await
@@ -339,6 +340,7 @@ mod tests {
 
         let found_graffiti_bytes = harness
             .chain
+            .block_producer
             .graffiti_calculator
             .get_graffiti(GraffitiSettings::Unspecified)
             .await
@@ -390,6 +392,7 @@ mod tests {
 
         let found_graffiti = harness
             .chain
+            .block_producer
             .graffiti_calculator
             .get_graffiti(GraffitiSettings::new(
                 Some(Graffiti::from(graffiti_bytes)),
@@ -429,6 +432,7 @@ mod tests {
             let policy = GraffitiPolicy::AppendClientVersions;
             let found_graffiti_bytes = harness
                 .chain
+                .block_producer
                 .graffiti_calculator
                 .get_graffiti(GraffitiSettings::Specified {
                     graffiti: Graffiti::from(graffiti_bytes),

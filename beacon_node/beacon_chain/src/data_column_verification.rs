@@ -577,6 +577,7 @@ pub fn validate_data_column_sidecar_for_gossip_fulu<T: BeaconChainTypes, O: Obse
             .map_err(|(_, e)| GossipDataColumnError::InvalidKzgProof(e))?;
 
     chain
+        .block_importer
         .observed_slashable
         .write()
         .observe_slashable(
@@ -653,6 +654,7 @@ fn verify_is_unknown_sidecar<T: BeaconChainTypes>(
     column_sidecar: &DataColumnSidecar<T::EthSpec>,
 ) -> Result<(), GossipDataColumnError> {
     if let Some(observation_key) = chain
+        .block_importer
         .observed_column_sidecars
         .read()
         .observation_key_is_known(column_sidecar)
@@ -866,6 +868,7 @@ pub fn observe_gossip_data_column<T: BeaconChainTypes>(
     // signing invalid messages. Issue for more background
     // https://github.com/ethereum/consensus-specs/issues/3261
     if let Some(observation_key) = chain
+        .block_importer
         .observed_column_sidecars
         .write()
         .observe_sidecar(data_column_sidecar)

@@ -4075,6 +4075,7 @@ impl ApiTester {
         let block_root = block.tree_hash_root();
         let envelope = self
             .chain
+            .block_producer
             .pending_payload_envelopes
             .read()
             .get(slot)

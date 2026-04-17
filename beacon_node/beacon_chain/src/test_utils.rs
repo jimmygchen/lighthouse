@@ -1159,6 +1159,7 @@ where
             // Retrieve the cached envelope produced during block production and sign it.
             let signed_envelope = self
                 .chain
+                .block_producer
                 .pending_payload_envelopes
                 .write()
                 .remove(slot)

@@ -17,6 +17,7 @@ use crate::graffiti_calculator::{GraffitiCalculator, GraffitiOrigin};
 use crate::kzg_utils::{build_data_column_sidecars_fulu, build_data_column_sidecars_gloas};
 use crate::light_client_server_cache::LightClientServerCache;
 use crate::migrate::{BackgroundMigrator, MigratorConfig};
+use crate::observed_block_producers::ObservedBlockProducers;
 use crate::observed_data_sidecars::ObservedDataSidecars;
 use crate::observed_slashable::ObservedSlashable;
 use crate::operations_manager::OperationsManager;
@@ -1080,6 +1081,12 @@ where
             Arc::new(RwLock::new(ObservedSlashable::default()));
         let event_handler = self.event_handler.map(Arc::new);
 
+        let observed_block_producers: Arc<RwLock<ObservedBlockProducers<E>>> = <_>::default();
+        let observed_blob_sidecars =
+            Arc::new(RwLock::new(ObservedDataSidecars::new(self.spec.clone())));
+        let observed_column_sidecars =
+            Arc::new(RwLock::new(ObservedDataSidecars::new(self.spec.clone())));
+
         let block_importer = Arc::new(BlockImporter::new(
             self.spec.clone(),
             store.clone(),
@@ -1090,6 +1097,9 @@ where
             validator_monitor.clone(),
             observed_slashable.clone(),
             event_handler.clone(),
+            observed_block_producers,
+            observed_blob_sidecars,
+            observed_column_sidecars,
             block_times_cache.clone(),
             self.slasher.clone(),
             self.light_client_server_tx.clone(),
@@ -1137,16 +1147,6 @@ where
             attestation_manager,
             operations,
             sync_committee_manager,
-            // TODO: allow for persisting and loading the pool from disk.
-            observed_block_producers: <_>::default(),
-            observed_column_sidecars: Arc::new(RwLock::new(ObservedDataSidecars::new(
-                self.spec.clone(),
-            ))),
-            observed_blob_sidecars: Arc::new(RwLock::new(ObservedDataSidecars::new(
-                self.spec.clone(),
-            ))),
-            observed_slashable,
-            pending_payload_envelopes,
             genesis_validators_root,
             genesis_time,
             canonical_head,
@@ -1164,7 +1164,6 @@ where
             light_client_server_cache: LightClientServerCache::new(),
             light_client_server_tx: self.light_client_server_tx,
             shutdown_sender,
-            graffiti_calculator,
             slasher: self.slasher.clone(),
             validator_monitor,
             genesis_backfill_slot,

@@ -39,6 +39,8 @@ use crate::events::ServerSentEventHandler;
 use crate::execution_payload::NotifyExecutionLayer;
 use crate::fetch_blobs::EngineGetBlobsOutput;
 use crate::observed_aggregates::Error as AttestationObservationError;
+use crate::observed_block_producers::ObservedBlockProducers;
+use crate::observed_data_sidecars::ObservedDataSidecars;
 use crate::observed_slashable::ObservedSlashable;
 use crate::validator_monitor::{
     HISTORIC_EPOCHS as VALIDATOR_MONITOR_HISTORIC_EPOCHS, ValidatorMonitor, get_slot_delay_ms,
@@ -90,12 +92,19 @@ pub struct BlockImporter<T: BeaconChainTypes> {
     // Held as direct Arc handles even when current access still goes through free helpers that
     // take `&BeaconSystem<T>`; retaining the Arcs here lets us migrate those helpers to
     // per-component inputs without churning this struct again.
-    #[allow(dead_code)]
     pub(crate) validator_monitor: Arc<RwLock<ValidatorMonitor<T::EthSpec>>>,
-    #[allow(dead_code)]
-    pub(crate) observed_slashable: Arc<RwLock<ObservedSlashable<T::EthSpec>>>,
-    #[allow(dead_code)]
+    pub observed_slashable: Arc<RwLock<ObservedSlashable<T::EthSpec>>>,
     pub(crate) event_handler: Option<Arc<ServerSentEventHandler<T::EthSpec>>>,
+    /// Maintains a record of which validators have proposed blocks for each slot.
+    pub observed_block_producers: Arc<RwLock<ObservedBlockProducers<T::EthSpec>>>,
+    /// Maintains a record of blob sidecars seen over the gossip network.
+    #[allow(clippy::type_complexity)]
+    pub observed_blob_sidecars:
+        Arc<RwLock<ObservedDataSidecars<BlobSidecar<T::EthSpec>, T::EthSpec>>>,
+    /// Maintains a record of column sidecars seen over the gossip network.
+    #[allow(clippy::type_complexity)]
+    pub observed_column_sidecars:
+        Arc<RwLock<ObservedDataSidecars<DataColumnSidecar<T::EthSpec>, T::EthSpec>>>,
     pub(crate) block_times_cache: Arc<RwLock<BlockTimesCache>>,
     pub(crate) slasher: Option<Arc<Slasher<T::EthSpec>>>,
     pub(crate) light_client_server_tx: Option<Sender<LightClientProducerEvent<T::EthSpec>>>,
@@ -115,7 +124,7 @@ pub struct BlockImporter<T: BeaconChainTypes> {
 
 impl<T: BeaconChainTypes> BlockImporter<T> {
     /// Create a new `BlockImporter` from its injected dependencies.
-    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments, clippy::type_complexity)]
     pub fn new(
         spec: Arc<ChainSpec>,
         store: BeaconStore<T>,
@@ -126,6 +135,13 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
         validator_monitor: Arc<RwLock<ValidatorMonitor<T::EthSpec>>>,
         observed_slashable: Arc<RwLock<ObservedSlashable<T::EthSpec>>>,
         event_handler: Option<Arc<ServerSentEventHandler<T::EthSpec>>>,
+        observed_block_producers: Arc<RwLock<ObservedBlockProducers<T::EthSpec>>>,
+        observed_blob_sidecars: Arc<
+            RwLock<ObservedDataSidecars<BlobSidecar<T::EthSpec>, T::EthSpec>>,
+        >,
+        observed_column_sidecars: Arc<
+            RwLock<ObservedDataSidecars<DataColumnSidecar<T::EthSpec>, T::EthSpec>>,
+        >,
         block_times_cache: Arc<RwLock<BlockTimesCache>>,
         slasher: Option<Arc<Slasher<T::EthSpec>>>,
         light_client_server_tx: Option<Sender<LightClientProducerEvent<T::EthSpec>>>,
@@ -145,6 +161,9 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
             validator_monitor,
             observed_slashable,
             event_handler,
+            observed_block_producers,
+            observed_blob_sidecars,
+            observed_column_sidecars,
             block_times_cache,
             slasher,
             light_client_server_tx,
@@ -1297,7 +1316,7 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
                         }
 
                         // Register a server-sent-event for a new head.
-                        if let Some(event_handler) = chain
+                        if let Some(event_handler) = self
                             .event_handler
                             .as_ref()
                             .filter(|handler| handler.has_head_subscribers())
@@ -1454,7 +1473,6 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
             .block_processed(block_root);
 
         import_block_update_metrics_and_events(
-            &chain,
             self,
             block,
             block_root,
@@ -1556,13 +1574,17 @@ fn import_block_update_validator_monitor<T: BeaconChainTypes>(
     }
 
     // Allow the validator monitor to learn about a new valid state.
-    components.validator_monitor.write().process_valid_state(
-        current_slot.epoch(T::EthSpec::slots_per_epoch()),
-        state,
-        &components.spec,
-    );
+    components
+        .block_importer
+        .validator_monitor
+        .write()
+        .process_valid_state(
+            current_slot.epoch(T::EthSpec::slots_per_epoch()),
+            state,
+            &components.spec,
+        );
 
-    let validator_monitor = components.validator_monitor.read();
+    let validator_monitor = components.block_importer.validator_monitor.read();
 
     // Sync aggregate.
     if let Ok(sync_aggregate) = block.body().sync_aggregate() {
@@ -1746,7 +1768,6 @@ fn import_block_update_slasher<T: BeaconChainTypes>(
 }
 
 fn import_block_update_metrics_and_events<T: BeaconChainTypes>(
-    components: &BeaconSystem<T>,
     importer: &BlockImporter<T>,
     block: BeaconBlockRef<T::EthSpec>,
     block_root: Hash256,
@@ -1785,7 +1806,7 @@ fn import_block_update_metrics_and_events<T: BeaconChainTypes>(
         );
     }
 
-    if let Some(event_handler) = components.event_handler.as_ref()
+    if let Some(event_handler) = importer.event_handler.as_ref()
         && event_handler.has_block_subscribers()
     {
         event_handler.register(EventKind::Block(SseBlock {
@@ -1821,7 +1842,7 @@ fn emit_sse_blob_sidecar_events<'a, T: BeaconChainTypes, I>(
 ) where
     I: Iterator<Item = &'a BlobSidecar<T::EthSpec>>,
 {
-    if let Some(event_handler) = components.event_handler.as_ref()
+    if let Some(event_handler) = components.block_importer.event_handler.as_ref()
         && event_handler.has_blob_sidecar_subscribers()
     {
         let imported_blobs = components
@@ -1846,7 +1867,7 @@ fn emit_sse_data_column_sidecar_events<'a, T: BeaconChainTypes, I>(
 ) where
     I: Iterator<Item = &'a DataColumnSidecar<T::EthSpec>>,
 {
-    if let Some(event_handler) = components.event_handler.as_ref()
+    if let Some(event_handler) = components.block_importer.event_handler.as_ref()
         && event_handler.has_data_column_sidecar_subscribers()
     {
         let imported_data_columns = components
@@ -1870,7 +1891,7 @@ fn check_blob_header_signature_and_slashability<'a, T: BeaconChainTypes>(
     block_root: Hash256,
     blobs: impl IntoIterator<Item = &'a BlobSidecar<T::EthSpec>>,
 ) -> Result<(), BlockError> {
-    let mut slashable_cache = components.observed_slashable.write();
+    let mut slashable_cache = components.block_importer.observed_slashable.write();
     for header in blobs
         .into_iter()
         .map(|b| b.signed_block_header.clone())
@@ -1900,7 +1921,7 @@ fn check_data_column_sidecar_header_signature_and_slashability<'a, T: BeaconChai
     block_root: Hash256,
     custody_columns: impl IntoIterator<Item = &'a DataColumnSidecarFulu<T::EthSpec>>,
 ) -> Result<(), BlockError> {
-    let mut slashable_cache = components.observed_slashable.write();
+    let mut slashable_cache = components.block_importer.observed_slashable.write();
     // Process all unique block headers - previous logic assumed all headers were identical and
     // only processed the first one. However, we should not make assumptions about data received
     // from RPC.
