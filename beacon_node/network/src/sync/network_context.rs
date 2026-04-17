@@ -1100,9 +1100,11 @@ impl<T: BeaconChainTypes> SyncNetworkContext<T> {
             .cached_data_column_indexes(&block_root)
             .unwrap_or_default();
 
-        let current_epoch = self.chain.epoch().map_err(|e| {
-            RpcRequestSendError::InternalError(format!("Unable to read slot clock {:?}", e))
-        })?;
+        let current_epoch =
+            beacon_chain::state_query::current_epoch::<T::EthSpec, _>(&self.chain.slot_clock)
+                .map_err(|e| {
+                    RpcRequestSendError::InternalError(format!("Unable to read slot clock {:?}", e))
+                })?;
 
         // Include only the blob indexes not yet imported (received through gossip)
         let mut custody_indexes_to_fetch = self

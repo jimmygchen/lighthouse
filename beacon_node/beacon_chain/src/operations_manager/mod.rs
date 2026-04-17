@@ -28,11 +28,10 @@ type PersistFn<E> = Box<dyn Fn(&OperationPool<E>) -> Result<(), Error> + Send + 
 pub struct OperationsManager<E: EthSpec> {
     spec: Arc<ChainSpec>,
     op_pool: Arc<OperationPool<E>>,
-    pub(crate) observed_voluntary_exits: Mutex<ObservedOperations<SignedVoluntaryExit, E>>,
-    pub(crate) observed_proposer_slashings: Mutex<ObservedOperations<ProposerSlashing, E>>,
-    pub(crate) observed_attester_slashings: Mutex<ObservedOperations<AttesterSlashing<E>, E>>,
-    pub(crate) observed_bls_to_execution_changes:
-        Mutex<ObservedOperations<SignedBlsToExecutionChange, E>>,
+    pub observed_voluntary_exits: Mutex<ObservedOperations<SignedVoluntaryExit, E>>,
+    pub observed_proposer_slashings: Mutex<ObservedOperations<ProposerSlashing, E>>,
+    pub observed_attester_slashings: Mutex<ObservedOperations<AttesterSlashing<E>, E>>,
+    pub observed_bls_to_execution_changes: Mutex<ObservedOperations<SignedBlsToExecutionChange, E>>,
     /// Optional persistence callback, set when a store is available.
     /// `None` in lightweight test fixtures that don't need persistence.
     persist_fn: Option<PersistFn<E>>,

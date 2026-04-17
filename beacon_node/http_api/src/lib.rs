@@ -692,8 +692,12 @@ pub fn serve<T: BeaconChainTypes>(
                             (None, Some(parent_root)) => {
                                 let (parent, execution_optimistic, _parent_finalized) =
                                     BlockId::from_root(parent_root).blinded_block(&chain)?;
-                                let (root, _slot) = chain
-                                    .forwards_iter_block_roots(parent.slot())
+                                let (root, _slot) =
+                                    beacon_chain::state_query::forwards_iter_block_roots(
+                                        &chain.store,
+                                        &chain.canonical_head,
+                                        parent.slot(),
+                                    )
                                     .map_err(warp_utils::reject::unhandled_error)?
                                     // Ignore any skip-slots immediately following the parent.
                                     .find(|res| {
@@ -780,10 +784,17 @@ pub fn serve<T: BeaconChainTypes>(
                     let (block, _execution_optimistic, _finalized) =
                         BlockId::from_root(root).blinded_block(&chain)?;
 
-                    let canonical = chain
-                        .block_root_at_slot(block.slot(), WhenSlotSkipped::None)
-                        .map_err(warp_utils::reject::unhandled_error)?
-                        .is_some_and(|canonical| root == canonical);
+                    let canonical = beacon_chain::state_query::block_root_at_slot(
+                        &chain.store,
+                        &chain.canonical_head,
+                        &chain.spec,
+                        &chain.slot_clock,
+                        chain.genesis_block_root,
+                        block.slot(),
+                        WhenSlotSkipped::None,
+                    )
+                    .map_err(warp_utils::reject::unhandled_error)?
+                    .is_some_and(|canonical| root == canonical);
 
                     let data = api_types::BlockHeaderData {
                         root,
@@ -2773,8 +2784,10 @@ pub fn serve<T: BeaconChainTypes>(
              chain: Arc<BeaconChain<T>>| {
                 task_spawner.blocking_json_task(Priority::P0, move || {
                     // Ensure the request is for either the current, previous or next epoch.
-                    let current_epoch =
-                        chain.epoch().map_err(warp_utils::reject::unhandled_error)?;
+                    let current_epoch = beacon_chain::state_query::current_epoch::<T::EthSpec, _>(
+                        &chain.slot_clock,
+                    )
+                    .map_err(warp_utils::reject::unhandled_error)?;
                     let prev_epoch = current_epoch.saturating_sub(Epoch::new(1));
                     let next_epoch = current_epoch.saturating_add(Epoch::new(1));
 

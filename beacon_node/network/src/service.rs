@@ -265,8 +265,7 @@ impl<T: BeaconChainTypes> NetworkService<T> {
             Box::pin(next_topic_subscriptions_delay(&beacon_chain).into());
         let next_unsubscribe = Box::pin(None.into());
 
-        let current_slot = beacon_chain
-            .slot()
+        let current_slot = beacon_chain::state_query::current_slot(&beacon_chain.slot_clock)
             .unwrap_or(beacon_chain.spec.genesis_slot);
 
         // Create a fork context for the given config and genesis validators root
@@ -400,7 +399,8 @@ impl<T: BeaconChainTypes> NetworkService<T> {
     pub fn required_gossip_fork_digests(&self) -> Vec<[u8; 4]> {
         let fork_context = &self.fork_context;
         let spec = &self.beacon_chain.spec;
-        let current_slot = beacon_chain::state_query::current_slot(&self.beacon_chain.slot_clock).unwrap_or(spec.genesis_slot);
+        let current_slot = beacon_chain::state_query::current_slot(&self.beacon_chain.slot_clock)
+            .unwrap_or(spec.genesis_slot);
         let current_epoch = current_slot.epoch(T::EthSpec::slots_per_epoch());
 
         let mut result = vec![fork_context.context_bytes(current_epoch)];
@@ -835,7 +835,10 @@ impl<T: BeaconChainTypes> NetworkService<T> {
             self.beacon_chain.genesis_validators_root,
         );
         // if we are unable to read the slot clock we assume that it is prior to genesis
-        let current_epoch = self.beacon_chain.epoch().unwrap_or(
+        let current_epoch = beacon_chain::state_query::current_epoch::<T::EthSpec, _>(
+            &self.beacon_chain.slot_clock,
+        )
+        .unwrap_or(
             self.beacon_chain
                 .spec
                 .genesis_slot

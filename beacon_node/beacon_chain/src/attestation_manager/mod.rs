@@ -217,6 +217,22 @@ impl<E: EthSpec> AttestationManager<E> {
         self.get_from_pool_filtered(&key, &execution_status_fn)
     }
 
+    /// Returns an aggregated electra `Attestation`, if any, matching the given slot, root and committee index.
+    pub fn get_aggregated_attestation_electra(
+        &self,
+        slot: Slot,
+        attestation_data_root: &Hash256,
+        committee_index: CommitteeIndex,
+        execution_status_fn: impl Fn(&Hash256) -> Option<fork_choice::ExecutionStatus>,
+    ) -> Result<Option<Attestation<E>>, Error> {
+        let key = crate::naive_aggregation_pool::AttestationKey::new_electra(
+            slot,
+            *attestation_data_root,
+            committee_index,
+        );
+        self.get_from_pool_filtered(&key, &execution_status_fn)
+    }
+
     /// Look up an attestation in the pool and filter it for optimistic/invalid execution status.
     fn get_from_pool_filtered(
         &self,

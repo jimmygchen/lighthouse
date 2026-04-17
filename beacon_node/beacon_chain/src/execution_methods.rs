@@ -8,15 +8,12 @@ use crate::beacon_chain::{
     BeaconChainTypes, INVALID_JUSTIFIED_PAYLOAD_SHUTDOWN_REASON, OverrideForkchoiceUpdate,
     PrePayloadAttributes,
 };
-use crate::canonical_head::CanonicalHead;
-use crate::chain_config::ChainConfig;
 use crate::errors::BeaconChainError as Error;
 use crate::events::ServerSentEventHandler;
-use crate::execution_manager::ExecutionManager;
 use crate::{BeaconChain, BeaconChainError};
 use eth2::beacon_response::ForkVersionedResponse;
 use eth2::types::{EventKind, SseExtendedPayloadAttributes};
-use execution_layer::{ExecutionBlockHash, ExecutionLayer, PayloadAttributes, PayloadStatus};
+use execution_layer::{ExecutionBlockHash, PayloadAttributes, PayloadStatus};
 use fork_choice::{ForkchoiceUpdateParameters, InvalidationOperation};
 use futures::channel::mpsc::Sender;
 use logging::crit;

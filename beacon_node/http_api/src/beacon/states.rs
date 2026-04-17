@@ -363,8 +363,15 @@ pub fn get_beacon_state_committees<T: BeaconChainTypes>(
                                 // Find the decision block and skip to another method on any kind
                                 // of failure
                                 let shuffling_id = if let Ok(Some(shuffling_decision_block)) =
-                                    chain.block_root_at_slot(decision_slot, WhenSlotSkipped::Prev)
-                                {
+                                    beacon_chain::state_query::block_root_at_slot(
+                                        &chain.store,
+                                        &chain.canonical_head,
+                                        &chain.spec,
+                                        &chain.slot_clock,
+                                        chain.genesis_block_root,
+                                        decision_slot,
+                                        WhenSlotSkipped::Prev,
+                                    ) {
                                     Some(AttestationShufflingId {
                                         shuffling_epoch: epoch,
                                         shuffling_decision_block,

@@ -128,15 +128,15 @@ impl<T: BeaconChainTypes> RangeDataColumnBatchRequest<T> {
         let mut naughty_peers = vec![];
         let mut result: DataColumnSidecarList<T::EthSpec> = vec![];
 
-        let forward_blocks_iter = self
-            .beacon_chain
-            .forwards_iter_block_roots_until(
-                self.epoch.start_slot(T::EthSpec::slots_per_epoch()),
-                self.epoch.end_slot(T::EthSpec::slots_per_epoch()),
-            )
-            .map_err(|_| {
-                CouplingError::InternalError("Failed to fetch block root iterator".to_string())
-            })?;
+        let forward_blocks_iter = beacon_chain::state_query::forwards_iter_block_roots_until(
+            &self.beacon_chain.store,
+            &self.beacon_chain.canonical_head,
+            self.epoch.start_slot(T::EthSpec::slots_per_epoch()),
+            self.epoch.end_slot(T::EthSpec::slots_per_epoch()),
+        )
+        .map_err(|_| {
+            CouplingError::InternalError("Failed to fetch block root iterator".to_string())
+        })?;
 
         for block_iter_result in forward_blocks_iter {
             let (block_root, slot) = block_iter_result.map_err(|_| {

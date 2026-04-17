@@ -385,8 +385,10 @@ pub fn post_validator_liveness_epoch<T: BeaconChainTypes>(
              chain: Arc<BeaconChain<T>>| {
                 task_spawner.blocking_json_task(Priority::P0, move || {
                     // Ensure the request is for either the current, previous or next epoch.
-                    let current_epoch =
-                        chain.epoch().map_err(warp_utils::reject::unhandled_error)?;
+                    let current_epoch = beacon_chain::state_query::current_epoch::<T::EthSpec, _>(
+                        &chain.slot_clock,
+                    )
+                    .map_err(warp_utils::reject::unhandled_error)?;
                     let prev_epoch = current_epoch.saturating_sub(Epoch::new(1));
                     let next_epoch = current_epoch.saturating_add(Epoch::new(1));
 
@@ -515,6 +517,7 @@ pub fn post_validator_register_validator<T: BeaconChainTypes>(
                             .into_iter()
                             .filter_map(|register_data| {
                                 chain
+                                    .validator_query
                                     .validator_pubkey_cache
                                     .read()
                                     .get_index(&register_data.message.pubkey)
@@ -921,7 +924,18 @@ pub fn post_validator_aggregate_and_proofs<T: BeaconChainTypes>(
                         match {
                             beacon_chain::metrics::inc_counter(&beacon_chain::metrics::AGGREGATED_ATTESTATION_PROCESSING_REQUESTS);
                             let _timer = beacon_chain::metrics::start_timer(&beacon_chain::metrics::AGGREGATED_ATTESTATION_GOSSIP_VERIFICATION_TIMES);
-                            let ctx = beacon_chain::attestation_verification::AttestationVerificationContext::from_chain(&chain);
+                            let ctx = beacon_chain::attestation_verification::AttestationVerificationContext {
+                                canonical_head: &chain.canonical_head,
+                                attestation_manager: &chain.attestation_manager,
+                                validator_query: &chain.validator_query,
+                                store: &chain.store,
+                                slot_clock: &chain.slot_clock,
+                                spec: &chain.spec,
+                                config: &chain.config,
+                                genesis_validators_root: chain.genesis_validators_root,
+                                slasher: chain.slasher.as_deref(),
+                                pre_finalization_block_cache: &chain.pre_finalization_block_cache,
+                            };
                             beacon_chain::attestation_verification::VerifiedAggregatedAttestation::verify(aggregate, &ctx)
                                 .inspect(|v| {
                                     if let Some(event_handler) = chain.event_handler.as_ref()

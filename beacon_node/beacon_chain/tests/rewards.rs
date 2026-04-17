@@ -432,10 +432,16 @@ async fn test_rewards_altair() {
     let StandardAttestationRewards {
         ideal_rewards,
         total_rewards,
-    } = harness
-        .chain
-        .compute_attestation_rewards(Epoch::new(target_epoch), vec![])
-        .unwrap();
+    } = beacon_chain::attestation_rewards::compute_attestation_rewards(
+        &harness.chain.store,
+        &harness.chain.canonical_head,
+        &harness.chain.slot_clock,
+        harness.chain.genesis_state_root,
+        &harness.chain.spec,
+        Epoch::new(target_epoch),
+        vec![],
+    )
+    .unwrap();
 
     // assert ideal rewards are greater than 0
     assert!(
@@ -523,10 +529,16 @@ async fn test_rewards_altair_inactivity_leak() {
     let StandardAttestationRewards {
         ideal_rewards,
         total_rewards,
-    } = harness
-        .chain
-        .compute_attestation_rewards(Epoch::new(target_epoch), vec![])
-        .unwrap();
+    } = beacon_chain::attestation_rewards::compute_attestation_rewards(
+        &harness.chain.store,
+        &harness.chain.canonical_head,
+        &harness.chain.slot_clock,
+        harness.chain.genesis_state_root,
+        &harness.chain.spec,
+        Epoch::new(target_epoch),
+        vec![],
+    )
+    .unwrap();
 
     // assert inactivity penalty for both ideal rewards and individual validators
     assert!(ideal_rewards.iter().all(|reward| reward.inactivity == 0));
@@ -640,10 +652,16 @@ async fn test_rewards_altair_inactivity_leak_justification_epoch() {
     let StandardAttestationRewards {
         ideal_rewards,
         total_rewards,
-    } = harness
-        .chain
-        .compute_attestation_rewards(Epoch::new(target_epoch), vec![])
-        .unwrap();
+    } = beacon_chain::attestation_rewards::compute_attestation_rewards(
+        &harness.chain.store,
+        &harness.chain.canonical_head,
+        &harness.chain.slot_clock,
+        harness.chain.genesis_state_root,
+        &harness.chain.spec,
+        Epoch::new(target_epoch),
+        vec![],
+    )
+    .unwrap();
 
     // assert ideal rewards are greater than 0
     assert!(
@@ -721,10 +739,16 @@ async fn test_rewards_electra() {
     let StandardAttestationRewards {
         ideal_rewards,
         total_rewards,
-    } = harness
-        .chain
-        .compute_attestation_rewards(Epoch::new(target_epoch), vec![])
-        .unwrap();
+    } = beacon_chain::attestation_rewards::compute_attestation_rewards(
+        &harness.chain.store,
+        &harness.chain.canonical_head,
+        &harness.chain.slot_clock,
+        harness.chain.genesis_state_root,
+        &harness.chain.spec,
+        Epoch::new(target_epoch),
+        vec![],
+    )
+    .unwrap();
 
     // assert ideal rewards are greater than 0
     assert_eq!(
@@ -817,10 +841,16 @@ async fn check_all_electra_rewards(
     let StandardAttestationRewards {
         ideal_rewards,
         total_rewards,
-    } = harness
-        .chain
-        .compute_attestation_rewards(Epoch::new(0), vec![])
-        .unwrap();
+    } = beacon_chain::attestation_rewards::compute_attestation_rewards(
+        &harness.chain.store,
+        &harness.chain.canonical_head,
+        &harness.chain.slot_clock,
+        harness.chain.genesis_state_root,
+        &harness.chain.spec,
+        Epoch::new(0),
+        vec![],
+    )
+    .unwrap();
 
     // assert ideal rewards are greater than 0
     assert_eq!(
@@ -916,11 +946,17 @@ async fn check_all_base_rewards_for_subset(
 
     for epoch in 0..epochs.as_u64() {
         // compute reward deltas in epoch
-        let total_rewards = harness
-            .chain
-            .compute_attestation_rewards(Epoch::new(epoch), validator_subset_ids.clone())
-            .unwrap()
-            .total_rewards;
+        let total_rewards = beacon_chain::attestation_rewards::compute_attestation_rewards(
+            &harness.chain.store,
+            &harness.chain.canonical_head,
+            &harness.chain.slot_clock,
+            harness.chain.genesis_state_root,
+            &harness.chain.spec,
+            Epoch::new(epoch),
+            validator_subset_ids.clone(),
+        )
+        .unwrap()
+        .total_rewards;
 
         // apply attestation rewards to balances
         apply_attestation_rewards(&mut balances, total_rewards);

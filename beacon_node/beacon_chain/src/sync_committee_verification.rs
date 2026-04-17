@@ -31,8 +31,7 @@ use crate::observed_attesters::SlotSubcommitteeIndex;
 use crate::sync_committee_manager::SyncCommitteeManager;
 use crate::validator_query_service::ValidatorQueryService;
 use crate::{
-    BeaconChain, BeaconChainError, BeaconChainTypes, BeaconStore, metrics,
-    observed_aggregates::ObserveOutcome,
+    BeaconChainError, BeaconChainTypes, BeaconStore, metrics, observed_aggregates::ObserveOutcome,
 };
 use bls::AggregateSignature;
 use bls::{PublicKeyBytes, verify_signature_sets};

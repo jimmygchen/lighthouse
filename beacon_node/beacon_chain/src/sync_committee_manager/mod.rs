@@ -33,8 +33,7 @@ use types::{
 pub struct SyncCommitteeManager<E: EthSpec> {
     spec: Arc<ChainSpec>,
     op_pool: Arc<OperationPool<E>>,
-    pub(crate) naive_sync_aggregation_pool:
-        RwLock<NaiveAggregationPool<SyncContributionAggregateMap<E>>>,
+    pub naive_sync_aggregation_pool: RwLock<NaiveAggregationPool<SyncContributionAggregateMap<E>>>,
     pub(crate) observed_sync_contributions: RwLock<ObservedSyncContributions<E>>,
     pub(crate) observed_sync_contributors: RwLock<ObservedSyncContributors<E>>,
     pub(crate) observed_sync_aggregators: RwLock<ObservedSyncAggregators<E>>,

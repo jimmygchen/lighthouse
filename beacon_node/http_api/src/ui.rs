@@ -101,7 +101,9 @@ pub fn get_validator_info<T: BeaconChainTypes>(
     request_data: ValidatorInfoRequestData,
     chain: Arc<BeaconChain<T>>,
 ) -> Result<ValidatorInfoResponse, warp::Rejection> {
-    let current_epoch = chain.epoch().map_err(unhandled_error)?;
+    let current_epoch =
+        beacon_chain::state_query::current_epoch::<T::EthSpec, _>(&chain.slot_clock)
+            .map_err(unhandled_error)?;
 
     let epochs = current_epoch.saturating_sub(HISTORIC_EPOCHS).as_u64()..=current_epoch.as_u64();
 

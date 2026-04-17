@@ -110,17 +110,17 @@ pub fn validate_light_client_updates_request<T: BeaconChainTypes>(
         ));
     }
 
-    let current_sync_period = chain
-        .epoch()
-        .map_err(|_| {
-            warp_utils::reject::custom_server_error("failed to get current epoch".to_string())
-        })?
-        .sync_committee_period(&chain.spec)
-        .map_err(|_| {
-            warp_utils::reject::custom_server_error(
-                "failed to get current sync committee period".to_string(),
-            )
-        })?;
+    let current_sync_period =
+        beacon_chain::state_query::current_epoch::<T::EthSpec, _>(&chain.slot_clock)
+            .map_err(|_| {
+                warp_utils::reject::custom_server_error("failed to get current epoch".to_string())
+            })?
+            .sync_committee_period(&chain.spec)
+            .map_err(|_| {
+                warp_utils::reject::custom_server_error(
+                    "failed to get current sync committee period".to_string(),
+                )
+            })?;
 
     if query.start_period > current_sync_period {
         return Err(warp_utils::reject::custom_bad_request(

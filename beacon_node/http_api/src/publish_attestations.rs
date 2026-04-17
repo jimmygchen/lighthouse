@@ -81,10 +81,18 @@ fn verify_and_publish_attestation<T: BeaconChainTypes>(
         let _timer = beacon_chain::metrics::start_timer(
             &beacon_chain::metrics::UNAGGREGATED_ATTESTATION_GOSSIP_VERIFICATION_TIMES,
         );
-        let ctx =
-            beacon_chain::attestation_verification::AttestationVerificationContext::from_chain(
-                chain,
-            );
+        let ctx = beacon_chain::attestation_verification::AttestationVerificationContext {
+            canonical_head: &chain.canonical_head,
+            attestation_manager: &chain.attestation_manager,
+            validator_query: &chain.validator_query,
+            store: &chain.store,
+            slot_clock: &chain.slot_clock,
+            spec: &chain.spec,
+            config: &chain.config,
+            genesis_validators_root: chain.genesis_validators_root,
+            slasher: chain.slasher.as_deref(),
+            pre_finalization_block_cache: &chain.pre_finalization_block_cache,
+        };
         beacon_chain::attestation_verification::VerifiedUnaggregatedAttestation::verify(
             attestation,
             None,

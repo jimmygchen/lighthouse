@@ -75,17 +75,24 @@ impl BlockId {
                 let execution_optimistic = chain
                     .is_optimistic_or_invalid_head()
                     .map_err(warp_utils::reject::unhandled_error)?;
-                let root = chain
-                    .block_root_at_slot(*slot, WhenSlotSkipped::None)
-                    .map_err(warp_utils::reject::unhandled_error)
-                    .and_then(|root_opt| {
-                        root_opt.ok_or_else(|| {
-                            warp_utils::reject::custom_not_found(format!(
-                                "beacon block at slot {}",
-                                slot
-                            ))
-                        })
-                    })?;
+                let root = beacon_chain::state_query::block_root_at_slot(
+                    &chain.store,
+                    &chain.canonical_head,
+                    &chain.spec,
+                    &chain.slot_clock,
+                    chain.genesis_block_root,
+                    *slot,
+                    WhenSlotSkipped::None,
+                )
+                .map_err(warp_utils::reject::unhandled_error)
+                .and_then(|root_opt| {
+                    root_opt.ok_or_else(|| {
+                        warp_utils::reject::custom_not_found(format!(
+                            "beacon block at slot {}",
+                            slot
+                        ))
+                    })
+                })?;
                 let finalized = *slot
                     <= chain
                         .canonical_head
@@ -128,9 +135,16 @@ impl BlockId {
                             ))
                         })?;
                     let block_slot = blinded_block.slot();
-                    let finalized = chain
-                        .is_finalized_block(root, block_slot)
-                        .map_err(warp_utils::reject::unhandled_error)?;
+                    let finalized = beacon_chain::state_query::is_finalized_block(
+                        &chain.store,
+                        &chain.canonical_head,
+                        &chain.spec,
+                        &chain.slot_clock,
+                        chain.genesis_block_root,
+                        root,
+                        block_slot,
+                    )
+                    .map_err(warp_utils::reject::unhandled_error)?;
                     Ok((*root, execution_optimistic, finalized))
                 } else {
                     Err(warp_utils::reject::custom_not_found(format!(

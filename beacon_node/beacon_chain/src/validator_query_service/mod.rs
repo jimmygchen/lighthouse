@@ -17,7 +17,7 @@ use std::collections::HashMap;
 /// State is passed as method parameters -- this component never fetches head
 /// state, slot clock values, or similar chain-level context on its own.
 pub struct ValidatorQueryService<T: BeaconChainTypes> {
-    pub(crate) validator_pubkey_cache: RwLock<ValidatorPubkeyCache<T>>,
+    pub validator_pubkey_cache: RwLock<ValidatorPubkeyCache<T>>,
 }
 
 impl<T: BeaconChainTypes> ValidatorQueryService<T> {

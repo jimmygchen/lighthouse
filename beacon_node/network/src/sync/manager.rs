@@ -615,7 +615,9 @@ impl<T: BeaconChainTypes> SyncManager<T> {
                     // to being synced
                     let mut sync_state = {
                         let head = self.chain.best_slot();
-                        let current_slot = self.beacon_chain::state_query::current_slot(&chain.slot_clock).unwrap_or_else(|_| Slot::new(0));
+                        let current_slot =
+                            beacon_chain::state_query::current_slot(&self.chain.slot_clock)
+                                .unwrap_or_else(|_| Slot::new(0));
 
                         let peers = self.network_globals().peers.read();
                         if current_slot >= head

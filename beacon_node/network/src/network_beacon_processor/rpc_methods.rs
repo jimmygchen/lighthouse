@@ -80,9 +80,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                 hex::encode(remote.fork_digest())
             ))
         } else if *remote.head_slot()
-            > self
-                .chain
-                .slot()
+            > beacon_chain::state_query::current_slot(&self.chain.slot_clock)
                 .unwrap_or_else(|_| self.chain.slot_clock.genesis_slot())
                 + FUTURE_SLOT_TOLERANCE
         {
@@ -111,11 +109,17 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                 // Peer's finalized slot is in range for a quick block root check in our freezer DB.
                 // If that block root check fails, reject them as they're on a different finalized
                 // chain.
-                if self
-                    .chain
-                    .block_root_at_slot(remote_finalized_slot, WhenSlotSkipped::Prev)
-                    .map(|root_opt| root_opt != Some(*remote.finalized_root()))
-                    .map_err(Box::new)?
+                if beacon_chain::state_query::block_root_at_slot(
+                    &self.chain.store,
+                    &self.chain.canonical_head,
+                    &self.chain.spec,
+                    &self.chain.slot_clock,
+                    self.chain.genesis_block_root,
+                    remote_finalized_slot,
+                    WhenSlotSkipped::Prev,
+                )
+                .map(|root_opt| root_opt != Some(*remote.finalized_root()))
+                .map_err(Box::new)?
                 {
                     Some("Different finalized chain".to_string())
                 } else {
@@ -875,9 +879,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             .map(|(root, _)| *root)
             .collect::<Vec<_>>();
 
-        let current_slot = self
-            .chain
-            .slot()
+        let current_slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock)
             .unwrap_or_else(|_| self.chain.slot_clock.genesis_slot());
 
         let log_results = |peer_id, blocks_sent| {
@@ -1092,30 +1094,33 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         start_slot: u64,
         count: u64,
     ) -> Result<Vec<(Hash256, Slot)>, (RpcErrorResponse, &'static str)> {
-        let forwards_block_root_iter =
-            match self.chain.forwards_iter_block_roots(Slot::from(start_slot)) {
-                Ok(iter) => iter,
-                Err(BeaconChainError::HistoricalBlockOutOfRange {
-                    slot,
-                    oldest_block_slot,
-                }) => {
-                    debug!(
-                        requested_slot = %slot,
-                        oldest_known_slot = %oldest_block_slot,
-                        "Range request failed during backfill"
-                    );
-                    return Err((RpcErrorResponse::ResourceUnavailable, "Backfilling"));
-                }
-                Err(e) => {
-                    error!(
-                        %start_slot,
-                        count,
-                        error = ?e,
-                        "Unable to obtain root iter for range request"
-                    );
-                    return Err((RpcErrorResponse::ServerError, "Database error"));
-                }
-            };
+        let forwards_block_root_iter = match beacon_chain::state_query::forwards_iter_block_roots(
+            &self.chain.store,
+            &self.chain.canonical_head,
+            Slot::from(start_slot),
+        ) {
+            Ok(iter) => iter,
+            Err(BeaconChainError::HistoricalBlockOutOfRange {
+                slot,
+                oldest_block_slot,
+            }) => {
+                debug!(
+                    requested_slot = %slot,
+                    oldest_known_slot = %oldest_block_slot,
+                    "Range request failed during backfill"
+                );
+                return Err((RpcErrorResponse::ResourceUnavailable, "Backfilling"));
+            }
+            Err(e) => {
+                error!(
+                    %start_slot,
+                    count,
+                    error = ?e,
+                    "Unable to obtain root iter for range request"
+                );
+                return Err((RpcErrorResponse::ServerError, "Database error"));
+            }
+        };
 
         // Pick out the required blocks, ignoring skip-slots.
         let maybe_block_roots = process_results(forwards_block_root_iter, |iter| {
@@ -1222,9 +1227,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             .map(|(root, _)| *root)
             .collect::<Vec<_>>();
 
-        let current_slot = self
-            .chain
-            .slot()
+        let current_slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock)
             .unwrap_or_else(|_| self.chain.slot_clock.genesis_slot());
 
         let log_results = |peer_id, payloads_sent| {
@@ -1440,9 +1443,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         let block_roots_and_slots =
             self.get_block_roots_for_slot_range(req.start_slot, effective_count, "BlobsByRange")?;
 
-        let current_slot = self
-            .chain
-            .slot()
+        let current_slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock)
             .unwrap_or_else(|_| self.chain.slot_clock.genesis_slot());
 
         let log_results = |peer_id, req: BlobsByRangeRequest, blobs_sent| {
@@ -1663,9 +1664,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             }
         }
 
-        let current_slot = self
-            .chain
-            .slot()
+        let current_slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock)
             .unwrap_or_else(|_| self.chain.slot_clock.genesis_slot());
 
         debug!(

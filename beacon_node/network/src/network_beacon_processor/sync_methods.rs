@@ -293,7 +293,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             "RPC blobs received"
         );
 
-        if let Ok(current_slot) = self.beacon_chain::state_query::current_slot(&chain.slot_clock)
+        if let Ok(current_slot) = beacon_chain::state_query::current_slot(&self.chain.slot_clock)
             && current_slot == slot
         {
             // Note: this metric is useful to gauge how long it takes to receive blobs requested
@@ -304,8 +304,13 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             metrics::observe_duration(&metrics::BEACON_BLOB_RPC_SLOT_START_DELAY_TIME, delay);
         }
 
-        let result =
-            beacon_chain::block_import_methods::process_rpc_blobs(&self.chain, slot, block_root, blobs).await;
+        let result = beacon_chain::block_import_methods::process_rpc_blobs(
+            &self.chain,
+            slot,
+            block_root,
+            blobs,
+        )
+        .await;
         register_process_result_metrics(&result, metrics::BlockSource::Rpc, "blobs");
 
         match &result {
@@ -362,7 +367,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             return;
         };
 
-        if let Ok(current_slot) = self.beacon_chain::state_query::current_slot(&chain.slot_clock)
+        if let Ok(current_slot) = beacon_chain::state_query::current_slot(&self.chain.slot_clock)
             && current_slot == slot
         {
             let delay = get_slot_delay_ms(seen_timestamp, slot, &self.chain.slot_clock);
@@ -381,9 +386,11 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             "RPC custody data columns received"
         );
 
-        let result =
-            beacon_chain::block_import_methods::process_rpc_custody_columns(&self.chain, custody_columns)
-                .await;
+        let result = beacon_chain::block_import_methods::process_rpc_custody_columns(
+            &self.chain,
+            custody_columns,
+        )
+        .await;
         register_process_result_metrics(&result, metrics::BlockSource::Rpc, "custody_columns");
 
         match &result {

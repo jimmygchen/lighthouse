@@ -101,8 +101,16 @@ impl StateId {
                     .map_err(BeaconChainError::DBError)
                     .map_err(warp_utils::reject::unhandled_error)?
                 {
-                    let finalization_status = chain
-                        .state_finalization_and_canonicity(root, hot_summary.slot)
+                    let finalization_status =
+                        beacon_chain::state_query::state_finalization_and_canonicity(
+                            &chain.store,
+                            &chain.canonical_head,
+                            &chain.spec,
+                            &chain.slot_clock,
+                            chain.genesis_state_root,
+                            root,
+                            hot_summary.slot,
+                        )
                         .map_err(warp_utils::reject::unhandled_error)?;
                     let finalized = finalization_status.is_finalized();
                     let fork_choice = chain.canonical_head.fork_choice_read_lock();
@@ -151,12 +159,18 @@ impl StateId {
             }
         };
 
-        let root = chain
-            .state_root_at_slot(slot)
-            .map_err(warp_utils::reject::unhandled_error)?
-            .ok_or_else(|| {
-                warp_utils::reject::custom_not_found(format!("beacon state at slot {}", slot))
-            })?;
+        let root = beacon_chain::state_query::state_root_at_slot(
+            &chain.store,
+            &chain.canonical_head,
+            &chain.spec,
+            &chain.slot_clock,
+            chain.genesis_state_root,
+            slot,
+        )
+        .map_err(warp_utils::reject::unhandled_error)?
+        .ok_or_else(|| {
+            warp_utils::reject::custom_not_found(format!("beacon state at slot {}", slot))
+        })?;
 
         Ok((root, execution_optimistic, finalized))
     }

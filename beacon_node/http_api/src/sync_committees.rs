@@ -92,7 +92,8 @@ fn duties_from_state_load<T: BeaconChainTypes>(
     // Most of the time, `tolerant_current_epoch` will be equal to `current_epoch`. However, during
     // the last `MAXIMUM_GOSSIP_CLOCK_DISPARITY` duration of the epoch `tolerant_current_epoch`
     // will equal `current_epoch + 1`
-    let current_epoch = chain.epoch()?;
+    let current_epoch =
+        beacon_chain::state_query::current_epoch::<T::EthSpec, _>(&chain.slot_clock)?;
     let tolerant_current_epoch = chain
         .slot_clock
         .now_with_future_tolerance(chain.spec.maximum_gossip_clock_disparity())
@@ -124,7 +125,13 @@ fn duties_from_state_load<T: BeaconChainTypes>(
         )
         .start_slot(T::EthSpec::slots_per_epoch());
 
-        let state = chain.state_at_slot(load_slot, StateSkipConfig::WithoutStateRoots)?;
+        let state = beacon_chain::state_query::state_at_slot(
+            &chain.store,
+            &chain.canonical_head,
+            &chain.spec,
+            load_slot,
+            StateSkipConfig::WithoutStateRoots,
+        )?;
 
         state
             .get_sync_committee_duties(request_epoch, request_indices, &chain.spec)
@@ -156,10 +163,15 @@ fn verify_unknown_validators<T: BeaconChainTypes>(
                 if let BeaconStateError::UnknownValidator(idx) = err {
                     let request_epoch_state = match &mut request_epoch_state {
                         Some(state) => state,
-                        None => request_epoch_state.insert(chain.state_at_slot(
-                            request_epoch.start_slot(T::EthSpec::slots_per_epoch()),
-                            StateSkipConfig::WithoutStateRoots,
-                        )?),
+                        None => {
+                            request_epoch_state.insert(beacon_chain::state_query::state_at_slot(
+                                &chain.store,
+                                &chain.canonical_head,
+                                &chain.spec,
+                                request_epoch.start_slot(T::EthSpec::slots_per_epoch()),
+                                StateSkipConfig::WithoutStateRoots,
+                            )?)
+                        }
                     };
                     request_epoch_state
                         .get_validator(idx)
@@ -316,6 +328,7 @@ pub fn get_subnet_positions_for_sync_committee_message<T: BeaconChainTypes>(
     chain: &BeaconChain<T>,
 ) -> Result<HashMap<SyncSubnetId, Vec<usize>>, SyncVerificationError> {
     let pubkey = chain
+        .validator_query
         .validator_pubkey_cache
         .read()
         .get_pubkey_bytes(sync_message.validator_index as usize)
@@ -329,7 +342,13 @@ pub fn get_subnet_positions_for_sync_committee_message<T: BeaconChainTypes>(
             sync_message.get_slot(),
             head_state,
             |load_slot| {
-                chain.state_at_slot(load_slot, beacon_chain::StateSkipConfig::WithoutStateRoots)
+                beacon_chain::state_query::state_at_slot(
+                    &chain.store,
+                    &chain.canonical_head,
+                    &chain.spec,
+                    load_slot,
+                    beacon_chain::StateSkipConfig::WithoutStateRoots,
+                )
             },
         )?
     };
@@ -515,6 +534,7 @@ fn add_to_naive_sync_aggregation_pool<T: BeaconChainTypes>(
                 SyncCommitteeContribution::from_message(sync_message, subnet_id.into(), *position)?;
 
             match chain
+                .sync_committee_manager
                 .naive_sync_aggregation_pool
                 .write()
                 .insert(&contribution)

@@ -248,12 +248,16 @@ pub fn post_beacon_pool_voluntary_exits<T: BeaconChainTypes>(
                     // Fetch state and epoch for verification (caller DI pattern).
                     let head = chain.canonical_head.cached_head();
                     let head_state = &head.snapshot.beacon_state;
-                    let wall_clock_epoch = chain.epoch().map_err(|e| {
-                        warp_utils::reject::object_invalid(format!(
-                            "gossip verification failed: {:?}",
-                            e
-                        ))
-                    })?;
+                    let wall_clock_epoch =
+                        beacon_chain::state_query::current_epoch::<T::EthSpec, _>(
+                            &chain.slot_clock,
+                        )
+                        .map_err(|e| {
+                            warp_utils::reject::object_invalid(format!(
+                                "gossip verification failed: {:?}",
+                                e
+                            ))
+                        })?;
 
                     let outcome = chain
                         .operations
@@ -342,7 +346,13 @@ pub fn post_beacon_pool_proposer_slashings<T: BeaconChainTypes>(
              network_tx: UnboundedSender<NetworkMessage<T::EthSpec>>| {
                 task_spawner.blocking_json_task(Priority::P0, move || {
                     // Fetch wall clock state for verification (caller DI pattern).
-                    let wall_clock_state = chain.wall_clock_state().map_err(|e| {
+                    let wall_clock_state = beacon_chain::state_query::wall_clock_state(
+                        &chain.store,
+                        &chain.canonical_head,
+                        &chain.spec,
+                        &chain.slot_clock,
+                    )
+                    .map_err(|e| {
                         warp_utils::reject::object_invalid(format!(
                             "gossip verification failed: {:?}",
                             e
@@ -469,7 +479,13 @@ pub fn post_beacon_pool_attester_slashings<T: BeaconChainTypes>(
              network_tx: UnboundedSender<NetworkMessage<T::EthSpec>>| {
                 task_spawner.blocking_json_task(Priority::P0, move || {
                     // Fetch wall clock state for verification (caller DI pattern).
-                    let wall_clock_state = chain.wall_clock_state().map_err(|e| {
+                    let wall_clock_state = beacon_chain::state_query::wall_clock_state(
+                        &chain.store,
+                        &chain.canonical_head,
+                        &chain.spec,
+                        &chain.slot_clock,
+                    )
+                    .map_err(|e| {
                         warp_utils::reject::object_invalid(format!(
                             "gossip verification failed: {:?}",
                             e

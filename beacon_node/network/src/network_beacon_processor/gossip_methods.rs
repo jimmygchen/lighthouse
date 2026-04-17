@@ -1556,7 +1556,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
 
         // Try read the current slot to determine if this block should be imported now or after some
         // delay.
-        match self.beacon_chain::state_query::current_slot(&chain.slot_clock) {
+        match beacon_chain::state_query::current_slot(&self.chain.slot_clock) {
             // We only need to do a simple check about the block slot and the current slot since the
             // `verify_block_for_gossip` function already ensures that the block is within the
             // tolerance for block imports.
@@ -1799,19 +1799,25 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         // Fetch state context for verification (moved from BeaconChain delegation wrapper).
         let head_snapshot = self.chain.head().snapshot;
         let head_state = &head_snapshot.beacon_state;
-        let wall_clock_epoch = match self.chain.epoch() {
-            Ok(epoch) => epoch,
-            Err(e) => {
-                debug!(
-                    validator_index,
-                    %peer_id,
-                    error = ?e,
-                    "Dropping exit: unable to read slot clock"
-                );
-                self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Ignore);
-                return;
-            }
-        };
+        let wall_clock_epoch =
+            match beacon_chain::state_query::current_epoch::<T::EthSpec, _>(&self.chain.slot_clock)
+            {
+                Ok(epoch) => epoch,
+                Err(e) => {
+                    debug!(
+                        validator_index,
+                        %peer_id,
+                        error = ?e,
+                        "Dropping exit: unable to read slot clock"
+                    );
+                    self.propagate_validation_result(
+                        message_id,
+                        peer_id,
+                        MessageAcceptance::Ignore,
+                    );
+                    return;
+                }
+            };
 
         let exit = match self.chain.operations.verify_voluntary_exit(
             voluntary_exit,
@@ -1882,7 +1888,12 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         let validator_index = proposer_slashing.signed_header_1.message.proposer_index;
 
         // Fetch wall-clock state for verification (moved from BeaconChain delegation wrapper).
-        let wall_clock_state = match self.chain.wall_clock_state() {
+        let wall_clock_state = match beacon_chain::state_query::wall_clock_state(
+            &self.chain.store,
+            &self.chain.canonical_head,
+            &self.chain.spec,
+            &self.chain.slot_clock,
+        ) {
             Ok(state) => state,
             Err(e) => {
                 debug!(
@@ -1962,7 +1973,12 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         attester_slashing: AttesterSlashing<T::EthSpec>,
     ) {
         // Fetch wall-clock state for verification (moved from BeaconChain delegation wrapper).
-        let wall_clock_state = match self.chain.wall_clock_state() {
+        let wall_clock_state = match beacon_chain::state_query::wall_clock_state(
+            &self.chain.store,
+            &self.chain.canonical_head,
+            &self.chain.spec,
+            &self.chain.slot_clock,
+        ) {
             Ok(state) => state,
             Err(e) => {
                 debug!(
@@ -2046,12 +2062,13 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         let address = bls_to_execution_change.message.to_execution_address;
 
         // Fetch state context for verification.
-        let is_post_capella = match self.beacon_chain::state_query::current_slot(&chain.slot_clock).map(|slot| {
-            self.chain
-                .spec
-                .fork_name_at_slot::<T::EthSpec>(slot)
-                .capella_enabled()
-        }) {
+        let is_post_capella = match beacon_chain::state_query::current_slot(&self.chain.slot_clock)
+            .map(|slot| {
+                self.chain
+                    .spec
+                    .fork_name_at_slot::<T::EthSpec>(slot)
+                    .capella_enabled()
+            }) {
             Ok(v) => v,
             Err(e) => {
                 debug!(
@@ -3775,7 +3792,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
 
         let envelope_slot = verified_envelope.signed_envelope.slot();
         let beacon_block_root = verified_envelope.signed_envelope.beacon_block_root();
-        match self.beacon_chain::state_query::current_slot(&chain.slot_clock) {
+        match beacon_chain::state_query::current_slot(&self.chain.slot_clock) {
             // We only need to do a simple check about the envelope slot vs the current slot because
             // `verify_envelope_for_gossip` already ensures that the envelope slot is within tolerance
             // for envelope imports.

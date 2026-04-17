@@ -270,7 +270,9 @@ impl TestRig {
             executor: harness.runtime.task_executor.clone(),
         };
 
-        let fork_name = chain.spec.fork_name_at_slot::<E>(beacon_chain::state_query::current_slot(&chain.slot_clock).unwrap());
+        let fork_name = chain.spec.fork_name_at_slot::<E>(
+            beacon_chain::state_query::current_slot(&chain.slot_clock).unwrap(),
+        );
 
         // All current tests expect synced and EL online state
         beacon_processor

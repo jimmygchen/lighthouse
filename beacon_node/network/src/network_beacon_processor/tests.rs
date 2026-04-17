@@ -198,7 +198,7 @@ impl TestRig {
         let head = harness.chain.head_snapshot();
 
         assert_eq!(
-            harness.beacon_chain::state_query::current_slot(&chain.slot_clock).unwrap(),
+            beacon_chain::state_query::current_slot(&harness.chain.slot_clock).unwrap(),
             head.beacon_block.slot() + 1,
             "precondition: current slot is one after head"
         );
@@ -212,7 +212,10 @@ impl TestRig {
             .execution_block_generator()
             .set_min_blob_count(1);
         let (next_block_tuple, next_state) = harness
-            .make_block(head.beacon_state.clone(), harness.beacon_chain::state_query::current_slot(&chain.slot_clock).unwrap())
+            .make_block(
+                head.beacon_state.clone(),
+                beacon_chain::state_query::current_slot(&harness.chain.slot_clock).unwrap(),
+            )
             .await;
 
         let head_state_root = head.beacon_state_root();
@@ -222,7 +225,7 @@ impl TestRig {
                 &head.beacon_state,
                 head_state_root,
                 head.beacon_block_root,
-                harness.beacon_chain::state_query::current_slot(&chain.slot_clock).unwrap(),
+                beacon_chain::state_query::current_slot(&harness.chain.slot_clock).unwrap(),
             )
             .into_iter()
             .flatten()
