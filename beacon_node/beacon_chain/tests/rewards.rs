@@ -15,7 +15,9 @@ use state_processing::{BlockReplayError, BlockReplayer};
 use std::array::IntoIter;
 use std::collections::HashMap;
 use std::sync::{Arc, LazyLock};
-use types::{ChainSpec, ForkName, Slot};
+use types::{
+    BlindedPayload, ChainSpec, ForkName, SignedBeaconBlock, SignedExecutionPayloadEnvelope, Slot,
+};
 
 pub const VALIDATOR_COUNT: usize = 64;
 
@@ -130,13 +132,11 @@ async fn test_sync_committee_rewards() {
         .unwrap()
         .unwrap();
 
-    let reward_payload =
-        beacon_chain::sync_committee_rewards::compute_sync_committee_rewards::<E, _>(
-            &chain.spec,
-            block.message(),
-            &mut state,
-        )
-        .unwrap();
+    let reward_payload = beacon_chain::sync_committee_rewards::compute_sync_committee_rewards::<
+        EphemeralHarnessType<E>,
+        _,
+    >(&chain.spec, block.message(), &mut state)
+    .unwrap();
 
     let rewards = reward_payload
         .iter()
@@ -411,11 +411,10 @@ async fn test_rewards_altair() {
 
         // calculate sync committee rewards / penalties
         let reward_payload =
-            beacon_chain::sync_committee_rewards::compute_sync_committee_rewards::<E, _>(
-                &harness.chain.spec,
-                signed_block.message(),
-                &mut state,
-            )
+            beacon_chain::sync_committee_rewards::compute_sync_committee_rewards::<
+                EphemeralHarnessType<E>,
+                _,
+            >(&harness.chain.spec, signed_block.message(), &mut state)
             .unwrap();
 
         for reward in reward_payload {
@@ -506,11 +505,10 @@ async fn test_rewards_altair_inactivity_leak() {
 
         // calculate sync committee rewards / penalties
         let reward_payload =
-            beacon_chain::sync_committee_rewards::compute_sync_committee_rewards::<E, _>(
-                &harness.chain.spec,
-                signed_block.message(),
-                &mut state,
-            )
+            beacon_chain::sync_committee_rewards::compute_sync_committee_rewards::<
+                EphemeralHarnessType<E>,
+                _,
+            >(&harness.chain.spec, signed_block.message(), &mut state)
             .unwrap();
 
         for reward in reward_payload {
@@ -621,11 +619,10 @@ async fn test_rewards_altair_inactivity_leak_justification_epoch() {
 
         // calculate sync committee rewards / penalties
         let reward_payload =
-            beacon_chain::sync_committee_rewards::compute_sync_committee_rewards::<E, _>(
-                &harness.chain.spec,
-                signed_block.message(),
-                &mut state,
-            )
+            beacon_chain::sync_committee_rewards::compute_sync_committee_rewards::<
+                EphemeralHarnessType<E>,
+                _,
+            >(&harness.chain.spec, signed_block.message(), &mut state)
             .unwrap();
 
         for reward in reward_payload {
@@ -718,11 +715,10 @@ async fn test_rewards_electra() {
 
         // calculate sync committee rewards / penalties
         let reward_payload =
-            beacon_chain::sync_committee_rewards::compute_sync_committee_rewards::<E, _>(
-                &harness.chain.spec,
-                signed_block.message(),
-                &mut state,
-            )
+            beacon_chain::sync_committee_rewards::compute_sync_committee_rewards::<
+                EphemeralHarnessType<E>,
+                _,
+            >(&harness.chain.spec, signed_block.message(), &mut state)
             .unwrap();
 
         for reward in reward_payload {
@@ -820,11 +816,10 @@ async fn check_all_electra_rewards(
 
         // calculate sync committee rewards / penalties
         let reward_payload =
-            beacon_chain::sync_committee_rewards::compute_sync_committee_rewards::<E, _>(
-                &harness.chain.spec,
-                signed_block.message(),
-                &mut state,
-            )
+            beacon_chain::sync_committee_rewards::compute_sync_committee_rewards::<
+                EphemeralHarnessType<E>,
+                _,
+            >(&harness.chain.spec, signed_block.message(), &mut state)
             .unwrap();
 
         for reward in reward_payload {
@@ -906,24 +901,36 @@ async fn check_all_base_rewards_for_subset(
     // calculate proposal awards
     let mut proposal_rewards_map = HashMap::new();
     for slot in 1..(E::slots_per_epoch() * epochs.as_u64()) {
-        if let Some(block) = harness
-            .chain
-            .block_at_slot(Slot::new(slot), WhenSlotSkipped::None)
-            .unwrap()
+        if let Some(block) = beacon_chain::state_query::block_at_slot(
+            &harness.chain.store,
+            &harness.chain.canonical_head,
+            &harness.chain.spec,
+            &harness.chain.slot_clock,
+            harness.chain.genesis_block_root,
+            Slot::new(slot),
+            WhenSlotSkipped::None,
+        )
+        .unwrap()
         {
-            let parent_state = harness
-                .chain
-                .state_at_slot(Slot::new(slot - 1), StateSkipConfig::WithoutStateRoots)
-                .unwrap();
+            let parent_state = beacon_chain::state_query::state_at_slot(
+                &harness.chain.store,
+                &harness.chain.canonical_head,
+                &harness.chain.spec,
+                Slot::new(slot - 1),
+                StateSkipConfig::WithoutStateRoots,
+            )
+            .unwrap();
 
             // TODO(gloas): handle payloads?
+            let blocks: Vec<SignedBeaconBlock<E, BlindedPayload<E>>> = vec![];
+            let envelopes: Vec<SignedExecutionPayloadEnvelope<E>> = vec![];
             let mut pre_state = BlockReplayer::<E, BlockReplayError, IntoIter<_, 0>>::new(
                 parent_state,
                 &harness.spec,
             )
             .no_signature_verification()
             .minimal_block_root_verification()
-            .apply_blocks(vec![], vec![], Some(block.slot()))
+            .apply_blocks(blocks, envelopes, Some(block.slot()))
             .unwrap()
             .into_state();
 

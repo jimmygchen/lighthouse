@@ -44,11 +44,12 @@ async fn blob_sidecar_event_on_process_gossip_blob() {
     let gossip_verified_blob = GossipVerifiedBlob::__assumed_valid(sidecar);
     let expected_sse_blobs = SseBlobSidecar::from_blob_sidecar(gossip_verified_blob.as_blob());
 
-    let _ = harness
-        .chain
-        .process_gossip_blob(gossip_verified_blob)
-        .await
-        .unwrap();
+    let _ = beacon_chain::block_import_methods::process_gossip_blob(
+        &harness.chain,
+        gossip_verified_blob,
+    )
+    .await
+    .unwrap();
 
     let sidecar_event = blob_event_receiver.try_recv().unwrap();
     assert_eq!(sidecar_event, EventKind::BlobSidecar(expected_sse_blobs));
@@ -105,11 +106,13 @@ async fn data_column_sidecar_event_on_process_gossip_data_column() {
         gossip_verified_data_column.as_data_column(),
     );
 
-    let _ = harness
-        .chain
-        .process_gossip_data_columns(vec![gossip_verified_data_column], || Ok(()))
-        .await
-        .unwrap();
+    let _ = beacon_chain::block_import_methods::process_gossip_data_columns(
+        &harness.chain,
+        vec![gossip_verified_data_column],
+        || Ok(()),
+    )
+    .await
+    .unwrap();
 
     let sidecar_event = data_column_event_receiver.try_recv().unwrap();
     assert_eq!(
@@ -157,11 +160,14 @@ async fn blob_sidecar_event_on_process_rpc_blobs() {
         SseBlobSidecar::from_blob_sidecar(blob_2.as_ref()),
     ];
 
-    let _ = harness
-        .chain
-        .process_rpc_blobs(slot, blob_1.block_root(), blobs)
-        .await
-        .unwrap();
+    let _ = beacon_chain::block_import_methods::process_rpc_blobs(
+        &harness.chain,
+        slot,
+        blob_1.block_root(),
+        blobs,
+    )
+    .await
+    .unwrap();
 
     let mut sse_blobs: Vec<SseBlobSidecar> = vec![];
     while let Ok(sidecar_event) = blob_event_receiver.try_recv() {
@@ -207,11 +213,12 @@ async fn data_column_sidecar_event_on_process_rpc_columns() {
     let sidecar = data_column_sidecars[0].clone();
     let expected_sse_data_column = SseDataColumnSidecar::from_data_column_sidecar(&sidecar);
 
-    let _ = harness
-        .chain
-        .process_rpc_custody_columns(vec![sidecar])
-        .await
-        .unwrap();
+    let _ = beacon_chain::block_import_methods::process_rpc_custody_columns(
+        &harness.chain,
+        vec![sidecar],
+    )
+    .await
+    .unwrap();
 
     let sidecar_event = data_column_event_receiver.try_recv().unwrap();
     assert_eq!(
