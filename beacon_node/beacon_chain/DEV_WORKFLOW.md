@@ -75,9 +75,8 @@ explicit and enables testing without `BeaconChainHarness`.
 | `AttestationVerificationContext` | `attestation_verification.rs` | All attestation verification functions |
 | `BlockImportContext` | `block_import_methods.rs` | Block import helper free functions |
 | `BlockProductionContext` | `block_production/mod.rs` | Block production helper free functions |
-| `ExecutionOrchestrationContext` | `execution_methods.rs` | Execution layer orchestration free functions |
 
-All four have a `from_chain` constructor for backward compatibility.
+All three have a `from_chain` constructor for backward compatibility.
 
 ## Testing Pattern
 
@@ -145,9 +144,8 @@ harness tests continue to work unchanged.
 | `DataAvailabilityManager<T>` | `data_availability_manager/` | Blob/column sidecars, DA checker, KZG | 407 |
 | `ExecutionManager<T>` | `execution_manager/` | Proposer cache, fork choice signal, `block_is_known_to_fork_choice` | 341 |
 | `ValidatorQueryService<T>` | `validator_query_service/` | Validator pubkey cache | 300 |
-| `BlockImportState<E>` | `block_import_state/` | Block times cache, observed block producers, pre-finalization cache | 197 |
 
-Total: 46 unit tests across all component modules.
+Total: 62 unit tests across all component modules.
 
 ## Migration Guide for Existing Contributors
 
@@ -182,7 +180,6 @@ Each domain has its own component struct that owns state and logic:
 | `DataAvailabilityManager<T>` | Blob/column sidecars, DA checker, KZG |
 | `ExecutionManager<T>` | Proposer cache, fork choice signal, `block_is_known_to_fork_choice` |
 | `ValidatorQueryService<T>` | Validator pubkey cache and index lookups |
-| `BlockImportState<E>` | Block times cache, observed block producers, pre-finalization cache |
 
 Components are constructed with `::new()` and take explicit dependencies.
 No hidden global state.
@@ -203,7 +200,7 @@ Cross-component orchestration uses **free functions + context structs**:
 |------|---------------|--------|
 | `block_import_methods.rs` | `BlockImportContext` | Block import pipeline |
 | `block_production/mod.rs` | `BlockProductionContext` | Block production |
-| `execution_methods.rs` | `ExecutionOrchestrationContext` | Execution layer interactions |
+| `execution_methods.rs` | *(no context struct -- methods on `impl BeaconChain<T>`)* | Execution layer interactions |
 | `state_query.rs` | *(no context struct -- bare free functions)* | State and block root queries |
 
 `state_query.rs` functions take `(store, canonical_head, spec)` as
@@ -278,9 +275,9 @@ fn rejects_attestation_from_optimistic_block() {
 
 ## What Remains on BeaconChain
 
-`BeaconChain<T>` still has ~2860 lines across three files:
+`BeaconChain<T>` (renamed to `BeaconComponents<T>`) still has methods across these files:
 
-- `beacon_chain.rs` (~2860 lines) -- orchestration methods, state queries
+- `beacon_components.rs` (~1025 lines) -- struct definition, zero methods
 - `block_import_methods.rs` (~1830 lines) -- block import pipeline
 - `execution_methods.rs` (~620 lines) -- execution layer methods
 - `block_production/` (~2590 lines) -- block production pipeline

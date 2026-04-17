@@ -42,6 +42,7 @@ After:
 | `AttestationVerificationContext` | `attestation_verification.rs` | All attestation verification |
 | `BlockImportContext` | `block_import_methods.rs` | Block import helper free functions |
 | `BlockProductionContext` | `block_production/mod.rs` | Block production helper free functions |
+| `SyncCommitteeVerificationContext` | `sync_committee_verification.rs` | Sync committee verification |
 
 Each has a module-private `*_from_chain()` helper that constructs the context from `&BeaconChain<T>`. This is a backward-compat bridge -- new callers should construct directly from individual component refs.
 
