@@ -149,6 +149,133 @@ harness tests continue to work unchanged.
 
 Total: 46 unit tests across all component modules.
 
+## Migration Guide for Existing Contributors
+
+If you already know the `beacon_chain` crate from before modularization,
+here is where things moved and why.
+
+### BeaconChain is now a data struct
+
+`BeaconChain<T>` has **pub fields and no methods** in `beacon_chain.rs`.
+There is no `impl BeaconChain<T>` block in that file. The struct is a
+bag of components -- callers access them directly via the pub fields.
+
+Some `impl BeaconChain<T>` blocks still exist in other files
+(`block_import_methods.rs`, `execution_methods.rs`,
+`block_production/mod.rs`, `state_query.rs`, etc.) as thin delegation
+wrappers annotated with `TODO(modularize)`. These exist only so external
+callers can keep calling `chain.method()` during migration -- they will
+be removed.
+
+**The rule**: don't add `impl BeaconChain<T>`. Add logic to the
+appropriate component, or write a free function with a context struct.
+
+### Where business logic lives
+
+Each domain has its own component struct that owns state and logic:
+
+| Component | What it owns |
+|-----------|-------------|
+| `AttestationManager<E>` | Attestation pools, observed attesters/aggregators, shuffling cache |
+| `OperationsManager<E>` | Voluntary exits, proposer/attester slashings, BLS-to-execution changes |
+| `SyncCommitteeManager<E>` | Sync aggregation pool, observed contributions/contributors |
+| `DataAvailabilityManager<T>` | Blob/column sidecars, DA checker, KZG |
+| `ExecutionManager<T>` | Proposer cache, fork choice signal, `block_is_known_to_fork_choice` |
+| `ValidatorQueryService<T>` | Validator pubkey cache and index lookups |
+| `BlockImportState<E>` | Block times cache, observed block producers, pre-finalization cache |
+
+Components are constructed with `::new()` and take explicit dependencies.
+No hidden global state.
+
+### Where verification happens
+
+- **Attestation verification**: Uses `AttestationVerificationContext`
+  (in `attestation_verification.rs`), not `&BeaconChain`. Takes refs to
+  `CanonicalHead`, `AttestationManager`, `ValidatorQueryService`, etc.
+- **Sync committee verification**: Still takes `&BeaconChain` --
+  migration pending.
+
+### Where orchestration lives
+
+Cross-component orchestration uses **free functions + context structs**:
+
+| File | Context struct | Domain |
+|------|---------------|--------|
+| `block_import_methods.rs` | `BlockImportContext` | Block import pipeline |
+| `block_production/mod.rs` | `BlockProductionContext` | Block production |
+| `execution_methods.rs` | `ExecutionOrchestrationContext` | Execution layer interactions |
+| `state_query.rs` | *(no context struct -- bare free functions)* | State and block root queries |
+
+`state_query.rs` functions take `(store, canonical_head, spec)` as
+explicit params. Example: `forwards_iter_block_roots(store,
+canonical_head, start_slot)`.
+
+All context structs have a `from_chain` constructor for backward compat.
+
+### Persistence
+
+Components that need to persist data implement `Drop` themselves:
+
+- `OperationsManager` -- persists the operation pool on drop
+- `CanonicalHead` -- persists fork choice on drop
+- `DataAvailabilityManager` -- persists the custody context on drop
+
+There is no `BeaconChain::drop`. Each component is responsible for its
+own shutdown cleanup.
+
+### Testing
+
+Components are directly constructable -- no `BeaconChainHarness` needed
+for unit tests:
+
+```rust
+let manager = OperationsManager::<E>::new(spec, op_pool);
+let result = manager.verify_voluntary_exit(exit, &state, epoch);
+assert!(result.is_ok());
+```
+
+Use `BeaconChainHarness` only for integration tests that need the full
+pipeline (state transitions, fork choice, database).
+
+### Test naming convention
+
+Test names read as specifications:
+
+```
+<verb>_<scenario>[_<expected_outcome>]
+```
+
+Examples from the codebase:
+
+```rust
+fn valid_exit_accepted() { ... }
+fn duplicate_exit_returns_already_known() { ... }
+fn get_aggregated_attestation_rejects_optimistic_block() { ... }
+fn slot_prior_to_bellatrix_when_no_fork_epoch() { ... }
+```
+
+Inside the test body, use **Given / When / Then** comments to mark
+phases. This is not mandatory for trivial tests, but helps readers
+follow the intent of anything beyond a few lines:
+
+```rust
+#[test]
+fn rejects_attestation_from_optimistic_block() {
+    // Given an attestation in the pool referencing an optimistic block
+    let manager = make_manager();
+    let attestation = make_attestation(&spec, slot, block_root, 0);
+    manager.add_to_naive_aggregation_pool(attestation.to_ref()).unwrap();
+
+    // When we retrieve it with execution status = Optimistic
+    let result = manager.get_aggregated_attestation(attestation.to_ref(), |_| {
+        Some(ExecutionStatus::Optimistic(ExecutionBlockHash::zero()))
+    });
+
+    // Then it's rejected
+    assert!(matches!(result, Err(Error::HeadBlockNotFullyVerified { .. })));
+}
+```
+
 ## What Remains on BeaconChain
 
 `BeaconChain<T>` still has ~2860 lines across three files:
