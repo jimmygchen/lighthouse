@@ -867,7 +867,8 @@ mod test {
         let head = chain.head_snapshot();
         let parent_state = head.beacon_state.clone();
 
-        let target_slot = chain.slot().expect("should get slot") + 1;
+        let target_slot =
+            crate::state_query::current_slot(&chain.slot_clock).expect("should get slot") + 1;
         let parent_root = head.beacon_block_root;
         let parent_block = chain
             .store

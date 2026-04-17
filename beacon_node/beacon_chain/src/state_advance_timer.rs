@@ -144,7 +144,7 @@ async fn state_advance_timer<T: BeaconChainTypes>(
         // Compute the current slot here at approx 3/4 through the slot. Even though this slot is
         // only used by fork choice we need to calculate it here rather than after the state
         // advance, in case the state advance flows over into the next slot.
-        let current_slot = match beacon_chain.slot() {
+        let current_slot = match crate::state_query::current_slot(&beacon_chain.slot_clock) {
             Ok(slot) => slot,
             Err(e) => {
                 warn!(

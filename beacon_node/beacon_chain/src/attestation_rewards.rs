@@ -47,9 +47,15 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         // Get state
         let state_slot = (epoch + 1).end_slot(T::EthSpec::slots_per_epoch());
 
-        let state_root = self
-            .state_root_at_slot(state_slot)?
-            .ok_or(BeaconChainError::NoStateForSlot(state_slot))?;
+        let state_root = crate::state_query::state_root_at_slot(
+            &self.store,
+            &self.canonical_head,
+            &self.spec,
+            &self.slot_clock,
+            self.genesis_state_root,
+            state_slot,
+        )?
+        .ok_or(BeaconChainError::NoStateForSlot(state_slot))?;
 
         // This branch is reached from the HTTP API. We assume the user wants
         // to cache states so that future calls are faster.

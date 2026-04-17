@@ -189,7 +189,10 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
                 let next_epoch_end = match &mut next_epoch_end {
                     Some(next_epoch_end) => next_epoch_end,
                     None => {
-                        let state = self.state_at_slot(
+                        let state = crate::state_query::state_at_slot(
+                            &self.store,
+                            &self.canonical_head,
+                            &self.spec,
                             epoch.safe_add(1)?.end_slot(T::EthSpec::slots_per_epoch()),
                             StateSkipConfig::WithoutStateRoots,
                         )?;
@@ -208,7 +211,10 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
                 match &mut current_epoch_end {
                     Some(current_epoch_end) => current_epoch_end,
                     None => {
-                        let state = self.state_at_slot(
+                        let state = crate::state_query::state_at_slot(
+                            &self.store,
+                            &self.canonical_head,
+                            &self.spec,
                             epoch.end_slot(T::EthSpec::slots_per_epoch()),
                             StateSkipConfig::WithoutStateRoots,
                         )?;

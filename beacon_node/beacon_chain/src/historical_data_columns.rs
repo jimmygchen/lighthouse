@@ -69,12 +69,13 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             .map(|data_column| ((data_column.slot(), *data_column.index()), data_column))
             .collect::<HashMap<_, _>>();
 
-        let forward_blocks_iter = self
-            .forwards_iter_block_roots_until(
-                epoch.start_slot(T::EthSpec::slots_per_epoch()),
-                epoch.end_slot(T::EthSpec::slots_per_epoch()),
-            )
-            .map_err(|e| HistoricalDataColumnError::BeaconChainError(Box::new(e)))?;
+        let forward_blocks_iter = crate::state_query::forwards_iter_block_roots_until(
+            &self.store,
+            &self.canonical_head,
+            epoch.start_slot(T::EthSpec::slots_per_epoch()),
+            epoch.end_slot(T::EthSpec::slots_per_epoch()),
+        )
+        .map_err(|e| HistoricalDataColumnError::BeaconChainError(Box::new(e)))?;
 
         for block_iter_result in forward_blocks_iter {
             let (block_root, slot) = block_iter_result

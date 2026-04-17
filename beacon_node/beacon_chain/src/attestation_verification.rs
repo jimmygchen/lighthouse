@@ -92,23 +92,6 @@ pub struct AttestationVerificationContext<'a, T: BeaconChainTypes> {
 }
 
 impl<'a, T: BeaconChainTypes> AttestationVerificationContext<'a, T> {
-    /// Create a context from a `BeaconChain` reference — convenience for callers
-    /// that haven't yet migrated to holding component refs directly.
-    pub fn from_chain(chain: &'a crate::BeaconChain<T>) -> Self {
-        Self {
-            canonical_head: &chain.canonical_head,
-            attestation_manager: &chain.attestation_manager,
-            validator_query: &chain.validator_query,
-            store: &chain.store,
-            slot_clock: &chain.slot_clock,
-            spec: &chain.spec,
-            config: &chain.config,
-            genesis_validators_root: chain.genesis_validators_root,
-            slasher: chain.slasher.as_deref(),
-            pre_finalization_block_cache: &chain.pre_finalization_block_cache,
-        }
-    }
-
     /// Check if a block root is a pre-finalization block.
     pub fn is_pre_finalization_block(&self, block_root: Hash256) -> Result<bool, BeaconChainError> {
         let head_snapshot = self.canonical_head.cached_head().snapshot.clone();

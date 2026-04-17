@@ -198,7 +198,7 @@ impl TestRig {
         let head = harness.chain.head_snapshot();
 
         assert_eq!(
-            harness.chain.slot().unwrap(),
+            harness.beacon_chain::state_query::current_slot(&chain.slot_clock).unwrap(),
             head.beacon_block.slot() + 1,
             "precondition: current slot is one after head"
         );
@@ -212,7 +212,7 @@ impl TestRig {
             .execution_block_generator()
             .set_min_blob_count(1);
         let (next_block_tuple, next_state) = harness
-            .make_block(head.beacon_state.clone(), harness.chain.slot().unwrap())
+            .make_block(head.beacon_state.clone(), harness.beacon_chain::state_query::current_slot(&chain.slot_clock).unwrap())
             .await;
 
         let head_state_root = head.beacon_state_root();
@@ -222,7 +222,7 @@ impl TestRig {
                 &head.beacon_state,
                 head_state_root,
                 head.beacon_block_root,
-                harness.chain.slot().unwrap(),
+                harness.beacon_chain::state_query::current_slot(&chain.slot_clock).unwrap(),
             )
             .into_iter()
             .flatten()
@@ -943,7 +943,7 @@ async fn data_column_reconstruction_at_slot_start() {
         .set_current_time(slot_start - rig.chain.spec.maximum_gossip_clock_disparity());
 
     assert_eq!(
-        rig.chain.slot().unwrap(),
+        rig.beacon_chain::state_query::current_slot(&chain.slot_clock).unwrap(),
         rig.next_block.slot() - 1,
         "chain should be at the correct slot"
     );
@@ -1034,7 +1034,7 @@ async fn data_column_reconstruction_at_next_slot() {
         .set_current_time(slot_start - rig.chain.spec.maximum_gossip_clock_disparity());
 
     assert_eq!(
-        rig.chain.slot().unwrap(),
+        rig.beacon_chain::state_query::current_slot(&chain.slot_clock).unwrap(),
         rig.next_block.slot() - 1,
         "chain should be at the correct slot"
     );
@@ -1084,7 +1084,7 @@ async fn import_gossip_block_acceptably_early() {
         .set_current_time(slot_start - rig.chain.spec.maximum_gossip_clock_disparity());
 
     assert_eq!(
-        rig.chain.slot().unwrap(),
+        rig.beacon_chain::state_query::current_slot(&chain.slot_clock).unwrap(),
         rig.next_block.slot() - 1,
         "chain should be at the correct slot"
     );
@@ -1148,7 +1148,7 @@ async fn import_gossip_block_unacceptably_early() {
     );
 
     assert_eq!(
-        rig.chain.slot().unwrap(),
+        rig.beacon_chain::state_query::current_slot(&chain.slot_clock).unwrap(),
         rig.next_block.slot() - 1,
         "chain should be at the correct slot"
     );
@@ -1229,7 +1229,7 @@ async fn import_gossip_block_at_current_slot() {
     let mut rig = TestRig::new(SMALL_CHAIN).await;
 
     assert_eq!(
-        rig.chain.slot().unwrap(),
+        rig.beacon_chain::state_query::current_slot(&chain.slot_clock).unwrap(),
         rig.next_block.slot(),
         "chain should be at the correct slot"
     );

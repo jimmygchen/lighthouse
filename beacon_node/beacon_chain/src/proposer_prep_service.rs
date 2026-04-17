@@ -43,7 +43,9 @@ async fn proposer_prep_service<T: BeaconChainTypes>(
                 let inner_chain = chain.clone();
                 executor.spawn(
                     async move {
-                        if let Ok(current_slot) = inner_chain.slot() {
+                        if let Ok(current_slot) =
+                            crate::state_query::current_slot(&inner_chain.slot_clock)
+                        {
                             if let Err(e) = inner_chain.prepare_beacon_proposer(current_slot).await
                             {
                                 error!(

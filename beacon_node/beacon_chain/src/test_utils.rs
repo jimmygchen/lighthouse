@@ -903,7 +903,7 @@ where
     }
 
     pub fn get_current_slot(&self) -> Slot {
-        self.chain.slot().unwrap()
+        crate::state_query::current_slot(&self.chain.slot_clock).unwrap()
     }
 
     pub fn get_block(
@@ -2369,10 +2369,13 @@ where
 
     pub fn add_proposer_slashing(&self, validator_index: u64) -> Result<(), String> {
         let proposer_slashing = self.make_proposer_slashing(validator_index);
-        let wall_clock_state = self
-            .chain
-            .wall_clock_state()
-            .expect("should get wall clock state");
+        let wall_clock_state = crate::state_query::wall_clock_state(
+            &self.chain.store,
+            &self.chain.canonical_head,
+            &self.chain.spec,
+            &self.chain.slot_clock,
+        )
+        .expect("should get wall clock state");
         if let ObservationOutcome::New(verified_proposer_slashing) = self
             .chain
             .operations
@@ -2390,10 +2393,13 @@ where
 
     pub fn add_attester_slashing(&self, validator_indices: Vec<u64>) -> Result<(), String> {
         let attester_slashing = self.make_attester_slashing(validator_indices);
-        let wall_clock_state = self
-            .chain
-            .wall_clock_state()
-            .expect("should get wall clock state");
+        let wall_clock_state = crate::state_query::wall_clock_state(
+            &self.chain.store,
+            &self.chain.canonical_head,
+            &self.chain.spec,
+            &self.chain.slot_clock,
+        )
+        .expect("should get wall clock state");
         if let ObservationOutcome::New(verified_attester_slashing) = self
             .chain
             .operations
@@ -2426,7 +2432,9 @@ where
         let is_post_capella = self
             .chain
             .spec
-            .fork_name_at_slot::<E>(self.chain.slot().unwrap())
+            .fork_name_at_slot::<E>(
+                crate::state_query::current_slot(&self.chain.slot_clock).unwrap(),
+            )
             .capella_enabled();
         if let ObservationOutcome::New(verified_bls_change) = self
             .chain
@@ -2967,9 +2975,18 @@ where
         }
 
         {
-            let ctx = crate::attestation_verification::AttestationVerificationContext::from_chain(
-                &self.chain,
-            );
+            let ctx = crate::attestation_verification::AttestationVerificationContext {
+                canonical_head: &self.chain.canonical_head,
+                attestation_manager: &self.chain.attestation_manager,
+                validator_query: &self.chain.validator_query,
+                store: &self.chain.store,
+                slot_clock: &self.chain.slot_clock,
+                spec: &self.chain.spec,
+                config: &self.chain.config,
+                genesis_validators_root: self.chain.genesis_validators_root,
+                slasher: self.chain.slasher.as_deref(),
+                pre_finalization_block_cache: &self.chain.pre_finalization_block_cache,
+            };
             for result in crate::attestation_verification::batch_verify_unaggregated_attestations(
                 unaggregated.iter().map(|(attn, subnet)| (attn, *subnet)),
                 &ctx,
@@ -2985,9 +3002,18 @@ where
         }
 
         {
-            let ctx = crate::attestation_verification::AttestationVerificationContext::from_chain(
-                &self.chain,
-            );
+            let ctx = crate::attestation_verification::AttestationVerificationContext {
+                canonical_head: &self.chain.canonical_head,
+                attestation_manager: &self.chain.attestation_manager,
+                validator_query: &self.chain.validator_query,
+                store: &self.chain.store,
+                slot_clock: &self.chain.slot_clock,
+                spec: &self.chain.spec,
+                config: &self.chain.config,
+                genesis_validators_root: self.chain.genesis_validators_root,
+                slasher: self.chain.slasher.as_deref(),
+                pre_finalization_block_cache: &self.chain.pre_finalization_block_cache,
+            };
             for result in crate::attestation_verification::batch_verify_aggregated_attestations(
                 aggregated.into_iter(),
                 &ctx,
@@ -3015,7 +3041,7 @@ where
     }
 
     pub fn set_current_slot(&self, slot: Slot) {
-        let current_slot = self.chain.slot().unwrap();
+        let current_slot = crate::state_query::current_slot(&self.chain.slot_clock).unwrap();
         let current_epoch = current_slot.epoch(E::slots_per_epoch());
         let epoch = slot.epoch(E::slots_per_epoch());
         assert!(
@@ -3404,13 +3430,19 @@ where
 
     /// Uses `Self::extend_chain` to build the chain out to the `target_slot`.
     pub async fn extend_to_slot(&self, target_slot: Slot) -> Hash256 {
-        if self.chain.slot().unwrap() == self.chain.canonical_head.cached_head().head_slot() {
+        if crate::state_query::current_slot(&self.chain.slot_clock).unwrap()
+            == self.chain.canonical_head.cached_head().head_slot()
+        {
             self.advance_slot();
         }
 
         let num_slots = target_slot
             .as_usize()
-            .checked_sub(self.chain.slot().unwrap().as_usize())
+            .checked_sub(
+                crate::state_query::current_slot(&self.chain.slot_clock)
+                    .unwrap()
+                    .as_usize(),
+            )
             .expect("target_slot must be >= current_slot")
             .checked_add(1)
             .unwrap();
@@ -3425,7 +3457,9 @@ where
     ///  - BlockStrategy::OnCanonicalHead,
     ///  - AttestationStrategy::AllValidators,
     pub async fn extend_slots(&self, num_slots: usize) -> Hash256 {
-        if self.chain.slot().unwrap() == self.chain.canonical_head.cached_head().head_slot() {
+        if crate::state_query::current_slot(&self.chain.slot_clock).unwrap()
+            == self.chain.canonical_head.cached_head().head_slot()
+        {
             self.advance_slot();
         }
 
@@ -3448,7 +3482,9 @@ where
         num_slots: usize,
         validators: Vec<usize>,
     ) -> Hash256 {
-        if self.chain.slot().unwrap() == self.chain.canonical_head.cached_head().head_slot() {
+        if crate::state_query::current_slot(&self.chain.slot_clock).unwrap()
+            == self.chain.canonical_head.cached_head().head_slot()
+        {
             self.advance_slot();
         }
 
@@ -3526,10 +3562,14 @@ where
                 let slots: Vec<Slot> = (first_slot_..(first_slot_ + (num_blocks as u64)))
                     .map(Slot::new)
                     .collect();
-                let state = self
-                    .chain
-                    .state_at_slot(previous_slot, StateSkipConfig::WithStateRoots)
-                    .unwrap();
+                let state = crate::state_query::state_at_slot(
+                    &self.chain.store,
+                    &self.chain.canonical_head,
+                    &self.chain.spec,
+                    previous_slot,
+                    StateSkipConfig::WithStateRoots,
+                )
+                .unwrap();
                 (state, slots)
             }
         };
@@ -3630,9 +3670,19 @@ where
                 let _timer = crate::metrics::start_timer(
                     &crate::metrics::SYNC_CONTRIBUTION_GOSSIP_VERIFICATION_TIMES,
                 );
+                let sync_ctx =
+                    crate::sync_committee_verification::SyncCommitteeVerificationContext {
+                        canonical_head: &self.chain.canonical_head,
+                        sync_committee_manager: &self.chain.sync_committee_manager,
+                        validator_query: &self.chain.validator_query,
+                        store: &self.chain.store,
+                        slot_clock: &self.chain.slot_clock,
+                        spec: &self.chain.spec,
+                        genesis_validators_root: self.chain.genesis_validators_root,
+                    };
                 crate::sync_committee_verification::VerifiedSyncContribution::verify(
                     signed_contribution_and_proof,
-                    &self.chain,
+                    &sync_ctx,
                 )
                 .inspect(|v| {
                     if let Some(event_handler) = self.chain.event_handler.as_ref()
@@ -3964,7 +4014,11 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         // Collect all blocks.
         let mut blocks = vec![];
 
-        for res in self.forwards_iter_block_roots(from_slot)? {
+        for res in crate::state_query::forwards_iter_block_roots(
+            &self.store,
+            &self.canonical_head,
+            from_slot,
+        )? {
             let (beacon_block_root, _) = res?;
 
             // Do not include snapshots at skipped slots.

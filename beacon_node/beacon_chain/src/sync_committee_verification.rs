@@ -26,9 +26,13 @@
 //!                  impl SignatureVerifiedSyncContribution
 //! ```
 
+use crate::canonical_head::CanonicalHead;
 use crate::observed_attesters::SlotSubcommitteeIndex;
+use crate::sync_committee_manager::SyncCommitteeManager;
+use crate::validator_query_service::ValidatorQueryService;
 use crate::{
-    BeaconChain, BeaconChainError, BeaconChainTypes, metrics, observed_aggregates::ObserveOutcome,
+    BeaconChain, BeaconChainError, BeaconChainTypes, BeaconStore, metrics,
+    observed_aggregates::ObserveOutcome,
 };
 use bls::AggregateSignature;
 use bls::{PublicKeyBytes, verify_signature_sets};
@@ -56,6 +60,20 @@ use types::{
     SyncCommitteeContribution, SyncCommitteeMessage, SyncSelectionProof, SyncSubnetId,
     sync_committee::SyncCommitteeContributionError as ContributionError,
 };
+
+/// Context for sync committee verification -- holds refs to the components needed.
+///
+/// This replaces `&BeaconChain<T>` in all sync committee verification functions,
+/// making them independently testable by constructing this struct directly.
+pub struct SyncCommitteeVerificationContext<'a, T: BeaconChainTypes> {
+    pub canonical_head: &'a CanonicalHead<T>,
+    pub sync_committee_manager: &'a SyncCommitteeManager<T::EthSpec>,
+    pub validator_query: &'a ValidatorQueryService<T>,
+    pub store: &'a BeaconStore<T>,
+    pub slot_clock: &'a T::SlotClock,
+    pub spec: &'a ChainSpec,
+    pub genesis_validators_root: Hash256,
+}
 
 /// Returned when a sync committee contribution was not successfully verified. It might not have been verified for
 /// two reasons:
@@ -289,14 +307,14 @@ impl<T: BeaconChainTypes> VerifiedSyncContribution<T> {
     /// network.
     pub fn verify(
         signed_aggregate: SignedContributionAndProof<T::EthSpec>,
-        chain: &BeaconChain<T>,
+        ctx: &SyncCommitteeVerificationContext<'_, T>,
     ) -> Result<Self, Error> {
         let aggregator_index = signed_aggregate.message.aggregator_index;
         let contribution = &signed_aggregate.message.contribution;
         let subcommittee_index = contribution.subcommittee_index as usize;
 
         // Ensure sync committee contribution is within the MAXIMUM_GOSSIP_CLOCK_DISPARITY allowance.
-        verify_propagation_slot_range(&chain.slot_clock, contribution, &chain.spec)?;
+        verify_propagation_slot_range(ctx.slot_clock, contribution, ctx.spec)?;
 
         // Validate subcommittee index.
         if contribution.subcommittee_index >= SYNC_COMMITTEE_SUBNET_COUNT {
@@ -312,17 +330,20 @@ impl<T: BeaconChainTypes> VerifiedSyncContribution<T> {
         }
 
         // Ensure the aggregator's pubkey is in the declared subcommittee of the current sync committee
-        let pubkey_bytes = chain
+        let pubkey_bytes = ctx
             .validator_query
             .validator_pubkey_bytes(aggregator_index as usize)?
             .ok_or(Error::UnknownValidatorIndex(aggregator_index as usize))?;
         let sync_subcommittee_pubkeys = {
-            let head_state = &chain.head_snapshot().beacon_state;
-            chain.sync_committee_manager.sync_committee_at_next_slot(
+            let head_state = &ctx.canonical_head.cached_head().snapshot.beacon_state;
+            ctx.sync_committee_manager.sync_committee_at_next_slot(
                 contribution.get_slot(),
                 head_state,
                 |load_slot| {
-                    chain.state_at_slot(
+                    crate::state_query::state_at_slot(
+                        ctx.store,
+                        ctx.canonical_head,
+                        ctx.spec,
                         load_slot,
                         crate::beacon_chain::StateSkipConfig::WithoutStateRoots,
                     )
@@ -343,7 +364,7 @@ impl<T: BeaconChainTypes> VerifiedSyncContribution<T> {
         }
         .tree_hash_root();
 
-        if chain
+        if ctx
             .sync_committee_manager
             .observed_sync_contributions
             .write()
@@ -359,7 +380,7 @@ impl<T: BeaconChainTypes> VerifiedSyncContribution<T> {
         // Note: do not observe yet, only observe once the sync contribution has been verified.
         let observed_key =
             SlotSubcommitteeIndex::new(contribution.slot, contribution.subcommittee_index);
-        match chain
+        match ctx
             .sync_committee_manager
             .observed_sync_aggregators
             .read()
@@ -392,7 +413,7 @@ impl<T: BeaconChainTypes> VerifiedSyncContribution<T> {
 
         // Ensure that all signatures are valid.
         if !verify_signed_aggregate_signatures(
-            chain,
+            ctx,
             &signed_aggregate,
             participant_pubkeys.as_slice(),
         )? {
@@ -406,7 +427,7 @@ impl<T: BeaconChainTypes> VerifiedSyncContribution<T> {
         //
         // It's important to double check that the contribution is not already known, otherwise two
         // contribution processed at the same time could be published.
-        if let ObserveOutcome::Subset = chain
+        if let ObserveOutcome::Subset = ctx
             .sync_committee_manager
             .observed_sync_contributions
             .write()
@@ -421,7 +442,7 @@ impl<T: BeaconChainTypes> VerifiedSyncContribution<T> {
         //
         // It's important to double check that the sync committee message is not already known, otherwise two
         // sync committee messages processed at the same time could be published.
-        if chain
+        if ctx
             .sync_committee_manager
             .observed_sync_aggregators
             .write()
@@ -439,11 +460,12 @@ impl<T: BeaconChainTypes> VerifiedSyncContribution<T> {
         })
     }
 
-    /// A helper function to add this aggregate to `beacon_chain.op_pool`.
-    pub fn add_to_pool(self, chain: &BeaconChain<T>) -> Result<(), Error> {
-        chain
-            .sync_committee_manager
-            .add_contribution_to_block_inclusion_pool(self)
+    /// A helper function to add this aggregate to the sync committee manager's pool.
+    pub fn add_to_pool(
+        self,
+        sync_committee_manager: &SyncCommitteeManager<T::EthSpec>,
+    ) -> Result<(), Error> {
+        sync_committee_manager.add_contribution_to_block_inclusion_pool(self)
     }
 
     /// Returns the underlying `contribution` for the `signed_aggregate`.
@@ -471,16 +493,16 @@ impl VerifiedSyncCommitteeMessage {
     pub fn verify<T: BeaconChainTypes>(
         sync_message: SyncCommitteeMessage,
         subnet_id: SyncSubnetId,
-        chain: &BeaconChain<T>,
+        ctx: &SyncCommitteeVerificationContext<'_, T>,
     ) -> Result<Self, Error> {
         // Ensure sync committee message is for the current slot (within a
         // MAXIMUM_GOSSIP_CLOCK_DISPARITY allowance).
         //
         // We do not queue future sync committee messages for later processing.
-        verify_propagation_slot_range(&chain.slot_clock, &sync_message, &chain.spec)?;
+        verify_propagation_slot_range(ctx.slot_clock, &sync_message, ctx.spec)?;
 
         // Ensure the `subnet_id` is valid for the given validator.
-        let pubkey = chain
+        let pubkey = ctx
             .validator_query
             .validator_pubkey_bytes(sync_message.validator_index as usize)?
             .ok_or(Error::UnknownValidatorIndex(
@@ -488,12 +510,15 @@ impl VerifiedSyncCommitteeMessage {
             ))?;
 
         let sync_committee = {
-            let head_state = &chain.head_snapshot().beacon_state;
-            chain.sync_committee_manager.sync_committee_at_next_slot(
+            let head_state = &ctx.canonical_head.cached_head().snapshot.beacon_state;
+            ctx.sync_committee_manager.sync_committee_at_next_slot(
                 sync_message.get_slot(),
                 head_state,
                 |load_slot| {
-                    chain.state_at_slot(
+                    crate::state_query::state_at_slot(
+                        ctx.store,
+                        ctx.canonical_head,
+                        ctx.spec,
                         load_slot,
                         crate::beacon_chain::StateSkipConfig::WithoutStateRoots,
                     )
@@ -512,7 +537,7 @@ impl VerifiedSyncCommitteeMessage {
         // The sync committee message is the first valid message received for the participating validator
         // for the slot, sync_message.slot.
         let validator_index = sync_message.validator_index;
-        let head_root = chain.canonical_head.cached_head().head_block_root();
+        let head_root = ctx.canonical_head.cached_head().head_block_root();
         let new_root = sync_message.beacon_block_root;
         let should_override_prev = |prev_root: &Hash256, new_root: &Hash256| {
             let roots_differ = new_root != prev_root;
@@ -529,7 +554,7 @@ impl VerifiedSyncCommitteeMessage {
 
             roots_differ && new_elects_head
         };
-        if let Some(prev_root) = chain
+        if let Some(prev_root) = ctx
             .sync_committee_manager
             .observed_sync_contributors
             .read()
@@ -549,7 +574,7 @@ impl VerifiedSyncCommitteeMessage {
         }
 
         // The aggregate signature of the sync committee message is valid.
-        verify_sync_committee_message(chain, &sync_message, &pubkey)?;
+        verify_sync_committee_message(ctx, &sync_message, &pubkey)?;
 
         // Now that the sync committee message has been fully verified, store that we have received a valid
         // sync committee message from this validator.
@@ -557,7 +582,7 @@ impl VerifiedSyncCommitteeMessage {
         // It's important to double check that the sync committee message still hasn't been observed, since
         // there can be a race-condition if we receive two sync committee messages at the same time and
         // process them in different threads.
-        if let Some(prev_root) = chain
+        if let Some(prev_root) = ctx
             .sync_committee_manager
             .observed_sync_contributors
             .write()
@@ -583,11 +608,12 @@ impl VerifiedSyncCommitteeMessage {
         })
     }
 
-    /// A helper function to add this sync committee message to `beacon_chain.naive_sync_aggregation_pool`.
-    pub fn add_to_pool<T: BeaconChainTypes>(self, chain: &BeaconChain<T>) -> Result<Self, Error> {
-        chain
-            .sync_committee_manager
-            .add_to_naive_sync_aggregation_pool(self)
+    /// A helper function to add this sync committee message to the naive sync aggregation pool.
+    pub fn add_to_pool<T: BeaconChainTypes>(
+        self,
+        sync_committee_manager: &SyncCommitteeManager<T::EthSpec>,
+    ) -> Result<Self, Error> {
+        sync_committee_manager.add_to_naive_sync_aggregation_pool(self)
     }
 
     /// Returns the subcommittee positions for the sync message, keyed on the `SyncSubnetId` for
@@ -665,11 +691,11 @@ pub fn verify_propagation_slot_range<S: SlotClock, U: SlotData>(
 /// - `Ok(false)`: if one or more signatures are invalid.
 /// - `Err(e)`: if there was an error preventing signature verification.
 pub fn verify_signed_aggregate_signatures<T: BeaconChainTypes>(
-    chain: &BeaconChain<T>,
+    ctx: &SyncCommitteeVerificationContext<'_, T>,
     signed_aggregate: &SignedContributionAndProof<T::EthSpec>,
     participant_pubkeys: &[PublicKeyBytes],
 ) -> Result<bool, Error> {
-    let pubkey_cache = chain.validator_query.validator_pubkey_cache.read();
+    let pubkey_cache = ctx.validator_query.validator_pubkey_cache.read();
 
     let aggregator_index = signed_aggregate.message.aggregator_index;
     if aggregator_index >= pubkey_cache.len() as u64 {
@@ -678,23 +704,23 @@ pub fn verify_signed_aggregate_signatures<T: BeaconChainTypes>(
 
     let next_slot_epoch =
         (signed_aggregate.message.contribution.slot + 1).epoch(T::EthSpec::slots_per_epoch());
-    let fork = chain.spec.fork_at_epoch(next_slot_epoch);
+    let fork = ctx.spec.fork_at_epoch(next_slot_epoch);
 
     let signature_sets = [
         signed_sync_aggregate_selection_proof_signature_set(
             |validator_index| pubkey_cache.get(validator_index).map(Cow::Borrowed),
             signed_aggregate,
             &fork,
-            chain.genesis_validators_root,
-            &chain.spec,
+            ctx.genesis_validators_root,
+            ctx.spec,
         )
         .map_err(BeaconChainError::SignatureSetError)?,
         signed_sync_aggregate_signature_set(
             |validator_index| pubkey_cache.get(validator_index).map(Cow::Borrowed),
             signed_aggregate,
             &fork,
-            chain.genesis_validators_root,
-            &chain.spec,
+            ctx.genesis_validators_root,
+            ctx.spec,
         )
         .map_err(BeaconChainError::SignatureSetError)?,
         sync_committee_contribution_signature_set_from_pubkeys::<T::EthSpec, _>(
@@ -712,8 +738,8 @@ pub fn verify_signed_aggregate_signatures<T: BeaconChainTypes>(
                 .epoch(T::EthSpec::slots_per_epoch()),
             signed_aggregate.message.contribution.beacon_block_root,
             &fork,
-            chain.genesis_validators_root,
-            &chain.spec,
+            ctx.genesis_validators_root,
+            ctx.spec,
         )
         .map_err(BeaconChainError::SignatureSetError)?,
     ];
@@ -723,14 +749,14 @@ pub fn verify_signed_aggregate_signatures<T: BeaconChainTypes>(
 
 /// Verifies that the signature of the `sync_message` is valid.
 pub fn verify_sync_committee_message<T: BeaconChainTypes>(
-    chain: &BeaconChain<T>,
+    ctx: &SyncCommitteeVerificationContext<'_, T>,
     sync_message: &SyncCommitteeMessage,
     pubkey_bytes: &PublicKeyBytes,
 ) -> Result<(), Error> {
     let signature_setup_timer =
         metrics::start_timer(&metrics::SYNC_MESSAGE_PROCESSING_SIGNATURE_SETUP_TIMES);
 
-    let pubkey_cache = chain.validator_query.validator_pubkey_cache.read();
+    let pubkey_cache = ctx.validator_query.validator_pubkey_cache.read();
 
     let pubkey = pubkey_cache
         .get_pubkey_from_pubkey_bytes(pubkey_bytes)
@@ -738,7 +764,7 @@ pub fn verify_sync_committee_message<T: BeaconChainTypes>(
         .ok_or(Error::UnknownValidatorPubkey(*pubkey_bytes))?;
 
     let next_slot_epoch = (sync_message.get_slot() + 1).epoch(T::EthSpec::slots_per_epoch());
-    let fork = chain.spec.fork_at_epoch(next_slot_epoch);
+    let fork = ctx.spec.fork_at_epoch(next_slot_epoch);
 
     let agg_sig = AggregateSignature::from(&sync_message.signature);
     let signature_set = sync_committee_message_set_from_pubkeys::<T::EthSpec>(
@@ -747,8 +773,8 @@ pub fn verify_sync_committee_message<T: BeaconChainTypes>(
         sync_message.slot.epoch(T::EthSpec::slots_per_epoch()),
         sync_message.beacon_block_root,
         &fork,
-        chain.genesis_validators_root,
-        &chain.spec,
+        ctx.genesis_validators_root,
+        ctx.spec,
     )
     .map_err(BeaconChainError::SignatureSetError)?;
 

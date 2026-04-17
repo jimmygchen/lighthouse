@@ -294,7 +294,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             "RPC blobs received"
         );
 
-        if let Ok(current_slot) = self.chain.slot()
+        if let Ok(current_slot) = self.beacon_chain::state_query::current_slot(&chain.slot_clock)
             && current_slot == slot
         {
             // Note: this metric is useful to gauge how long it takes to receive blobs requested
@@ -362,7 +362,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             return;
         };
 
-        if let Ok(current_slot) = self.chain.slot()
+        if let Ok(current_slot) = self.beacon_chain::state_query::current_slot(&chain.slot_clock)
             && current_slot == slot
         {
             let delay = get_slot_delay_ms(seen_timestamp, slot, &self.chain.slot_clock);

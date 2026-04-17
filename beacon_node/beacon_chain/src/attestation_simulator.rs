@@ -42,7 +42,9 @@ async fn attestation_simulator_service<T: BeaconChainTypes>(
                 let inner_chain = chain.clone();
                 executor.spawn(
                     async move {
-                        if let Ok(current_slot) = inner_chain.slot() {
+                        if let Ok(current_slot) =
+                            crate::state_query::current_slot(&inner_chain.slot_clock)
+                        {
                             produce_unaggregated_attestation(inner_chain, current_slot);
                         }
                     },

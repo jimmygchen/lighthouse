@@ -806,13 +806,15 @@ mod tests {
             "the head should be finalized two behind the current epoch"
         );
 
-        let block_roots: Vec<Hash256> = harness
-            .chain
-            .forwards_iter_block_roots(Slot::new(0))
-            .expect("should get iter")
-            .map(Result::unwrap)
-            .map(|(root, _)| root)
-            .collect();
+        let block_roots: Vec<Hash256> = crate::state_query::forwards_iter_block_roots(
+            &harness.chain.store,
+            &harness.chain.canonical_head,
+            Slot::new(0),
+        )
+        .expect("should get iter")
+        .map(Result::unwrap)
+        .map(|(root, _)| root)
+        .collect();
 
         let mut expected_blocks = vec![];
         // get all blocks the old fashioned way

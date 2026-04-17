@@ -689,8 +689,16 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         let builder_params = BuilderParams {
             pubkey,
             slot: state.slot(),
-            chain_health: crate::beacon_chain::is_healthy(&*self, &parent_root)
-                .map_err(|e| BlockProductionError::BeaconChain(Box::new(e)))?,
+            chain_health: crate::beacon_chain::is_healthy(
+                &self.canonical_head,
+                &self.store,
+                &self.slot_clock,
+                &self.config,
+                &self.spec,
+                self.genesis_block_root,
+                &parent_root,
+            )
+            .map_err(|e| BlockProductionError::BeaconChain(Box::new(e)))?,
         };
 
         // TODO(gloas) this should be BlockProductionVersion::V4

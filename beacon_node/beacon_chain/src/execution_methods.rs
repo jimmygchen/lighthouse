@@ -43,23 +43,6 @@ pub(crate) struct ExecutionOrchestrationContext<'a, T: BeaconChainTypes> {
     pub task_executor: &'a TaskExecutor,
 }
 
-impl<'a, T: BeaconChainTypes> ExecutionOrchestrationContext<'a, T> {
-    /// Construct from a `BeaconChain` reference.
-    pub fn from_chain(chain: &'a BeaconChain<T>) -> Self {
-        Self {
-            canonical_head: &chain.canonical_head,
-            execution_layer: chain.execution_layer.as_ref(),
-            execution_manager: &chain.execution_manager,
-            spec: &chain.spec,
-            slot_clock: &chain.slot_clock,
-            config: &chain.config,
-            event_handler: chain.event_handler.as_ref(),
-            shutdown_sender: &chain.shutdown_sender,
-            task_executor: &chain.task_executor,
-        }
-    }
-}
-
 // ---------------------------------------------------------------------------
 // Free functions
 // ---------------------------------------------------------------------------

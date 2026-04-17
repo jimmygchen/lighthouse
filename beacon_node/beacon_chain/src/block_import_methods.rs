@@ -72,23 +72,28 @@ pub(crate) struct BlockImportContext<'a, T: BeaconChainTypes> {
     pub light_client_server_tx: &'a Option<Sender<LightClientProducerEvent<T::EthSpec>>>,
 }
 
-impl<'a, T: BeaconChainTypes> BlockImportContext<'a, T> {
-    pub fn from_chain(chain: &'a BeaconChain<T>) -> Self {
-        Self {
-            canonical_head: &chain.canonical_head,
-            store: &chain.store,
-            attestation_manager: &chain.attestation_manager,
-            validator_monitor: &chain.validator_monitor,
-            slasher: chain.slasher.as_ref(),
-            event_handler: chain.event_handler.as_ref(),
-            data_availability_checker: &chain.data_availability_checker,
-            observed_slashable: &chain.observed_slashable,
-            spec: &chain.spec,
-            slot_clock: &chain.slot_clock,
-            config: &chain.config,
-            block_times_cache: &chain.block_times_cache,
-            light_client_server_tx: &chain.light_client_server_tx,
-        }
+/// Construct a `BlockImportContext` from a `BeaconChain` reference.
+///
+/// This is a module-private helper to avoid repetition across `impl BeaconChain<T>` methods.
+/// It is NOT a method on `BlockImportContext` because callers outside this module should
+/// construct the context from individual component refs.
+fn block_import_context_from_chain<T: BeaconChainTypes>(
+    chain: &BeaconChain<T>,
+) -> BlockImportContext<'_, T> {
+    BlockImportContext {
+        canonical_head: &chain.canonical_head,
+        store: &chain.store,
+        attestation_manager: &chain.attestation_manager,
+        validator_monitor: &chain.validator_monitor,
+        slasher: chain.slasher.as_ref(),
+        event_handler: chain.event_handler.as_ref(),
+        data_availability_checker: &chain.data_availability_checker,
+        observed_slashable: &chain.observed_slashable,
+        spec: &chain.spec,
+        slot_clock: &chain.slot_clock,
+        config: &chain.config,
+        block_times_cache: &chain.block_times_cache,
+        light_client_server_tx: &chain.light_client_server_tx,
     }
 }
 
@@ -408,7 +413,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             return Err(BlockError::BlobNotRequired(blob.slot()));
         }
 
-        let ctx = BlockImportContext::from_chain(self);
+        let ctx = block_import_context_from_chain(self);
         emit_sse_blob_sidecar_events(&ctx, &block_root, std::iter::once(blob.as_blob()));
 
         self.check_gossip_blob_availability_and_import(blob).await
@@ -443,7 +448,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             return Err(BlockError::DuplicateFullyImported(block_root));
         }
 
-        let ctx = BlockImportContext::from_chain(self);
+        let ctx = block_import_context_from_chain(self);
         emit_sse_data_column_sidecar_events(
             &ctx,
             &block_root,
@@ -493,7 +498,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             return Err(BlockError::ParentUnknown { parent_root });
         }
 
-        let ctx = BlockImportContext::from_chain(self);
+        let ctx = block_import_context_from_chain(self);
         emit_sse_blob_sidecar_events(&ctx, &block_root, blobs.iter().flatten().map(Arc::as_ref));
 
         self.check_rpc_blob_availability_and_import(slot, block_root, blobs)
@@ -517,7 +522,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             return Err(BlockError::DuplicateFullyImported(block_root));
         }
 
-        let ctx = BlockImportContext::from_chain(self);
+        let ctx = block_import_context_from_chain(self);
         match &engine_get_blobs_output {
             EngineGetBlobsOutput::Blobs(blobs) => {
                 emit_sse_blob_sidecar_events(&ctx, &block_root, blobs.iter().map(|b| b.as_blob()));
@@ -584,7 +589,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             return Err(BlockError::ParentUnknown { parent_root });
         }
 
-        let ctx = BlockImportContext::from_chain(self);
+        let ctx = block_import_context_from_chain(self);
         emit_sse_data_column_sidecar_events(
             &ctx,
             &block_root,
@@ -906,7 +911,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         block_root: Hash256,
         blobs: FixedBlobSidecarList<T::EthSpec>,
     ) -> Result<AvailabilityProcessingStatus, BlockError> {
-        let ctx = BlockImportContext::from_chain(self);
+        let ctx = block_import_context_from_chain(self);
         check_blob_header_signature_and_slashability(
             &ctx,
             self,
@@ -927,7 +932,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         block_root: Hash256,
         engine_get_blobs_output: EngineGetBlobsOutput<T>,
     ) -> Result<AvailabilityProcessingStatus, BlockError> {
-        let ctx = BlockImportContext::from_chain(self);
+        let ctx = block_import_context_from_chain(self);
         let availability = match engine_get_blobs_output {
             EngineGetBlobsOutput::Blobs(blobs) => {
                 check_blob_header_signature_and_slashability(
@@ -970,7 +975,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         custody_columns: DataColumnSidecarList<T::EthSpec>,
     ) -> Result<AvailabilityProcessingStatus, BlockError> {
         // TODO(gloas) ensure that this check is no longer relevant post gloas
-        let ctx = BlockImportContext::from_chain(self);
+        let ctx = block_import_context_from_chain(self);
         check_data_column_sidecar_header_signature_and_slashability(
             &ctx,
             self,
@@ -1272,7 +1277,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         // state if we returned early without committing. In other words, an error here would
         // corrupt the node's database permanently.
         // -----------------------------------------------------------------------------------------
-        let ctx = BlockImportContext::from_chain(self);
+        let ctx = block_import_context_from_chain(self);
         self.attestation_manager
             .import_block_update_shuffling_cache(block_root, &mut state);
         import_block_observe_attestations(
@@ -1477,7 +1482,10 @@ fn import_block_update_validator_monitor<T: BeaconChainTypes>(
                 duty_epoch,
                 head_state,
                 |load_slot| {
-                    chain.state_at_slot(
+                    crate::state_query::state_at_slot(
+                        &chain.store,
+                        &chain.canonical_head,
+                        &chain.spec,
                         load_slot,
                         crate::beacon_chain::StateSkipConfig::WithoutStateRoots,
                     )
@@ -1867,10 +1875,10 @@ mod tests {
     static KEYPAIRS: LazyLock<Vec<Keypair>> =
         LazyLock::new(|| types::test_utils::generate_deterministic_keypairs(VALIDATOR_COUNT));
 
-    /// Compile-time regression test: ensures `BlockImportContext` can be constructed
-    /// from a `BeaconChain` and that all expected fields are accessible.
+    /// Compile-time regression test: ensures `BlockImportContext` fields are accessible
+    /// and match expectations.
     #[tokio::test]
-    async fn block_import_context_from_chain_has_all_fields() {
+    async fn block_import_context_has_all_fields() {
         let spec = Arc::new(test_spec::<E>());
         let harness = BeaconChainHarness::builder(MinimalEthSpec)
             .spec(spec)
@@ -1882,10 +1890,10 @@ mod tests {
         harness.advance_slot();
         harness.extend_slots(1).await;
 
-        let ctx = BlockImportContext::from_chain(&harness.chain);
+        let ctx = block_import_context_from_chain(&harness.chain);
 
         // Verify each field is accessible. This is a compile-time guarantee that the
-        // struct shape hasn't drifted from what `from_chain` populates.
+        // struct shape hasn't drifted from what the helper populates.
         let _canonical_head = ctx.canonical_head;
         let _store = ctx.store;
         let _attestation_manager = ctx.attestation_manager;

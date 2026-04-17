@@ -217,10 +217,20 @@ pub fn process_sync_committee_signatures<T: BeaconChainTypes>(
         // inefficiency of verifying multiple times is not a real inefficiency.
         let mut verified_for_pool = None;
         for subnet_id in subnet_positions.keys().copied() {
+            let sync_ctx =
+                beacon_chain::sync_committee_verification::SyncCommitteeVerificationContext {
+                    canonical_head: &chain.canonical_head,
+                    sync_committee_manager: &chain.sync_committee_manager,
+                    validator_query: &chain.validator_query,
+                    store: &chain.store,
+                    slot_clock: &chain.slot_clock,
+                    spec: &chain.spec,
+                    genesis_validators_root: chain.genesis_validators_root,
+                };
             match VerifiedSyncCommitteeMessage::verify(
                 sync_committee_signature.clone(),
                 subnet_id,
-                chain,
+                &sync_ctx,
             ) {
                 Ok(verified) => {
                     publish_pubsub_message(
@@ -382,9 +392,19 @@ pub fn process_signed_contribution_and_proofs<T: BeaconChainTypes>(
             let _timer = beacon_chain::metrics::start_timer(
                 &beacon_chain::metrics::SYNC_CONTRIBUTION_GOSSIP_VERIFICATION_TIMES,
             );
+            let sync_ctx =
+                beacon_chain::sync_committee_verification::SyncCommitteeVerificationContext {
+                    canonical_head: &chain.canonical_head,
+                    sync_committee_manager: &chain.sync_committee_manager,
+                    validator_query: &chain.validator_query,
+                    store: &chain.store,
+                    slot_clock: &chain.slot_clock,
+                    spec: &chain.spec,
+                    genesis_validators_root: chain.genesis_validators_root,
+                };
             beacon_chain::sync_committee_verification::VerifiedSyncContribution::verify(
                 contribution,
-                &chain,
+                &sync_ctx,
             )
             .inspect(|v| {
                 if let Some(event_handler) = chain.event_handler.as_ref()

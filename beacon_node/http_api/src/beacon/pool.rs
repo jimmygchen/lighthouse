@@ -93,7 +93,8 @@ pub fn post_beacon_pool_bls_to_execution_changes<T: BeaconChainTypes>(
 
                                 // New to P2P *and* op pool, gossip immediately if post-Capella.
                                 let current_fork = chain.spec.fork_name_at_slot::<T::EthSpec>(
-                                    chain.slot().unwrap_or_default(),
+                                    beacon_chain::state_query::current_slot(&chain.slot_clock)
+                                        .unwrap_or_default(),
                                 );
                                 let received_pre_capella = if current_fork.capella_enabled() {
                                     ReceivedPreCapella::No

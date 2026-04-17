@@ -117,11 +117,18 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
 
             if block.slot() == anchor_info.oldest_block_slot {
                 // When reimporting, verify that this is actually the same block (same block root).
-                let oldest_block_root = self
-                    .block_root_at_slot(block.slot(), WhenSlotSkipped::None)
-                    .ok()
-                    .flatten()
-                    .ok_or(HistoricalBlockError::MissingOldestBlockRoot { slot: block.slot() })?;
+                let oldest_block_root = crate::state_query::block_root_at_slot(
+                    &self.store,
+                    &self.canonical_head,
+                    &self.spec,
+                    &self.slot_clock,
+                    self.genesis_block_root,
+                    block.slot(),
+                    WhenSlotSkipped::None,
+                )
+                .ok()
+                .flatten()
+                .ok_or(HistoricalBlockError::MissingOldestBlockRoot { slot: block.slot() })?;
                 if block_root != oldest_block_root {
                     return Err(HistoricalBlockError::MismatchedBlockRoot {
                         block_root,

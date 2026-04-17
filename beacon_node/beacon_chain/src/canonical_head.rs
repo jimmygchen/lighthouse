@@ -565,7 +565,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
     /// This method replaces the old `BeaconChain::fork_choice` method.
     #[instrument(skip_all, level = "debug")]
     pub async fn recompute_head_at_current_slot(self: &Arc<Self>) {
-        match self.slot() {
+        match crate::state_query::current_slot(&self.slot_clock) {
             Ok(current_slot) => self.recompute_head_at_slot(current_slot).await,
             Err(e) => error!(
                 error = ?e,

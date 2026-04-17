@@ -249,7 +249,8 @@ pub fn get_validator_attestation_data<T: BeaconChainTypes>(
                 task_spawner.blocking_json_task(Priority::P0, move || {
                     not_synced_filter?;
 
-                    let current_slot = chain.slot().map_err(warp_utils::reject::unhandled_error)?;
+                    let current_slot = beacon_chain::state_query::current_slot(&chain.slot_clock)
+                        .map_err(warp_utils::reject::unhandled_error)?;
 
                     // allow a tolerance of one slot to account for clock skew
                     if query.slot > current_slot + 1 {
@@ -740,7 +741,8 @@ pub fn post_validator_prepare_beacon_proposer<T: BeaconChainTypes>(
                             .collect::<Vec<_>>();
 
                         let current_slot =
-                            chain.slot().map_err(warp_utils::reject::unhandled_error)?;
+                            beacon_chain::state_query::current_slot(&chain.slot_clock)
+                                .map_err(warp_utils::reject::unhandled_error)?;
                         if let Some(cgc_change) = chain
                             .data_availability_checker
                             .custody_context()

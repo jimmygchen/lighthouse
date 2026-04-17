@@ -720,7 +720,9 @@ where
 
             if let Some(execution_layer) = beacon_chain.execution_layer.as_ref() {
                 // Only send a head update *after* genesis.
-                if let Ok(current_slot) = beacon_chain.slot() {
+                if let Ok(current_slot) =
+                    beacon_beacon_chain::state_query::current_slot(&chain.slot_clock)
+                {
                     let params = beacon_chain
                         .canonical_head
                         .cached_head()

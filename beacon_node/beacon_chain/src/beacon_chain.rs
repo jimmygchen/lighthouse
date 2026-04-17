@@ -768,10 +768,15 @@ pub fn get_blobs_or_columns_store_op<'a, T: BeaconChainTypes>(
 
 /// Determine chain health for builder fallback decisions.
 pub fn is_healthy<T: BeaconChainTypes>(
-    chain: &BeaconChain<T>,
+    canonical_head: &CanonicalHead<T>,
+    store: &BeaconStore<T>,
+    slot_clock: &T::SlotClock,
+    config: &ChainConfig,
+    spec: &ChainSpec,
+    genesis_block_root: Hash256,
     parent_root: &Hash256,
 ) -> Result<ChainHealth, Error> {
-    let cached_head = chain.canonical_head.cached_head();
+    let cached_head = canonical_head.cached_head();
     if let Some(head_hash) = cached_head.forkchoice_update_parameters().head_hash {
         if ExecutionBlockHash::zero() == head_hash {
             return Ok(ChainHealth::PreMerge);
@@ -780,8 +785,7 @@ pub fn is_healthy<T: BeaconChainTypes>(
         return Ok(ChainHealth::PreMerge);
     };
 
-    if let Some(execution_status) = chain
-        .canonical_head
+    if let Some(execution_status) = canonical_head
         .fork_choice_read_lock()
         .get_block_execution_status(parent_root)
         && execution_status.is_strictly_optimistic()
@@ -789,33 +793,40 @@ pub fn is_healthy<T: BeaconChainTypes>(
         return Ok(ChainHealth::Optimistic);
     }
 
-    if chain.config.builder_fallback_disable_checks {
+    if config.builder_fallback_disable_checks {
         return Ok(ChainHealth::Healthy);
     }
 
-    let current_slot = chain.slot_clock.now().ok_or(Error::UnableToReadSlot)?;
+    let current_slot = slot_clock.now().ok_or(Error::UnableToReadSlot)?;
 
     let prev_slot = current_slot.saturating_sub(Slot::new(1));
     let head_skips = prev_slot.saturating_sub(cached_head.head_slot());
-    let head_skips_check = head_skips.as_usize() <= chain.config.builder_fallback_skips;
+    let head_skips_check = head_skips.as_usize() <= config.builder_fallback_skips;
 
     let current_epoch = current_slot.epoch(T::EthSpec::slots_per_epoch());
     let epochs_since_finalization =
         current_epoch.saturating_sub(cached_head.finalized_checkpoint().epoch);
-    let finalization_check = epochs_since_finalization.as_usize()
-        <= chain.config.builder_fallback_epochs_since_finalization;
+    let finalization_check =
+        epochs_since_finalization.as_usize() <= config.builder_fallback_epochs_since_finalization;
 
     let start_slot = current_slot.saturating_sub(T::EthSpec::slots_per_epoch());
     let mut epoch_skips = 0;
     for slot in start_slot.as_u64()..current_slot.as_u64() {
-        if chain
-            .block_root_at_slot(Slot::new(slot), WhenSlotSkipped::None)?
-            .is_none()
+        if crate::state_query::block_root_at_slot(
+            store,
+            canonical_head,
+            spec,
+            slot_clock,
+            genesis_block_root,
+            Slot::new(slot),
+            WhenSlotSkipped::None,
+        )?
+        .is_none()
         {
             epoch_skips += 1;
         }
     }
-    let epoch_skips_check = epoch_skips <= chain.config.builder_fallback_skips_per_epoch;
+    let epoch_skips_check = epoch_skips <= config.builder_fallback_skips_per_epoch;
 
     if !head_skips_check {
         Ok(ChainHealth::Unhealthy(FailedCondition::Skips))
@@ -857,7 +868,12 @@ pub fn verify_weak_subjectivity_checkpoint<T: BeaconChainTypes>(
             .epoch
             .start_slot(T::EthSpec::slots_per_epoch());
 
-        match chain.root_at_slot_from_state(slot, beacon_block_root, state)? {
+        match crate::state_query::root_at_slot_from_state::<T>(
+            &chain.store,
+            slot,
+            beacon_block_root,
+            state,
+        )? {
             Some(root) => {
                 if root != wss_checkpoint.root {
                     crit!(

@@ -5,8 +5,7 @@
 //! provided so existing callers can continue to use `chain.method()`.
 
 use crate::beacon_chain::{
-    BeaconChain, BeaconChainTypes, BeaconStore, FinalizationAndCanonicity, StateSkipConfig,
-    WhenSlotSkipped,
+    BeaconChainTypes, BeaconStore, FinalizationAndCanonicity, StateSkipConfig, WhenSlotSkipped,
 };
 use crate::canonical_head::CanonicalHead;
 use crate::errors::BeaconChainError as Error;
@@ -523,181 +522,102 @@ pub fn root_at_slot_from_state<T: BeaconChainTypes>(
     })
 }
 
-// ---------------------------------------------------------------------------
-// Thin delegations on `impl BeaconChain<T>`
-// ---------------------------------------------------------------------------
+/// Returns the `BeaconState` at the current wall-clock slot.
+pub fn wall_clock_state<T: BeaconChainTypes>(
+    store: &BeaconStore<T>,
+    canonical_head: &CanonicalHead<T>,
+    spec: &ChainSpec,
+    slot_clock: &T::SlotClock,
+) -> Result<BeaconState<T::EthSpec>, Error> {
+    let slot = current_slot(slot_clock)?;
+    state_at_slot(
+        store,
+        canonical_head,
+        spec,
+        slot,
+        StateSkipConfig::WithStateRoots,
+    )
+}
 
-impl<T: BeaconChainTypes> BeaconChain<T> {
-    /// Returns the slot _right now_ according to `self.slot_clock`.
-    pub fn slot(&self) -> Result<Slot, Error> {
-        current_slot(&self.slot_clock)
-    }
+/// Checks if a block is finalized.
+pub fn is_finalized_block<T: BeaconChainTypes>(
+    store: &BeaconStore<T>,
+    canonical_head: &CanonicalHead<T>,
+    spec: &ChainSpec,
+    slot_clock: &T::SlotClock,
+    genesis_block_root: Hash256,
+    block_root: &Hash256,
+    block_slot: Slot,
+) -> Result<bool, Error> {
+    let finalized_slot = canonical_head
+        .cached_head()
+        .finalized_checkpoint()
+        .epoch
+        .start_slot(T::EthSpec::slots_per_epoch());
+    let is_canonical = block_root_at_slot(
+        store,
+        canonical_head,
+        spec,
+        slot_clock,
+        genesis_block_root,
+        block_slot,
+        WhenSlotSkipped::None,
+    )?
+    .is_some_and(|canonical_root| block_root == &canonical_root);
+    Ok(block_slot <= finalized_slot && is_canonical)
+}
 
-    /// Returns the epoch _right now_ according to `self.slot_clock`.
-    pub fn epoch(&self) -> Result<Epoch, Error> {
-        current_epoch::<T::EthSpec, _>(&self.slot_clock)
-    }
+/// Checks if a state is finalized.
+pub fn is_finalized_state<T: BeaconChainTypes>(
+    store: &BeaconStore<T>,
+    canonical_head: &CanonicalHead<T>,
+    spec: &ChainSpec,
+    slot_clock: &T::SlotClock,
+    genesis_state_root: Hash256,
+    state_root: &Hash256,
+    state_slot: Slot,
+) -> Result<bool, Error> {
+    state_finalization_and_canonicity(
+        store,
+        canonical_head,
+        spec,
+        slot_clock,
+        genesis_state_root,
+        state_root,
+        state_slot,
+    )
+    .map(FinalizationAndCanonicity::is_finalized)
+}
 
-    pub fn forwards_iter_block_roots(
-        &self,
-        start_slot: Slot,
-    ) -> Result<impl Iterator<Item = Result<(Hash256, Slot), Error>> + '_, Error> {
-        forwards_iter_block_roots(&self.store, &self.canonical_head, start_slot)
-    }
-
-    pub fn forwards_iter_block_roots_until(
-        &self,
-        start_slot: Slot,
-        end_slot: Slot,
-    ) -> Result<impl Iterator<Item = Result<(Hash256, Slot), Error>> + '_, Error> {
-        forwards_iter_block_roots_until(&self.store, &self.canonical_head, start_slot, end_slot)
-    }
-
-    pub fn rev_iter_block_roots_from(
-        &self,
-        block_root: Hash256,
-    ) -> Result<impl Iterator<Item = Result<(Hash256, Slot), Error>> + '_, Error> {
-        rev_iter_block_roots_from::<T>(&self.store, block_root)
-    }
-
-    pub fn rev_iter_state_roots_from<'a>(
-        &'a self,
-        state_root: Hash256,
-        state: &'a BeaconState<T::EthSpec>,
-    ) -> impl Iterator<Item = Result<(Hash256, Slot), Error>> + 'a {
-        rev_iter_state_roots_from::<T>(&self.store, state_root, state)
-    }
-
-    pub fn forwards_iter_state_roots(
-        &self,
-        start_slot: Slot,
-    ) -> Result<impl Iterator<Item = Result<(Hash256, Slot), Error>> + '_, Error> {
-        forwards_iter_state_roots(&self.store, &self.canonical_head, start_slot)
-    }
-
-    pub fn forwards_iter_state_roots_until(
-        &self,
-        start_slot: Slot,
-        end_slot: Slot,
-    ) -> Result<impl Iterator<Item = Result<(Hash256, Slot), Error>> + '_, Error> {
-        forwards_iter_state_roots_until(&self.store, &self.canonical_head, start_slot, end_slot)
-    }
-
-    pub fn block_at_slot(
-        &self,
-        request_slot: Slot,
-        skips: WhenSlotSkipped,
-    ) -> Result<Option<SignedBlindedBeaconBlock<T::EthSpec>>, Error> {
-        block_at_slot(
-            &self.store,
-            &self.canonical_head,
-            &self.spec,
-            &self.slot_clock,
-            self.genesis_block_root,
-            request_slot,
-            skips,
-        )
-    }
-
-    pub fn state_root_at_slot(&self, request_slot: Slot) -> Result<Option<Hash256>, Error> {
-        state_root_at_slot(
-            &self.store,
-            &self.canonical_head,
-            &self.spec,
-            &self.slot_clock,
-            self.genesis_state_root,
-            request_slot,
-        )
-    }
-
-    pub fn block_root_at_slot(
-        &self,
-        request_slot: Slot,
-        skips: WhenSlotSkipped,
-    ) -> Result<Option<Hash256>, Error> {
-        block_root_at_slot(
-            &self.store,
-            &self.canonical_head,
-            &self.spec,
-            &self.slot_clock,
-            self.genesis_block_root,
-            request_slot,
-            skips,
-        )
-    }
-
-    #[instrument(level = "debug", skip_all)]
-    pub fn state_at_slot(
-        &self,
-        slot: Slot,
-        config: StateSkipConfig,
-    ) -> Result<BeaconState<T::EthSpec>, Error> {
-        state_at_slot(&self.store, &self.canonical_head, &self.spec, slot, config)
-    }
-
-    /// Returns the `BeaconState` at the current wall-clock slot.
-    pub fn wall_clock_state(&self) -> Result<BeaconState<T::EthSpec>, Error> {
-        self.state_at_slot(self.slot()?, StateSkipConfig::WithStateRoots)
-    }
-
-    pub fn root_at_slot_from_state(
-        &self,
-        target_slot: Slot,
-        beacon_block_root: Hash256,
-        state: &BeaconState<T::EthSpec>,
-    ) -> Result<Option<Hash256>, Error> {
-        root_at_slot_from_state::<T>(&self.store, target_slot, beacon_block_root, state)
-    }
-
-    /// Checks if a block is finalized.
-    pub fn is_finalized_block(
-        &self,
-        block_root: &Hash256,
-        block_slot: Slot,
-    ) -> Result<bool, Error> {
-        let finalized_slot = self
-            .canonical_head
-            .cached_head()
-            .finalized_checkpoint()
-            .epoch
-            .start_slot(T::EthSpec::slots_per_epoch());
-        let is_canonical = self
-            .block_root_at_slot(block_slot, WhenSlotSkipped::None)?
-            .is_some_and(|canonical_root| block_root == &canonical_root);
-        Ok(block_slot <= finalized_slot && is_canonical)
-    }
-
-    /// Checks if a state is finalized.
-    pub fn is_finalized_state(
-        &self,
-        state_root: &Hash256,
-        state_slot: Slot,
-    ) -> Result<bool, Error> {
-        self.state_finalization_and_canonicity(state_root, state_slot)
-            .map(FinalizationAndCanonicity::is_finalized)
-    }
-
-    /// Fetch the finalization and canonicity status of the state with `state_root`.
-    pub fn state_finalization_and_canonicity(
-        &self,
-        state_root: &Hash256,
-        state_slot: Slot,
-    ) -> Result<FinalizationAndCanonicity, Error> {
-        let finalized_slot = self
-            .canonical_head
-            .cached_head()
-            .finalized_checkpoint()
-            .epoch
-            .start_slot(T::EthSpec::slots_per_epoch());
-        let slot_is_finalized = state_slot <= finalized_slot;
-        let canonical = self
-            .state_root_at_slot(state_slot)?
-            .is_some_and(|canonical_root| state_root == &canonical_root);
-        Ok(FinalizationAndCanonicity {
-            slot_is_finalized,
-            canonical,
-        })
-    }
+/// Fetch the finalization and canonicity status of the state with `state_root`.
+pub fn state_finalization_and_canonicity<T: BeaconChainTypes>(
+    store: &BeaconStore<T>,
+    canonical_head: &CanonicalHead<T>,
+    spec: &ChainSpec,
+    slot_clock: &T::SlotClock,
+    genesis_state_root: Hash256,
+    state_root: &Hash256,
+    state_slot: Slot,
+) -> Result<FinalizationAndCanonicity, Error> {
+    let finalized_slot = canonical_head
+        .cached_head()
+        .finalized_checkpoint()
+        .epoch
+        .start_slot(T::EthSpec::slots_per_epoch());
+    let slot_is_finalized = state_slot <= finalized_slot;
+    let canonical = state_root_at_slot(
+        store,
+        canonical_head,
+        spec,
+        slot_clock,
+        genesis_state_root,
+        state_slot,
+    )?
+    .is_some_and(|canonical_root| state_root == &canonical_root);
+    Ok(FinalizationAndCanonicity {
+        slot_is_finalized,
+        canonical,
+    })
 }
 
 #[cfg(test)]

@@ -136,13 +136,14 @@ pub fn spawn_notifier<T: BeaconChainTypes>(
 
             metrics::set_gauge(&metrics::NOTIFIER_HEAD_SLOT, head_slot.as_u64() as i64);
 
-            let current_slot = match beacon_chain.slot() {
-                Ok(slot) => slot,
-                Err(e) => {
-                    error!(error = ?e, "Unable to read current slot");
-                    break;
-                }
-            };
+            let current_slot =
+                match beacon_beacon_chain::state_query::current_slot(&chain.slot_clock) {
+                    Ok(slot) => slot,
+                    Err(e) => {
+                        error!(error = ?e, "Unable to read current slot");
+                        break;
+                    }
+                };
 
             let current_epoch = current_slot.epoch(T::EthSpec::slots_per_epoch());
 
