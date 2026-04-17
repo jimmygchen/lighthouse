@@ -37,8 +37,15 @@ runtime characteristics.
 `BeaconChain<T>` is fully replaced by focused components. Components own
 state and logic. Callers (HTTP API, NetworkBeaconProcessor, Sync Manager)
 hold `Arc` refs to components but contain no business logic of their own.
-Complex workflows like block import and block production are composed
-functions that take thin slices from components at call time.
+Complex workflows like block import and block production remain as
+`impl BeaconChain<T>` methods but are organized into separate files:
+
+- `block_import_methods.rs` — chain segment processing, blob/data column
+  handling, availability checks, and the core `import_block` pipeline
+- `block_production/` — state loading, partial block assembly, payload
+  integration, and block completion
+- `execution_methods.rs` — execution engine forkchoice updates, proposer
+  preparation, and optimistic status queries
 
 ```
 Builder (startup)
