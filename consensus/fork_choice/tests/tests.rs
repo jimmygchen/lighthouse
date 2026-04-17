@@ -4,8 +4,8 @@ use beacon_chain::test_utils::{
     AttestationStrategy, BeaconChainHarness, BlockStrategy, EphemeralHarnessType,
 };
 use beacon_chain::{
-    BeaconChainError, BeaconComponents, BeaconForkChoiceStore, ChainConfig, ForkChoiceError,
-    StateSkipConfig, WhenSlotSkipped,
+    BeaconChainError, BeaconChainTypes, BeaconComponents, BeaconForkChoiceStore, ChainConfig,
+    ForkChoiceError, StateSkipConfig, WhenSlotSkipped,
 };
 use bls::AggregateSignature;
 use fixed_bytes::FixedBytesExtended;
@@ -20,12 +20,102 @@ use std::time::Duration;
 use store::MemoryStore;
 use types::SingleAttestation;
 use types::{
-    BeaconBlockRef, BeaconState, ChainSpec, Checkpoint, Epoch, EthSpec, ForkName, Hash256,
-    IndexedAttestation, IndexedPayloadAttestation, MainnetEthSpec, PayloadAttestationData,
+    Attestation, BeaconBlockRef, BeaconState, ChainSpec, Checkpoint, Epoch, EthSpec, ForkName,
+    Hash256, IndexedAttestation, IndexedPayloadAttestation, MainnetEthSpec, PayloadAttestationData,
     RelativeEpoch, SignedBeaconBlock, Slot, SubnetId, test_utils::generate_deterministic_keypair,
 };
 
 pub type E = MainnetEthSpec;
+
+/// Helper: call `block_at_slot` against the chain via the new free function.
+fn chain_block_at_slot<T: BeaconChainTypes>(
+    chain: &BeaconComponents<T>,
+    slot: Slot,
+    skips: WhenSlotSkipped,
+) -> Result<Option<types::SignedBlindedBeaconBlock<T::EthSpec>>, BeaconChainError> {
+    beacon_chain::state_query::block_at_slot(
+        &chain.store,
+        &chain.canonical_head,
+        &chain.spec,
+        &chain.slot_clock,
+        chain.genesis_block_root,
+        slot,
+        skips,
+    )
+}
+
+/// Helper: call `state_at_slot` against the chain via the new free function.
+fn chain_state_at_slot<T: BeaconChainTypes>(
+    chain: &BeaconComponents<T>,
+    slot: Slot,
+    config: StateSkipConfig,
+) -> Result<BeaconState<T::EthSpec>, BeaconChainError> {
+    beacon_chain::state_query::state_at_slot(
+        &chain.store,
+        &chain.canonical_head,
+        &chain.spec,
+        slot,
+        config,
+    )
+}
+
+/// Helper: call `produce_unaggregated_attestation` against the chain.
+fn chain_produce_unaggregated_attestation<T: BeaconChainTypes>(
+    chain: &BeaconComponents<T>,
+    slot: Slot,
+    index: types::CommitteeIndex,
+) -> Result<Attestation<T::EthSpec>, BeaconChainError> {
+    chain.attestation_manager.produce_unaggregated_attestation(
+        slot,
+        index,
+        &chain.canonical_head,
+        &chain.store,
+        &chain.spec,
+    )
+}
+
+/// Helper: verify a `SingleAttestation` for gossip against the chain.
+fn chain_verify_unaggregated_attestation_for_gossip<'a, T: BeaconChainTypes>(
+    chain: &'a BeaconComponents<T>,
+    attn: &'a SingleAttestation,
+    subnet_id: Option<SubnetId>,
+) -> Result<
+    beacon_chain::attestation_verification::VerifiedUnaggregatedAttestation<'a, T>,
+    beacon_chain::attestation_verification::Error,
+> {
+    let ctx = beacon_chain::attestation_verification::AttestationVerificationContext {
+        canonical_head: &chain.canonical_head,
+        attestation_manager: &chain.attestation_manager,
+        validator_query: &chain.validator_query,
+        store: &chain.store,
+        slot_clock: &chain.slot_clock,
+        spec: &chain.spec,
+        config: &chain.config,
+        genesis_validators_root: chain.genesis_validators_root,
+        slasher: chain.slasher.as_deref(),
+        pre_finalization_block_cache: &chain.pre_finalization_block_cache,
+    };
+    beacon_chain::attestation_verification::VerifiedUnaggregatedAttestation::verify(
+        attn, subnet_id, &ctx,
+    )
+}
+
+/// Helper: apply a verified attestation to fork choice (was `chain.apply_attestation_to_fork_choice`).
+fn chain_apply_attestation_to_fork_choice<T: BeaconChainTypes>(
+    chain: &BeaconComponents<T>,
+    verified: &beacon_chain::attestation_verification::VerifiedUnaggregatedAttestation<'_, T>,
+) -> Result<(), BeaconChainError> {
+    chain
+        .canonical_head
+        .fork_choice_write_lock()
+        .on_attestation(
+            beacon_chain::state_query::current_slot(&chain.slot_clock)?,
+            verified.indexed_attestation().to_ref(),
+            fork_choice::AttestationFromBlock::False,
+            &chain.spec,
+        )
+        .map_err(BeaconChainError::from)
+}
 
 pub const VALIDATOR_COUNT: usize = 64;
 
@@ -147,7 +237,9 @@ impl ForkChoiceTest {
             .chain
             .canonical_head
             .fork_choice_write_lock()
-            .update_time(self.harness.chain.slot().unwrap())
+            .update_time(
+                beacon_chain::state_query::current_slot(&self.harness.chain.slot_clock).unwrap(),
+            )
             .unwrap();
         func(
             self.harness
@@ -257,12 +349,13 @@ impl ForkChoiceTest {
     /// Slash the proposer of a block in the previous epoch.
     pub async fn add_previous_epoch_proposer_slashing(self, slots_per_epoch: u64) -> Self {
         let previous_epoch_slot = self.harness.get_current_slot() - slots_per_epoch;
-        let previous_epoch_block = self
-            .harness
-            .chain
-            .block_at_slot(previous_epoch_slot, WhenSlotSkipped::None)
-            .unwrap()
-            .unwrap();
+        let previous_epoch_block = chain_block_at_slot(
+            &self.harness.chain,
+            previous_epoch_slot,
+            WhenSlotSkipped::None,
+        )
+        .unwrap()
+        .unwrap();
         let proposer_index: u64 = previous_epoch_block.message().proposer_index();
 
         self.harness.add_proposer_slashing(proposer_index).unwrap();
@@ -292,14 +385,12 @@ impl ForkChoiceTest {
     where
         F: FnMut(&mut SignedBeaconBlock<E>, &mut BeaconState<E>),
     {
-        let state = self
-            .harness
-            .chain
-            .state_at_slot(
-                self.harness.get_current_slot() - 1,
-                StateSkipConfig::WithStateRoots,
-            )
-            .unwrap();
+        let state = chain_state_at_slot(
+            &self.harness.chain,
+            self.harness.get_current_slot() - 1,
+            StateSkipConfig::WithStateRoots,
+        )
+        .unwrap();
         let slot = self.harness.get_current_slot();
         let ((block_arc, _block_blobs), mut state) = self.harness.make_block(state, slot).await;
         let mut block = (*block_arc).clone();
@@ -334,14 +425,12 @@ impl ForkChoiceTest {
         F: FnMut(&mut SignedBeaconBlock<E>, &mut BeaconState<E>),
         G: FnMut(ForkChoiceError),
     {
-        let state = self
-            .harness
-            .chain
-            .state_at_slot(
-                self.harness.get_current_slot() - 1,
-                StateSkipConfig::WithStateRoots,
-            )
-            .unwrap();
+        let state = chain_state_at_slot(
+            &self.harness.chain,
+            self.harness.get_current_slot() - 1,
+            StateSkipConfig::WithStateRoots,
+        )
+        .unwrap();
         let slot = self.harness.get_current_slot();
         let ((block_arc, _block_blobs), mut state) = self.harness.make_block(state, slot).await;
         let mut block = (*block_arc).clone();
@@ -422,14 +511,13 @@ impl ForkChoiceTest {
         F: FnMut(&mut IndexedAttestation<E>, &BeaconComponents<EphemeralHarnessType<E>>),
         G: FnMut(Result<(), BeaconChainError>),
     {
-        let head = self.harness.chain.head_snapshot();
-        let current_slot = self.harness.chain.slot().expect("should get slot");
+        let head = self.harness.chain.canonical_head.head_snapshot();
+        let current_slot = beacon_chain::state_query::current_slot(&self.harness.chain.slot_clock)
+            .expect("should get slot");
 
-        let mut attestation = self
-            .harness
-            .chain
-            .produce_unaggregated_attestation(current_slot, 0)
-            .expect("should not error while producing attestation");
+        let mut attestation =
+            chain_produce_unaggregated_attestation(&self.harness.chain, current_slot, 0)
+                .expect("should not error while producing attestation");
 
         let validator_committee_index = 0;
         let validator_index = *head
@@ -477,11 +565,12 @@ impl ForkChoiceTest {
             signature: attestation.signature().clone(),
         };
 
-        let mut verified_attestation = self
-            .harness
-            .chain
-            .verify_unaggregated_attestation_for_gossip(&single_attestation, Some(subnet_id))
-            .expect("precondition: should gossip verify attestation");
+        let mut verified_attestation = chain_verify_unaggregated_attestation_for_gossip(
+            &self.harness.chain,
+            &single_attestation,
+            Some(subnet_id),
+        )
+        .expect("precondition: should gossip verify attestation");
 
         if let MutationDelay::Blocks(slots) = delay {
             self.harness.advance_slot();
@@ -499,10 +588,8 @@ impl ForkChoiceTest {
             &self.harness.chain,
         );
 
-        let result = self
-            .harness
-            .chain
-            .apply_attestation_to_fork_choice(&verified_attestation);
+        let result =
+            chain_apply_attestation_to_fork_choice(&self.harness.chain, &verified_attestation);
 
         comparison_func(result);
 
@@ -911,11 +998,12 @@ async fn invalid_attestation_future_block() {
         .apply_attestation_to_chain(
             MutationDelay::Blocks(1),
             |attestation, chain| {
-                attestation.data_mut().beacon_block_root = chain
-                    .block_at_slot(chain.slot().unwrap(), WhenSlotSkipped::Prev)
-                    .unwrap()
-                    .unwrap()
-                    .canonical_root();
+                let slot = beacon_chain::state_query::current_slot(&chain.slot_clock).unwrap();
+                attestation.data_mut().beacon_block_root =
+                    chain_block_at_slot(chain, slot, WhenSlotSkipped::Prev)
+                        .unwrap()
+                        .unwrap()
+                        .canonical_root();
             },
             |result| {
                 assert_invalid_attestation!(
@@ -937,8 +1025,7 @@ async fn non_block_payload_attestation_for_previous_slot_is_rejected() {
         .await;
 
     let chain = &test.harness.chain;
-    let block_a = chain
-        .block_at_slot(Slot::new(1), WhenSlotSkipped::Prev)
+    let block_a = chain_block_at_slot(chain, Slot::new(1), WhenSlotSkipped::Prev)
         .expect("lookup should succeed")
         .expect("block A should exist");
     let block_a_root = block_a.canonical_root();
@@ -992,16 +1079,15 @@ async fn invalid_attestation_inconsistent_ffg_vote() {
         .apply_attestation_to_chain(
             MutationDelay::NoDelay,
             |attestation, chain| {
-                attestation.data_mut().target.root = chain
-                    .block_at_slot(Slot::new(1), WhenSlotSkipped::Prev)
-                    .unwrap()
-                    .unwrap()
-                    .canonical_root();
+                attestation.data_mut().target.root =
+                    chain_block_at_slot(chain, Slot::new(1), WhenSlotSkipped::Prev)
+                        .unwrap()
+                        .unwrap()
+                        .canonical_root();
 
                 *attestation_opt.lock().unwrap() = Some(attestation.data().target.root);
                 *local_opt.lock().unwrap() = Some(
-                    chain
-                        .block_at_slot(Slot::new(0), WhenSlotSkipped::Prev)
+                    chain_block_at_slot(chain, Slot::new(0), WhenSlotSkipped::Prev)
                         .unwrap()
                         .unwrap()
                         .canonical_root(),

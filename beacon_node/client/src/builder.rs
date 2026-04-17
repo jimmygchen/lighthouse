@@ -840,6 +840,8 @@ where
         let chain = Arc::new(chain);
         // Install the weak back-reference from the block importer to the parent components.
         chain.block_importer.set_parent(&chain);
+        // Install the weak back-reference from the block producer to the parent components.
+        chain.block_producer.set_parent(&chain);
         self.beacon_chain = Some(chain);
         self.beacon_chain_builder = None;
 

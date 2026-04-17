@@ -6,6 +6,7 @@ use crate::beacon_components::{
 };
 use crate::beacon_proposer_cache::BeaconProposerCache;
 use crate::block_importer::BlockImporter;
+use crate::block_production::BlockProducer;
 use crate::block_times_cache::BlockTimesCache;
 use crate::custody_context::NodeCustodyType;
 use crate::data_availability_checker::DataAvailabilityChecker;
@@ -1078,6 +1079,20 @@ where
             shutdown_sender.clone(),
         ));
 
+        let block_producer = Arc::new(BlockProducer::new(
+            self.spec.clone(),
+            store.clone(),
+            chain_config_arc.clone(),
+            op_pool.clone(),
+            beacon_proposer_cache.clone(),
+            execution_manager.clone(),
+            block_times_cache.clone(),
+            self.execution_layer.clone(),
+            slot_clock.clone(),
+            genesis_block_root,
+            task_executor.clone(),
+        ));
+
         let beacon_chain = BeaconComponents {
             spec: self.spec.clone(),
             config: self.chain_config,
@@ -1132,6 +1147,7 @@ where
             data_availability_manager,
             execution_manager,
             block_importer,
+            block_producer,
         };
 
         let head = beacon_chain.canonical_head.head_snapshot();

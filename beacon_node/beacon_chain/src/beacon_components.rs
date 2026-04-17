@@ -1,6 +1,7 @@
 use crate::attestation_manager::AttestationManager;
 use crate::beacon_proposer_cache::BeaconProposerCache;
 use crate::block_importer::BlockImporter;
+use crate::block_production::BlockProducer;
 use crate::block_times_cache::BlockTimesCache;
 use crate::block_verification::BlockError;
 use crate::block_verification_types::RangeSyncBlock;
@@ -399,6 +400,8 @@ pub struct BeaconComponents<T: BeaconChainTypes> {
     pub execution_manager: Arc<ExecutionManager<T>>,
     /// Component handling block, blob, and data-column import.
     pub block_importer: Arc<BlockImporter<T>>,
+    /// Component handling block production.
+    pub block_producer: Arc<BlockProducer<T>>,
 }
 
 pub enum BeaconBlockResponseWrapper<E: EthSpec> {

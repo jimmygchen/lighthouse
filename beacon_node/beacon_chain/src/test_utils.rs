@@ -661,6 +661,8 @@ where
         let chain = Arc::new(chain);
         // Install the weak back-reference from the block importer to the parent components.
         chain.block_importer.set_parent(&chain);
+        // Install the weak back-reference from the block producer to the parent components.
+        chain.block_producer.set_parent(&chain);
 
         BeaconChainHarness {
             spec: chain.spec.clone(),
@@ -1010,9 +1012,10 @@ where
         // Always use the builder, so that we produce a "real" blinded payload.
         let builder_boost_factor = Some(u64::MAX);
 
-        let BeaconBlockResponseWrapper::Blinded(block_response) =
-            crate::block_production::produce_block_on_state(
-                &self.chain,
+        let BeaconBlockResponseWrapper::Blinded(block_response) = self
+            .chain
+            .block_producer
+            .produce_block_on_state(
                 state,
                 None,
                 slot,
@@ -1066,9 +1069,10 @@ where
 
         let randao_reveal = self.sign_randao_reveal(&state, proposer_index, slot);
 
-        let BeaconBlockResponseWrapper::Full(block_response) =
-            crate::block_production::produce_block_on_state(
-                &self.chain,
+        let BeaconBlockResponseWrapper::Full(block_response) = self
+            .chain
+            .block_producer
+            .produce_block_on_state(
                 state,
                 None,
                 slot,
@@ -1131,9 +1135,10 @@ where
                 GraffitiSettings::new(Some(graffiti), Some(GraffitiPolicy::PreserveUserGraffiti));
             let randao_reveal = self.sign_randao_reveal(&state, proposer_index, slot);
 
-            let (block, pending_state, _consensus_block_value) =
-                crate::block_production::gloas::produce_block_on_state_gloas(
-                    &self.chain,
+            let (block, pending_state, _consensus_block_value) = self
+                .chain
+                .block_producer
+                .produce_block_on_state_gloas(
                     state,
                     None,
                     slot,
@@ -1209,9 +1214,10 @@ where
 
         let pre_state = state.clone();
 
-        let BeaconBlockResponseWrapper::Full(block_response) =
-            crate::block_production::produce_block_on_state(
-                &self.chain,
+        let BeaconBlockResponseWrapper::Full(block_response) = self
+            .chain
+            .block_producer
+            .produce_block_on_state(
                 state,
                 None,
                 slot,

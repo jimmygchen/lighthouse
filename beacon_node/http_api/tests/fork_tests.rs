@@ -2,7 +2,9 @@
 use beacon_chain::custody_context::NodeCustodyType;
 use beacon_chain::{
     StateSkipConfig,
-    test_utils::{DEFAULT_ETH1_BLOCK_HASH, HARNESS_GENESIS_TIME, RelativeSyncCommittee},
+    test_utils::{
+        DEFAULT_ETH1_BLOCK_HASH, EphemeralHarnessType, HARNESS_GENESIS_TIME, RelativeSyncCommittee,
+    },
 };
 use bls::PublicKey;
 use eth2::types::{IndexedErrorMessage, StateId, SyncSubcommittee};
@@ -131,10 +133,14 @@ async fn attestations_across_fork_with_skip_slots() {
     let all_validators = harness.get_all_validators();
 
     let fork_slot = fork_epoch.start_slot(E::slots_per_epoch());
-    let mut fork_state = harness
-        .chain
-        .state_at_slot(fork_slot, StateSkipConfig::WithStateRoots)
-        .unwrap();
+    let mut fork_state = beacon_chain::state_query::state_at_slot(
+        &harness.chain.store,
+        &harness.chain.canonical_head,
+        &harness.chain.spec,
+        fork_slot,
+        StateSkipConfig::WithStateRoots,
+    )
+    .unwrap();
     let fork_state_root = fork_state.update_tree_hash_cache().unwrap();
 
     harness.set_current_slot(fork_slot);
@@ -216,10 +222,14 @@ async fn sync_contributions_across_fork_with_skip_slots() {
     let client = &tester.client;
 
     let fork_slot = fork_epoch.start_slot(E::slots_per_epoch());
-    let fork_state = harness
-        .chain
-        .state_at_slot(fork_slot, StateSkipConfig::WithStateRoots)
-        .unwrap();
+    let fork_state = beacon_chain::state_query::state_at_slot(
+        &harness.chain.store,
+        &harness.chain.canonical_head,
+        &harness.chain.spec,
+        fork_slot,
+        StateSkipConfig::WithStateRoots,
+    )
+    .unwrap();
 
     harness.set_current_slot(fork_slot);
 
@@ -537,12 +547,15 @@ async fn bls_to_execution_changes_update_all_around_capella_fork() {
     // Add Capella blocks which should be full of BLS to execution changes.
     for i in 0..VALIDATOR_COUNT / max_bls_to_execution_changes {
         let head_block_root = harness.extend_slots(1).await;
-        let head_block = harness
-            .chain
-            .get_block(&head_block_root)
-            .await
-            .unwrap()
-            .unwrap();
+        let head_block = beacon_chain::get_block::<EphemeralHarnessType<E>>(
+            &harness.chain.store,
+            harness.chain.execution_layer.as_ref(),
+            &harness.chain.spec,
+            &head_block_root,
+        )
+        .await
+        .unwrap()
+        .unwrap();
 
         let bls_to_execution_changes = head_block
             .message()

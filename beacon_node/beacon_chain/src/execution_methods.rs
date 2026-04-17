@@ -8,7 +8,6 @@ use crate::beacon_components::{
     BeaconChainTypes, INVALID_JUSTIFIED_PAYLOAD_SHUTDOWN_REASON, OverrideForkchoiceUpdate,
     PrePayloadAttributes,
 };
-use crate::block_production::BlockProductionContext;
 use crate::errors::BeaconChainError as Error;
 use crate::events::ServerSentEventHandler;
 use crate::{BeaconChainError, BeaconComponents};
@@ -211,51 +210,34 @@ pub async fn prepare_beacon_proposer<T: BeaconChainTypes>(
     // block the core tokio executor.
     let inner_chain = chain.clone();
     let tolerance_slots = chain.config.sync_tolerance_epochs * T::EthSpec::slots_per_epoch();
-    let maybe_prep_data = crate::beacon_components::spawn_blocking_handle(
-        &chain.task_executor,
-        move || {
-            let cached_head = inner_chain.canonical_head.cached_head();
+    let maybe_prep_data =
+        crate::beacon_components::spawn_blocking_handle(
+            &chain.task_executor,
+            move || {
+                let cached_head = inner_chain.canonical_head.cached_head();
 
-            // Don't bother with proposer prep if the head is more than
-            // `sync_tolerance_epochs` prior to the current slot.
-            //
-            // This prevents the routine from running during sync.
-            let head_slot = cached_head.head_slot();
-            if head_slot + tolerance_slots < current_slot {
-                debug!(%head_slot, %current_slot, "Head too old for proposer prep");
-                return Ok(None);
-            }
+                // Don't bother with proposer prep if the head is more than
+                // `sync_tolerance_epochs` prior to the current slot.
+                //
+                // This prevents the routine from running during sync.
+                let head_slot = cached_head.head_slot();
+                if head_slot + tolerance_slots < current_slot {
+                    debug!(%head_slot, %current_slot, "Head too old for proposer prep");
+                    return Ok(None);
+                }
 
-            let canonical_fcu_params = cached_head.forkchoice_update_parameters();
-            let ctx = BlockProductionContext {
-                canonical_head: &inner_chain.canonical_head,
-                store: &inner_chain.store,
-                attestation_manager: &inner_chain.attestation_manager,
-                execution_manager: &inner_chain.execution_manager,
-                execution_layer: inner_chain.execution_layer.as_ref(),
-                op_pool: &inner_chain.op_pool,
-                spec: &inner_chain.spec,
-                slot_clock: &inner_chain.slot_clock,
-                config: &inner_chain.config,
-                block_times_cache: &inner_chain.block_times_cache,
-                beacon_proposer_cache: &inner_chain.beacon_proposer_cache,
-                genesis_block_root: inner_chain.genesis_block_root,
-            };
-            let fcu_params = crate::block_production::overridden_forkchoice_update_params_fn(
-                &ctx,
-                canonical_fcu_params,
-            )?;
-            let pre_payload_attributes = crate::block_production::get_pre_payload_attributes(
-                &ctx,
-                prepare_slot,
-                fcu_params.head_root,
-                &cached_head,
-            )?;
-            Ok::<_, Error>(Some((fcu_params, pre_payload_attributes)))
-        },
-        "prepare_beacon_proposer_head_read",
-    )
-    .await??;
+                let canonical_fcu_params = cached_head.forkchoice_update_parameters();
+                let fcu_params = inner_chain
+                    .block_producer
+                    .overridden_forkchoice_update_params(canonical_fcu_params)?;
+                let pre_payload_attributes = inner_chain
+                    .block_producer
+                    .get_pre_payload_attributes(prepare_slot, fcu_params.head_root, &cached_head)?;
+                Ok::<_, Error>(Some((fcu_params, pre_payload_attributes)))
+            },
+            "prepare_beacon_proposer_head_read",
+        )
+        .await??;
 
     let Some((forkchoice_update_params, Some(pre_payload_attributes))) = maybe_prep_data else {
         // Appropriate log messages have already been logged above and in
@@ -291,25 +273,12 @@ pub async fn prepare_beacon_proposer<T: BeaconChainTypes>(
             crate::beacon_components::spawn_blocking_handle(
                 &chain.task_executor,
                 move || {
-                    let ctx = BlockProductionContext {
-                        canonical_head: &inner_chain.canonical_head,
-                        store: &inner_chain.store,
-                        attestation_manager: &inner_chain.attestation_manager,
-                        execution_manager: &inner_chain.execution_manager,
-                        execution_layer: inner_chain.execution_layer.as_ref(),
-                        op_pool: &inner_chain.op_pool,
-                        spec: &inner_chain.spec,
-                        slot_clock: &inner_chain.slot_clock,
-                        config: &inner_chain.config,
-                        block_times_cache: &inner_chain.block_times_cache,
-                        beacon_proposer_cache: &inner_chain.beacon_proposer_cache,
-                        genesis_block_root: inner_chain.genesis_block_root,
-                    };
-                    crate::block_production::get_expected_withdrawals_for_proposal(
-                        &ctx,
-                        &forkchoice_update_params,
-                        prepare_slot,
-                    )
+                    inner_chain
+                        .block_producer
+                        .get_expected_withdrawals_for_proposal(
+                            &forkchoice_update_params,
+                            prepare_slot,
+                        )
                 },
                 "prepare_beacon_proposer_withdrawals",
             )
@@ -423,21 +392,9 @@ pub async fn update_execution_engine_forkchoice<T: BeaconChainTypes>(
         crate::beacon_components::spawn_blocking_handle(
             &chain.task_executor,
             move || {
-                let ctx = BlockProductionContext {
-                    canonical_head: &inner_chain.canonical_head,
-                    store: &inner_chain.store,
-                    attestation_manager: &inner_chain.attestation_manager,
-                    execution_manager: &inner_chain.execution_manager,
-                    execution_layer: inner_chain.execution_layer.as_ref(),
-                    op_pool: &inner_chain.op_pool,
-                    spec: &inner_chain.spec,
-                    slot_clock: &inner_chain.slot_clock,
-                    config: &inner_chain.config,
-                    block_times_cache: &inner_chain.block_times_cache,
-                    beacon_proposer_cache: &inner_chain.beacon_proposer_cache,
-                    genesis_block_root: inner_chain.genesis_block_root,
-                };
-                crate::block_production::overridden_forkchoice_update_params_fn(&ctx, input_params)
+                inner_chain
+                    .block_producer
+                    .overridden_forkchoice_update_params(input_params)
             },
             "update_execution_engine_forkchoice_override",
         )

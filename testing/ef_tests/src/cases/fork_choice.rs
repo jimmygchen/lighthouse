@@ -1120,25 +1120,10 @@ impl<E: EthSpec> Tester<E> {
         // Check forkchoice override.
         let canonical_fcu_params = cached_head.forkchoice_update_parameters();
         let chain = &self.harness.chain;
-        let ctx = beacon_chain::block_production::BlockProductionContext {
-            canonical_head: &chain.canonical_head,
-            store: &chain.store,
-            attestation_manager: &chain.attestation_manager,
-            execution_manager: &chain.execution_manager,
-            execution_layer: chain.execution_layer.as_ref(),
-            op_pool: &chain.op_pool,
-            spec: &chain.spec,
-            slot_clock: &chain.slot_clock,
-            config: &chain.config,
-            block_times_cache: &chain.block_times_cache,
-            beacon_proposer_cache: &chain.beacon_proposer_cache,
-            genesis_block_root: chain.genesis_block_root,
-        };
-        let fcu_params = beacon_chain::block_production::overridden_forkchoice_update_params_fn(
-            &ctx,
-            canonical_fcu_params,
-        )
-        .unwrap();
+        let fcu_params = chain
+            .block_producer
+            .overridden_forkchoice_update_params(canonical_fcu_params)
+            .unwrap();
 
         check_equal(
             "should_override_forkchoice_update",

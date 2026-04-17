@@ -1043,12 +1043,17 @@ pub async fn blinded_consensus_invalid() {
         .epoch
         .start_slot(E::slots_per_epoch());
     assert_ne!(finalized_slot, 0);
-    let pre_finalized_block_root = tester
-        .harness
-        .chain
-        .block_root_at_slot(finalized_slot - 1, WhenSlotSkipped::Prev)
-        .unwrap()
-        .unwrap();
+    let pre_finalized_block_root = beacon_chain::state_query::block_root_at_slot(
+        &tester.harness.chain.store,
+        &tester.harness.chain.canonical_head,
+        &tester.harness.chain.spec,
+        &tester.harness.chain.slot_clock,
+        tester.harness.chain.genesis_block_root,
+        finalized_slot - 1,
+        WhenSlotSkipped::Prev,
+    )
+    .unwrap()
+    .unwrap();
 
     let (blinded_block, _) = tester
         .harness
@@ -1233,12 +1238,17 @@ pub async fn blinded_equivocation_invalid() {
         .epoch
         .start_slot(E::slots_per_epoch());
     assert_ne!(finalized_slot, 0);
-    let pre_finalized_block_root = tester
-        .harness
-        .chain
-        .block_root_at_slot(finalized_slot - 1, WhenSlotSkipped::Prev)
-        .unwrap()
-        .unwrap();
+    let pre_finalized_block_root = beacon_chain::state_query::block_root_at_slot(
+        &tester.harness.chain.store,
+        &tester.harness.chain.canonical_head,
+        &tester.harness.chain.spec,
+        &tester.harness.chain.slot_clock,
+        tester.harness.chain.genesis_block_root,
+        finalized_slot - 1,
+        WhenSlotSkipped::Prev,
+    )
+    .unwrap()
+    .unwrap();
 
     let (blinded_block, _) = tester
         .harness

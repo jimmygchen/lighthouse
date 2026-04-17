@@ -112,6 +112,7 @@ pub use self::beacon_components::{
 };
 pub use self::beacon_snapshot::BeaconSnapshot;
 pub use self::block_importer::BlockImporter;
+pub use self::block_production::BlockProducer;
 pub use self::chain_config::ChainConfig;
 pub use self::errors::{BeaconChainError, BlockProductionError};
 pub use self::historical_blocks::HistoricalBlockError;

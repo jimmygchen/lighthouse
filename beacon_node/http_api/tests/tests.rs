@@ -150,7 +150,9 @@ impl ApiTester {
         harness.advance_slot();
 
         for _ in 0..CHAIN_LENGTH {
-            let slot = harness.chain.slot().unwrap().as_u64();
+            let slot = beacon_chain::state_query::current_slot(&harness.chain.slot_clock)
+                .unwrap()
+                .as_u64();
 
             if !SKIPPED_SLOTS.contains(&slot) {
                 harness
@@ -168,7 +170,7 @@ impl ApiTester {
         let head = harness.chain.canonical_head.head_snapshot();
 
         assert_eq!(
-            harness.chain.slot().unwrap(),
+            beacon_chain::state_query::current_slot(&harness.chain.slot_clock).unwrap(),
             head.beacon_block.slot() + 1,
             "precondition: current slot is one after head"
         );
@@ -177,13 +179,19 @@ impl ApiTester {
         harness.execution_block_generator().set_min_blob_count(2);
 
         let (next_block, _next_state) = harness
-            .make_block(head.beacon_state.clone(), harness.chain.slot().unwrap())
+            .make_block(
+                head.beacon_state.clone(),
+                beacon_chain::state_query::current_slot(&harness.chain.slot_clock).unwrap(),
+            )
             .await;
         let next_block = PublishBlockRequest::from(next_block);
 
         // `make_block` adds random graffiti, so this will produce an alternate block
         let (reorg_block, _reorg_state) = harness
-            .make_block(head.beacon_state.clone(), harness.chain.slot().unwrap() + 1)
+            .make_block(
+                head.beacon_state.clone(),
+                beacon_chain::state_query::current_slot(&harness.chain.slot_clock).unwrap() + 1,
+            )
             .await;
         let reorg_block = PublishBlockRequest::from(reorg_block);
 
@@ -194,7 +202,7 @@ impl ApiTester {
                 &head.beacon_state,
                 head_state_root,
                 head.beacon_block_root,
-                harness.chain.slot().unwrap(),
+                beacon_chain::state_query::current_slot(&harness.chain.slot_clock).unwrap(),
             )
             .into_iter()
             .flat_map(|vec| vec.into_iter().map(|(attestation, _subnet_id)| attestation))
@@ -205,10 +213,9 @@ impl ApiTester {
             "precondition: attestations for testing"
         );
 
-        let fork_name = harness
-            .chain
-            .spec
-            .fork_name_at_slot::<E>(harness.chain.slot().unwrap());
+        let fork_name = harness.chain.spec.fork_name_at_slot::<E>(
+            beacon_chain::state_query::current_slot(&harness.chain.slot_clock).unwrap(),
+        );
 
         let single_attestations = if fork_name.electra_enabled() {
             harness
@@ -217,7 +224,7 @@ impl ApiTester {
                     &head.beacon_state,
                     head_state_root,
                     head.beacon_block_root,
-                    harness.chain.slot().unwrap(),
+                    beacon_chain::state_query::current_slot(&harness.chain.slot_clock).unwrap(),
                 )
                 .into_iter()
                 .flat_map(|vec| vec.into_iter().map(|(attestation, _subnet_id)| attestation))
@@ -226,9 +233,7 @@ impl ApiTester {
             vec![]
         };
 
-        let current_epoch = harness
-            .chain
-            .slot()
+        let current_epoch = beacon_chain::state_query::current_slot(&harness.chain.slot_clock)
             .expect("should get current slot")
             .epoch(E::slots_per_epoch());
         let is_altair = spec
@@ -240,7 +245,7 @@ impl ApiTester {
                 .make_sync_contributions(
                     &head.beacon_state,
                     head_state_root,
-                    harness.chain.slot().unwrap(),
+                    beacon_chain::state_query::current_slot(&harness.chain.slot_clock).unwrap(),
                     RelativeSyncCommittee::Current,
                 )
                 .into_iter()
@@ -252,7 +257,10 @@ impl ApiTester {
 
         let attester_slashing = harness.make_attester_slashing(vec![0, 1]);
         let proposer_slashing = harness.make_proposer_slashing(2);
-        let voluntary_exit = harness.make_voluntary_exit(3, harness.chain.epoch().unwrap());
+        let voluntary_exit = harness.make_voluntary_exit(
+            3,
+            beacon_chain::state_query::current_epoch::<E, _>(&harness.chain.slot_clock).unwrap(),
+        );
         let bls_to_execution_change = harness.make_bls_to_execution_change(4, Address::zero());
 
         let chain = harness.chain.clone();
@@ -356,13 +364,19 @@ impl ApiTester {
         let head = harness.chain.canonical_head.head_snapshot();
 
         let (next_block, _next_state) = harness
-            .make_block(head.beacon_state.clone(), harness.chain.slot().unwrap())
+            .make_block(
+                head.beacon_state.clone(),
+                beacon_chain::state_query::current_slot(&harness.chain.slot_clock).unwrap(),
+            )
             .await;
         let next_block = PublishBlockRequest::from(next_block);
 
         // `make_block` adds random graffiti, so this will produce an alternate block
         let (reorg_block, _reorg_state) = harness
-            .make_block(head.beacon_state.clone(), harness.chain.slot().unwrap())
+            .make_block(
+                head.beacon_state.clone(),
+                beacon_chain::state_query::current_slot(&harness.chain.slot_clock).unwrap(),
+            )
             .await;
         let reorg_block = PublishBlockRequest::from(reorg_block);
 
@@ -373,7 +387,7 @@ impl ApiTester {
                 &head.beacon_state,
                 head_state_root,
                 head.beacon_block_root,
-                harness.chain.slot().unwrap(),
+                beacon_chain::state_query::current_slot(&harness.chain.slot_clock).unwrap(),
             )
             .into_iter()
             .flat_map(|vec| vec.into_iter().map(|(attestation, _subnet_id)| attestation))
@@ -381,7 +395,10 @@ impl ApiTester {
 
         let attester_slashing = harness.make_attester_slashing(vec![0, 1]);
         let proposer_slashing = harness.make_proposer_slashing(2);
-        let voluntary_exit = harness.make_voluntary_exit(3, harness.chain.epoch().unwrap());
+        let voluntary_exit = harness.make_voluntary_exit(
+            3,
+            beacon_chain::state_query::current_epoch::<E, _>(&harness.chain.slot_clock).unwrap(),
+        );
         let bls_to_execution_change = harness.make_bls_to_execution_change(4, Address::zero());
 
         let chain = harness.chain.clone();
@@ -462,9 +479,12 @@ impl ApiTester {
 
     fn skip_slots(self, count: u64) -> Self {
         for _ in 0..count {
-            self.chain
-                .slot_clock
-                .set_slot(self.chain.slot().unwrap().as_u64() + 1);
+            self.chain.slot_clock.set_slot(
+                beacon_chain::state_query::current_slot(&self.chain.slot_clock)
+                    .unwrap()
+                    .as_u64()
+                    + 1,
+            );
         }
 
         self
@@ -551,10 +571,16 @@ impl ApiTester {
             let (state_root, _, _) = state_root.unwrap();
             let (state, _, _) = state.unwrap();
             let state_slot = state.slot();
-            let expected = self
-                .chain
-                .is_finalized_state(&state_root, state_slot)
-                .unwrap();
+            let expected = beacon_chain::state_query::is_finalized_state(
+                &self.chain.store,
+                &self.chain.canonical_head,
+                &self.chain.spec,
+                &self.chain.slot_clock,
+                self.chain.genesis_state_root,
+                &state_root,
+                state_slot,
+            )
+            .unwrap();
 
             assert_eq!(result, expected, "{:?}", state_id);
         }
@@ -588,10 +614,16 @@ impl ApiTester {
             let (state_root, _, _) = state_root.unwrap();
             let (state, _, _) = state.unwrap();
             let state_slot = state.slot();
-            let expected = self
-                .chain
-                .is_finalized_state(&state_root, state_slot)
-                .unwrap();
+            let expected = beacon_chain::state_query::is_finalized_state(
+                &self.chain.store,
+                &self.chain.canonical_head,
+                &self.chain.spec,
+                &self.chain.slot_clock,
+                self.chain.genesis_state_root,
+                &state_root,
+                state_slot,
+            )
+            .unwrap();
 
             assert_eq!(result, expected, "{:?}", state_id);
         }
@@ -625,10 +657,16 @@ impl ApiTester {
             let (state_root, _, _) = state_root.unwrap();
             let (state, _, _) = state.unwrap();
             let state_slot = state.slot();
-            let expected = self
-                .chain
-                .is_finalized_state(&state_root, state_slot)
-                .unwrap();
+            let expected = beacon_chain::state_query::is_finalized_state(
+                &self.chain.store,
+                &self.chain.canonical_head,
+                &self.chain.spec,
+                &self.chain.slot_clock,
+                self.chain.genesis_state_root,
+                &state_root,
+                state_slot,
+            )
+            .unwrap();
 
             assert_eq!(result, expected, "{:?}", state_id);
         }
@@ -662,10 +700,16 @@ impl ApiTester {
             let (block_root, _, _) = block_root.unwrap();
             let (block, _, _) = block.unwrap();
             let block_slot = block.slot();
-            let expected = self
-                .chain
-                .is_finalized_block(&block_root, block_slot)
-                .unwrap();
+            let expected = beacon_chain::state_query::is_finalized_block(
+                &self.chain.store,
+                &self.chain.canonical_head,
+                &self.chain.spec,
+                &self.chain.slot_clock,
+                self.chain.genesis_block_root,
+                &block_root,
+                block_slot,
+            )
+            .unwrap();
 
             assert_eq!(result, expected, "{:?}", block_id);
         }
@@ -699,10 +743,16 @@ impl ApiTester {
             let (block_root, _, _) = block_root.unwrap();
             let (block, _, _) = block.unwrap();
             let block_slot = block.slot();
-            let expected = self
-                .chain
-                .is_finalized_block(&block_root, block_slot)
-                .unwrap();
+            let expected = beacon_chain::state_query::is_finalized_block(
+                &self.chain.store,
+                &self.chain.canonical_head,
+                &self.chain.spec,
+                &self.chain.slot_clock,
+                self.chain.genesis_block_root,
+                &block_root,
+                block_slot,
+            )
+            .unwrap();
 
             assert_eq!(result, expected, "{:?}", block_id);
         }
@@ -736,10 +786,16 @@ impl ApiTester {
             let (block_root, _, _) = block_root.unwrap();
             let (block, _, _) = block.unwrap();
             let block_slot = block.slot();
-            let expected = self
-                .chain
-                .is_finalized_block(&block_root, block_slot)
-                .unwrap();
+            let expected = beacon_chain::state_query::is_finalized_block(
+                &self.chain.store,
+                &self.chain.canonical_head,
+                &self.chain.spec,
+                &self.chain.slot_clock,
+                self.chain.genesis_block_root,
+                &block_root,
+                block_slot,
+            )
+            .unwrap();
 
             assert_eq!(result, expected, "{:?}", block_id);
         }
@@ -774,10 +830,16 @@ impl ApiTester {
             let (state_root, _, _) = state_root.unwrap();
             let (state, _, _) = state.unwrap();
             let state_slot = state.slot();
-            let expected = self
-                .chain
-                .is_finalized_state(&state_root, state_slot)
-                .unwrap();
+            let expected = beacon_chain::state_query::is_finalized_state(
+                &self.chain.store,
+                &self.chain.canonical_head,
+                &self.chain.spec,
+                &self.chain.slot_clock,
+                self.chain.genesis_state_root,
+                &state_root,
+                state_slot,
+            )
+            .unwrap();
 
             assert_eq!(result, expected, "{:?}", state_id);
         }
@@ -1487,21 +1549,33 @@ impl ApiTester {
                 .unwrap()
                 .map(|res| res.data);
 
-            let root = self
-                .chain
-                .block_root_at_slot(slot, WhenSlotSkipped::None)
-                .unwrap();
+            let root = beacon_chain::state_query::block_root_at_slot(
+                &self.chain.store,
+                &self.chain.canonical_head,
+                &self.chain.spec,
+                &self.chain.slot_clock,
+                self.chain.genesis_block_root,
+                slot,
+                WhenSlotSkipped::None,
+            )
+            .unwrap();
 
             if root.is_none() && result.is_none() {
                 continue;
             }
 
             let root = root.unwrap();
-            let block = self
-                .chain
-                .block_at_slot(slot, WhenSlotSkipped::Prev)
-                .unwrap()
-                .unwrap();
+            let block = beacon_chain::state_query::block_at_slot(
+                &self.chain.store,
+                &self.chain.canonical_head,
+                &self.chain.spec,
+                &self.chain.slot_clock,
+                self.chain.genesis_block_root,
+                slot,
+                WhenSlotSkipped::Prev,
+            )
+            .unwrap()
+            .unwrap();
             let header = BlockHeaderData {
                 root,
                 canonical: true,
@@ -1519,13 +1593,15 @@ impl ApiTester {
     }
 
     pub async fn test_beacon_headers_all_parents(self) -> Self {
-        let mut roots = self
-            .chain
-            .forwards_iter_block_roots(Slot::new(0))
-            .unwrap()
-            .map(Result::unwrap)
-            .map(|(root, _slot)| root)
-            .collect::<Vec<_>>();
+        let mut roots = beacon_chain::state_query::forwards_iter_block_roots(
+            &self.chain.store,
+            &self.chain.canonical_head,
+            Slot::new(0),
+        )
+        .unwrap()
+        .map(Result::unwrap)
+        .map(|(root, _slot)| root)
+        .collect::<Vec<_>>();
 
         // The iterator natively returns duplicate roots for skipped slots.
         roots.dedup();
@@ -1584,11 +1660,17 @@ impl ApiTester {
             let result = result.unwrap();
             let block = block_opt.unwrap();
             let block_root = block_root_opt.unwrap();
-            let canonical = self
-                .chain
-                .block_root_at_slot(block.slot(), WhenSlotSkipped::None)
-                .unwrap()
-                .is_some_and(|canonical| block_root == canonical);
+            let canonical = beacon_chain::state_query::block_root_at_slot(
+                &self.chain.store,
+                &self.chain.canonical_head,
+                &self.chain.spec,
+                &self.chain.slot_clock,
+                self.chain.genesis_block_root,
+                block.slot(),
+                WhenSlotSkipped::None,
+            )
+            .unwrap()
+            .is_some_and(|canonical| block_root == canonical);
 
             assert_eq!(result.canonical, canonical, "{:?}", block_id);
             assert_eq!(result.root, block_root, "{:?}", block_id);
@@ -2386,7 +2468,8 @@ impl ApiTester {
     }
 
     pub async fn test_get_beacon_light_client_updates_ssz(self) -> Self {
-        let current_epoch = self.chain.epoch().unwrap();
+        let current_epoch =
+            beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap();
         let current_sync_committee_period = current_epoch
             .sync_committee_period(&self.chain.spec)
             .unwrap();
@@ -2404,7 +2487,8 @@ impl ApiTester {
     }
 
     pub async fn test_get_beacon_light_client_updates(self) -> Self {
-        let current_epoch = self.chain.epoch().unwrap();
+        let current_epoch =
+            beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap();
         let current_sync_committee_period = current_epoch
             .sync_committee_period(&self.chain.spec)
             .unwrap();
@@ -2563,11 +2647,9 @@ impl ApiTester {
             expected_committee_index_filtered
         );
 
-        let fork_name = self
-            .harness
-            .chain
-            .spec
-            .fork_name_at_slot::<E>(self.harness.chain.slot().unwrap());
+        let fork_name = self.harness.chain.spec.fork_name_at_slot::<E>(
+            beacon_chain::state_query::current_slot(&self.harness.chain.slot_clock).unwrap(),
+        );
 
         // aggregate electra attestations
         if fork_name.electra_enabled() {
@@ -2877,7 +2959,8 @@ impl ApiTester {
     pub async fn test_get_node_syncing(self) -> Self {
         let result = self.client.get_node_syncing().await.unwrap().data;
         let head_slot = self.chain.canonical_head.cached_head().head_slot();
-        let sync_distance = self.chain.slot().unwrap() - head_slot;
+        let sync_distance =
+            beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap() - head_slot;
 
         let expected = SyncingData {
             is_syncing: false,
@@ -3117,7 +3200,7 @@ impl ApiTester {
             .map(|head| (head.root, head.slot))
             .collect::<Vec<_>>();
 
-        let expected = beacon_chain::beacon_chain::heads(&self.chain.canonical_head);
+        let expected = beacon_chain::heads(&self.chain.canonical_head);
 
         assert_eq!(result, expected);
 
@@ -3271,7 +3354,10 @@ impl ApiTester {
     }
 
     pub async fn test_get_validator_duties_attester(self) -> Self {
-        let current_epoch = self.chain.epoch().unwrap().as_u64();
+        let current_epoch =
+            beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock)
+                .unwrap()
+                .as_u64();
 
         let half = current_epoch / 2;
         let first = current_epoch - half;
@@ -3301,26 +3387,30 @@ impl ApiTester {
                     .await
                     .unwrap();
 
-                let dependent_root = self
-                    .chain
-                    .block_root_at_slot(
-                        (epoch - 1).start_slot(E::slots_per_epoch()) - 1,
-                        WhenSlotSkipped::Prev,
-                    )
-                    .unwrap()
-                    .unwrap_or(self.chain.canonical_head.head_beacon_block_root());
+                let dependent_root = beacon_chain::state_query::block_root_at_slot(
+                    &self.chain.store,
+                    &self.chain.canonical_head,
+                    &self.chain.spec,
+                    &self.chain.slot_clock,
+                    self.chain.genesis_block_root,
+                    (epoch - 1).start_slot(E::slots_per_epoch()) - 1,
+                    WhenSlotSkipped::Prev,
+                )
+                .unwrap()
+                .unwrap_or(self.chain.canonical_head.head_beacon_block_root());
 
                 assert_eq!(results.dependent_root, dependent_root);
 
                 let result_duties = results.data;
 
-                let mut state = self
-                    .chain
-                    .state_at_slot(
-                        epoch.start_slot(E::slots_per_epoch()),
-                        StateSkipConfig::WithStateRoots,
-                    )
-                    .unwrap();
+                let mut state = beacon_chain::state_query::state_at_slot(
+                    &self.chain.store,
+                    &self.chain.canonical_head,
+                    &self.chain.spec,
+                    epoch.start_slot(E::slots_per_epoch()),
+                    StateSkipConfig::WithStateRoots,
+                )
+                .unwrap();
                 state
                     .build_committee_cache(RelativeEpoch::Current, &self.chain.spec)
                     .unwrap();
@@ -3371,19 +3461,27 @@ impl ApiTester {
     }
 
     pub async fn test_get_validator_duties_proposer(self) -> Self {
-        let current_epoch = self.chain.epoch().unwrap();
+        let current_epoch =
+            beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap();
 
-        for epoch in 0..=self.chain.epoch().unwrap().as_u64() + 1 {
+        for epoch in 0..=beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock)
+            .unwrap()
+            .as_u64()
+            + 1
+        {
             let epoch = Epoch::from(epoch);
 
-            let dependent_root = self
-                .chain
-                .block_root_at_slot(
-                    epoch.start_slot(E::slots_per_epoch()) - 1,
-                    WhenSlotSkipped::Prev,
-                )
-                .unwrap()
-                .unwrap_or(self.chain.canonical_head.head_beacon_block_root());
+            let dependent_root = beacon_chain::state_query::block_root_at_slot(
+                &self.chain.store,
+                &self.chain.canonical_head,
+                &self.chain.spec,
+                &self.chain.slot_clock,
+                self.chain.genesis_block_root,
+                epoch.start_slot(E::slots_per_epoch()) - 1,
+                WhenSlotSkipped::Prev,
+            )
+            .unwrap()
+            .unwrap_or(self.chain.canonical_head.head_beacon_block_root());
 
             // Presently, the beacon chain harness never runs the code that primes the proposer
             // cache. If this changes in the future then we'll need some smarter logic here, but
@@ -3425,13 +3523,14 @@ impl ApiTester {
                 );
             }
 
-            let mut state = self
-                .chain
-                .state_at_slot(
-                    epoch.start_slot(E::slots_per_epoch()),
-                    StateSkipConfig::WithStateRoots,
-                )
-                .unwrap();
+            let mut state = beacon_chain::state_query::state_at_slot(
+                &self.chain.store,
+                &self.chain.canonical_head,
+                &self.chain.spec,
+                epoch.start_slot(E::slots_per_epoch()),
+                StateSkipConfig::WithStateRoots,
+            )
+            .unwrap();
 
             state
                 .build_committee_cache(RelativeEpoch::Current, &self.chain.spec)
@@ -3493,18 +3592,25 @@ impl ApiTester {
     }
 
     pub async fn test_get_validator_duties_proposer_v2(self) -> Self {
-        let current_epoch = self.chain.epoch().unwrap();
+        let current_epoch =
+            beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap();
 
         for epoch in 0..=current_epoch.as_u64() + 1 {
             let epoch = Epoch::from(epoch);
 
             // Compute the true dependent root using the spec's decision slot.
             let decision_slot = self.chain.spec.proposer_shuffling_decision_slot::<E>(epoch);
-            let dependent_root = self
-                .chain
-                .block_root_at_slot(decision_slot, WhenSlotSkipped::Prev)
-                .unwrap()
-                .unwrap_or(self.chain.canonical_head.head_beacon_block_root());
+            let dependent_root = beacon_chain::state_query::block_root_at_slot(
+                &self.chain.store,
+                &self.chain.canonical_head,
+                &self.chain.spec,
+                &self.chain.slot_clock,
+                self.chain.genesis_block_root,
+                decision_slot,
+                WhenSlotSkipped::Prev,
+            )
+            .unwrap()
+            .unwrap_or(self.chain.canonical_head.head_beacon_block_root());
 
             let result = self
                 .client
@@ -3512,13 +3618,14 @@ impl ApiTester {
                 .await
                 .unwrap();
 
-            let mut state = self
-                .chain
-                .state_at_slot(
-                    epoch.start_slot(E::slots_per_epoch()),
-                    StateSkipConfig::WithStateRoots,
-                )
-                .unwrap();
+            let mut state = beacon_chain::state_query::state_at_slot(
+                &self.chain.store,
+                &self.chain.canonical_head,
+                &self.chain.spec,
+                epoch.start_slot(E::slots_per_epoch()),
+                StateSkipConfig::WithStateRoots,
+            )
+            .unwrap();
 
             state
                 .build_committee_cache(RelativeEpoch::Current, &self.chain.spec)
@@ -3567,7 +3674,8 @@ impl ApiTester {
     }
 
     pub async fn test_get_validator_duties_early(self) -> Self {
-        let current_epoch = self.chain.epoch().unwrap();
+        let current_epoch =
+            beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap();
         let next_epoch = current_epoch + 1;
         let current_epoch_start = self
             .chain
@@ -3581,14 +3689,17 @@ impl ApiTester {
                 - Duration::from_millis(1),
         );
 
-        let dependent_root = self
-            .chain
-            .block_root_at_slot(
-                current_epoch.start_slot(E::slots_per_epoch()) - 1,
-                WhenSlotSkipped::Prev,
-            )
-            .unwrap()
-            .unwrap_or(self.chain.canonical_head.head_beacon_block_root());
+        let dependent_root = beacon_chain::state_query::block_root_at_slot(
+            &self.chain.store,
+            &self.chain.canonical_head,
+            &self.chain.spec,
+            &self.chain.slot_clock,
+            self.chain.genesis_block_root,
+            current_epoch.start_slot(E::slots_per_epoch()) - 1,
+            WhenSlotSkipped::Prev,
+        )
+        .unwrap()
+        .unwrap_or(self.chain.canonical_head.head_beacon_block_root());
 
         self.client
             .get_validator_duties_proposer(current_epoch)
@@ -3646,8 +3757,9 @@ impl ApiTester {
         let genesis_validators_root = self.chain.genesis_validators_root;
 
         for _ in 0..E::slots_per_epoch() * 3 {
-            let slot = self.chain.slot().unwrap();
-            let epoch = self.chain.epoch().unwrap();
+            let slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
+            let epoch =
+                beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap();
 
             let proposer_pubkey_bytes = self
                 .client
@@ -3713,8 +3825,9 @@ impl ApiTester {
         let genesis_validators_root = self.chain.genesis_validators_root;
 
         for _ in 0..E::slots_per_epoch() * 3 {
-            let slot = self.chain.slot().unwrap();
-            let epoch = self.chain.epoch().unwrap();
+            let slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
+            let epoch =
+                beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap();
 
             let proposer_pubkey_bytes = self
                 .client
@@ -3806,8 +3919,9 @@ impl ApiTester {
         let genesis_validators_root = self.chain.genesis_validators_root;
 
         for _ in 0..E::slots_per_epoch() * 3 {
-            let slot = self.chain.slot().unwrap();
-            let epoch = self.chain.epoch().unwrap();
+            let slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
+            let epoch =
+                beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap();
 
             let proposer_pubkey_bytes = self
                 .client
@@ -4009,8 +4123,9 @@ impl ApiTester {
         let genesis_validators_root = self.chain.genesis_validators_root;
 
         for _ in 0..E::slots_per_epoch() * 3 {
-            let slot = self.chain.slot().unwrap();
-            let epoch = self.chain.epoch().unwrap();
+            let slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
+            let epoch =
+                beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap();
             let fork_name = self.chain.spec.fork_name_at_slot::<E>(slot);
 
             if !fork_name.gloas_enabled() {
@@ -4075,8 +4190,9 @@ impl ApiTester {
         let genesis_validators_root = self.chain.genesis_validators_root;
 
         for _ in 0..E::slots_per_epoch() * 3 {
-            let slot = self.chain.slot().unwrap();
-            let epoch = self.chain.epoch().unwrap();
+            let slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
+            let epoch =
+                beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap();
             let fork_name = self.chain.spec.fork_name_at_slot::<E>(slot);
 
             if !fork_name.gloas_enabled() {
@@ -4131,7 +4247,7 @@ impl ApiTester {
 
     pub async fn test_block_production_no_verify_randao(self) -> Self {
         for _ in 0..E::slots_per_epoch() {
-            let slot = self.chain.slot().unwrap();
+            let slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
 
             let block = self
                 .client
@@ -4158,8 +4274,9 @@ impl ApiTester {
         let genesis_validators_root = self.chain.genesis_validators_root;
 
         for _ in 0..E::slots_per_epoch() {
-            let slot = self.chain.slot().unwrap();
-            let epoch = self.chain.epoch().unwrap();
+            let slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
+            let epoch =
+                beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap();
 
             let proposer_pubkey_bytes = self
                 .client
@@ -4219,8 +4336,9 @@ impl ApiTester {
         let genesis_validators_root = self.chain.genesis_validators_root;
 
         for _ in 0..E::slots_per_epoch() * 3 {
-            let slot = self.chain.slot().unwrap();
-            let epoch = self.chain.epoch().unwrap();
+            let slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
+            let epoch =
+                beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap();
 
             let proposer_pubkey_bytes = self
                 .client
@@ -4285,8 +4403,9 @@ impl ApiTester {
         let genesis_validators_root = self.chain.genesis_validators_root;
 
         for _ in 0..E::slots_per_epoch() * 3 {
-            let slot = self.chain.slot().unwrap();
-            let epoch = self.chain.epoch().unwrap();
+            let slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
+            let epoch =
+                beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap();
 
             let proposer_pubkey_bytes = self
                 .client
@@ -4356,7 +4475,7 @@ impl ApiTester {
 
     pub async fn test_blinded_block_production_no_verify_randao(self) -> Self {
         for _ in 0..E::slots_per_epoch() {
-            let slot = self.chain.slot().unwrap();
+            let slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
 
             let blinded_block = self
                 .client
@@ -4381,8 +4500,9 @@ impl ApiTester {
         let genesis_validators_root = self.chain.genesis_validators_root;
 
         for _ in 0..E::slots_per_epoch() {
-            let slot = self.chain.slot().unwrap();
-            let epoch = self.chain.epoch().unwrap();
+            let slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
+            let epoch =
+                beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap();
 
             let proposer_pubkey_bytes = self
                 .client
@@ -4454,7 +4574,14 @@ impl ApiTester {
 
             let expected = self
                 .chain
-                .produce_unaggregated_attestation(slot, index)
+                .attestation_manager
+                .produce_unaggregated_attestation(
+                    slot,
+                    index,
+                    &self.chain.canonical_head,
+                    &self.chain.store,
+                    &self.chain.spec,
+                )
                 .unwrap()
                 .data()
                 .clone();
@@ -4497,6 +4624,7 @@ impl ApiTester {
     pub async fn test_get_validator_aggregate_attestation_v2(self) -> Self {
         let attestations = self
             .chain
+            .attestation_manager
             .naive_aggregation_pool
             .read()
             .iter()
@@ -4522,8 +4650,9 @@ impl ApiTester {
     }
 
     pub async fn get_aggregate(&mut self) -> SignedAggregateAndProof<E> {
-        let slot = self.chain.slot().unwrap();
-        let epoch = self.chain.epoch().unwrap();
+        let slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
+        let epoch =
+            beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap();
 
         let mut head = self.chain.canonical_head.head_snapshot().as_ref().clone();
         while head.beacon_state.current_epoch() < epoch {
@@ -4900,7 +5029,8 @@ impl ApiTester {
     }
 
     pub async fn test_post_validator_liveness_epoch(self) -> Self {
-        let epoch = self.chain.epoch().unwrap();
+        let epoch =
+            beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap();
         let head_state = self.chain.canonical_head.head_beacon_state_cloned();
         let indices = (0..head_state.validators().len())
             .map(|i| i as u64)
@@ -4978,7 +5108,9 @@ impl ApiTester {
             .data;
 
         let committees = head_state
-            .get_beacon_committees_at_slot(self.chain.slot().unwrap())
+            .get_beacon_committees_at_slot(
+                beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap(),
+            )
             .unwrap();
         let attesting_validators: Vec<usize> = committees
             .into_iter()
@@ -5036,8 +5168,9 @@ impl ApiTester {
     }
 
     pub async fn test_payload_v3_respects_registration(self) -> Self {
-        let slot = self.chain.slot().unwrap();
-        let epoch = self.chain.epoch().unwrap();
+        let slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
+        let epoch =
+            beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap();
 
         let (proposer_index, randao_reveal) = self.get_test_randao(slot, epoch).await;
 
@@ -5063,8 +5196,9 @@ impl ApiTester {
     }
 
     pub async fn test_payload_v3_zero_builder_boost_factor(self) -> Self {
-        let slot = self.chain.slot().unwrap();
-        let epoch = self.chain.epoch().unwrap();
+        let slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
+        let epoch =
+            beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap();
 
         let (proposer_index, randao_reveal) = self.get_test_randao(slot, epoch).await;
 
@@ -5091,8 +5225,9 @@ impl ApiTester {
     }
 
     pub async fn test_payload_v3_max_builder_boost_factor(self) -> Self {
-        let slot = self.chain.slot().unwrap();
-        let epoch = self.chain.epoch().unwrap();
+        let slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
+        let epoch =
+            beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap();
 
         let (proposer_index, randao_reveal) = self.get_test_randao(slot, epoch).await;
 
@@ -5118,8 +5253,9 @@ impl ApiTester {
     }
 
     pub async fn test_payload_respects_registration(self) -> Self {
-        let slot = self.chain.slot().unwrap();
-        let epoch = self.chain.epoch().unwrap();
+        let slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
+        let epoch =
+            beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap();
 
         let (proposer_index, randao_reveal) = self.get_test_randao(slot, epoch).await;
 
@@ -5165,8 +5301,9 @@ impl ApiTester {
             .unwrap()
             .add_operation(Operation::GasLimit(builder_limit as usize));
 
-        let slot = self.chain.slot().unwrap();
-        let epoch = self.chain.epoch().unwrap();
+        let slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
+        let epoch =
+            beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap();
 
         let (proposer_index, randao_reveal) = self.get_test_randao(slot, epoch).await;
 
@@ -5210,8 +5347,9 @@ impl ApiTester {
             .unwrap()
             .add_operation(Operation::GasLimit(1));
 
-        let slot = self.chain.slot().unwrap();
-        let epoch = self.chain.epoch().unwrap();
+        let slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
+        let epoch =
+            beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap();
 
         let (_, randao_reveal) = self.get_test_randao(slot, epoch).await;
 
@@ -5248,8 +5386,9 @@ impl ApiTester {
             .unwrap()
             .add_operation(Operation::GasLimit(DEFAULT_GAS_LIMIT as usize));
 
-        let slot = self.chain.slot().unwrap();
-        let epoch = self.chain.epoch().unwrap();
+        let slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
+        let epoch =
+            beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap();
 
         let (proposer_index, randao_reveal) = self.get_test_randao(slot, epoch).await;
 
@@ -5285,8 +5424,9 @@ impl ApiTester {
             .unwrap()
             .add_operation(Operation::FeeRecipient(test_fee_recipient));
 
-        let slot = self.chain.slot().unwrap();
-        let epoch = self.chain.epoch().unwrap();
+        let slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
+        let epoch =
+            beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap();
 
         let (_, randao_reveal) = self.get_test_randao(slot, epoch).await;
 
@@ -5329,8 +5469,9 @@ impl ApiTester {
             .unwrap()
             .add_operation(Operation::FeeRecipient(test_fee_recipient));
 
-        let slot = self.chain.slot().unwrap();
-        let epoch = self.chain.epoch().unwrap();
+        let slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
+        let epoch =
+            beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap();
 
         let (_, randao_reveal) = self.get_test_randao(slot, epoch).await;
 
@@ -5365,8 +5506,9 @@ impl ApiTester {
             .unwrap()
             .add_operation(Operation::ParentHash(invalid_parent_hash));
 
-        let slot = self.chain.slot().unwrap();
-        let epoch = self.chain.epoch().unwrap();
+        let slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
+        let epoch =
+            beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap();
         let expected_parent_hash = self
             .chain
             .canonical_head
@@ -5418,8 +5560,9 @@ impl ApiTester {
             .unwrap()
             .add_operation(Operation::ParentHash(invalid_parent_hash));
 
-        let slot = self.chain.slot().unwrap();
-        let epoch = self.chain.epoch().unwrap();
+        let slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
+        let epoch =
+            beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap();
         let expected_parent_hash = self
             .chain
             .canonical_head
@@ -5462,8 +5605,9 @@ impl ApiTester {
             .unwrap()
             .add_operation(Operation::PrevRandao(invalid_prev_randao));
 
-        let slot = self.chain.slot().unwrap();
-        let epoch = self.chain.epoch().unwrap();
+        let slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
+        let epoch =
+            beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap();
         let expected_prev_randao = self
             .chain
             .canonical_head
@@ -5512,8 +5656,9 @@ impl ApiTester {
             .unwrap()
             .add_operation(Operation::PrevRandao(invalid_prev_randao));
 
-        let slot = self.chain.slot().unwrap();
-        let epoch = self.chain.epoch().unwrap();
+        let slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
+        let epoch =
+            beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap();
         let expected_prev_randao = self
             .chain
             .canonical_head
@@ -5550,8 +5695,9 @@ impl ApiTester {
             .unwrap()
             .add_operation(Operation::BlockNumber(invalid_block_number));
 
-        let slot = self.chain.slot().unwrap();
-        let epoch = self.chain.epoch().unwrap();
+        let slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
+        let epoch =
+            beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap();
         let expected_block_number = self
             .chain
             .canonical_head
@@ -5601,8 +5747,9 @@ impl ApiTester {
             .unwrap()
             .add_operation(Operation::BlockNumber(invalid_block_number));
 
-        let slot = self.chain.slot().unwrap();
-        let epoch = self.chain.epoch().unwrap();
+        let slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
+        let epoch =
+            beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap();
         let expected_block_number = self
             .chain
             .canonical_head
@@ -5643,8 +5790,9 @@ impl ApiTester {
             .unwrap()
             .add_operation(Operation::Timestamp(invalid_timestamp));
 
-        let slot = self.chain.slot().unwrap();
-        let epoch = self.chain.epoch().unwrap();
+        let slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
+        let epoch =
+            beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap();
         let min_expected_timestamp = self
             .chain
             .canonical_head
@@ -5693,8 +5841,9 @@ impl ApiTester {
             .unwrap()
             .add_operation(Operation::Timestamp(invalid_timestamp));
 
-        let slot = self.chain.slot().unwrap();
-        let epoch = self.chain.epoch().unwrap();
+        let slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
+        let epoch =
+            beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap();
         let min_expected_timestamp = self
             .chain
             .canonical_head
@@ -5728,8 +5877,9 @@ impl ApiTester {
     pub async fn test_payload_rejects_invalid_signature(self) -> Self {
         self.mock_builder.as_ref().unwrap().invalid_signatures();
 
-        let slot = self.chain.slot().unwrap();
-        let epoch = self.chain.epoch().unwrap();
+        let slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
+        let epoch =
+            beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap();
 
         let (_, randao_reveal) = self.get_test_randao(slot, epoch).await;
 
@@ -5762,8 +5912,9 @@ impl ApiTester {
     pub async fn test_payload_v3_rejects_invalid_signature(self) -> Self {
         self.mock_builder.as_ref().unwrap().invalid_signatures();
 
-        let slot = self.chain.slot().unwrap();
-        let epoch = self.chain.epoch().unwrap();
+        let slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
+        let epoch =
+            beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap();
 
         let (_, randao_reveal) = self.get_test_randao(slot, epoch).await;
 
@@ -5783,12 +5934,13 @@ impl ApiTester {
     }
 
     pub async fn test_builder_chain_health_skips(self) -> Self {
-        let slot = self.chain.slot().unwrap();
+        let slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
 
         // Since we are proposing this slot, start the count from the previous slot.
         let prev_slot = slot - Slot::new(1);
         let head_slot = self.chain.canonical_head.cached_head().head_slot();
-        let epoch = self.chain.epoch().unwrap();
+        let epoch =
+            beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap();
 
         // Inclusive here to make sure we advance one slot past the threshold.
         for _ in (prev_slot - head_slot).as_usize()..=self.chain.config.builder_fallback_skips {
@@ -5824,12 +5976,13 @@ impl ApiTester {
     }
 
     pub async fn test_builder_v3_chain_health_skips(self) -> Self {
-        let slot = self.chain.slot().unwrap();
+        let slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
 
         // Since we are proposing this slot, start the count from the previous slot.
         let prev_slot = slot - Slot::new(1);
         let head_slot = self.chain.canonical_head.cached_head().head_slot();
-        let epoch = self.chain.epoch().unwrap();
+        let epoch =
+            beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap();
 
         // Inclusive here to make sure we advance one slot past the threshold.
         for _ in (prev_slot - head_slot).as_usize()..=self.chain.config.builder_fallback_skips {
@@ -5868,7 +6021,7 @@ impl ApiTester {
             self.harness.advance_slot();
         }
 
-        let next_slot = self.chain.slot().unwrap();
+        let next_slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
 
         let (_, randao_reveal) = self
             .get_test_randao(next_slot, next_slot.epoch(E::slots_per_epoch()))
@@ -5900,7 +6053,7 @@ impl ApiTester {
         // Without proposing, advance into the next slot, this should make us cross the threshold
         // number of skips, causing us to use the fallback.
         self.harness.advance_slot();
-        let next_slot = self.chain.slot().unwrap();
+        let next_slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
 
         let (_, randao_reveal) = self
             .get_test_randao(next_slot, next_slot.epoch(E::slots_per_epoch()))
@@ -5947,7 +6100,7 @@ impl ApiTester {
             self.harness.advance_slot();
         }
 
-        let next_slot = self.chain.slot().unwrap();
+        let next_slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
 
         let (_, randao_reveal) = self
             .get_test_randao(next_slot, next_slot.epoch(E::slots_per_epoch()))
@@ -5968,7 +6121,7 @@ impl ApiTester {
         // Without proposing, advance into the next slot, this should make us cross the threshold
         // number of skips, causing us to use the fallback.
         self.harness.advance_slot();
-        let next_slot = self.chain.slot().unwrap();
+        let next_slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
 
         let (_, randao_reveal) = self
             .get_test_randao(next_slot, next_slot.epoch(E::slots_per_epoch()))
@@ -6009,7 +6162,7 @@ impl ApiTester {
             self.harness.advance_slot();
         }
 
-        let next_slot = self.chain.slot().unwrap();
+        let next_slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
 
         let (_, randao_reveal) = self
             .get_test_randao(next_slot, next_slot.epoch(E::slots_per_epoch()))
@@ -6051,7 +6204,7 @@ impl ApiTester {
             self.harness.advance_slot();
         }
 
-        let next_slot = self.chain.slot().unwrap();
+        let next_slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
 
         let (_, randao_reveal) = self
             .get_test_randao(next_slot, next_slot.epoch(E::slots_per_epoch()))
@@ -6103,7 +6256,7 @@ impl ApiTester {
             self.harness.advance_slot();
         }
 
-        let next_slot = self.chain.slot().unwrap();
+        let next_slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
 
         let (_, randao_reveal) = self
             .get_test_randao(next_slot, next_slot.epoch(E::slots_per_epoch()))
@@ -6134,7 +6287,7 @@ impl ApiTester {
             self.harness.advance_slot();
         }
 
-        let next_slot = self.chain.slot().unwrap();
+        let next_slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
 
         let (_, randao_reveal) = self
             .get_test_randao(next_slot, next_slot.epoch(E::slots_per_epoch()))
@@ -6169,8 +6322,9 @@ impl ApiTester {
             .await;
         self.harness.advance_slot();
 
-        let slot = self.chain.slot().unwrap();
-        let epoch = self.chain.epoch().unwrap();
+        let slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
+        let epoch =
+            beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap();
 
         let (proposer_index, randao_reveal) = self.get_test_randao(slot, epoch).await;
 
@@ -6217,8 +6371,9 @@ impl ApiTester {
             .await;
         self.harness.advance_slot();
 
-        let slot = self.chain.slot().unwrap();
-        let epoch = self.chain.epoch().unwrap();
+        let slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
+        let epoch =
+            beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap();
 
         let (proposer_index, randao_reveal) = self.get_test_randao(slot, epoch).await;
 
@@ -6251,8 +6406,9 @@ impl ApiTester {
                 DEFAULT_MOCK_EL_PAYLOAD_VALUE_WEI + 1,
             )));
 
-        let slot = self.chain.slot().unwrap();
-        let epoch = self.chain.epoch().unwrap();
+        let slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
+        let epoch =
+            beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap();
 
         let (_, randao_reveal) = self.get_test_randao(slot, epoch).await;
 
@@ -6291,8 +6447,9 @@ impl ApiTester {
                 DEFAULT_MOCK_EL_PAYLOAD_VALUE_WEI + 1,
             )));
 
-        let slot = self.chain.slot().unwrap();
-        let epoch = self.chain.epoch().unwrap();
+        let slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
+        let epoch =
+            beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap();
 
         let (_, randao_reveal) = self.get_test_randao(slot, epoch).await;
 
@@ -6320,8 +6477,9 @@ impl ApiTester {
                 DEFAULT_MOCK_EL_PAYLOAD_VALUE_WEI,
             )));
 
-        let slot = self.chain.slot().unwrap();
-        let epoch = self.chain.epoch().unwrap();
+        let slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
+        let epoch =
+            beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap();
 
         let (_, randao_reveal) = self.get_test_randao(slot, epoch).await;
 
@@ -6360,8 +6518,9 @@ impl ApiTester {
                 DEFAULT_MOCK_EL_PAYLOAD_VALUE_WEI,
             )));
 
-        let slot = self.chain.slot().unwrap();
-        let epoch = self.chain.epoch().unwrap();
+        let slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
+        let epoch =
+            beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap();
 
         let (_, randao_reveal) = self.get_test_randao(slot, epoch).await;
 
@@ -6389,8 +6548,9 @@ impl ApiTester {
                 DEFAULT_MOCK_EL_PAYLOAD_VALUE_WEI - 1,
             )));
 
-        let slot = self.chain.slot().unwrap();
-        let epoch = self.chain.epoch().unwrap();
+        let slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
+        let epoch =
+            beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap();
 
         let (_, randao_reveal) = self.get_test_randao(slot, epoch).await;
 
@@ -6429,8 +6589,9 @@ impl ApiTester {
                 DEFAULT_MOCK_EL_PAYLOAD_VALUE_WEI - 1,
             )));
 
-        let slot = self.chain.slot().unwrap();
-        let epoch = self.chain.epoch().unwrap();
+        let slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
+        let epoch =
+            beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap();
 
         let (_, randao_reveal) = self.get_test_randao(slot, epoch).await;
 
@@ -6458,8 +6619,9 @@ impl ApiTester {
                 DEFAULT_MOCK_EL_PAYLOAD_VALUE_WEI + 1,
             )));
 
-        let slot = self.chain.slot().unwrap();
-        let epoch = self.chain.epoch().unwrap();
+        let slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
+        let epoch =
+            beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap();
         let (_, randao_reveal) = self.get_test_randao(slot, epoch).await;
 
         let payload: BlindedPayload<E> = self
@@ -6497,8 +6659,9 @@ impl ApiTester {
                 DEFAULT_MOCK_EL_PAYLOAD_VALUE_WEI + 1,
             )));
 
-        let slot = self.chain.slot().unwrap();
-        let epoch = self.chain.epoch().unwrap();
+        let slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
+        let epoch =
+            beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap();
         let (_, randao_reveal) = self.get_test_randao(slot, epoch).await;
 
         let (payload_type, metadata) = self
@@ -6530,8 +6693,9 @@ impl ApiTester {
             .unwrap()
             .add_operation(Operation::WithdrawalsRoot(Hash256::repeat_byte(0x42)));
 
-        let slot = self.chain.slot().unwrap();
-        let epoch = self.chain.epoch().unwrap();
+        let slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
+        let epoch =
+            beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap();
         let (_, randao_reveal) = self.get_test_randao(slot, epoch).await;
 
         let payload: BlindedPayload<E> = self
@@ -6571,8 +6735,9 @@ impl ApiTester {
             .unwrap()
             .add_operation(Operation::WithdrawalsRoot(Hash256::repeat_byte(0x42)));
 
-        let slot = self.chain.slot().unwrap();
-        let epoch = self.chain.epoch().unwrap();
+        let slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
+        let epoch =
+            beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap();
         let (_, randao_reveal) = self.get_test_randao(slot, epoch).await;
 
         let (payload_type, metadata) = self
@@ -6617,7 +6782,8 @@ impl ApiTester {
     }
 
     pub async fn test_get_lighthouse_validator_inclusion_global(self) -> Self {
-        let epoch = self.chain.epoch().unwrap() - 1;
+        let epoch =
+            beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap() - 1;
         self.client
             .get_lighthouse_validator_inclusion_global(epoch)
             .await
@@ -6627,7 +6793,8 @@ impl ApiTester {
     }
 
     pub async fn test_get_lighthouse_validator_inclusion(self) -> Self {
-        let epoch = self.chain.epoch().unwrap() - 1;
+        let epoch =
+            beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap() - 1;
         self.client
             .get_lighthouse_validator_inclusion(epoch, ValidatorId::Index(0))
             .await
@@ -6668,7 +6835,8 @@ impl ApiTester {
     }
 
     pub async fn test_post_lighthouse_liveness(self) -> Self {
-        let epoch = self.chain.epoch().unwrap();
+        let epoch =
+            beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap();
         let head_state = self.chain.canonical_head.head_beacon_state_cloned();
         let indices = (0..head_state.validators().len())
             .map(|i| i as u64)
@@ -6747,7 +6915,9 @@ impl ApiTester {
             .data;
 
         let committees = head_state
-            .get_beacon_committees_at_slot(self.chain.slot().unwrap())
+            .get_beacon_committees_at_slot(
+                beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap(),
+            )
             .unwrap();
         let attesting_validators: Vec<usize> = committees
             .into_iter()
@@ -6884,7 +7054,7 @@ impl ApiTester {
 
         // current_duty_dependent_root = block root because this is the first slot of the epoch
         let current_duty_dependent_root = self.chain.canonical_head.head_beacon_block_root();
-        let current_slot = self.chain.slot().unwrap();
+        let current_slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
         let next_slot = self.next_block.signed_block().slot();
         let finalization_distance = E::slots_per_epoch() * 2;
 
@@ -6899,20 +7069,32 @@ impl ApiTester {
             slot: next_slot,
             state: self.next_block.signed_block().state_root(),
             current_duty_dependent_root,
-            previous_duty_dependent_root: self
-                .chain
-                .block_root_at_slot(current_slot - E::slots_per_epoch(), WhenSlotSkipped::Prev)
-                .unwrap()
-                .unwrap(),
+            previous_duty_dependent_root: beacon_chain::state_query::block_root_at_slot(
+                &self.chain.store,
+                &self.chain.canonical_head,
+                &self.chain.spec,
+                &self.chain.slot_clock,
+                self.chain.genesis_block_root,
+                current_slot - E::slots_per_epoch(),
+                WhenSlotSkipped::Prev,
+            )
+            .unwrap()
+            .unwrap(),
             epoch_transition: true,
             execution_optimistic: false,
         });
 
-        let finalized_block_root = self
-            .chain
-            .block_root_at_slot(next_slot - finalization_distance, WhenSlotSkipped::Prev)
-            .unwrap()
-            .unwrap();
+        let finalized_block_root = beacon_chain::state_query::block_root_at_slot(
+            &self.chain.store,
+            &self.chain.canonical_head,
+            &self.chain.spec,
+            &self.chain.slot_clock,
+            self.chain.genesis_block_root,
+            next_slot - finalization_distance,
+            WhenSlotSkipped::Prev,
+        )
+        .unwrap()
+        .unwrap();
         let finalized_block = self
             .chain
             .store
@@ -7046,7 +7228,7 @@ impl ApiTester {
     }
 
     pub async fn test_get_expected_withdrawals_capella(self) -> Self {
-        let slot = self.chain.slot().unwrap();
+        let slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
         let state_id = CoreStateId::Slot(slot);
 
         // calculate the expected withdrawals
@@ -7108,10 +7290,9 @@ impl ApiTester {
 
         let expected_attestation_len = self.single_attestations.len();
 
-        let fork_name = self
-            .chain
-            .spec
-            .fork_name_at_slot::<E>(self.chain.slot().unwrap());
+        let fork_name = self.chain.spec.fork_name_at_slot::<E>(
+            beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap(),
+        );
 
         self.client
             .post_beacon_pool_attestations_v2::<E>(self.single_attestations.clone(), fork_name)
@@ -7306,11 +7487,10 @@ impl ApiTester {
                 self.harness.make_block_return_pre_state(state, slot).await;
 
             let mut expected_rewards =
-                beacon_chain::sync_committee_rewards::compute_sync_committee_rewards::<E, _>(
-                    &self.harness.chain.spec,
-                    signed_block.message(),
-                    &mut state,
-                )
+                beacon_chain::sync_committee_rewards::compute_sync_committee_rewards::<
+                    EphemeralHarnessType<E>,
+                    _,
+                >(&self.harness.chain.spec, signed_block.message(), &mut state)
                 .unwrap();
             expected_rewards.sort_by_key(|r| r.validator_index);
 
@@ -7344,7 +7524,9 @@ impl ApiTester {
                 .extend_slots(E::slots_per_epoch() as usize)
                 .await;
 
-            let epoch = self.chain.epoch().unwrap() - 1;
+            let epoch = beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock)
+                .unwrap()
+                - 1;
 
             let expected_rewards = beacon_chain::attestation_rewards::compute_attestation_rewards(
                 &self.harness.chain.store,
@@ -7366,8 +7548,9 @@ impl ApiTester {
     }
 
     async fn get_validator_blocks_v3_path_graffiti_policy(self) -> Self {
-        let slot = self.chain.slot().unwrap();
-        let epoch = self.chain.epoch().unwrap();
+        let slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock).unwrap();
+        let epoch =
+            beacon_chain::state_query::current_epoch::<E, _>(&self.chain.slot_clock).unwrap();
         let (_, randao_reveal) = self.get_test_randao(slot, epoch).await;
         let graffiti = Some(Graffiti::from([0; GRAFFITI_BYTES_LEN]));
         let builder_boost_factor = None;

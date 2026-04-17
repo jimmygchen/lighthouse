@@ -112,11 +112,16 @@ async fn state_by_root_pruned_from_fork_choice() {
     // States that are between the split and the finalized slot should be able to be looked up by
     // state root.
     for slot in 0..finalized_epoch.start_slot(E::slots_per_epoch()).as_u64() {
-        let state_root = harness
-            .chain
-            .state_root_at_slot(Slot::new(slot))
-            .unwrap()
-            .unwrap();
+        let state_root = beacon_chain::state_query::state_root_at_slot(
+            &harness.chain.store,
+            &harness.chain.canonical_head,
+            &harness.chain.spec,
+            &harness.chain.slot_clock,
+            harness.chain.genesis_state_root,
+            Slot::new(slot),
+        )
+        .unwrap()
+        .unwrap();
         let response = client
             .get_debug_beacon_states::<E>(StateId::Root(state_root))
             .await
@@ -968,7 +973,10 @@ async fn proposer_duties_with_gossip_tolerance() {
         )
         .await;
 
-    assert_eq!(harness.chain.slot().unwrap(), num_initial);
+    assert_eq!(
+        beacon_chain::state_query::current_slot(&harness.chain.slot_clock).unwrap(),
+        num_initial
+    );
 
     // Set the clock to just before the next epoch.
     harness
@@ -1038,7 +1046,10 @@ async fn proposer_duties_with_gossip_tolerance() {
         .chain
         .slot_clock
         .advance_time(spec.maximum_gossip_clock_disparity());
-    assert_eq!(harness.chain.slot().unwrap(), next_epoch_start_slot);
+    assert_eq!(
+        beacon_chain::state_query::current_slot(&harness.chain.slot_clock).unwrap(),
+        next_epoch_start_slot
+    );
     let proposer_duties_current_epoch = client
         .get_validator_duties_proposer(tolerant_current_epoch)
         .await
@@ -1075,7 +1086,10 @@ async fn proposer_duties_v2_with_gossip_tolerance() {
         )
         .await;
 
-    assert_eq!(harness.chain.slot().unwrap(), num_initial);
+    assert_eq!(
+        beacon_chain::state_query::current_slot(&harness.chain.slot_clock).unwrap(),
+        num_initial
+    );
 
     // Set the clock to just before the next epoch.
     harness
@@ -1142,7 +1156,10 @@ async fn proposer_duties_v2_with_gossip_tolerance() {
         .chain
         .slot_clock
         .advance_time(spec.maximum_gossip_clock_disparity());
-    assert_eq!(harness.chain.slot().unwrap(), next_epoch_start_slot);
+    assert_eq!(
+        beacon_chain::state_query::current_slot(&harness.chain.slot_clock).unwrap(),
+        next_epoch_start_slot
+    );
     let proposer_duties_current_epoch = client
         .get_validator_duties_proposer_v2(tolerant_current_epoch)
         .await
@@ -1188,7 +1205,8 @@ async fn proposer_duties_v2_post_fulu_dependent_root() {
         )
         .await;
 
-    let current_epoch = harness.chain.epoch().unwrap();
+    let current_epoch =
+        beacon_chain::state_query::current_epoch::<E, _>(&harness.chain.slot_clock).unwrap();
     assert_eq!(current_epoch, Epoch::new(3));
 
     // For epoch 3 with min_seed_lookahead=1:
@@ -1200,16 +1218,28 @@ async fn proposer_duties_v2_post_fulu_dependent_root() {
     assert_eq!(legacy_decision_slot, Slot::new(23));
 
     // Fetch the block roots at these slots to compute expected dependent roots.
-    let expected_v2_root = harness
-        .chain
-        .block_root_at_slot(true_decision_slot, beacon_chain::WhenSlotSkipped::Prev)
-        .unwrap()
-        .unwrap();
-    let expected_v1_root = harness
-        .chain
-        .block_root_at_slot(legacy_decision_slot, beacon_chain::WhenSlotSkipped::Prev)
-        .unwrap()
-        .unwrap();
+    let expected_v2_root = beacon_chain::state_query::block_root_at_slot(
+        &harness.chain.store,
+        &harness.chain.canonical_head,
+        &harness.chain.spec,
+        &harness.chain.slot_clock,
+        harness.chain.genesis_block_root,
+        true_decision_slot,
+        beacon_chain::WhenSlotSkipped::Prev,
+    )
+    .unwrap()
+    .unwrap();
+    let expected_v1_root = beacon_chain::state_query::block_root_at_slot(
+        &harness.chain.store,
+        &harness.chain.canonical_head,
+        &harness.chain.spec,
+        &harness.chain.slot_clock,
+        harness.chain.genesis_block_root,
+        legacy_decision_slot,
+        beacon_chain::WhenSlotSkipped::Prev,
+    )
+    .unwrap()
+    .unwrap();
 
     // Sanity check: the two roots should be different since they refer to different blocks.
     assert_ne!(
@@ -1264,22 +1294,28 @@ async fn proposer_duties_v2_post_fulu_dependent_root() {
     );
 
     // For epoch 4: true decision is end of epoch 2 (slot 23), legacy is end of epoch 3 (slot 31).
-    let expected_v2_next_root = harness
-        .chain
-        .block_root_at_slot(
-            Epoch::new(2).end_slot(slots_per_epoch),
-            beacon_chain::WhenSlotSkipped::Prev,
-        )
-        .unwrap()
-        .unwrap();
-    let expected_v1_next_root = harness
-        .chain
-        .block_root_at_slot(
-            Epoch::new(3).end_slot(slots_per_epoch),
-            beacon_chain::WhenSlotSkipped::Prev,
-        )
-        .unwrap()
-        .unwrap_or(harness.head_block_root());
+    let expected_v2_next_root = beacon_chain::state_query::block_root_at_slot(
+        &harness.chain.store,
+        &harness.chain.canonical_head,
+        &harness.chain.spec,
+        &harness.chain.slot_clock,
+        harness.chain.genesis_block_root,
+        Epoch::new(2).end_slot(slots_per_epoch),
+        beacon_chain::WhenSlotSkipped::Prev,
+    )
+    .unwrap()
+    .unwrap();
+    let expected_v1_next_root = beacon_chain::state_query::block_root_at_slot(
+        &harness.chain.store,
+        &harness.chain.canonical_head,
+        &harness.chain.spec,
+        &harness.chain.slot_clock,
+        harness.chain.genesis_block_root,
+        Epoch::new(3).end_slot(slots_per_epoch),
+        beacon_chain::WhenSlotSkipped::Prev,
+    )
+    .unwrap()
+    .unwrap_or(harness.head_block_root());
     assert_eq!(v1_next.dependent_root, expected_v1_next_root);
     assert_eq!(v2_next.dependent_root, expected_v2_next_root);
     assert_ne!(expected_v2_next_root, harness.head_block_root());
@@ -1329,13 +1365,17 @@ async fn lighthouse_restart_custody_backfill() {
     assert_eq!(cgc_at_head, max_cgc);
     assert_eq!(earliest_data_column_epoch, None);
 
-    custody_context
-        .update_and_backfill_custody_count_at_epoch(harness.chain.epoch().unwrap(), cgc_at_head);
+    custody_context.update_and_backfill_custody_count_at_epoch(
+        beacon_chain::state_query::current_epoch::<E, _>(&harness.chain.slot_clock).unwrap(),
+        cgc_at_head,
+    );
     client.post_lighthouse_custody_backfill().await.unwrap();
 
     let cgc_at_head = custody_context.custody_group_count_at_head(spec);
-    let cgc_at_previous_epoch =
-        custody_context.custody_group_count_at_epoch(harness.chain.epoch().unwrap() - 1, spec);
+    let cgc_at_previous_epoch = custody_context.custody_group_count_at_epoch(
+        beacon_chain::state_query::current_epoch::<E, _>(&harness.chain.slot_clock).unwrap() - 1,
+        spec,
+    );
     let earliest_data_column_epoch = harness
         .chain
         .data_availability_manager
@@ -1344,7 +1384,10 @@ async fn lighthouse_restart_custody_backfill() {
     // `DataColumnCustodyInfo` should have been updated to the head epoch
     assert_eq!(
         earliest_data_column_epoch,
-        Some(harness.chain.epoch().unwrap() + 1)
+        Some(
+            beacon_chain::state_query::current_epoch::<E, _>(&harness.chain.slot_clock).unwrap()
+                + 1
+        )
     );
     // Cgc requirements should have stayed the same at head
     assert_eq!(cgc_at_head, max_cgc);
@@ -1390,7 +1433,10 @@ async fn lighthouse_custody_info() {
         )
         .await;
 
-    assert_eq!(harness.chain.slot().unwrap(), num_initial);
+    assert_eq!(
+        beacon_chain::state_query::current_slot(&harness.chain.slot_clock).unwrap(),
+        num_initial
+    );
 
     let info = client.get_lighthouse_custody_info().await.unwrap();
     assert_eq!(info.earliest_custodied_data_column_slot, 0);
@@ -1412,7 +1458,10 @@ async fn lighthouse_custody_info() {
         )
         .await;
 
-    assert_eq!(harness.chain.slot().unwrap(), num_initial + num_secondary);
+    assert_eq!(
+        beacon_chain::state_query::current_slot(&harness.chain.slot_clock).unwrap(),
+        num_initial + num_secondary
+    );
 
     let info = client.get_lighthouse_custody_info().await.unwrap();
     assert_eq!(

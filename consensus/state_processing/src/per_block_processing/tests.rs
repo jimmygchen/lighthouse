@@ -219,6 +219,7 @@ async fn valid_4_deposits() {
 
     let mut head_block = harness
         .chain
+        .canonical_head
         .head_beacon_block()
         .as_ref()
         .clone()
@@ -243,6 +244,7 @@ async fn invalid_deposit_deposit_count_too_big() {
 
     let mut head_block = harness
         .chain
+        .canonical_head
         .head_beacon_block()
         .as_ref()
         .clone()
@@ -275,6 +277,7 @@ async fn invalid_deposit_count_too_small() {
 
     let mut head_block = harness
         .chain
+        .canonical_head
         .head_beacon_block()
         .as_ref()
         .clone()
@@ -307,6 +310,7 @@ async fn invalid_deposit_bad_merkle_proof() {
 
     let mut head_block = harness
         .chain
+        .canonical_head
         .head_beacon_block()
         .as_ref()
         .clone()
@@ -342,6 +346,7 @@ async fn invalid_deposit_wrong_sig() {
 
     let mut head_block = harness
         .chain
+        .canonical_head
         .head_beacon_block()
         .as_ref()
         .clone()
@@ -366,6 +371,7 @@ async fn invalid_deposit_invalid_pub_key() {
 
     let mut head_block = harness
         .chain
+        .canonical_head
         .head_beacon_block()
         .as_ref()
         .clone()
@@ -387,6 +393,7 @@ async fn invalid_attestation_no_committee_for_index() {
     let mut state = harness.get_current_state();
     let mut head_block = harness
         .chain
+        .canonical_head
         .head_beacon_block()
         .as_ref()
         .clone()
@@ -427,6 +434,7 @@ async fn invalid_attestation_wrong_justified_checkpoint() {
     let mut state = harness.get_current_state();
     let mut head_block = harness
         .chain
+        .canonical_head
         .head_beacon_block()
         .as_ref()
         .clone()
@@ -482,6 +490,7 @@ async fn invalid_attestation_bad_aggregation_bitfield_len() {
     let mut state = harness.get_current_state();
     let mut head_block = harness
         .chain
+        .canonical_head
         .head_beacon_block()
         .as_ref()
         .clone()
@@ -524,6 +533,7 @@ async fn invalid_attestation_bad_signature() {
     let mut state = harness.get_current_state();
     let mut head_block = harness
         .chain
+        .canonical_head
         .head_beacon_block()
         .as_ref()
         .clone()
@@ -565,6 +575,7 @@ async fn invalid_attestation_included_too_early() {
     let mut state = harness.get_current_state();
     let mut head_block = harness
         .chain
+        .canonical_head
         .head_beacon_block()
         .as_ref()
         .clone()
@@ -617,6 +628,7 @@ async fn invalid_attestation_target_epoch_slot_mismatch() {
     let mut state = harness.get_current_state();
     let mut head_block = harness
         .chain
+        .canonical_head
         .head_beacon_block()
         .as_ref()
         .clone()
@@ -988,6 +1000,7 @@ async fn block_replayer_peeking_state_roots() {
     let target_block_root = harness.head_block_root();
     let target_block = harness
         .chain
+        .store
         .get_blinded_block(&target_block_root)
         .unwrap()
         .unwrap();
@@ -995,12 +1008,14 @@ async fn block_replayer_peeking_state_roots() {
     let parent_block_root = target_block.parent_root();
     let parent_block = harness
         .chain
+        .store
         .get_blinded_block(&parent_block_root)
         .unwrap()
         .unwrap();
     // Cache the state to make CI go brr.
     let parent_state = harness
         .chain
+        .store
         .get_state(&parent_block.state_root(), Some(parent_block.slot()), true)
         .unwrap()
         .unwrap();

@@ -3,7 +3,7 @@
 use crate::persisted_dht::load_dht;
 use crate::{NetworkConfig, NetworkService};
 use beacon_chain::BeaconChainTypes;
-use beacon_chain::test_utils::BeaconChainHarness;
+use beacon_chain::test_utils::{BeaconChainHarness, EphemeralHarnessType};
 use beacon_chain::{duration_to_next_digest, enr_fork_id};
 use beacon_processor::{BeaconProcessorChannels, BeaconProcessorConfig};
 use futures::StreamExt;
@@ -105,8 +105,11 @@ fn test_removing_topic_weight_on_old_topics() {
         .mock_execution_layer()
         .build()
         .chain;
-    let (next_fork_epoch, _) =
-        duration_to_next_digest::<_>(&beacon_chain.slot_clock, &spec).expect("next fork");
+    let (next_fork_epoch, _) = duration_to_next_digest::<EphemeralHarnessType<MinimalEthSpec>>(
+        &beacon_chain.slot_clock,
+        &spec,
+    )
+    .expect("next fork");
     assert_eq!(Some(next_fork_epoch), spec.capella_fork_epoch);
 
     // Build network service.
@@ -154,7 +157,7 @@ fn test_removing_topic_weight_on_old_topics() {
         .collect::<Vec<_>>();
         assert_eq!(2, subnets.len());
 
-        let old_fork_digest = enr_fork_id::<_>(
+        let old_fork_digest = enr_fork_id::<EphemeralHarnessType<MinimalEthSpec>>(
             &beacon_chain.slot_clock,
             &beacon_chain.spec,
             beacon_chain.genesis_validators_root,

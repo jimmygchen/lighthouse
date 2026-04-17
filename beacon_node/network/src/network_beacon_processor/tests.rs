@@ -66,6 +66,23 @@ const SEQ_NUMBER: u64 = 0;
 /// The default time to wait for `BeaconProcessor` events.
 const STANDARD_TIMEOUT: Duration = Duration::from_secs(10);
 
+/// Helper: call `block_root_at_slot` via the free function in `state_query`.
+fn chain_block_root_at_slot(
+    chain: &BeaconComponents<T>,
+    slot: Slot,
+    skips: WhenSlotSkipped,
+) -> Result<Option<Hash256>, beacon_chain::BeaconChainError> {
+    beacon_chain::state_query::block_root_at_slot(
+        &chain.store,
+        &chain.canonical_head,
+        &chain.spec,
+        &chain.slot_clock,
+        chain.genesis_block_root,
+        slot,
+        skips,
+    )
+}
+
 /// Provides utilities for testing the `BeaconProcessor`.
 struct TestRig {
     chain: Arc<BeaconComponents<T>>,
@@ -267,7 +284,10 @@ impl TestRig {
 
         let attester_slashing = harness.make_attester_slashing(vec![0, 1]);
         let proposer_slashing = harness.make_proposer_slashing(2);
-        let voluntary_exit = harness.make_voluntary_exit(3, harness.chain.epoch().unwrap());
+        let voluntary_exit = harness.make_voluntary_exit(
+            3,
+            beacon_chain::state_query::current_epoch::<E, _>(&harness.chain.slot_clock).unwrap(),
+        );
 
         let chain = harness.chain.clone();
 
@@ -1766,10 +1786,8 @@ async fn test_blobs_by_range() {
 
     let mut blob_count = 0;
     for slot in 0..slot_count {
-        let root = rig
-            .chain
-            .block_root_at_slot(Slot::new(slot), WhenSlotSkipped::None)
-            .unwrap();
+        let root =
+            chain_block_root_at_slot(&rig.chain, Slot::new(slot), WhenSlotSkipped::None).unwrap();
         blob_count += root
             .map(|root| {
                 rig.chain
@@ -1831,10 +1849,8 @@ async fn test_blobs_by_range_spans_fulu_fork() {
 
     let mut blob_count = 0;
     for slot in start_slot..slot_count {
-        let root = rig
-            .chain
-            .block_root_at_slot(Slot::new(slot), WhenSlotSkipped::None)
-            .unwrap();
+        let root =
+            chain_block_root_at_slot(&rig.chain, Slot::new(slot), WhenSlotSkipped::None).unwrap();
         blob_count += root
             .map(|root| {
                 rig.chain
@@ -1876,9 +1892,7 @@ async fn test_blobs_by_root() {
     let mut rig = TestRig::new(64).await;
 
     // Get the block root of a sample slot, e.g., slot 1
-    let block_root = rig
-        .chain
-        .block_root_at_slot(Slot::new(1), WhenSlotSkipped::None)
+    let block_root = chain_block_root_at_slot(&rig.chain, Slot::new(1), WhenSlotSkipped::None)
         .unwrap()
         .unwrap();
 
@@ -1901,10 +1915,7 @@ async fn test_blobs_by_root() {
     rig.enqueue_blobs_by_root_request(blob_ids_list);
 
     let mut blob_count = 0;
-    let root = rig
-        .chain
-        .block_root_at_slot(Slot::new(1), WhenSlotSkipped::None)
-        .unwrap();
+    let root = chain_block_root_at_slot(&rig.chain, Slot::new(1), WhenSlotSkipped::None).unwrap();
     blob_count += root
         .map(|root| {
             rig.chain
@@ -1945,9 +1956,7 @@ async fn test_blobs_by_root_post_fulu_should_return_empty() {
 
     let mut rig = TestRig::new(64).await;
 
-    let block_root = rig
-        .chain
-        .block_root_at_slot(Slot::new(1), WhenSlotSkipped::None)
+    let block_root = chain_block_root_at_slot(&rig.chain, Slot::new(1), WhenSlotSkipped::None)
         .unwrap()
         .unwrap();
 
@@ -2053,7 +2062,9 @@ async fn test_data_columns_by_range_request_only_returns_requested_columns() {
     let all_custody_columns = rig
         .chain
         .data_availability_manager
-        .sampling_columns_for_epoch(rig.chain.epoch().unwrap());
+        .sampling_columns_for_epoch(
+            beacon_chain::state_query::current_epoch::<E, _>(&rig.chain.slot_clock).unwrap(),
+        );
     let available_columns: Vec<u64> = all_custody_columns.to_vec();
 
     let requested_columns = vec![available_columns[0], available_columns[2]];
@@ -2205,10 +2216,8 @@ async fn test_payload_envelopes_by_range() {
     // Manually store payload envelopes for each block in the range
     let mut expected_roots = Vec::new();
     for slot in start_slot..slot_count {
-        if let Some(root) = rig
-            .chain
-            .block_root_at_slot(Slot::new(slot), WhenSlotSkipped::None)
-            .unwrap()
+        if let Some(root) =
+            chain_block_root_at_slot(&rig.chain, Slot::new(slot), WhenSlotSkipped::None).unwrap()
         {
             let envelope = make_test_payload_envelope(Slot::new(slot), root);
             rig.chain
@@ -2253,9 +2262,7 @@ async fn test_payload_envelopes_by_root() {
 
     let mut rig = TestRig::new(64).await;
 
-    let block_root = rig
-        .chain
-        .block_root_at_slot(Slot::new(1), WhenSlotSkipped::None)
+    let block_root = chain_block_root_at_slot(&rig.chain, Slot::new(1), WhenSlotSkipped::None)
         .unwrap()
         .unwrap();
 
@@ -2299,9 +2306,7 @@ async fn test_payload_envelopes_by_root_unknown_root_returns_empty() {
     let mut rig = TestRig::new(64).await;
 
     // Request envelope for a root that has no stored envelope
-    let block_root = rig
-        .chain
-        .block_root_at_slot(Slot::new(1), WhenSlotSkipped::None)
+    let block_root = chain_block_root_at_slot(&rig.chain, Slot::new(1), WhenSlotSkipped::None)
         .unwrap()
         .unwrap();
 
@@ -2345,10 +2350,8 @@ async fn test_payload_envelopes_by_range_no_duplicates_with_skip_slots() {
 
     // Store payload envelopes for all blocks in the range (skipping the skip slots)
     for slot in start_slot..slot_count {
-        if let Some(root) = rig
-            .chain
-            .block_root_at_slot(Slot::new(slot), WhenSlotSkipped::None)
-            .unwrap()
+        if let Some(root) =
+            chain_block_root_at_slot(&rig.chain, Slot::new(slot), WhenSlotSkipped::None).unwrap()
         {
             let envelope = make_test_payload_envelope(Slot::new(slot), root);
             rig.chain
