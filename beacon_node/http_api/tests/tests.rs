@@ -7242,10 +7242,14 @@ impl ApiTester {
             let ((signed_block, _maybe_blob_sidecars), mut state) =
                 self.harness.make_block_return_pre_state(state, slot).await;
 
-            let beacon_block_reward = self
-                .harness
-                .chain
-                .compute_beacon_block_reward(signed_block.message(), &mut state)
+            let beacon_block_reward =
+                beacon_chain::beacon_block_reward::compute_beacon_block_reward(
+                    signed_block.message(),
+                    &mut state,
+                    &self.harness.chain.store,
+                    &self.harness.chain.canonical_head,
+                    &self.harness.chain.spec,
+                )
                 .unwrap();
             self.harness.extend_slots(1).await;
             let response = self.test_get_beacon_rewards_blocks_at_head().await;
@@ -7273,10 +7277,12 @@ impl ApiTester {
             let ((signed_block, _maybe_blob_sidecars), mut state) =
                 self.harness.make_block_return_pre_state(state, slot).await;
 
-            let mut expected_rewards = self
-                .harness
-                .chain
-                .compute_sync_committee_rewards(signed_block.message(), &mut state)
+            let mut expected_rewards =
+                beacon_chain::sync_committee_rewards::compute_sync_committee_rewards::<E, _>(
+                    &self.harness.chain.spec,
+                    signed_block.message(),
+                    &mut state,
+                )
                 .unwrap();
             expected_rewards.sort_by_key(|r| r.validator_index);
 
@@ -7312,11 +7318,16 @@ impl ApiTester {
 
             let epoch = self.chain.epoch().unwrap() - 1;
 
-            let expected_rewards = self
-                .harness
-                .chain
-                .compute_attestation_rewards(epoch, vec![])
-                .unwrap();
+            let expected_rewards = beacon_chain::attestation_rewards::compute_attestation_rewards(
+                &self.harness.chain.store,
+                &self.harness.chain.canonical_head,
+                &self.harness.chain.slot_clock,
+                self.harness.chain.genesis_state_root,
+                &self.harness.chain.spec,
+                epoch,
+                vec![],
+            )
+            .unwrap();
 
             let response = self.test_get_beacon_rewards_attestations(epoch).await;
             assert_eq!(response.execution_optimistic, Some(false));

@@ -1779,8 +1779,16 @@ pub fn serve<T: BeaconChainTypes>(
              epoch: Epoch,
              validators: Vec<ValidatorId>| {
                 task_spawner.blocking_json_task(Priority::P1, move || {
-                    let attestation_rewards = chain
-                        .compute_attestation_rewards(epoch, validators)
+                    let attestation_rewards =
+                        beacon_chain::attestation_rewards::compute_attestation_rewards(
+                            &chain.store,
+                            &chain.canonical_head,
+                            &chain.slot_clock,
+                            chain.genesis_state_root,
+                            &chain.spec,
+                            epoch,
+                            validators,
+                        )
                         .map_err(|e| match e {
                             BeaconChainError::MissingBeaconState(root) => {
                                 warp_utils::reject::custom_not_found(format!(

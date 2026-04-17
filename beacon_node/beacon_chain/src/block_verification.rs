@@ -50,6 +50,7 @@
 
 use crate::beacon_snapshot::PreProcessingSnapshot;
 use crate::blob_verification::GossipBlobError;
+use crate::block_import_methods::check_invalid_block_roots;
 use crate::block_verification_types::{AsBlock, BlockImportData, LookupBlock, RangeSyncBlock};
 use crate::data_availability_checker::{
     AvailabilityCheckError, AvailableBlock, AvailableBlockData, MaybeAvailableBlock,
@@ -873,7 +874,7 @@ impl<T: BeaconChainTypes> GossipVerifiedBlock<T> {
         }
 
         // Do not process a block that is known to be invalid.
-        chain.check_invalid_block_roots(block_root)?;
+        check_invalid_block_roots(chain, block_root)?;
 
         // Do not process a block that doesn't descend from the finalized root.
         //
@@ -1099,7 +1100,7 @@ impl<T: BeaconChainTypes> SignatureVerifiedBlock<T> {
             .map_err(BlockError::InconsistentFork)?;
 
         // Check whether the block is a banned block prior to loading the parent.
-        chain.check_invalid_block_roots(block_root)?;
+        check_invalid_block_roots(chain, block_root)?;
 
         let (mut parent, block) = load_parent(block, chain)?;
 
@@ -1745,7 +1746,9 @@ fn check_block_against_finalized_slot<T: BeaconChainTypes>(
         .start_slot(T::EthSpec::slots_per_epoch());
 
     if block.slot() <= finalized_slot {
-        chain.pre_finalization_block_rejected(block_root);
+        chain
+            .pre_finalization_block_cache
+            .block_rejected(block_root);
         Err(BlockError::WouldRevertFinalizedSlot {
             block_slot: block.slot(),
             finalized_slot,

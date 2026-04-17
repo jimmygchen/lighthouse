@@ -200,7 +200,11 @@ pub async fn publish_block<T: BeaconChainTypes, B: IntoGossipVerifiedBlock<T>>(
         publish_blob_sidecars(network_tx, &blob).map_err(|_| {
             warp_utils::reject::custom_server_error("unable to publish blob sidecars".into())
         })?;
-        if let Err(e) = Box::pin(chain.process_gossip_blob(blob)).await {
+        if let Err(e) = Box::pin(beacon_chain::block_import_methods::process_gossip_blob(
+            &chain, blob,
+        ))
+        .await
+        {
             let msg = format!("Invalid blob: {e}");
             return if let BroadcastValidation::Gossip = validation_level {
                 Err(warp_utils::reject::broadcast_without_import(msg))
@@ -243,8 +247,14 @@ pub async fn publish_block<T: BeaconChainTypes, B: IntoGossipVerifiedBlock<T>>(
         if !sampling_columns.is_empty() {
             // Importing the columns could trigger block import and network publication in the case
             // where the block was already seen on gossip.
-            if let Err(e) =
-                Box::pin(chain.process_gossip_data_columns(sampling_columns, publish_fn)).await
+            if let Err(e) = Box::pin(
+                beacon_chain::block_import_methods::process_gossip_data_columns(
+                    &chain,
+                    sampling_columns,
+                    publish_fn,
+                ),
+            )
+            .await
             {
                 let msg = format!("Invalid data column: {e}");
                 return if let BroadcastValidation::Gossip = validation_level {
@@ -262,7 +272,8 @@ pub async fn publish_block<T: BeaconChainTypes, B: IntoGossipVerifiedBlock<T>>(
 
     match gossip_verified_block_result {
         Ok(gossip_verified_block) => {
-            let import_result = Box::pin(chain.process_block(
+            let import_result = Box::pin(beacon_chain::block_import_methods::process_block(
+                &chain,
                 block_root,
                 gossip_verified_block,
                 NotifyExecutionLayer::Yes,
@@ -313,7 +324,8 @@ pub async fn publish_block<T: BeaconChainTypes, B: IntoGossipVerifiedBlock<T>>(
             );
             // try to reprocess as a lookup (single) block and let sync take care of missing components
             let lookup_block = LookupBlock::new(block.clone());
-            let import_result = Box::pin(chain.process_block(
+            let import_result = Box::pin(beacon_chain::block_import_methods::process_block(
+                &chain,
                 block_root,
                 lookup_block,
                 NotifyExecutionLayer::Yes,

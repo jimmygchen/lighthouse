@@ -1647,10 +1647,15 @@ pub(crate) fn complete_partial_beacon_block<
     // Use a context without block root or proposer index so that both are checked.
     let mut ctxt = ConsensusContext::new(block.slot());
 
-    let consensus_block_value = chain
-        .compute_beacon_block_reward(block.message(), &mut state)
-        .map(|reward| reward.total)
-        .unwrap_or(0);
+    let consensus_block_value = crate::beacon_block_reward::compute_beacon_block_reward(
+        block.message(),
+        &mut state,
+        &chain.store,
+        &chain.canonical_head,
+        &chain.spec,
+    )
+    .map(|reward| reward.total)
+    .unwrap_or(0);
 
     per_block_processing(
         &mut state,

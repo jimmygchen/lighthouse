@@ -153,9 +153,7 @@ fn get_harness_generic(
 ///
 /// Panics with a descriptive message if any invariant is violated.
 fn check_db_invariants(harness: &TestHarness) {
-    let result = harness
-        .chain
-        .check_database_invariants()
+    let result = beacon_chain::invariants::check_database_invariants(&harness.chain)
         .expect("invariant check should not error");
 
     assert!(
@@ -3419,8 +3417,7 @@ async fn weak_subjectivity_sync_test(
     assert_eq!(store.get_anchor_info().state_upper_limit, Slot::new(0));
 
     // Check database invariants after full checkpoint sync + backfill + reconstruction.
-    let result = beacon_chain
-        .check_database_invariants()
+    let result = beacon_chain::invariants::check_database_invariants(&beacon_chain)
         .expect("invariant check should not error");
     assert!(
         result.is_ok(),

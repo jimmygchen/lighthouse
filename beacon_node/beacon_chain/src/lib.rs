@@ -10,7 +10,7 @@ pub mod beacon_proposer_cache;
 mod beacon_snapshot;
 pub mod bellatrix_readiness;
 pub mod blob_verification;
-mod block_import_methods;
+pub mod block_import_methods;
 mod block_production;
 mod block_times_cache;
 mod block_verification;

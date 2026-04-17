@@ -16,8 +16,12 @@ pub fn compute_sync_committee_rewards<T: BeaconChainTypes>(
 
     let mut state = get_state_before_applying_block(chain.clone(), &block)?;
 
-    let reward_payload = chain
-        .compute_sync_committee_rewards(block.message(), &mut state)
+    let reward_payload =
+        beacon_chain::sync_committee_rewards::compute_sync_committee_rewards::<T, _>(
+            &chain.spec,
+            block.message(),
+            &mut state,
+        )
         .map_err(unhandled_error)?;
 
     let data = if reward_payload.is_empty() {

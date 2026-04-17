@@ -1121,7 +1121,9 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         let blob_slot = verified_blob.slot();
         let blob_index = verified_blob.id().index;
 
-        let result = self.chain.process_gossip_blob(verified_blob).await;
+        let result =
+            beacon_chain::block_import_methods::process_gossip_blob(&self.chain, verified_blob)
+                .await;
         register_process_result_metrics(&result, metrics::BlockSource::Gossip, "blob");
 
         match &result {
@@ -1190,10 +1192,12 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         let data_column_slot = verified_data_column.slot();
         let data_column_index = verified_data_column.index();
 
-        let result = self
-            .chain
-            .process_gossip_data_columns(vec![verified_data_column], || Ok(()))
-            .await;
+        let result = beacon_chain::block_import_methods::process_gossip_data_columns(
+            &self.chain,
+            vec![verified_data_column],
+            || Ok(()),
+        )
+        .await;
         register_process_result_metrics(&result, metrics::BlockSource::Gossip, "data_column");
 
         match &result {
@@ -1364,11 +1368,9 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             get_block_delay_ms(seen_duration, block.message(), &self.chain.slot_clock);
         // Log metrics to track delay from other nodes on the network.
 
-        let verification_result = self
-            .chain
-            .clone()
-            .verify_block_for_gossip(block.clone())
-            .await;
+        let verification_result =
+            beacon_chain::block_import_methods::verify_block_for_gossip(&self.chain, block.clone())
+                .await;
 
         let block_root = if let Ok(verified_block) = &verification_result {
             metrics::set_gauge(
@@ -1665,16 +1667,15 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             );
         }
 
-        let result = self
-            .chain
-            .process_block(
-                block_root,
-                verified_block,
-                NotifyExecutionLayer::Yes,
-                BlockImportSource::Gossip,
-                || Ok(()),
-            )
-            .await;
+        let result = beacon_chain::block_import_methods::process_block(
+            &self.chain,
+            block_root,
+            verified_block,
+            NotifyExecutionLayer::Yes,
+            BlockImportSource::Gossip,
+            || Ok(()),
+        )
+        .await;
         register_process_result_metrics(&result, metrics::BlockSource::Gossip, "block");
 
         match &result {

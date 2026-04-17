@@ -130,8 +130,12 @@ async fn test_sync_committee_rewards() {
         .unwrap()
         .unwrap();
 
-    let reward_payload = chain
-        .compute_sync_committee_rewards(block.message(), &mut state)
+    let reward_payload =
+        beacon_chain::sync_committee_rewards::compute_sync_committee_rewards::<E, _>(
+            &chain.spec,
+            block.message(),
+            &mut state,
+        )
         .unwrap();
 
     let rewards = reward_payload
@@ -391,10 +395,14 @@ async fn test_rewards_altair() {
         // calculate beacon block rewards / penalties
         let ((signed_block, _maybe_blob_sidecars), mut state) =
             harness.make_block_return_pre_state(state, slot).await;
-        let beacon_block_reward = harness
-            .chain
-            .compute_beacon_block_reward(signed_block.message(), &mut state)
-            .unwrap();
+        let beacon_block_reward = beacon_chain::beacon_block_reward::compute_beacon_block_reward(
+            signed_block.message(),
+            &mut state,
+            &harness.chain.store,
+            &harness.chain.canonical_head,
+            &harness.chain.spec,
+        )
+        .unwrap();
 
         let total_proposer_reward = proposal_rewards_map
             .entry(beacon_block_reward.proposer_index)
@@ -402,9 +410,12 @@ async fn test_rewards_altair() {
         *total_proposer_reward += beacon_block_reward.total as i64;
 
         // calculate sync committee rewards / penalties
-        let reward_payload = harness
-            .chain
-            .compute_sync_committee_rewards(signed_block.message(), &mut state)
+        let reward_payload =
+            beacon_chain::sync_committee_rewards::compute_sync_committee_rewards::<E, _>(
+                &harness.chain.spec,
+                signed_block.message(),
+                &mut state,
+            )
             .unwrap();
 
         for reward in reward_payload {
@@ -473,10 +484,14 @@ async fn test_rewards_altair_inactivity_leak() {
         // calculate beacon block rewards / penalties
         let ((signed_block, _maybe_blob_sidecars), mut state) =
             harness.make_block_return_pre_state(state, slot).await;
-        let beacon_block_reward = harness
-            .chain
-            .compute_beacon_block_reward(signed_block.message(), &mut state)
-            .unwrap();
+        let beacon_block_reward = beacon_chain::beacon_block_reward::compute_beacon_block_reward(
+            signed_block.message(),
+            &mut state,
+            &harness.chain.store,
+            &harness.chain.canonical_head,
+            &harness.chain.spec,
+        )
+        .unwrap();
 
         let total_proposer_reward = proposal_rewards_map
             .entry(beacon_block_reward.proposer_index)
@@ -484,9 +499,12 @@ async fn test_rewards_altair_inactivity_leak() {
         *total_proposer_reward += beacon_block_reward.total as i64;
 
         // calculate sync committee rewards / penalties
-        let reward_payload = harness
-            .chain
-            .compute_sync_committee_rewards(signed_block.message(), &mut state)
+        let reward_payload =
+            beacon_chain::sync_committee_rewards::compute_sync_committee_rewards::<E, _>(
+                &harness.chain.spec,
+                signed_block.message(),
+                &mut state,
+            )
             .unwrap();
 
         for reward in reward_payload {
@@ -575,10 +593,14 @@ async fn test_rewards_altair_inactivity_leak_justification_epoch() {
         // calculate beacon block rewards / penalties
         let ((signed_block, _maybe_blob_sidecars), mut state) =
             harness.make_block_return_pre_state(state, slot).await;
-        let beacon_block_reward = harness
-            .chain
-            .compute_beacon_block_reward(signed_block.message(), &mut state)
-            .unwrap();
+        let beacon_block_reward = beacon_chain::beacon_block_reward::compute_beacon_block_reward(
+            signed_block.message(),
+            &mut state,
+            &harness.chain.store,
+            &harness.chain.canonical_head,
+            &harness.chain.spec,
+        )
+        .unwrap();
 
         let total_proposer_reward = proposal_rewards_map
             .entry(beacon_block_reward.proposer_index)
@@ -586,9 +608,12 @@ async fn test_rewards_altair_inactivity_leak_justification_epoch() {
         *total_proposer_reward += beacon_block_reward.total as i64;
 
         // calculate sync committee rewards / penalties
-        let reward_payload = harness
-            .chain
-            .compute_sync_committee_rewards(signed_block.message(), &mut state)
+        let reward_payload =
+            beacon_chain::sync_committee_rewards::compute_sync_committee_rewards::<E, _>(
+                &harness.chain.spec,
+                signed_block.message(),
+                &mut state,
+            )
             .unwrap();
 
         for reward in reward_payload {
@@ -659,10 +684,14 @@ async fn test_rewards_electra() {
         // calculate beacon block rewards / penalties
         let ((signed_block, _maybe_blob_sidecars), mut state) =
             harness.make_block_return_pre_state(state, slot).await;
-        let beacon_block_reward = harness
-            .chain
-            .compute_beacon_block_reward(signed_block.message(), &mut state)
-            .unwrap();
+        let beacon_block_reward = beacon_chain::beacon_block_reward::compute_beacon_block_reward(
+            signed_block.message(),
+            &mut state,
+            &harness.chain.store,
+            &harness.chain.canonical_head,
+            &harness.chain.spec,
+        )
+        .unwrap();
 
         let total_proposer_reward = proposal_rewards_map
             .entry(beacon_block_reward.proposer_index)
@@ -670,9 +699,12 @@ async fn test_rewards_electra() {
         *total_proposer_reward += beacon_block_reward.total as i64;
 
         // calculate sync committee rewards / penalties
-        let reward_payload = harness
-            .chain
-            .compute_sync_committee_rewards(signed_block.message(), &mut state)
+        let reward_payload =
+            beacon_chain::sync_committee_rewards::compute_sync_committee_rewards::<E, _>(
+                &harness.chain.spec,
+                signed_block.message(),
+                &mut state,
+            )
             .unwrap();
 
         for reward in reward_payload {
@@ -748,10 +780,14 @@ async fn check_all_electra_rewards(
         // calculate beacon block rewards / penalties
         let ((signed_block, _maybe_blob_sidecars), mut state) =
             harness.make_block_return_pre_state(state, slot).await;
-        let beacon_block_reward = harness
-            .chain
-            .compute_beacon_block_reward(signed_block.message(), &mut state)
-            .unwrap();
+        let beacon_block_reward = beacon_chain::beacon_block_reward::compute_beacon_block_reward(
+            signed_block.message(),
+            &mut state,
+            &harness.chain.store,
+            &harness.chain.canonical_head,
+            &harness.chain.spec,
+        )
+        .unwrap();
 
         let total_proposer_reward = proposal_rewards_map
             .entry(beacon_block_reward.proposer_index)
@@ -759,9 +795,12 @@ async fn check_all_electra_rewards(
         *total_proposer_reward += beacon_block_reward.total as i64;
 
         // calculate sync committee rewards / penalties
-        let reward_payload = harness
-            .chain
-            .compute_sync_committee_rewards(signed_block.message(), &mut state)
+        let reward_payload =
+            beacon_chain::sync_committee_rewards::compute_sync_committee_rewards::<E, _>(
+                &harness.chain.spec,
+                signed_block.message(),
+                &mut state,
+            )
             .unwrap();
 
         for reward in reward_payload {
@@ -858,9 +897,14 @@ async fn check_all_base_rewards_for_subset(
             .unwrap()
             .into_state();
 
-            let beacon_block_reward = harness
-                .chain
-                .compute_beacon_block_reward(block.message(), &mut pre_state)
+            let beacon_block_reward =
+                beacon_chain::beacon_block_reward::compute_beacon_block_reward(
+                    block.message(),
+                    &mut pre_state,
+                    &harness.chain.store,
+                    &harness.chain.canonical_head,
+                    &harness.chain.spec,
+                )
                 .unwrap();
             let total_proposer_reward = proposal_rewards_map
                 .entry(beacon_block_reward.proposer_index)

@@ -17,9 +17,14 @@ pub fn compute_beacon_block_rewards<T: BeaconChainTypes>(
 
     let mut state = get_state_before_applying_block(chain.clone(), &block)?;
 
-    let rewards = chain
-        .compute_beacon_block_reward(block_ref, &mut state)
-        .map_err(unhandled_error)?;
+    let rewards = beacon_chain::beacon_block_reward::compute_beacon_block_reward(
+        block_ref,
+        &mut state,
+        &chain.store,
+        &chain.canonical_head,
+        &chain.spec,
+    )
+    .map_err(unhandled_error)?;
 
     Ok((rewards, execution_optimistic, finalized))
 }

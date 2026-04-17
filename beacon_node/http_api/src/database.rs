@@ -35,7 +35,7 @@ pub fn info<T: BeaconChainTypes>(
 pub fn check_invariants<T: BeaconChainTypes>(
     chain: Arc<BeaconChain<T>>,
 ) -> Result<InvariantCheckResult, warp::Rejection> {
-    chain.check_database_invariants().map_err(|e| {
+    beacon_chain::invariants::check_database_invariants(&chain).map_err(|e| {
         warp_utils::reject::custom_bad_request(format!("error checking database invariants: {e:?}"))
     })
 }

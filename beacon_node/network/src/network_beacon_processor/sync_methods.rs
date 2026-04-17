@@ -165,16 +165,15 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         );
 
         let signed_beacon_block = block.block_cloned();
-        let result = self
-            .chain
-            .process_block(
-                block_root,
-                block,
-                NotifyExecutionLayer::Yes,
-                BlockImportSource::Lookup,
-                || Ok(()),
-            )
-            .await;
+        let result = beacon_chain::block_import_methods::process_block(
+            &self.chain,
+            block_root,
+            block,
+            NotifyExecutionLayer::Yes,
+            BlockImportSource::Lookup,
+            || Ok(()),
+        )
+        .await;
         register_process_result_metrics(&result, metrics::BlockSource::Rpc, "block");
 
         // RPC block imported, regardless of process type
@@ -305,7 +304,8 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             metrics::observe_duration(&metrics::BEACON_BLOB_RPC_SLOT_START_DELAY_TIME, delay);
         }
 
-        let result = self.chain.process_rpc_blobs(slot, block_root, blobs).await;
+        let result =
+            beacon_chain::block_import_methods::process_rpc_blobs(&self.chain, slot, block_root, blobs).await;
         register_process_result_metrics(&result, metrics::BlockSource::Rpc, "blobs");
 
         match &result {
@@ -381,10 +381,9 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             "RPC custody data columns received"
         );
 
-        let result = self
-            .chain
-            .process_rpc_custody_columns(custody_columns)
-            .await;
+        let result =
+            beacon_chain::block_import_methods::process_rpc_custody_columns(&self.chain, custody_columns)
+                .await;
         register_process_result_metrics(&result, metrics::BlockSource::Rpc, "custody_columns");
 
         match &result {
@@ -687,10 +686,12 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         notify_execution_layer: NotifyExecutionLayer,
     ) -> (usize, Result<(), ChainSegmentFailed>) {
         let blocks: Vec<_> = downloaded_blocks.cloned().collect();
-        match self
-            .chain
-            .process_chain_segment(blocks, notify_execution_layer)
-            .await
+        match beacon_chain::block_import_methods::process_chain_segment(
+            &self.chain,
+            blocks,
+            notify_execution_layer,
+        )
+        .await
         {
             ChainSegmentResult::Successful { imported_blocks } => {
                 metrics::inc_counter(&metrics::BEACON_PROCESSOR_CHAIN_SEGMENT_SUCCESS_TOTAL);

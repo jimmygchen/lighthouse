@@ -550,10 +550,15 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         // Use a context without block root or proposer index so that both are checked.
         let mut ctxt = ConsensusContext::new(signed_beacon_block.slot());
 
-        let consensus_block_value = self
-            .compute_beacon_block_reward(signed_beacon_block.message(), &mut state)
-            .map(|reward| reward.total)
-            .unwrap_or(0);
+        let consensus_block_value = crate::beacon_block_reward::compute_beacon_block_reward(
+            signed_beacon_block.message(),
+            &mut state,
+            &self.store,
+            &self.canonical_head,
+            &self.spec,
+        )
+        .map(|reward| reward.total)
+        .unwrap_or(0);
 
         state_processing::per_block_processing(
             &mut state,

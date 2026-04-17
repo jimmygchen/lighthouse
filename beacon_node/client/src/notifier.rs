@@ -1,6 +1,6 @@
 use crate::metrics;
 use beacon_chain::{
-    BeaconChain, BeaconChainTypes, ExecutionStatus,
+    self as beacon_chain, BeaconChain, BeaconChainTypes, ExecutionStatus,
     bellatrix_readiness::GenesisExecutionPayloadStatus,
 };
 use execution_layer::{
@@ -572,9 +572,10 @@ fn methods_required_for_fork(
 }
 
 async fn genesis_execution_payload_logging<T: BeaconChainTypes>(beacon_chain: &BeaconChain<T>) {
-    match beacon_chain
-        .check_genesis_execution_payload_is_correct()
-        .await
+    match beacon_chain::bellatrix_readiness::check_genesis_execution_payload_is_correct(
+        beacon_chain,
+    )
+    .await
     {
         Ok(GenesisExecutionPayloadStatus::Correct(block_hash)) => {
             info!(
