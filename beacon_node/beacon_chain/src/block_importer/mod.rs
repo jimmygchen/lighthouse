@@ -3,10 +3,9 @@
 //! `BlockImporter<T>` owns the subsystems required to import blocks, blobs and data columns. It
 //! holds `Arc`-shared handles to every piece of state it accesses directly (store, spec, slot
 //! clock, canonical head, attestation manager, etc.). For cross-module verification helpers that
-//! still take `&BeaconSystem<T>`, a `Arc<BeaconSystem<T>>` back-reference is installed
-//! post-construction by the builder. The resulting reference cycle between `BeaconSystem` and
-//! `BlockImporter` is accepted: both live for the lifetime of the beacon chain instance, and the
-//! cycle is torn down at process shutdown.
+//! still take `&BeaconSystem<T>`, a `Weak<BeaconSystem<T>>` back-reference is installed
+//! post-construction by the builder. The `Weak` avoids a reference cycle, allowing proper
+//! cleanup in tests.
 
 #[cfg(test)]
 mod tests;
@@ -75,12 +74,11 @@ use types::*;
 /// (`check_block_relevancy`, `signature_verify_chain_segment`, `GossipVerifiedBlock::new`,
 /// `IntoExecutionPendingBlock::into_execution_pending_block`,
 /// `check_block_is_finalized_checkpoint_or_descendant`, `verify_weak_subjectivity_checkpoint`,
-/// `verify_header_signature`, `get_blobs_or_columns_store_op`, `state_at_slot`), an
-/// `Arc<BeaconSystem<T>>` back-reference is installed by the builder post-construction.
-/// This creates a reference cycle between `BeaconSystem` and `BlockImporter`; both share
-/// the lifetime of the beacon chain process and the cycle is released at shutdown. Rewriting
-/// those helper signatures to take only the dependencies they need is a natural follow-up and
-/// would let us drop the back-reference entirely.
+/// `verify_header_signature`, `get_blobs_or_columns_store_op`, `state_at_slot`), a
+/// `Weak<BeaconSystem<T>>` back-reference is installed by the builder post-construction.
+/// The `Weak` avoids a reference cycle, allowing proper cleanup in tests. Rewriting those
+/// helper signatures to take only the dependencies they need would let us drop the
+/// back-reference entirely.
 pub struct BlockImporter<T: BeaconChainTypes> {
     // Arc-held subsystems cloned at construction.
     pub(crate) spec: Arc<ChainSpec>,

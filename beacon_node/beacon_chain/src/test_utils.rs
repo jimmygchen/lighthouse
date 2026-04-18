@@ -1047,62 +1047,11 @@ where
     /// Returns a newly created block, signed by the proposer for the given slot.
     pub async fn make_block(
         &self,
-        mut state: BeaconState<E>,
+        state: BeaconState<E>,
         slot: Slot,
     ) -> (SignedBlockContentsTuple<E>, BeaconState<E>) {
-        assert_ne!(slot, 0, "can't produce a block at slot 0");
-        assert!(slot >= state.slot());
-
-        complete_state_advance(&mut state, None, slot, &self.spec)
-            .expect("should be able to advance state to slot");
-
-        state.build_caches(&self.spec).expect("should build caches");
-
-        let proposer_index = state.get_beacon_proposer_index(slot, &self.spec).unwrap();
-
-        // If we produce two blocks for the same slot, they hash up to the same value and
-        // BeaconSystem errors out with `DuplicateFullyImported`.  Vary the graffiti so that we produce
-        // different blocks each time.
-        let graffiti = Graffiti::from(self.rng.lock().random::<[u8; 32]>());
-        let graffiti_settings =
-            GraffitiSettings::new(Some(graffiti), Some(GraffitiPolicy::PreserveUserGraffiti));
-
-        let randao_reveal = self.sign_randao_reveal(&state, proposer_index, slot);
-
-        let BeaconBlockResponseWrapper::Full(block_response) = self
-            .chain
-            .block_producer
-            .produce_block_on_state(
-                state,
-                None,
-                slot,
-                randao_reveal,
-                graffiti_settings,
-                ProduceBlockVerification::VerifyRandao,
-                None,
-                BlockProductionVersion::FullV2,
-            )
-            .await
-            .unwrap()
-        else {
-            panic!("Should always be a full payload response");
-        };
-
-        let signed_block = Arc::new(block_response.block.sign(
-            &self.validator_keypairs[proposer_index].sk,
-            &block_response.state.fork(),
-            block_response.state.genesis_validators_root(),
-            &self.spec,
-        ));
-
-        let block_contents: SignedBlockContentsTuple<E> =
-            if signed_block.fork_name_unchecked().deneb_enabled() {
-                (signed_block, block_response.blob_items)
-            } else {
-                (signed_block, None)
-            };
-
-        (block_contents, block_response.state)
+        let (block_contents, _envelope, state) = self.make_block_with_envelope(state, slot).await;
+        (block_contents, state)
     }
 
     /// Returns a newly created block, signed by the proposer for the given slot,
@@ -1182,8 +1131,49 @@ where
             let block_contents: SignedBlockContentsTuple<E> = (signed_block, None);
             (block_contents, signed_envelope, pending_state)
         } else {
-            let (block_contents, state) = self.make_block(state, slot).await;
-            (block_contents, None, state)
+            complete_state_advance(&mut state, None, slot, &self.spec)
+                .expect("should be able to advance state to slot");
+            state.build_caches(&self.spec).expect("should build caches");
+
+            let proposer_index = state.get_beacon_proposer_index(slot, &self.spec).unwrap();
+            let graffiti = Graffiti::from(self.rng.lock().random::<[u8; 32]>());
+            let graffiti_settings =
+                GraffitiSettings::new(Some(graffiti), Some(GraffitiPolicy::PreserveUserGraffiti));
+            let randao_reveal = self.sign_randao_reveal(&state, proposer_index, slot);
+
+            let BeaconBlockResponseWrapper::Full(block_response) = self
+                .chain
+                .block_producer
+                .produce_block_on_state(
+                    state,
+                    None,
+                    slot,
+                    randao_reveal,
+                    graffiti_settings,
+                    ProduceBlockVerification::VerifyRandao,
+                    None,
+                    BlockProductionVersion::FullV2,
+                )
+                .await
+                .unwrap()
+            else {
+                panic!("Should always be a full payload response");
+            };
+
+            let signed_block = Arc::new(block_response.block.sign(
+                &self.validator_keypairs[proposer_index].sk,
+                &block_response.state.fork(),
+                block_response.state.genesis_validators_root(),
+                &self.spec,
+            ));
+
+            let block_contents: SignedBlockContentsTuple<E> =
+                if signed_block.fork_name_unchecked().deneb_enabled() {
+                    (signed_block, block_response.blob_items)
+                } else {
+                    (signed_block, None)
+                };
+            (block_contents, None, block_response.state)
         }
     }
 
@@ -1204,9 +1194,6 @@ where
 
         let proposer_index = state.get_beacon_proposer_index(slot, &self.spec).unwrap();
 
-        // If we produce two blocks for the same slot, they hash up to the same value and
-        // BeaconSystem errors out with `DuplicateFullyImported`.  Vary the graffiti so that we produce
-        // different blocks each time.
         let graffiti = Graffiti::from(self.rng.lock().random::<[u8; 32]>());
         let graffiti_settings =
             GraffitiSettings::new(Some(graffiti), Some(GraffitiPolicy::PreserveUserGraffiti));
@@ -1215,39 +1202,67 @@ where
 
         let pre_state = state.clone();
 
-        let BeaconBlockResponseWrapper::Full(block_response) = self
-            .chain
-            .block_producer
-            .produce_block_on_state(
-                state,
-                None,
-                slot,
-                randao_reveal,
-                graffiti_settings,
-                ProduceBlockVerification::VerifyRandao,
-                None,
-                BlockProductionVersion::FullV2,
-            )
-            .await
-            .unwrap()
-        else {
-            panic!("Should always be a full payload response");
-        };
+        if state.fork_name_unchecked().gloas_enabled()
+            || self.spec.fork_name_at_slot::<E>(slot).gloas_enabled()
+        {
+            let (block, pending_state, _) = self
+                .chain
+                .block_producer
+                .produce_block_on_state_gloas(
+                    state,
+                    None,
+                    slot,
+                    randao_reveal,
+                    graffiti_settings,
+                    ProduceBlockVerification::VerifyRandao,
+                )
+                .await
+                .unwrap();
 
-        let signed_block = Arc::new(block_response.block.sign(
-            &self.validator_keypairs[proposer_index].sk,
-            &block_response.state.fork(),
-            block_response.state.genesis_validators_root(),
-            &self.spec,
-        ));
+            let signed_block = Arc::new(block.sign(
+                &self.validator_keypairs[proposer_index].sk,
+                &pending_state.fork(),
+                pending_state.genesis_validators_root(),
+                &self.spec,
+            ));
 
-        let block_contents: SignedBlockContentsTuple<E> =
-            if signed_block.fork_name_unchecked().deneb_enabled() {
-                (signed_block, block_response.blob_items)
-            } else {
-                (signed_block, None)
+            let block_contents: SignedBlockContentsTuple<E> = (signed_block, None);
+            (block_contents, pre_state)
+        } else {
+            let BeaconBlockResponseWrapper::Full(block_response) = self
+                .chain
+                .block_producer
+                .produce_block_on_state(
+                    state,
+                    None,
+                    slot,
+                    randao_reveal,
+                    graffiti_settings,
+                    ProduceBlockVerification::VerifyRandao,
+                    None,
+                    BlockProductionVersion::FullV2,
+                )
+                .await
+                .unwrap()
+            else {
+                panic!("Should always be a full payload response");
             };
-        (block_contents, pre_state)
+
+            let signed_block = Arc::new(block_response.block.sign(
+                &self.validator_keypairs[proposer_index].sk,
+                &block_response.state.fork(),
+                block_response.state.genesis_validators_root(),
+                &self.spec,
+            ));
+
+            let block_contents: SignedBlockContentsTuple<E> =
+                if signed_block.fork_name_unchecked().deneb_enabled() {
+                    (signed_block, block_response.blob_items)
+                } else {
+                    (signed_block, None)
+                };
+            (block_contents, pre_state)
+        }
     }
 
     /// Create a randao reveal for a block at `slot`.

@@ -6,9 +6,8 @@
 //! op pool, execution manager, canonical head, attestation manager, etc.). For cross-module
 //! helpers that still take `&BeaconSystem<T>` / `Arc<BeaconSystem<T>>` (e.g.
 //! `get_execution_payload`, `state_at_slot`, `is_healthy`, `compute_beacon_block_reward`),
-//! a strong `Arc<BeaconSystem<T>>` back-reference is installed by the builder
-//! post-construction. This creates a reference cycle between `BeaconSystem` and
-//! `BlockProducer`; both share the lifetime of the beacon chain process.
+//! a `Weak<BeaconSystem<T>>` back-reference is installed by the builder
+//! post-construction. The `Weak` avoids a reference cycle, allowing proper cleanup in tests.
 
 pub mod gloas;
 
@@ -67,11 +66,11 @@ use crate::{
 /// Handles block production for the beacon chain.
 ///
 /// Owns injected `Arc` handles to every subsystem it reaches for directly (store, spec, slot
-/// clock, op pool, execution manager, canonical head, attestation manager, etc.). A strong
-/// `Arc<BeaconSystem<T>>` back-reference is installed by the builder after `Arc` wrapping
+/// clock, op pool, execution manager, canonical head, attestation manager, etc.). A
+/// `Weak<BeaconSystem<T>>` back-reference is installed by the builder after `Arc` wrapping
 /// and used for cross-module helpers that still take `&BeaconSystem<T>` /
 /// `Arc<BeaconSystem<T>>` (`get_execution_payload`, `state_at_slot`, `is_healthy`,
-/// `compute_beacon_block_reward`). This creates a reference cycle, released at process shutdown.
+/// `compute_beacon_block_reward`). The `Weak` avoids a reference cycle.
 pub struct BlockProducer<T: BeaconChainTypes> {
     // Arc-held subsystems cloned at construction.
     pub(crate) spec: Arc<ChainSpec>,
