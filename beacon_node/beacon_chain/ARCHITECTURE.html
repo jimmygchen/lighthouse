@@ -391,11 +391,29 @@
 <section id="problem">
   <h2 class="fade-in">The Problem <span class="badge">Why</span></h2>
   <p class="lead fade-in">
-    <code>BeaconChain&lt;T&gt;</code> is a single struct with 40+ fields.
+    <code>BeaconChain&lt;T&gt;</code> is a single struct with 40+ fields and 200+ methods.
     Every caller holds <code>Arc&lt;BeaconChain&gt;</code> and can reach everything.
-    This makes it hard to test in isolation, hard for LLMs to reason about,
-    and hard to iterate on without risk.
+    This creates three compounding problems:
   </p>
+
+  <div class="fade-in" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(250px,1fr)); gap:1rem; margin:1rem 0 1.5rem;">
+    <div style="border:1px solid var(--border); border-radius:10px; padding:1rem; background:var(--bg-card);">
+      <strong style="color:var(--accent5);">Low confidence in generated code</strong>
+      <p style="font-size:0.8rem; color:var(--text-muted); margin:0.5rem 0 0;">Without unit-testable components, AI-generated code can only be validated by full integration tests or manual review. Each change requires understanding the entire 7,000-line struct to assess impact.</p>
+    </div>
+    <div style="border:1px solid var(--border); border-radius:10px; padding:1rem; background:var(--bg-card);">
+      <strong style="color:var(--accent5);">Slow manual review process</strong>
+      <p style="font-size:0.8rem; color:var(--text-muted); margin:0.5rem 0 0;">Reviewers must trace through the god object to understand what a change touches, because boundaries aren't enforced by the type system. Every PR risks unintended side effects through shared mutable state.</p>
+    </div>
+    <div style="border:1px solid var(--border); border-radius:10px; padding:1rem; background:var(--bg-card);">
+      <strong style="color:var(--accent5);">Hard to iterate without risk</strong>
+      <p style="font-size:0.8rem; color:var(--text-muted); margin:0.5rem 0 0;">Any change to one concern (attestation handling, block production, fork choice) can break another because they share the same type and lock scopes. Testing in isolation is impossible.</p>
+    </div>
+  </div>
+
+  <div class="callout fade-in" style="margin-bottom:1.5rem;">
+    <p style="margin:0;"><strong>The modular design fixes this:</strong> testable components &rarr; more unit tests &rarr; higher confidence in generated code &rarr; less review time &rarr; faster iteration.</p>
+  </div>
 
   <div class="compare fade-in">
     <div class="compare-card before">
