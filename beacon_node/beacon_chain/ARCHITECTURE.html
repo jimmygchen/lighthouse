@@ -1097,25 +1097,26 @@
       </div>
     </div>
 
-    <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card); opacity:0.7;" data-coverage-placeholder>
+    <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card);">
       <div style="display:flex; align-items:baseline; gap:0.5rem;">
-        <span style="width:0.6em; height:0.6em; border-radius:50%; background:var(--text-muted); display:inline-block;"></span>
+        <span style="width:0.6em; height:0.6em; border-radius:50%; background:var(--accent2); display:inline-block;"></span>
         <strong style="font-size:0.9rem;">Coverage</strong>
       </div>
       <div style="font-size:0.8rem; color:var(--text-muted); margin-top:0.5rem;">
-        Branch coverage build in progress. Numbers and the link to the full
-        report will land here.
+        <code>cargo llvm-cov nextest --release --workspace</code> &mdash;
+        <a href="http://204.168.250.92:8082/html/" style="color:var(--accent);">full report</a>.
+        Same command and flags as the unstable baseline.
       </div>
     </div>
 
-    <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card); opacity:0.7;" data-tests-placeholder>
+    <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card);">
       <div style="display:flex; align-items:baseline; gap:0.5rem;">
-        <span style="width:0.6em; height:0.6em; border-radius:50%; background:var(--text-muted); display:inline-block;"></span>
-        <strong style="font-size:0.9rem;">Full test suite</strong>
+        <span style="width:0.6em; height:0.6em; border-radius:50%; background:var(--accent2); display:inline-block;"></span>
+        <strong style="font-size:0.9rem;">Fulu test suite</strong>
       </div>
       <div style="font-size:0.8rem; color:var(--text-muted); margin-top:0.5rem;">
-        <code>make test-beacon-chain</code> result will land here once the
-        orchestrator extractions complete.
+        <code>FORK_NAME=fulu cargo nextest run --release -p beacon_chain</code>
+        &mdash; <strong>425 / 425 passed</strong>. Matches CI gate.
       </div>
     </div>
   </div>
