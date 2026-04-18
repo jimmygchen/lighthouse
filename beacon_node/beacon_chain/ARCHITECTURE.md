@@ -41,11 +41,10 @@ runtime characteristics.
 and logic. Callers (HTTP API, NetworkBeaconProcessor, Sync Manager) hold
 `Arc` refs to components but contain no business logic of their own.
 
-The top-level type — renamed `BeaconComponents<T>` on this branch, and
-being slimmed further to `BeaconSystem<T>` — holds the component `Arc`s
-and coordinates startup. Block import and block production are being
-hoisted onto two scoped orchestrators (`BlockImporter<T>`,
-`BlockProducer<T>`) whose methods use `&self` over their owned refs.
+The top-level type `BeaconSystem<T>` holds the component `Arc`s and
+coordinates startup. Block import and block production live on two
+scoped orchestrators (`BlockImporter<T>`, `BlockProducer<T>`) whose
+methods use `&self` over their owned `Arc` refs.
 
 ```
 Builder (startup)
@@ -184,30 +183,41 @@ access for persistence. This is a known exception to the general pattern.
 
 **Holds:** `spec`
 
-### Unmapped fields
+### Orchestrators
 
-Block import caches (`block_times_cache`, `envelope_times_cache`,
-`pre_finalization_block_cache`, `observed_block_producers`,
-`observed_slashable`) remain on the top-level struct directly. They are
-tightly coupled to `block_import_methods.rs` and `canonical_head.rs`,
-which access them through `&self`/`&chain`. In the forward plan these
-move onto a dedicated `BlockImporter<T>` — see below.
+Block import and block production are handled by two scoped
+orchestrators that own their `Arc` refs and use `&self` methods:
 
-Several fields don't have a clear home in the above components and need
-further design work:
+- **`BlockImporter<T>`** — block, blob, and data-column import.
+  Owns `observed_block_producers`, `observed_slashable`,
+  `event_handler`, `validator_monitor`. Holds `Arc` refs to
+  `canonical_head`, `attestation_manager`, `data_availability_manager`,
+  etc.
 
-- `config: ChainConfig` — referenced 20+ times across every domain
-  (re-org settings, builder fallback thresholds, sync tolerance, light
-  client toggle, payload preparation). Needs partitioning into
-  per-component config structs or a shared read-only reference.
-- `light_client_server_cache`, `light_client_server_tx` — used during
-  block import and head recomputation. Cross-cutting.
+- **`BlockProducer<T>`** — state loading, partial block assembly,
+  execution payload integration. Holds `Arc` refs to `op_pool`,
+  `canonical_head`, `execution_manager`, `attestation_manager`, etc.
+
+### Duplicate fields on BeaconSystem
+
+`event_handler` and `validator_monitor` are Arc-cloned onto both
+`BeaconSystem<T>` and `BlockImporter<T>`. They remain on `BeaconSystem`
+because 25+ call sites each in `http_api`, `network`,
+`canonical_head`, `block_verification`, `execution_methods`,
+`state_advance_timer`, `metrics`, and `attestation_simulator` access
+them directly. Consolidating all callers to route through
+`block_importer` would be too invasive.
+
+### Remaining unmapped fields
+
+Several fields on `BeaconSystem<T>` don't have a clear single owner:
+
+- `config: ChainConfig` — referenced 20+ times across every domain.
+- `light_client_server_cache`, `light_client_server_tx` — cross-cutting.
 - `store_migrator` (BackgroundMigrator) — triggered by finalization.
-- `graffiti_calculator` — used in block production.
-- `pending_payload_envelopes` — ePBS-related.
 - `shutdown_sender` — used in error paths across multiple components.
 - `genesis_state_root`, `genesis_validators_root`, `genesis_time`,
-  `genesis_backfill_slot` — scattered usage, no clear single owner.
+  `genesis_backfill_slot` — scattered usage.
 
 ## Design Principles
 
@@ -230,32 +240,33 @@ The remaining dependencies are infrastructure (`&ChainSpec`, `SlotClock`,
 `TaskExecutor`, `BlockProductionConfig`) that every async workflow needs.
 
 ```rust
-/// Block production composed from thin slices.
+/// BlockProducer owns its Arc refs; methods use &self.
 /// No Arc<BeaconChain>, no god object.
-pub async fn produce_block(
-    state: BeaconState<E>,
-    // Domain dependencies (the actual coupling)
-    op_pool: &OperationPool<E>,
-    canonical_head: &CanonicalHead<T>,
-    execution_layer: &ExecutionLayer<E>,
-    // Infrastructure
-    spec: &ChainSpec,
-    config: &BlockProductionConfig,
-    slot_clock: &T::SlotClock,
-) -> Result<BeaconBlock<E>> {
-    let attestations = op_pool.get_attestations(&state, spec)?;
-    let (slashings, exits) = op_pool.get_slashings_and_exits(&state, spec);
-    let health = check_chain_health(canonical_head, slot_clock, config);
-    let payload = execution_layer.get_payload(
-        canonical_head.forkchoice_update_params(),
-        health.use_builder(),
-    ).await?;
-    assemble_block(state, attestations, slashings, exits, payload, spec)
+pub struct BlockProducer<T: BeaconChainTypes> {
+    spec: Arc<ChainSpec>,
+    op_pool: Arc<OperationPool<T::EthSpec>>,
+    canonical_head: Arc<CanonicalHead<T>>,
+    execution_manager: Arc<ExecutionManager<T>>,
+    // ...
+}
+
+impl<T: BeaconChainTypes> BlockProducer<T> {
+    pub async fn produce_block_on_state(
+        &self,
+        state: BeaconState<T::EthSpec>,
+        produce_at_slot: Slot,
+        randao_reveal: Signature,
+        // ...
+    ) -> Result<BeaconBlockResponseWrapper<T::EthSpec>> {
+        let attestations = self.op_pool.get_attestations(&state, &self.spec)?;
+        let health = is_healthy(&self.canonical_head, /* ... */)?;
+        // ...
+    }
 }
 ```
 
-This applies to other complex call sites — block import, the HTTP API,
-sync — each composes the thin slices it needs.
+The same pattern applies to `BlockImporter<T>` — it owns its `Arc` refs
+and methods use `&self` to import blocks, blobs, and data columns.
 
 ### 2. Separate business logic from infrastructure
 
@@ -325,30 +336,9 @@ fn rejects_exit_for_unknown_validator() {
 }
 ```
 
-Composition also enables testing complex workflows directly:
-
-```rust
-#[tokio::test]
-async fn block_includes_available_exits() {
-    let spec = ChainSpec::mainnet();
-    let (state, keypairs) = create_genesis_state(&spec, 16);
-
-    let op_pool = OperationPool::new();
-    let exit = make_signed_exit(&keypairs[0], 0, Epoch::new(5), &spec);
-    op_pool.insert_voluntary_exit(exit.clone());
-
-    let mock_el = MockExecutionLayer::default_payload();
-    let mock_head = MockCanonicalHead::at_slot(10);
-
-    let block = produce_block(
-        state, &op_pool, &mock_head, &mock_el,
-        &spec, &BlockProductionConfig::default(), &test_clock(),
-    ).await.unwrap();
-
-    assert_eq!(block.body().voluntary_exits().len(), 1);
-    assert_eq!(block.body().voluntary_exits()[0], exit);
-}
-```
+Integration-level testing of `BlockImporter<T>` and `BlockProducer<T>`
+uses the existing `BeaconChainHarness`, which wires up the full chain
+including orchestrators.
 
 ### Acceptance tests — event-based via sync manager
 
@@ -373,6 +363,7 @@ struct NetworkBeaconProcessor<T: BeaconChainTypes> {
     attestations:      Arc<AttestationManager<T::EthSpec>>,
     sync_committee:    Arc<SyncCommitteeManager<T::EthSpec>>,
     data_availability: Arc<DataAvailabilityManager<T>>,
+    block_importer:    Arc<BlockImporter<T>>,
     canonical_head:    Arc<CanonicalHead<T>>,
     slot_clock:        T::SlotClock,
     event_handler:     Option<ServerSentEventHandler<T::EthSpec>>,
@@ -398,12 +389,11 @@ handler functions need.
 
 ## Results
 
-Seven components extracted, ~2,000 lines of new unit tests, full CI
-green, and a local testnet that produces blocks and finalises. The
-top-level type shrank from 7,317 to 1,025 lines and lost its 200+
-methods. Two scoped orchestrators (`BlockImporter<T>`,
-`BlockProducer<T>`) and a slim top-level (`BeaconSystem<T>`) are the
-next steps.
+Seven components extracted plus two scoped orchestrators
+(`BlockImporter<T>`, `BlockProducer<T>`). ~2,000 lines of new unit
+tests, full CI green, and a local testnet that produces blocks and
+finalises. The top-level type (`BeaconSystem<T>`) shrank from 7,317 to
+~1,000 lines and lost its 200+ methods.
 
 ### Wins
 
@@ -411,47 +401,33 @@ next steps.
   `OperationsManager`, `AttestationManager`, `SyncCommitteeManager`, and
   `ValidatorQueryService` came out as self-contained units with clear
   ownership of their observed sets and pools. `DataAvailabilityManager`,
-  `ExecutionManager`, and `BlockImportState` extracted too but are
-  thinner wrappers.
+  `ExecutionManager` extracted too but are thinner wrappers.
+- **Two scoped orchestrators.**
+  `BlockImporter<T>` and `BlockProducer<T>` own their `Arc` refs and
+  use `&self` methods, replacing the previous `*Context` struct literal
+  pattern.
 - **~2,000 lines of new unit tests** against those components, written
-  without `BeaconChainHarness`. This is the concrete contributor-velocity
-  win — tests that construct components directly, pass in state, and
-  assert results.
-- **Proved the seams.** Once components owned their observed sets and
-  pools, the shape of a scoped `BlockImporter<T>` / `BlockProducer<T>`
-  became obvious — which is the active follow-up work.
-- **Top-level file shrank from 7,317 to 1,025 lines.** `beacon_chain.rs`
-  → `beacon_components.rs`. The remainder is struct definition, builder
+  without `BeaconChainHarness`. Tests construct components directly,
+  pass in state, and assert results.
+- **Top-level file shrank from 7,317 to ~1,000 lines.** `beacon_chain.rs`
+  -> `beacon_components.rs`. The remainder is struct definition, builder
   plumbing, and a few cross-component helpers.
 
-### In progress
+### Remaining work
 
-- **`BeaconComponents<T>` has ~40 `pub` fields.** Zero methods, but the
-  coupling is unchanged — every caller that used to say `chain.field`
-  still says `components.field`. Being slimmed to `BeaconSystem<T>` with
-  only `Arc<Component>` fields.
-- **`*Context` struct literals at 254+ call sites.** In
-  `block_production/mod.rs`, a 12-field `BlockProductionContext` literal
-  is constructed four times in one function. Being replaced by extracting
-  `BlockImporter<T>` and `BlockProducer<T>` as scoped structs that own
-  their `Arc`s.
-- **Duplicate `Arc` paths to the same data.** `chain.op_pool` and
-  `chain.operations_manager.op_pool` resolve to the same pool. Being
-  consolidated by routing all callers through the owning component.
-- **Orchestrator files didn't shrink, just moved.**
-  `block_import_methods.rs` is 2,022 lines, `block_production/mod.rs`
-  is 1,692. Being folded into `impl BlockImporter<T>` /
-  `impl BlockProducer<T>`.
-- **`&self` constructor injection replacing `&chain + struct` pattern.**
-  Rust's idiomatic DI is _struct holds its Arcs, methods use `&self`_ —
-  the follow-up work moves to that pattern.
+- **Duplicate `Arc` paths for `event_handler` and `validator_monitor`.**
+  Both live on `BeaconSystem<T>` _and_ `BlockImporter<T>`. 25+ call
+  sites each across `http_api`, `network`, `canonical_head`, etc. make
+  consolidation too invasive for now.
+- **Coverage and full test suite results pending.** Branch coverage
+  build and `make test-beacon-chain` results will land once verified.
 
 ### Key metrics
 
-- **Top-level file:** 7,317 → 1,025 lines (`beacon_chain.rs` →
+- **Top-level file:** 7,317 -> ~1,000 lines (`beacon_chain.rs` ->
   `beacon_components.rs`)
-- **Top-level methods:** 200+ → 0
-- **Components extracted:** 7
+- **Top-level methods:** 200+ -> 0
+- **Components + orchestrators:** 7 + 2 (`BlockImporter`, `BlockProducer`)
 - **New unit tests:** ~2,000 lines
 
 ### Verification

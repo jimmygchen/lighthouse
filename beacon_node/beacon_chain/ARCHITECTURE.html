@@ -460,6 +460,11 @@
         <div style="display:flex; align-items:center; gap:0.5rem;">
           <span style="padding:0.3em 0.6em; border-radius:6px; font-size:0.75rem; font-weight:600; background:rgba(121,192,255,0.1); border:1px solid var(--accent6); color:var(--accent6); white-space:nowrap;">ValidatorQueryService</span>
         </div>
+        <div style="display:flex; align-items:center; gap:0.5rem; margin-top:0.5rem;">
+          <span style="padding:0.3em 0.6em; border-radius:6px; font-size:0.7rem; font-weight:600; background:rgba(240,136,62,0.1); border:1px solid var(--accent4); color:var(--accent4); white-space:nowrap;">BlockImporter&lt;T&gt;</span>
+          <span style="padding:0.3em 0.6em; border-radius:6px; font-size:0.7rem; font-weight:600; background:rgba(240,136,62,0.1); border:1px solid var(--accent4); color:var(--accent4); white-space:nowrap;">BlockProducer&lt;T&gt;</span>
+          <span style="font-size:0.7rem; color:var(--text-muted);">orchestrators</span>
+        </div>
       </div>
       <p style="font-size:0.75rem; color:var(--text-muted); margin-top:0.75rem;">Components own their state and are testable in isolation</p>
     </div>
@@ -568,7 +573,7 @@
   </p>
 
   <div class="fade-in" style="margin:2rem 0; overflow-x:auto; padding-bottom:1rem;">
-    <svg viewBox="0 0 780 340" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Architecture overview" style="display:block; margin:0 auto; width:100%; max-width:780px; height:auto;">
+    <svg viewBox="0 0 780 400" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Architecture overview" style="display:block; margin:0 auto; width:100%; max-width:780px; height:auto;">
 
       <!-- Components -->
       <text x="20" y="20" fill="#58a6ff" font-size="11" font-weight="600">COMPONENTS (own state + logic)</text>
@@ -594,8 +599,15 @@
       <rect x="200" y="104" width="170" height="30" rx="5" fill="rgba(121,192,255,0.1)" stroke="#79c0ff" stroke-width="1"/>
       <text x="285" y="124" text-anchor="middle" fill="#79c0ff" font-size="11" font-weight="600">ValidatorQuerySvc</text>
 
-      <rect x="200" y="140" width="170" height="30" rx="5" fill="rgba(88,166,255,0.1)" stroke="#58a6ff" stroke-width="1"/>
-      <text x="285" y="160" text-anchor="middle" fill="#58a6ff" font-size="11" font-weight="600">BlockImportState</text>
+      <!-- BlockImporter moved to ORCHESTRATORS section below -->
+
+      <!-- Orchestrators (compose components) -->
+      <text x="20" y="190" fill="#f0883e" font-size="11" font-weight="600">ORCHESTRATORS (compose components, &amp;self methods)</text>
+      <rect x="20" y="202" width="170" height="30" rx="5" fill="rgba(240,136,62,0.1)" stroke="#f0883e" stroke-width="1"/>
+      <text x="105" y="222" text-anchor="middle" fill="#f0883e" font-size="11" font-weight="600">BlockImporter&lt;T&gt;</text>
+
+      <rect x="200" y="202" width="170" height="30" rx="5" fill="rgba(240,136,62,0.1)" stroke="#f0883e" stroke-width="1"/>
+      <text x="285" y="222" text-anchor="middle" fill="#f0883e" font-size="11" font-weight="600">BlockProducer&lt;T&gt;</text>
 
       <!-- Callers -->
       <text x="450" y="20" fill="#8b949e" font-size="11" font-weight="600">CALLERS (hold refs, no logic)</text>
@@ -611,20 +623,14 @@
       <line x1="448" y1="83" x2="372" y2="83" stroke="#30363d" stroke-width="1" marker-end="url(#arrowBlue)" opacity="0.5"/>
       <line x1="448" y1="119" x2="372" y2="119" stroke="#30363d" stroke-width="1" marker-end="url(#arrowBlue)" opacity="0.5"/>
 
-      <!-- Composed workflows -->
-      <text x="450" y="165" fill="#d2a8ff" font-size="11" font-weight="600">COMPOSED WORKFLOWS (functions)</text>
-      <rect x="450" y="177" width="210" height="26" rx="5" fill="#1c2129" stroke="#d2a8ff" stroke-width="1" stroke-dasharray="4,2"/>
-      <text x="555" y="195" text-anchor="middle" fill="#d2a8ff" font-size="10">block import, block production, ...</text>
-      <text x="450" y="218" fill="#8b949e" font-size="9" font-style="italic">Compose thin slices from components at call time</text>
-
       <!-- Testing -->
-      <text x="20" y="205" fill="#3fb950" font-size="11" font-weight="600">TESTING</text>
-      <rect x="20" y="217" width="350" height="30" rx="5" fill="rgba(63,185,80,0.06)" stroke="rgba(63,185,80,0.25)" stroke-width="1"/>
-      <text x="195" y="237" text-anchor="middle" fill="#3fb950" font-size="10" font-weight="500">Unit tests &mdash; construct component, pass test state, assert</text>
-      <rect x="20" y="253" width="350" height="30" rx="5" fill="rgba(240,136,62,0.06)" stroke="rgba(240,136,62,0.25)" stroke-width="1"/>
-      <text x="195" y="273" text-anchor="middle" fill="#f0883e" font-size="10" font-weight="500">Acceptance tests &mdash; event-based via sync manager TestRig</text>
-      <rect x="20" y="289" width="350" height="30" rx="5" fill="rgba(121,192,255,0.06)" stroke="rgba(121,192,255,0.25)" stroke-width="1"/>
-      <text x="195" y="309" text-anchor="middle" fill="#79c0ff" font-size="10" font-weight="500">Integration tests &mdash; existing BeaconChainHarness (still works)</text>
+      <text x="20" y="260" fill="#3fb950" font-size="11" font-weight="600">TESTING</text>
+      <rect x="20" y="272" width="350" height="30" rx="5" fill="rgba(63,185,80,0.06)" stroke="rgba(63,185,80,0.25)" stroke-width="1"/>
+      <text x="195" y="292" text-anchor="middle" fill="#3fb950" font-size="10" font-weight="500">Unit tests &mdash; construct component, pass test state, assert</text>
+      <rect x="20" y="308" width="350" height="30" rx="5" fill="rgba(240,136,62,0.06)" stroke="rgba(240,136,62,0.25)" stroke-width="1"/>
+      <text x="195" y="328" text-anchor="middle" fill="#f0883e" font-size="10" font-weight="500">Acceptance tests &mdash; event-based via sync manager TestRig</text>
+      <rect x="20" y="344" width="350" height="30" rx="5" fill="rgba(121,192,255,0.06)" stroke="rgba(121,192,255,0.25)" stroke-width="1"/>
+      <text x="195" y="364" text-anchor="middle" fill="#79c0ff" font-size="10" font-weight="500">Integration tests &mdash; existing BeaconChainHarness (still works)</text>
     </svg>
   </div>
 </section>
@@ -667,41 +673,39 @@
   </details>
 
   <details class="fade-in">
-    <summary>Composed block producer &mdash; code sketch</summary>
+    <summary>BlockProducer&lt;T&gt; &mdash; constructor injection with &amp;self</summary>
     <div class="detail-body">
       <div class="code-block" style="margin:0 0 1rem 0;">
         <div class="code-header">
           <span class="dot" aria-hidden="true"></span><span class="dot" aria-hidden="true"></span><span class="dot" aria-hidden="true"></span>
-          <span>block_producer.rs &mdash; composed from thin slices</span>
+          <span>block_production/mod.rs &mdash; struct owns its Arcs, methods use &amp;self</span>
         </div>
-<pre><span class="cm">/// Block production composed from the minimum interface it needs.</span>
-<span class="cm">/// No Arc&lt;BeaconChain&gt;, no god object.</span>
-<span class="kw">pub async fn</span> <span class="fn">produce_block</span>(
-    state: <span class="ty">BeaconState</span>&lt;<span class="ty">E</span>&gt;,
-    <span class="cm">// Domain dependencies (the actual coupling)</span>
-    op_pool: &amp;<span class="ty">OperationPool</span>&lt;<span class="ty">E</span>&gt;,
-    canonical_head: &amp;<span class="ty">CanonicalHead</span>&lt;<span class="ty">T</span>&gt;,
-    execution_layer: &amp;<span class="ty">ExecutionLayer</span>&lt;<span class="ty">E</span>&gt;,
-    <span class="cm">// Infrastructure (spec, config, clock)</span>
-    spec: &amp;<span class="ty">ChainSpec</span>,
-    config: &amp;<span class="ty">BlockProductionConfig</span>,
-    slot_clock: &amp;<span class="ty">T::SlotClock</span>,
-) -&gt; <span class="ty">Result</span>&lt;<span class="ty">BeaconBlock</span>&lt;<span class="ty">E</span>&gt;&gt; {
-    <span class="cm">// 1. Pack operations from pool</span>
-    <span class="kw">let</span> attestations = op_pool.<span class="fn">get_attestations</span>(&amp;state, spec)?;
-    <span class="kw">let</span> (slashings, exits) = op_pool.<span class="fn">get_slashings_and_exits</span>(&amp;state, spec);
+<pre><span class="cm">/// Owns the subsystems required to produce beacon blocks.</span>
+<span class="cm">/// Constructed once by the builder; methods use &amp;self.</span>
+<span class="kw">pub struct</span> <span class="ty">BlockProducer</span>&lt;<span class="ty">T: BeaconChainTypes</span>&gt; {
+    spec: <span class="ty">Arc</span>&lt;<span class="ty">ChainSpec</span>&gt;,
+    store: <span class="ty">BeaconStore</span>&lt;<span class="ty">T</span>&gt;,
+    config: <span class="ty">Arc</span>&lt;<span class="ty">ChainConfig</span>&gt;,
+    op_pool: <span class="ty">Arc</span>&lt;<span class="ty">OperationPool</span>&lt;<span class="ty">T::EthSpec</span>&gt;&gt;,
+    canonical_head: <span class="ty">Arc</span>&lt;<span class="ty">CanonicalHead</span>&lt;<span class="ty">T</span>&gt;&gt;,
+    execution_manager: <span class="ty">Arc</span>&lt;<span class="ty">ExecutionManager</span>&lt;<span class="ty">T</span>&gt;&gt;,
+    attestation_manager: <span class="ty">Arc</span>&lt;<span class="ty">AttestationManager</span>&lt;<span class="ty">T::EthSpec</span>&gt;&gt;,
+    <span class="cm">// ... (other fields elided)</span>
+}
 
-    <span class="cm">// 2. Check chain health for builder fallback</span>
-    <span class="kw">let</span> health = <span class="fn">check_chain_health</span>(canonical_head, slot_clock, config);
-
-    <span class="cm">// 3. Get execution payload</span>
-    <span class="kw">let</span> payload = execution_layer.<span class="fn">get_payload</span>(
-        canonical_head.<span class="fn">forkchoice_update_params</span>(),
-        health.use_builder(),
-    ).<span class="kw">await</span>?;
-
-    <span class="cm">// 4. Assemble block</span>
-    <span class="fn">assemble_block</span>(state, attestations, slashings, exits, payload, spec)
+<span class="kw">impl</span>&lt;<span class="ty">T: BeaconChainTypes</span>&gt; <span class="ty">BlockProducer</span>&lt;<span class="ty">T</span>&gt; {
+    <span class="kw">pub async fn</span> <span class="fn">produce_block_on_state</span>(
+        &amp;<span class="kw">self</span>,
+        state: <span class="ty">BeaconState</span>&lt;<span class="ty">T::EthSpec</span>&gt;,
+        produce_at_slot: <span class="ty">Slot</span>,
+        randao_reveal: <span class="ty">Signature</span>,
+        <span class="cm">// ...</span>
+    ) -&gt; <span class="ty">Result</span>&lt;<span class="ty">BeaconBlockResponseWrapper</span>&lt;<span class="ty">T::EthSpec</span>&gt;&gt; {
+        <span class="cm">// All deps accessed via self.* -- no god object needed</span>
+        <span class="kw">let</span> attestations = <span class="kw">self</span>.op_pool.<span class="fn">get_attestations</span>(&amp;state, &amp;<span class="kw">self</span>.spec)?;
+        <span class="kw">let</span> health = <span class="fn">is_healthy</span>(&amp;<span class="kw">self</span>.canonical_head, <span class="cm">/* ... */</span>)?;
+        <span class="cm">// ...</span>
+    }
 }</pre>
       </div>
     </div>
@@ -710,33 +714,20 @@
   <details class="fade-in">
     <summary>Testing without the harness</summary>
     <div class="detail-body">
-      <p style="margin-bottom:1rem;">Because <code>produce_block</code> takes thin slices, you can test it directly with constructed state and mock pools. No <code>BeaconChainHarness</code> needed.</p>
+      <p style="margin-bottom:1rem;">Components are directly testable. Construct with <code>::new()</code>, pass in test state, assert results. No <code>BeaconChainHarness</code> needed.</p>
       <div class="code-block" style="margin:0;">
         <div class="code-header">
           <span class="dot" aria-hidden="true"></span><span class="dot" aria-hidden="true"></span><span class="dot" aria-hidden="true"></span>
-          <span>test &mdash; block production packs available operations</span>
+          <span>test &mdash; component unit test without harness</span>
         </div>
-<pre><span class="kw">#[tokio::test]</span>
-<span class="kw">async fn</span> <span class="fn">block_includes_available_exits</span>() {
-    <span class="kw">let</span> spec = <span class="ty">ChainSpec</span>::<span class="fn">mainnet</span>();
-    <span class="kw">let</span> (state, keypairs) = <span class="fn">create_genesis_state</span>(&amp;spec, <span class="lt">16</span>);
+<pre><span class="kw">#[test]</span>
+<span class="kw">fn</span> <span class="fn">rejects_exit_for_unknown_validator</span>() {
+    <span class="kw">let</span> spec = <span class="ty">Arc</span>::new(<span class="ty">ChainSpec</span>::<span class="fn">mainnet</span>());
+    <span class="kw">let</span> ops = <span class="ty">OperationsManager</span>::<span class="fn">new</span>(spec.clone(), <span class="ty">Arc</span>::new(<span class="ty">OperationPool</span>::<span class="fn">new</span>()));
+    <span class="kw">let</span> (state, _keypairs) = <span class="fn">create_genesis_state</span>(&amp;spec, <span class="lt">4</span>);
 
-    <span class="cm">// Set up an op pool with one voluntary exit</span>
-    <span class="kw">let</span> op_pool = <span class="ty">OperationPool</span>::<span class="fn">new</span>();
-    <span class="kw">let</span> exit = <span class="fn">make_signed_exit</span>(&amp;keypairs[<span class="lt">0</span>], <span class="lt">0</span>, <span class="ty">Epoch</span>::new(<span class="lt">5</span>), &amp;spec);
-    op_pool.<span class="fn">insert_voluntary_exit</span>(exit.clone());
-
-    <span class="cm">// Mock execution layer and canonical head</span>
-    <span class="kw">let</span> mock_el = <span class="ty">MockExecutionLayer</span>::<span class="fn">default_payload</span>();
-    <span class="kw">let</span> mock_head = <span class="ty">MockCanonicalHead</span>::<span class="fn">at_slot</span>(<span class="lt">10</span>);
-
-    <span class="kw">let</span> block = <span class="fn">produce_block</span>(
-        state, &amp;op_pool, &amp;mock_head, &amp;mock_el,
-        &amp;spec, &amp;<span class="ty">BlockProductionConfig</span>::<span class="fn">default</span>(), &amp;<span class="fn">test_clock</span>(),
-    ).<span class="kw">await</span>.<span class="fn">unwrap</span>();
-
-    <span class="mc">assert_eq!</span>(block.body().voluntary_exits().len(), <span class="lt">1</span>);
-    <span class="mc">assert_eq!</span>(block.body().voluntary_exits()[<span class="lt">0</span>], exit);
+    <span class="kw">let</span> exit = <span class="fn">make_exit_for_validator</span>(<span class="lt">999</span>);
+    <span class="mc">assert!</span>(ops.<span class="fn">verify_voluntary_exit</span>(exit, &amp;state, <span class="ty">Epoch</span>::new(<span class="lt">0</span>)).<span class="fn">is_err</span>());
 }</pre>
       </div>
     </div>
@@ -892,12 +883,26 @@
           </div>
         </div>
         <div class="ref-card">
-          <h4>BlockImportState</h4>
-          <p>Block import caches and observation tracking. Used by the composed block import workflow.</p>
+          <h4>BlockImporter&lt;T&gt;</h4>
+          <p>Scoped orchestrator for block, blob, and data-column import. Owns import caches and observation tracking; methods use <code>&amp;self</code>.</p>
           <div class="tag-list">
-            <span class="tag own">block_times_cache</span>
             <span class="tag own">observed_block_producers</span>
             <span class="tag own">observed_slashable</span>
+            <span class="tag own">event_handler</span>
+            <span class="tag own">validator_monitor</span>
+            <span class="tag hld">canonical_head</span>
+            <span class="tag hld">attestation_manager</span>
+            <span class="tag hld">data_availability_manager</span>
+          </div>
+        </div>
+        <div class="ref-card">
+          <h4>BlockProducer&lt;T&gt;</h4>
+          <p>Scoped orchestrator for block production: state loading, partial block assembly, execution payload integration. Methods use <code>&amp;self</code>.</p>
+          <div class="tag-list">
+            <span class="tag hld">op_pool</span>
+            <span class="tag hld">canonical_head</span>
+            <span class="tag hld">execution_manager</span>
+            <span class="tag hld">attestation_manager</span>
           </div>
         </div>
       </div>
@@ -969,10 +974,11 @@
 <section id="results">
   <h2 class="fade-in">Results <span class="badge">Status</span></h2>
   <p class="lead fade-in">
-    Seven components extracted, ~2,000 lines of new unit tests, full CI green,
+    Seven components extracted plus two scoped orchestrators (<code>BlockImporter&lt;T&gt;</code>,
+    <code>BlockProducer&lt;T&gt;</code>). ~2,000 lines of new unit tests, full CI green,
     and a local testnet that produces blocks and finalises. The top-level type
-    shrank from 7,317 to 1,025 lines and lost its 200+ methods. Two scoped
-    orchestrators and a slim top-level type are the next steps.
+    (<code>BeaconSystem&lt;T&gt;</code>) shrank from 7,317 to ~1,000 lines and lost its
+    200+ methods.
   </p>
 
   <div class="compare fade-in">
@@ -995,10 +1001,10 @@
           directly, pass in state, and assert results.
         </li>
         <li>
-          <strong>Proved the seams.</strong> Once components owned their observed
-          sets and pools, the shape of a scoped <code>BlockImporter&lt;T&gt;</code> /
-          <code>BlockProducer&lt;T&gt;</code> became obvious &mdash; which is the
-          active follow-up work.
+          <strong>Scoped orchestrators extracted.</strong>
+          <code>BlockImporter&lt;T&gt;</code> and <code>BlockProducer&lt;T&gt;</code>
+          own their <code>Arc</code>s and use <code>&amp;self</code> methods, replacing
+          the previous <code>*Context</code> struct literal pattern.
         </li>
         <li>
           <strong>Top-level file shrank from 7,317 to 1,025 lines.</strong>
@@ -1010,41 +1016,19 @@
     </div>
 
     <div class="compare-card before">
-      <h3>What to revise (in progress)</h3>
+      <h3>Remaining work</h3>
       <ul class="bullet-list">
         <li>
-          <strong><code>BeaconComponents&lt;T&gt;</code> has ~40 <code>pub</code> fields.</strong>
-          Zero methods, but the coupling is unchanged &mdash; every caller that
-          used to say <code>chain.field</code> still says <code>components.field</code>.
-          Being fixed by slimming to <code>BeaconSystem&lt;T&gt;</code> with only
-          <code>Arc&lt;Component&gt;</code> fields.
+          <strong>Duplicate <code>Arc</code> paths for <code>event_handler</code> and <code>validator_monitor</code>.</strong>
+          Both live on <code>BeaconSystem&lt;T&gt;</code> <em>and</em>
+          <code>BlockImporter&lt;T&gt;</code>. 25+ call sites each in
+          <code>http_api</code>, <code>network</code>, <code>canonical_head</code>,
+          etc. make consolidation too invasive for now.
         </li>
         <li>
-          <strong>254+ call sites build <code>*Context</code> literals.</strong>
-          In <code>block_production/mod.rs</code>, a 12-field
-          <code>BlockProductionContext</code> literal is constructed four times in
-          one function. Being fixed by extracting <code>BlockImporter&lt;T&gt;</code>
-          and <code>BlockProducer&lt;T&gt;</code> as scoped structs that own their
-          <code>Arc</code>s.
-        </li>
-        <li>
-          <strong>Duplicate <code>Arc</code> paths to the same data.</strong>
-          <code>chain.op_pool</code> and
-          <code>chain.operations_manager.op_pool</code> resolve to the same pool,
-          with <code>// migrate later</code> markers. Being fixed by routing all
-          callers through the owning component.
-        </li>
-        <li>
-          <strong>Orchestrator files didn't shrink, just moved.</strong>
-          <code>block_import_methods.rs</code> is 2,022 lines,
-          <code>block_production/mod.rs</code> is 1,692. Being fixed by folding
-          them into <code>impl BlockImporter&lt;T&gt;</code> /
-          <code>impl BlockProducer&lt;T&gt;</code>.
-        </li>
-        <li>
-          <strong>Trading <code>&amp;self</code> for <code>&amp;chain + 12-field struct</code> was lateral.</strong>
-          Rust's idiomatic DI is <em>struct holds its Arcs, methods use <code>&amp;self</code></em> &mdash;
-          constructor injection. The follow-up work moves to that pattern.
+          <strong>Coverage and full test suite results pending.</strong>
+          Branch coverage build and <code>make test-beacon-chain</code>
+          results will land once verified.
         </li>
       </ul>
     </div>
@@ -1074,9 +1058,9 @@
     </div>
 
     <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card);">
-      <div style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">Components extracted</div>
-      <div style="font-size:1.6rem; font-weight:700; margin-top:0.3rem; color:var(--accent);">7</div>
-      <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.35rem;">each owns its state &middot; unit-testable without harness</div>
+      <div style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">Components + orchestrators</div>
+      <div style="font-size:1.6rem; font-weight:700; margin-top:0.3rem; color:var(--accent);">7 + 2</div>
+      <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.35rem;">7 components + <code>BlockImporter</code>, <code>BlockProducer</code></div>
     </div>
 
     <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card);">
@@ -1182,7 +1166,7 @@
       <h3>Cross-Component Coordination</h3>
       <div class="do-dont">
         <div class="do-item">Keep dependencies one-directional</div>
-        <div class="do-item">Coordinate via composed workflow functions</div>
+        <div class="do-item">Coordinate via orchestrators (<code>BlockImporter</code>, <code>BlockProducer</code>)</div>
         <div class="do-item">Follow documented lock ordering</div>
         <div class="dont-item">Create circular dependencies between components</div>
         <div class="dont-item">Acquire write locks from within a component</div>

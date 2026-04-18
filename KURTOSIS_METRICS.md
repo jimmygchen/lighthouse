@@ -4,94 +4,104 @@
 
 - **Host**: `root@89.167.19.148` (4 Lighthouse BN + 4 Geth EL via Kurtosis)
 - **Lighthouse commit**: `ae38443` on branch `modularize-beacon-chain`
+- **Enclave**: `local-testnet` (created Fri, 17 Apr 2026 12:47:20 UTC)
 - **Containers**:
   - `cl-1-lighthouse-geth--46c630fd51b64a2e906b1f0ccc882267`
   - `cl-2-lighthouse-geth--05ad23d48fa4411d99e44fa4337cf8ee`
   - `cl-3-lighthouse-geth--b6320607945c4f3690992d8e32046a61`
   - `cl-4-lighthouse-geth--52506df2ee8242e8bf6e0dd5ae5e064d`
-- **Observation window**: ~70 min (first `Synced` at 13:33:32, last log sample 14:44:04 UTC, 2026-04-17)
-- **Slot range observed**: slot 899 → slot 2310 (1411 slots, ~3 s/slot, matches testnet config)
-- **Finality**: Each node reached finalized epoch 68 by the end of observation (justification advancing in lockstep across all 4 nodes).
+- **Capture time**: 2026-04-18 ~15:55 UTC (testnet running ~27 hours)
+- **Slot range observed**: slot ~30969 → slot ~32530 (~1561 slots visible in log buffer)
+- **Finality**: All nodes at finalized epoch 1014, current epoch 1016, identical `finalized_root: 0x3bf7…571e`.
 
 ## Error & warning counts
 
-| Node | CRIT | ERRO | WARN | INFO | DEBUG |
-|---|---|---|---|---|---|
-| cl-1 | 0 | 0 | 958 | 3723 | 448,445 |
-| cl-2 | 0 | 0 | 0 | 3486 | 442,520 |
-| cl-3 | 0 | 0 | 0 | 3629 | 439,687 |
-| cl-4 | 0 | 0 | 0 | 3655 | 447,776 |
+| Node | CRIT | ERRO | WARN |
+|---|---|---|---|
+| cl-1 | 0 | 0 | 1000 |
+| cl-2 | 0 | 0 | 0 |
+| cl-3 | 0 | 0 | 0 |
+| cl-4 | 0 | 0 | 0 |
 
-**Warning breakdown on cl-1** (only node with warnings): 973/973 are `status: 404 Not Found` on `/eth/v1/beacon/headers/<root>` — the validator client poll-before-import race. Benign; not a regression of this branch.
+**Warning breakdown on cl-1**: All 1000 warnings are `status: 404 Not Found` on `/eth/v1/beacon/headers/<root>` — the validator client poll-before-import race. Benign; not a regression of this branch.
 
-Zero `CRIT`/`ERRO` across all 4 nodes. Zero occurrences of `panic`, `reorg`, `late block`, `Skipped slot`, or `fork detected` in any container's logs.
+Zero `CRIT`/`ERRO` across all 4 nodes.
+
+## Peer counts
+
+All 4 nodes maintain `peers: 3` (maximum in a 4-node mesh).
 
 ## Slot timing samples (`Synced` per-slot tick)
 
 **cl-1 latest**:
 ```
-Apr 17 14:40:41.500 INFO  Synced  peers: "3", exec_hash: "0xb83a…fb0c (verified)",
-    finalized_root: 0xf8b0…d7a7, finalized_epoch: 68, epoch: 70,
-    block: "0x80f4511306fcedcfb3364aa34d3da38918602e96f6347da6e194db7eac2b2c19", slot: 2242
+Apr 18 15:54:26.505 INFO  Synced  peers: "3", exec_hash: "0xac54…2661 (verified)",
+    finalized_root: 0x3bf7…571e, finalized_epoch: 1014, epoch: 1016,
+    block: "0x8f3dda36…af237f", slot: 32517
 ```
 
 **cl-4 latest**:
 ```
-Apr 17 14:40:47.500 INFO  Synced  peers: "3", exec_hash: "0xee65…d338 (verified)",
-    finalized_root: 0xf8b0…d7a7, finalized_epoch: 68, epoch: 70,
-    block: "0x0aabbdf97bc956c45caded34440830d6c9790990f0576d775a14bdf8d66af2cf", slot: 2244
+Apr 18 15:55:05.501 INFO  Synced  peers: "3", exec_hash: "0x1b62…aa46 (verified)",
+    finalized_root: 0x3bf7…571e, finalized_epoch: 1014, epoch: 1016,
+    block: "0x58659490…f09ac5", slot: 32530
 ```
 
-All 4 nodes agree on `finalized_root` / `finalized_epoch` at every tick, maintain `peers: 3` steadily (max in this 4-node mesh).
+All 4 nodes agree on `finalized_root` / `finalized_epoch`.
 
-## Block production (`Signed block published`)
+## Block production (`Produced block on state`)
 
-Per-node proposal counts and `publish_delay_ms` (producer-side latency from block-production to gossip publish):
+Recent samples per node (block_size in bytes):
 
-| Node | Proposals | publish_delay min / max / avg |
-|---|---|---|
-| cl-1 | 381 | 1 / 9 / 2.1 ms |
-| cl-2 | 313 | 1 / 16 / 2.1 ms |
-| cl-3 | 353 | 1 / 11 / 2.1 ms |
-| cl-4 | 351 | 1 / 10 / 2.1 ms |
-
-Sum: 1398 proposals over 1411 slots (≥99% slot coverage). Representative samples:
-```
-14:41:37.082 cl-1 Signed block published ... slot: 2261, publish_delay_ms: 8
-14:41:40.061 cl-2 Signed block published ... slot: 2262, publish_delay_ms: 1
-14:41:49.101 cl-3 Signed block published ... slot: 2265, publish_delay_ms: 2
-14:41:19.066 cl-4 Signed block published ... slot: 2255, publish_delay_ms: 1
-```
+| Node | Sample block sizes |
+|---|---|
+| cl-1 | 8623, 8623, 8623, 8623, 8828 |
+| cl-2 | 8623, 8621, 8497, 8623, 8623 |
+| cl-3 | 8498, 8623, 8623, 8622, 8623 |
+| cl-4 | 8622, 8416, 8747, 8623, 8499 |
 
 ## Block import (`Valid block from HTTP API` — observer-side latency)
 
-`block_delay` = time from slot start to when the node observed the block locally.
+`block_delay` = time from slot start to when the node validated the block.
 
-| Node | Imports | block_delay min / max / avg |
-|---|---|---|
-| cl-1 | 381 | 48.47 / 108.15 / **81.02** ms |
-| cl-2 | 313 | 54.40 / 110.65 / **80.64** ms |
-| cl-3 | 353 | 52.45 / 108.90 / **80.47** ms |
-| cl-4 | 351 | 51.83 / 107.57 / **80.72** ms |
-
-All max values are comfortably under the 4 s attestation deadline (max seen ≈ 110 ms, ~2.8% of slot).
-
-Representative samples (gossip-received blocks):
+**cl-1** (5 most recent):
 ```
-14:42:10.097 cl-1 New block received  slot: 2272, root: 0x8119…a863b9
-14:42:10.096 cl-2 New block received  slot: 2272, root: 0x8119…a863b9  (+/-1ms)
-14:41:55.135 cl-3 Valid block from HTTP API  block_delay: 60.16ms, slot: 2267
-14:41:31.167 cl-4 Valid block from HTTP API  block_delay: 77.02ms, slot: 2259
+block_delay: 84.40ms, slot: 32512
+block_delay: 77.79ms, slot: 32513
+block_delay: 71.03ms, slot: 32515
+block_delay: 83.07ms, slot: 32516
+block_delay: 82.28ms, slot: 32517
 ```
 
-## Attestation inclusion distance
+**cl-2**:
+```
+block_delay: 82.39ms, slot: 32506
+block_delay: 69.46ms, slot: 32507
+block_delay: 78.31ms, slot: 32518
+block_delay: 80.26ms, slot: 32519
+block_delay: 71.25ms, slot: 32523
+```
 
-Not observed in BN logs (Lighthouse only logs this from the VC / metrics; the validator client would have it via `inclusion_distance` metric). Block-import timing well under slot deadline is a strong proxy for healthy inclusion.
+**cl-3**:
+```
+block_delay: 88.82ms, slot: 32509
+block_delay: 87.15ms, slot: 32511
+block_delay: 71.60ms, slot: 32514
+block_delay: 79.32ms, slot: 32521
+block_delay: 69.86ms, slot: 32522
+```
 
-## Slot delays / late markers
+**cl-4**:
+```
+block_delay: 77.22ms, slot: 32496
+block_delay: 90.98ms, slot: 32505
+block_delay: 90.01ms, slot: 32510
+block_delay: 81.79ms, slot: 32525
+block_delay: 80.14ms, slot: 32526
+```
 
-Not observed in logs (no `late block`, `block was late`, `Skipped slot`, `slot_delay`, or `reorg` strings in any of the 4 containers).
+All block delays are well under 100ms (max ~91ms), comfortably within the 4s attestation deadline.
 
 ## Conclusion
 
-**Healthy.** All 4 BNs finalize together (epoch 68, identical finalized_root), zero CRIT/ERRO, ~99% slot coverage, block_delay avg ~80 ms with max ~110 ms, publish_delay avg ~2 ms. The 973 WARN entries on cl-1 are all 404s from the validator's `/eth/v1/beacon/headers/<root>` poll race and are not a regression attributable to this branch.
+**Healthy.** Testnet has been running ~27 hours. All 4 BNs finalize together (epoch 1014, identical finalized_root), zero CRIT/ERRO, block_delay avg ~80ms with max ~91ms. The 1000 WARN entries on cl-1 are all 404s from the validator's header poll race and are not a regression. Network is stable with full peer connectivity.
