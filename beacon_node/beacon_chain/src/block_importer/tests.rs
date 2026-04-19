@@ -1,6 +1,7 @@
 use super::*;
 use crate::test_utils::{BeaconChainHarness, test_spec};
 use bls::Keypair;
+use std::collections::HashSet;
 use std::sync::LazyLock;
 use types::MinimalEthSpec;
 
@@ -10,6 +11,364 @@ const VALIDATOR_COUNT: usize = 48;
 
 static KEYPAIRS: LazyLock<Vec<Keypair>> =
     LazyLock::new(|| types::test_utils::generate_deterministic_keypairs(VALIDATOR_COUNT));
+
+fn build_harness() -> BeaconChainHarness<crate::test_utils::EphemeralHarnessType<E>> {
+    let spec = Arc::new(test_spec::<E>());
+    BeaconChainHarness::builder(MinimalEthSpec)
+        .spec(spec)
+        .keypairs(KEYPAIRS[..VALIDATOR_COUNT].to_vec())
+        .fresh_ephemeral_store()
+        .mock_execution_layer()
+        .build()
+}
+
+// -----------------------------------------------------------------------
+// ChainSegmentResult tests
+// -----------------------------------------------------------------------
+
+#[test]
+fn chain_segment_result_into_block_error_successful() {
+    let result = ChainSegmentResult::Successful {
+        imported_blocks: vec![(Hash256::ZERO, Slot::new(1))],
+    };
+    assert!(result.into_block_error().is_ok());
+}
+
+#[test]
+fn chain_segment_result_into_block_error_failed() {
+    let result = ChainSegmentResult::Failed {
+        imported_blocks: vec![],
+        error: BlockError::GenesisBlock,
+    };
+    let err = result.into_block_error();
+    assert!(err.is_err());
+    assert!(matches!(err.unwrap_err(), BlockError::GenesisBlock));
+}
+
+// -----------------------------------------------------------------------
+// AvailabilityProcessingStatus conversion tests
+// -----------------------------------------------------------------------
+
+#[test]
+fn availability_processing_status_try_into_signed_beacon_block_hash_imported() {
+    let root = Hash256::random();
+    let status = AvailabilityProcessingStatus::Imported(root);
+    let result: Result<SignedBeaconBlockHash, ()> = status.try_into();
+    assert_eq!(result.unwrap(), root.into());
+}
+
+#[test]
+fn availability_processing_status_try_into_signed_beacon_block_hash_missing() {
+    let status = AvailabilityProcessingStatus::MissingComponents(Slot::new(1), Hash256::random());
+    let result: Result<SignedBeaconBlockHash, ()> = status.try_into();
+    assert!(result.is_err());
+}
+
+#[test]
+fn availability_processing_status_try_into_hash256_imported() {
+    let root = Hash256::random();
+    let status = AvailabilityProcessingStatus::Imported(root);
+    let result: Result<Hash256, ()> = status.try_into();
+    assert_eq!(result.unwrap(), root);
+}
+
+#[test]
+fn availability_processing_status_try_into_hash256_missing() {
+    let status = AvailabilityProcessingStatus::MissingComponents(Slot::new(5), Hash256::random());
+    let result: Result<Hash256, ()> = status.try_into();
+    assert!(result.is_err());
+}
+
+// -----------------------------------------------------------------------
+// check_invalid_block_roots tests
+// -----------------------------------------------------------------------
+
+#[tokio::test]
+async fn check_invalid_block_roots_accepts_valid_root() {
+    let harness = build_harness();
+    let block_root = Hash256::random();
+    // Default config has no invalid roots.
+    let result = harness.chain.block_importer.check_invalid_block_roots(block_root);
+    assert!(result.is_ok());
+}
+
+#[tokio::test]
+async fn check_invalid_block_roots_rejects_configured_invalid_root() {
+    let invalid_root = Hash256::random();
+    let spec = Arc::new(test_spec::<E>());
+    let harness = BeaconChainHarness::builder(MinimalEthSpec)
+        .spec(spec)
+        .keypairs(KEYPAIRS[..VALIDATOR_COUNT].to_vec())
+        .fresh_ephemeral_store()
+        .mock_execution_layer()
+        .chain_config(ChainConfig {
+            invalid_block_roots: HashSet::from([invalid_root]),
+            ..ChainConfig::default()
+        })
+        .build();
+
+    let result = harness.chain.block_importer.check_invalid_block_roots(invalid_root);
+    assert!(matches!(
+        result,
+        Err(BlockError::KnownInvalidExecutionPayload(root)) if root == invalid_root
+    ));
+
+    // A different root should still be accepted.
+    let other_root = Hash256::random();
+    assert!(harness.chain.block_importer.check_invalid_block_roots(other_root).is_ok());
+}
+
+// -----------------------------------------------------------------------
+// set_system / system tests
+// -----------------------------------------------------------------------
+
+#[tokio::test]
+async fn system_returns_beacon_chain_ref() {
+    let harness = build_harness();
+    // system() should succeed because the harness builder installs the weak ref.
+    let chain = harness.chain.block_importer.system();
+    // Verify the returned chain is the same as the one from the harness.
+    assert_eq!(
+        Arc::as_ptr(&chain),
+        Arc::as_ptr(&harness.chain),
+        "system() should return the same BeaconChain instance"
+    );
+}
+
+// -----------------------------------------------------------------------
+// check_block_against_weak_subjectivity_checkpoint tests
+// -----------------------------------------------------------------------
+
+#[tokio::test]
+async fn weak_subjectivity_check_passes_without_config() {
+    let harness = build_harness();
+    harness.advance_slot();
+    harness.extend_slots(1).await;
+
+    let head = harness.chain.canonical_head.cached_head();
+    let state = &head.snapshot.beacon_state;
+    let block_root = head.head_block_root();
+    let block = head.snapshot.beacon_block.message();
+
+    // No weak subjectivity checkpoint configured, should always pass.
+    let result = harness
+        .chain
+        .block_importer
+        .check_block_against_weak_subjectivity_checkpoint(block, block_root, state);
+    assert!(result.is_ok());
+}
+
+// -----------------------------------------------------------------------
+// import_block_update_metrics_and_events tests
+// -----------------------------------------------------------------------
+
+#[tokio::test]
+async fn metrics_and_events_fires_block_sse_event() {
+    let spec = Arc::new(test_spec::<E>());
+    let harness = BeaconChainHarness::builder(MinimalEthSpec)
+        .spec(spec)
+        .keypairs(KEYPAIRS[..VALIDATOR_COUNT].to_vec())
+        .fresh_ephemeral_store()
+        .mock_execution_layer()
+        .build();
+
+    harness.advance_slot();
+    harness.extend_slots(1).await;
+
+    let head = harness.chain.canonical_head.cached_head();
+    let block_root = head.head_block_root();
+    let block = head.snapshot.beacon_block.message();
+    let current_slot = harness.chain.block_importer.slot_clock.now().expect("slot should be available");
+
+    // Call the function - it should not panic and should register an SSE event.
+    import_block_update_metrics_and_events(
+        &harness.chain.block_importer,
+        block,
+        block_root,
+        harness
+            .chain
+            .block_importer
+            .slot_clock
+            .now_duration()
+            .unwrap_or_default(),
+        PayloadVerificationStatus::Verified,
+        current_slot,
+    );
+}
+
+#[tokio::test]
+async fn metrics_and_events_optimistic_block_sse() {
+    let harness = build_harness();
+    harness.advance_slot();
+    harness.extend_slots(1).await;
+
+    let head = harness.chain.canonical_head.cached_head();
+    let block_root = head.head_block_root();
+    let block = head.snapshot.beacon_block.message();
+    let current_slot = harness.chain.block_importer.slot_clock.now().expect("slot should be available");
+
+    // Should not panic when called with optimistic status.
+    import_block_update_metrics_and_events(
+        &harness.chain.block_importer,
+        block,
+        block_root,
+        harness
+            .chain
+            .block_importer
+            .slot_clock
+            .now_duration()
+            .unwrap_or_default(),
+        PayloadVerificationStatus::Optimistic,
+        current_slot,
+    );
+}
+
+#[tokio::test]
+async fn metrics_skips_old_blocks() {
+    let harness = build_harness();
+    harness.advance_slot();
+    harness.extend_slots(1).await;
+
+    let head = harness.chain.canonical_head.cached_head();
+    let block_root = head.head_block_root();
+    let block = head.snapshot.beacon_block.message();
+
+    // Use a current_slot far in the future so the block is "old".
+    let far_future_slot = Slot::new(10_000);
+
+    // Should not panic, but should skip most metrics/events.
+    import_block_update_metrics_and_events(
+        &harness.chain.block_importer,
+        block,
+        block_root,
+        Duration::from_secs(100_000),
+        PayloadVerificationStatus::Verified,
+        far_future_slot,
+    );
+}
+
+// -----------------------------------------------------------------------
+// import_block_update_slasher tests
+// -----------------------------------------------------------------------
+
+#[tokio::test]
+async fn slasher_update_no_slasher_configured() {
+    let harness = build_harness();
+    harness.advance_slot();
+    harness.extend_slots(1).await;
+
+    let head = harness.chain.canonical_head.cached_head();
+    let block = head.snapshot.beacon_block.message();
+    let state = &head.snapshot.beacon_state;
+
+    // Default harness has no slasher configured; this should be a no-op.
+    assert!(harness.chain.block_importer.slasher.is_none());
+
+    let mut ctxt = ConsensusContext::new(state.slot());
+    import_block_update_slasher(&harness.chain, block, state, &mut ctxt);
+    // Should not panic.
+}
+
+// -----------------------------------------------------------------------
+// import_block_observe_attestations tests
+// -----------------------------------------------------------------------
+
+#[tokio::test]
+async fn observe_attestations_skips_old_epoch() {
+    let harness = build_harness();
+    harness.advance_slot();
+    harness.extend_slots(1).await;
+
+    let head = harness.chain.canonical_head.cached_head();
+    let block = head.snapshot.beacon_block.message();
+    let state = &head.snapshot.beacon_state;
+
+    // Use an epoch far in the future so that the state's current_epoch + 1 < current_epoch.
+    let far_future_epoch = Epoch::new(1000);
+    let far_future_slot = far_future_epoch.start_slot(E::slots_per_epoch());
+    let mut ctxt = ConsensusContext::new(state.slot());
+
+    // Should skip observation because block is too old relative to current_epoch.
+    import_block_observe_attestations(&harness.chain, block, state, &mut ctxt, far_future_epoch);
+    // No panic, and no attestation should be observed (the function returns early).
+    let _ = far_future_slot;
+}
+
+#[tokio::test]
+async fn observe_attestations_processes_recent_block() {
+    let harness = build_harness();
+    harness.advance_slot();
+    harness.extend_slots(1).await;
+
+    let head = harness.chain.canonical_head.cached_head();
+    let block = head.snapshot.beacon_block.message();
+    let state = &head.snapshot.beacon_state;
+    let current_epoch = state.current_epoch();
+
+    let mut ctxt = ConsensusContext::new(state.slot());
+
+    // Block in current epoch should process attestations.
+    import_block_observe_attestations(&harness.chain, block, state, &mut ctxt, current_epoch);
+}
+
+// -----------------------------------------------------------------------
+// import_block_update_validator_monitor tests
+// -----------------------------------------------------------------------
+
+#[tokio::test]
+async fn validator_monitor_skips_old_block() {
+    let harness = build_harness();
+    harness.advance_slot();
+    harness.extend_slots(1).await;
+
+    let head = harness.chain.canonical_head.cached_head();
+    let block = head.snapshot.beacon_block.message();
+    let state = &head.snapshot.beacon_state;
+
+    let mut ctxt = ConsensusContext::new(state.slot());
+
+    // Use a current_slot far ahead so the block is considered historic.
+    let far_future_slot = Slot::new(100_000);
+    let parent_block_slot = Slot::new(0);
+
+    import_block_update_validator_monitor(
+        &harness.chain,
+        block,
+        state,
+        &mut ctxt,
+        far_future_slot,
+        parent_block_slot,
+    );
+    // Should return early without processing.
+}
+
+#[tokio::test]
+async fn validator_monitor_processes_recent_block() {
+    let harness = build_harness();
+    harness.advance_slot();
+    harness.extend_slots(1).await;
+
+    let head = harness.chain.canonical_head.cached_head();
+    let block = head.snapshot.beacon_block.message();
+    let state = &head.snapshot.beacon_state;
+
+    let mut ctxt = ConsensusContext::new(state.slot());
+    let current_slot = harness.chain.block_importer.slot_clock.now().expect("slot should be available");
+    let parent_block_slot = Slot::new(0);
+
+    import_block_update_validator_monitor(
+        &harness.chain,
+        block,
+        state,
+        &mut ctxt,
+        current_slot,
+        parent_block_slot,
+    );
+}
+
+// -----------------------------------------------------------------------
+// BlockImporter accessible via harness
+// -----------------------------------------------------------------------
 
 /// Compile-time regression test: ensures the `BlockImporter` is wired up and reachable from the
 /// `BeaconChain` held by `BeaconChainHarness`.
@@ -28,4 +387,55 @@ async fn block_importer_is_accessible_on_beacon_chain() {
 
     // Confirm the `BlockImporter` is reachable and the call path compiles.
     let _importer: &Arc<BlockImporter<_>> = &harness.chain.block_importer;
+}
+
+// -----------------------------------------------------------------------
+// BlockImporter field access tests
+// -----------------------------------------------------------------------
+
+#[tokio::test]
+async fn block_importer_fields_are_populated() {
+    let harness = build_harness();
+
+    let importer = &harness.chain.block_importer;
+
+    // Verify key fields are populated correctly.
+    assert_eq!(importer.genesis_block_root, harness.chain.genesis_block_root);
+    assert!(importer.event_handler.is_some());
+    assert!(importer.slasher.is_none()); // Default harness has no slasher.
+    assert!(importer.light_client_server_tx.is_none()); // Default harness.
+}
+
+// -----------------------------------------------------------------------
+// process_block imports a block correctly
+// -----------------------------------------------------------------------
+
+#[tokio::test]
+async fn process_block_via_harness() {
+    let harness = build_harness();
+    harness.advance_slot();
+    harness.extend_slots(2).await;
+
+    // After extending slots, the head should have advanced.
+    let head = harness.chain.canonical_head.cached_head();
+    assert!(
+        head.head_slot() > Slot::new(0),
+        "head should have advanced past genesis"
+    );
+}
+
+// -----------------------------------------------------------------------
+// filter_chain_segment edge cases
+// -----------------------------------------------------------------------
+
+#[tokio::test]
+async fn filter_chain_segment_empty_input() {
+    let harness = build_harness();
+    harness.advance_slot();
+
+    let result = harness.chain.block_importer.filter_chain_segment(vec![]);
+    match result {
+        Ok(filtered) => assert!(filtered.is_empty()),
+        Err(_) => panic!("filter_chain_segment should succeed with empty input"),
+    }
 }

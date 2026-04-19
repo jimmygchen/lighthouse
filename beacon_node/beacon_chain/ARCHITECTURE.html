@@ -886,11 +886,18 @@
         </tr>
       </tbody>
     </table>
-    <p style="font-size:0.7rem; color:var(--text-muted); margin-top:0.75rem;">
-      <a href="http://204.168.250.92:8082/" style="color:var(--accent);">Full branch report</a> &middot;
-      <a href="http://204.168.250.92:8080/" style="color:var(--accent);">Unstable baseline</a> &middot;
-      <a href="https://github.com/jimmygchen/lighthouse/tree/modularize-beacon-chain" style="color:var(--accent);">Browse the branch</a>
-    </p>
+    <div style="display:flex; align-items:center; gap:1rem; margin-top:1rem; flex-wrap:wrap;">
+      <a href="https://github.com/jimmygchen/lighthouse/tree/modularize-beacon-chain"
+         style="display:inline-flex; align-items:center; gap:0.5rem; padding:0.6rem 1.2rem; background:linear-gradient(135deg, var(--accent), var(--accent3)); color:var(--bg); font-weight:700; font-size:0.85rem; border-radius:8px; text-decoration:none; box-shadow:0 0 20px rgba(88,166,255,0.3), 0 0 40px rgba(210,168,255,0.15); transition:all 0.2s;"
+         onmouseover="this.style.boxShadow='0 0 30px rgba(88,166,255,0.5), 0 0 60px rgba(210,168,255,0.3)'; this.style.transform='translateY(-1px)'"
+         onmouseout="this.style.boxShadow='0 0 20px rgba(88,166,255,0.3), 0 0 40px rgba(210,168,255,0.15)'; this.style.transform='none'">
+        &#9733; Browse the branch on GitHub
+      </a>
+      <span style="font-size:0.75rem; color:var(--text-muted);">
+        <a href="http://204.168.250.92:8082/" style="color:var(--accent);">Coverage report</a> &middot;
+        <a href="http://204.168.250.92:8080/" style="color:var(--accent);">Unstable baseline</a>
+      </span>
+    </div>
   </div>
 </section>
 
