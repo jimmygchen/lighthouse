@@ -824,8 +824,12 @@ impl<E: EthSpec> Tester<E> {
             spec: &self.harness.chain.spec,
             config: &self.harness.chain.config,
             genesis_validators_root: self.harness.chain.genesis_validators_root,
-            slasher: self.harness.chain.slasher.as_deref(),
-            pre_finalization_block_cache: &self.harness.chain.pre_finalization_block_cache,
+            slasher: self.harness.chain.block_importer.slasher.as_deref(),
+            pre_finalization_block_cache: &self
+                .harness
+                .chain
+                .block_importer
+                .pre_finalization_block_cache,
         };
         let (indexed_attestation, _) =
             obtain_indexed_attestation_and_committees_per_slot(&ctx, attestation.to_ref())

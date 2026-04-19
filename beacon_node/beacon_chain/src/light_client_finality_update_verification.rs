@@ -83,6 +83,7 @@ impl<T: BeaconChainTypes> VerifiedLightClientFinalityUpdate<T> {
         }
 
         if let Some(latest_broadcasted_finality_update) = chain
+            .block_importer
             .light_client_server_cache
             .get_latest_broadcasted_finality_update()
         {
@@ -101,6 +102,7 @@ impl<T: BeaconChainTypes> VerifiedLightClientFinalityUpdate<T> {
         }
 
         let latest_finality_update = chain
+            .block_importer
             .light_client_server_cache
             .get_latest_finality_update()
             .ok_or(Error::FailedConstructingUpdate)?;
@@ -155,6 +157,7 @@ impl<T: BeaconChainTypes> VerifiedLightClientFinalityUpdate<T> {
         }
 
         chain
+            .block_importer
             .light_client_server_cache
             .set_latest_broadcasted_finality_update(rcv_finality_update.clone());
 

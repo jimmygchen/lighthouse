@@ -44,8 +44,8 @@ fn ctx<'a, T: BeaconChainTypes>(
         spec: &chain.spec,
         config: &chain.config,
         genesis_validators_root: chain.genesis_validators_root,
-        slasher: chain.slasher.as_deref(),
-        pre_finalization_block_cache: &chain.pre_finalization_block_cache,
+        slasher: chain.block_importer.slasher.as_deref(),
+        pre_finalization_block_cache: &chain.block_importer.pre_finalization_block_cache,
     }
 }
 
@@ -1500,6 +1500,7 @@ async fn attestation_to_finalized_block() {
     assert!(
         harness
             .chain
+            .block_importer
             .pre_finalization_block_cache
             .contains(earlier_block_root)
     );

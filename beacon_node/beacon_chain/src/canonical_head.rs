@@ -265,6 +265,8 @@ pub struct CanonicalHead<T: BeaconChainTypes> {
     /// Store reference used for persisting fork choice on drop.
     /// `None` only in lightweight test fixtures that don't need persistence.
     store: Option<BeaconStore<T>>,
+    /// Transmitter used to indicate that slot-start fork choice has completed running.
+    pub fork_choice_signal_tx: Option<crate::fork_choice_signal::ForkChoiceSignalTx>,
 }
 
 impl<T: BeaconChainTypes> CanonicalHead<T> {
@@ -287,6 +289,7 @@ impl<T: BeaconChainTypes> CanonicalHead<T> {
         head_payload_status: proto_array::PayloadStatus,
         store: Option<BeaconStore<T>>,
     ) -> Self {
+        // NOTE: fork_choice_signal_tx is set separately via set_fork_choice_signal_tx().
         let fork_choice_view = fork_choice.cached_fork_choice_view();
         let forkchoice_update_params = fork_choice.get_forkchoice_update_parameters();
         let cached_head = CachedHead {
@@ -304,7 +307,14 @@ impl<T: BeaconChainTypes> CanonicalHead<T> {
             cached_head: CanonicalHeadRwLock::new(cached_head),
             recompute_head_lock: Mutex::new(()),
             store,
+            fork_choice_signal_tx: None,
         }
+    }
+
+    /// Set the fork choice signal transmitter, used to notify block production
+    /// that slot-start fork choice has completed.
+    pub fn set_fork_choice_signal_tx(&mut self, tx: crate::fork_choice_signal::ForkChoiceSignalTx) {
+        self.fork_choice_signal_tx = Some(tx);
     }
 
     /// Persist fork choice to disk, writing immediately.
@@ -910,7 +920,7 @@ fn after_new_head<T: BeaconChainTypes>(
     }
 
     observe_head_block_delays(
-        &mut chain.block_times_cache.write(),
+        &mut chain.block_importer.block_times_cache.write(),
         &new_head_proto_block,
         new_snapshot.beacon_block.message().proposer_index(),
         new_snapshot
@@ -920,7 +930,7 @@ fn after_new_head<T: BeaconChainTypes>(
             .graffiti()
             .as_utf8_lossy(),
         &chain.slot_clock,
-        chain.event_handler.as_deref(),
+        chain.block_importer.event_handler.as_deref(),
         &chain.spec,
     );
 
@@ -938,6 +948,7 @@ fn after_new_head<T: BeaconChainTypes>(
     // Register a server-sent-event for a reorg (if necessary).
     if let Some(depth) = reorg_distance
         && let Some(event_handler) = chain
+            .block_importer
             .event_handler
             .as_ref()
             .filter(|handler| handler.has_reorg_subscribers())
@@ -1003,7 +1014,7 @@ fn after_finalization<T: BeaconChainTypes>(
             .start_slot(T::EthSpec::slots_per_epoch()),
     );
 
-    if let Some(event_handler) = chain.event_handler.as_ref()
+    if let Some(event_handler) = chain.block_importer.event_handler.as_ref()
         && event_handler.has_finalized_subscribers()
     {
         event_handler.register(EventKind::FinalizedCheckpoint(SseFinalizedCheckpoint {
@@ -1127,7 +1138,7 @@ fn check_finalized_payload_validity<T: BeaconChainTypes>(
             You may be on a hostile network.",
             "Finalized block has an invalid payload"
         );
-        let mut shutdown_sender = chain.shutdown_sender.clone();
+        let mut shutdown_sender = chain.block_importer.shutdown_sender.clone();
         shutdown_sender
             .try_send(ShutdownReason::Failure(
                 "Finalized block has an invalid execution payload.",

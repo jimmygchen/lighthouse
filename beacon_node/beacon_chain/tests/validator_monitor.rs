@@ -45,7 +45,7 @@ async fn missed_blocks_across_epochs() {
     let all_validators = (0..VALIDATOR_COUNT).collect::<Vec<_>>();
 
     let harness = get_harness(VALIDATOR_COUNT, vec![]);
-    let validator_monitor = &harness.chain.validator_monitor;
+    let validator_monitor = &harness.chain.block_importer.validator_monitor;
     let mut genesis_state = harness.get_current_state();
     let genesis_state_root = genesis_state.update_tree_hash_cache().unwrap();
     let genesis_block_root = harness.head_block_root();
@@ -162,6 +162,7 @@ async fn missed_blocks_basic() {
 
     let beacon_proposer_cache = harness1
         .chain
+        .block_importer
         .validator_monitor
         .read()
         .get_beacon_proposer_cache();
@@ -188,7 +189,7 @@ async fn missed_blocks_basic() {
     {
         // Let's validate the state which will call the function responsible for
         // adding the missed blocks to the validator monitor
-        let mut validator_monitor = harness1.chain.validator_monitor.write();
+        let mut validator_monitor = harness1.chain.block_importer.validator_monitor.write();
 
         validator_monitor.add_validator_pubkey(KEYPAIRS[missed_block_proposer].pk.compress());
         validator_monitor.process_valid_state(nb_epoch_to_simulate, _state, &harness1.chain.spec);
@@ -233,6 +234,7 @@ async fn missed_blocks_basic() {
 
     let beacon_proposer_cache = harness2
         .chain
+        .block_importer
         .validator_monitor
         .read()
         .get_beacon_proposer_cache();
@@ -260,7 +262,7 @@ async fn missed_blocks_basic() {
     {
         // Let's validate the state which will call the function responsible for
         // adding the missed blocks to the validator monitor
-        let mut validator_monitor2 = harness2.chain.validator_monitor.write();
+        let mut validator_monitor2 = harness2.chain.block_importer.validator_monitor.write();
         validator_monitor2.add_validator_pubkey(KEYPAIRS[missed_block_proposer].pk.compress());
         validator_monitor2.process_valid_state(epoch, _state2, &harness2.chain.spec);
         // We should have one entry in the missed blocks map
@@ -343,6 +345,7 @@ async fn missed_blocks_basic() {
 
     let beacon_proposer_cache = harness3
         .chain
+        .block_importer
         .validator_monitor
         .read()
         .get_beacon_proposer_cache();
@@ -369,7 +372,7 @@ async fn missed_blocks_basic() {
     {
         // Let's validate the state which will call the function responsible for
         // adding the missed blocks to the validator monitor
-        let mut validator_monitor3 = harness3.chain.validator_monitor.write();
+        let mut validator_monitor3 = harness3.chain.block_importer.validator_monitor.write();
         validator_monitor3.add_validator_pubkey(KEYPAIRS[missed_block_proposer].pk.compress());
         validator_monitor3.process_valid_state(epoch, _state3, &harness3.chain.spec);
 

@@ -255,6 +255,7 @@ pub fn process_sync_committee_signatures<T: BeaconChainTypes>(
 
                     // Register with validator monitor
                     chain
+                        .block_importer
                         .validator_monitor
                         .read()
                         .register_api_sync_committee_message(
@@ -367,6 +368,7 @@ pub fn process_signed_contribution_and_proofs<T: BeaconChainTypes>(
     let seen_timestamp = chain.slot_clock.now_duration().unwrap_or_default();
 
     if let Some(latest_optimistic_update) = chain
+        .block_importer
         .light_client_server_cache
         .should_broadcast_latest_optimistic_update()
     {
@@ -383,6 +385,7 @@ pub fn process_signed_contribution_and_proofs<T: BeaconChainTypes>(
     };
 
     if let Some(latest_finality_update) = chain
+        .block_importer
         .light_client_server_cache
         .should_broadcast_latest_finality_update()
     {
@@ -426,7 +429,7 @@ pub fn process_signed_contribution_and_proofs<T: BeaconChainTypes>(
                 &sync_ctx,
             )
             .inspect(|v| {
-                if let Some(event_handler) = chain.event_handler.as_ref()
+                if let Some(event_handler) = chain.block_importer.event_handler.as_ref()
                     && event_handler.has_contribution_subscribers()
                 {
                     event_handler.register(eth2::types::EventKind::ContributionAndProof(Box::new(
@@ -449,6 +452,7 @@ pub fn process_signed_contribution_and_proofs<T: BeaconChainTypes>(
 
                 // Register with validator monitor
                 chain
+                    .block_importer
                     .validator_monitor
                     .read()
                     .register_api_sync_committee_contribution(

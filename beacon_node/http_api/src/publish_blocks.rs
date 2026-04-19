@@ -513,7 +513,7 @@ fn publish_column_sidecars<T: BeaconChainTypes>(
             .len()
             .saturating_sub(malicious_withhold_count);
         // Randomize columns before dropping the last malicious_withhold_count items
-        data_column_sidecars.shuffle(&mut **chain.rng.lock());
+        data_column_sidecars.shuffle(&mut **chain.block_producer.rng.lock());
         let dropped_indices = data_column_sidecars
             .drain(columns_to_keep..)
             .map(|d| *d.index())
@@ -557,12 +557,11 @@ async fn post_block_import_logging_and_response<T: BeaconChainTypes>(
             );
 
             // Notify the validator monitor.
-            chain.validator_monitor.read().register_api_block(
-                seen_timestamp,
-                block.message(),
-                root,
-                &chain.slot_clock,
-            );
+            chain
+                .block_importer
+                .validator_monitor
+                .read()
+                .register_api_block(seen_timestamp, block.message(), root, &chain.slot_clock);
 
             // Update the head since it's likely this block will become the new
             // head.

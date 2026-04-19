@@ -27,6 +27,7 @@ pub fn get_light_client_updates<T: BeaconChainTypes>(
     validate_light_client_updates_request(&chain, &query)?;
 
     let light_client_updates = chain
+        .block_importer
         .light_client_server_cache
         .get_light_client_updates(&chain.store, query.start_period, query.count, &chain.spec)
         .map_err(|_| {

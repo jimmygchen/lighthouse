@@ -2008,7 +2008,11 @@ pub fn scrape_for_metrics<T: BeaconChainTypes>(beacon_chain: &BeaconChain<T>) {
         da_checker_metrics.block_cache_size,
     );
 
-    if let Some((size, num_lookups)) = beacon_chain.pre_finalization_block_cache.metrics() {
+    if let Some((size, num_lookups)) = beacon_chain
+        .block_importer
+        .pre_finalization_block_cache
+        .metrics()
+    {
         set_gauge_by_usize(&PRE_FINALIZATION_BLOCK_CACHE_SIZE, size);
         set_gauge_by_usize(&PRE_FINALIZATION_BLOCK_LOOKUP_COUNT, num_lookups);
     }
@@ -2043,6 +2047,7 @@ pub fn scrape_for_metrics<T: BeaconChainTypes>(beacon_chain: &BeaconChain<T>) {
     );
 
     beacon_chain
+        .block_importer
         .validator_monitor
         .read()
         .scrape_metrics(&beacon_chain.slot_clock, &beacon_chain.spec);

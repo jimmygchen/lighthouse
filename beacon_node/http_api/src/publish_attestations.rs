@@ -90,8 +90,8 @@ fn verify_and_publish_attestation<T: BeaconChainTypes>(
             spec: &chain.spec,
             config: &chain.config,
             genesis_validators_root: chain.genesis_validators_root,
-            slasher: chain.slasher.as_deref(),
-            pre_finalization_block_cache: &chain.pre_finalization_block_cache,
+            slasher: chain.block_importer.slasher.as_deref(),
+            pre_finalization_block_cache: &chain.block_importer.pre_finalization_block_cache,
         };
         beacon_chain::attestation_verification::VerifiedUnaggregatedAttestation::verify(
             attestation,
@@ -99,7 +99,7 @@ fn verify_and_publish_attestation<T: BeaconChainTypes>(
             &ctx,
         )
         .inspect(|v| {
-            if let Some(event_handler) = chain.event_handler.as_ref() {
+            if let Some(event_handler) = chain.block_importer.event_handler.as_ref() {
                 if event_handler.has_single_attestation_subscribers() {
                     let current_fork = chain
                         .spec
@@ -139,6 +139,7 @@ fn verify_and_publish_attestation<T: BeaconChainTypes>(
 
     // Notify the validator monitor.
     chain
+        .block_importer
         .validator_monitor
         .read()
         .register_api_unaggregated_attestation(

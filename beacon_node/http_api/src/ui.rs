@@ -109,6 +109,7 @@ pub fn get_validator_info<T: BeaconChainTypes>(
     let epochs = current_epoch.saturating_sub(HISTORIC_EPOCHS).as_u64()..=current_epoch.as_u64();
 
     let validator_ids = chain
+        .block_importer
         .validator_monitor
         .read()
         .get_all_monitored_validators()
@@ -131,6 +132,7 @@ pub fn get_validator_info<T: BeaconChainTypes>(
     for id in ids {
         if let Ok(index) = id.parse::<u64>()
             && let Some(validator) = chain
+                .block_importer
                 .validator_monitor
                 .read()
                 .get_monitored_validator(index)
@@ -180,6 +182,7 @@ pub fn post_validator_monitor_metrics<T: BeaconChainTypes>(
     chain: Arc<BeaconChain<T>>,
 ) -> Result<ValidatorMetricsResponse, warp::Rejection> {
     let validator_ids = chain
+        .block_importer
         .validator_monitor
         .read()
         .get_all_monitored_validators()
@@ -202,6 +205,7 @@ pub fn post_validator_monitor_metrics<T: BeaconChainTypes>(
     for id in ids {
         if let Ok(index) = id.parse::<u64>()
             && let Some(validator) = chain
+                .block_importer
                 .validator_monitor
                 .read()
                 .get_monitored_validator(index)

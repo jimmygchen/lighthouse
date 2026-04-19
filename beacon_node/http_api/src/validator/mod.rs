@@ -444,6 +444,7 @@ pub fn post_validator_sync_committee_subscriptions<T: BeaconChainTypes>(
                 task_spawner.blocking_json_task(Priority::P0, move || {
                     for subscription in subscriptions {
                         chain
+                            .block_importer
                             .validator_monitor
                             .write()
                             .auto_register_local_validator(subscription.validator_index);
@@ -822,6 +823,7 @@ pub fn post_validator_beacon_committee_subscriptions<T: BeaconChainTypes>(
                         .iter()
                         .map(|subscription| {
                             chain
+                                .block_importer
                                 .validator_monitor
                                 .write()
                                 .auto_register_local_validator(subscription.validator_index);
@@ -938,12 +940,12 @@ pub fn post_validator_aggregate_and_proofs<T: BeaconChainTypes>(
                                 spec: &chain.spec,
                                 config: &chain.config,
                                 genesis_validators_root: chain.genesis_validators_root,
-                                slasher: chain.slasher.as_deref(),
-                                pre_finalization_block_cache: &chain.pre_finalization_block_cache,
+                                slasher: chain.block_importer.slasher.as_deref(),
+                                pre_finalization_block_cache: &chain.block_importer.pre_finalization_block_cache,
                             };
                             beacon_chain::attestation_verification::VerifiedAggregatedAttestation::verify(aggregate, &ctx)
                                 .inspect(|v| {
-                                    if let Some(event_handler) = chain.event_handler.as_ref()
+                                    if let Some(event_handler) = chain.block_importer.event_handler.as_ref()
                                         && event_handler.has_attestation_subscribers()
                                     {
                                         event_handler.register(beacon_chain::events::EventKind::Attestation(Box::new(
@@ -960,6 +962,7 @@ pub fn post_validator_aggregate_and_proofs<T: BeaconChainTypes>(
 
                                 // Notify the validator monitor.
                                 chain
+                                    .block_importer
                                     .validator_monitor
                                     .read()
                                     .register_api_aggregated_attestation(

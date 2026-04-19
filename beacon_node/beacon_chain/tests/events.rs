@@ -32,7 +32,7 @@ async fn blob_sidecar_event_on_process_gossip_blob() {
         .build();
 
     // subscribe to blob sidecar events
-    let event_handler = harness.chain.event_handler.as_ref().unwrap();
+    let event_handler = harness.chain.block_importer.event_handler.as_ref().unwrap();
     let mut blob_event_receiver = event_handler.subscribe_blob_sidecar();
 
     // build and process a gossip verified blob
@@ -71,7 +71,7 @@ async fn data_column_sidecar_event_on_process_gossip_data_column() {
         .build();
 
     // subscribe to blob sidecar events
-    let event_handler = harness.chain.event_handler.as_ref().unwrap();
+    let event_handler = harness.chain.block_importer.event_handler.as_ref().unwrap();
     let mut data_column_event_receiver = event_handler.subscribe_data_column_sidecar();
 
     // build and process a gossip verified data column
@@ -136,7 +136,7 @@ async fn blob_sidecar_event_on_process_rpc_blobs() {
         .build();
 
     // subscribe to blob sidecar events
-    let event_handler = harness.chain.event_handler.as_ref().unwrap();
+    let event_handler = harness.chain.block_importer.event_handler.as_ref().unwrap();
     let mut blob_event_receiver = event_handler.subscribe_blob_sidecar();
 
     // build and process multiple rpc blobs
@@ -192,7 +192,7 @@ async fn data_column_sidecar_event_on_process_rpc_columns() {
         .build();
 
     // subscribe to blob sidecar events
-    let event_handler = harness.chain.event_handler.as_ref().unwrap();
+    let event_handler = harness.chain.block_importer.event_handler.as_ref().unwrap();
     let mut data_column_event_receiver = event_handler.subscribe_data_column_sidecar();
 
     // build a valid block
@@ -236,7 +236,7 @@ async fn head_event_on_block_import() {
         .build();
 
     // Subscribe to head events before importing the block
-    let event_handler = harness.chain.event_handler.as_ref().unwrap();
+    let event_handler = harness.chain.block_importer.event_handler.as_ref().unwrap();
     let mut head_event_receiver = event_handler.subscribe_head();
 
     // Build and process a block that will become the new head

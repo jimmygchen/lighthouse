@@ -90,9 +90,9 @@ pub struct BlockImporter<T: BeaconChainTypes> {
     // Held as direct Arc handles even when current access still goes through free helpers that
     // take `&BeaconChain<T>`; retaining the Arcs here lets us migrate those helpers to
     // per-component inputs without churning this struct again.
-    pub(crate) validator_monitor: Arc<RwLock<ValidatorMonitor<T::EthSpec>>>,
+    pub validator_monitor: Arc<RwLock<ValidatorMonitor<T::EthSpec>>>,
     pub observed_slashable: Arc<RwLock<ObservedSlashable<T::EthSpec>>>,
-    pub(crate) event_handler: Option<Arc<ServerSentEventHandler<T::EthSpec>>>,
+    pub event_handler: Option<Arc<ServerSentEventHandler<T::EthSpec>>>,
     /// Maintains a record of which validators have proposed blocks for each slot.
     pub observed_block_producers: Arc<RwLock<ObservedBlockProducers<T::EthSpec>>>,
     /// Maintains a record of blob sidecars seen over the gossip network.
@@ -103,16 +103,19 @@ pub struct BlockImporter<T: BeaconChainTypes> {
     #[allow(clippy::type_complexity)]
     pub observed_column_sidecars:
         Arc<RwLock<ObservedDataSidecars<DataColumnSidecar<T::EthSpec>, T::EthSpec>>>,
-    pub(crate) block_times_cache: Arc<RwLock<BlockTimesCache>>,
-    pub(crate) slasher: Option<Arc<Slasher<T::EthSpec>>>,
-    pub(crate) light_client_server_tx: Option<Sender<LightClientProducerEvent<T::EthSpec>>>,
+    pub block_times_cache: Arc<RwLock<BlockTimesCache>>,
+    pub envelope_times_cache: Arc<RwLock<crate::envelope_times_cache::EnvelopeTimesCache>>,
+    pub pre_finalization_block_cache: crate::pre_finalization_cache::PreFinalizationBlockCache,
+    pub slasher: Option<Arc<Slasher<T::EthSpec>>>,
+    pub light_client_server_cache: crate::light_client_server_cache::LightClientServerCache<T>,
+    pub light_client_server_tx: Option<Sender<LightClientProducerEvent<T::EthSpec>>>,
     pub(crate) config: Arc<ChainConfig>,
     // Copy/Clone value fields.
     pub(crate) slot_clock: T::SlotClock,
     pub(crate) genesis_block_root: Hash256,
     // Utilities.
     pub(crate) task_executor: TaskExecutor,
-    pub(crate) shutdown_sender: Sender<ShutdownReason>,
+    pub shutdown_sender: Sender<ShutdownReason>,
     // Weak back-reference to the parent `BeaconChain`, installed post-construction by the
     // builder. Uses `Weak` to avoid a reference cycle that would prevent cleanup in tests.
     // Upgraded via `self.system()` inside method bodies; the upgrade never fails during the
@@ -141,7 +144,10 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
             RwLock<ObservedDataSidecars<DataColumnSidecar<T::EthSpec>, T::EthSpec>>,
         >,
         block_times_cache: Arc<RwLock<BlockTimesCache>>,
+        envelope_times_cache: Arc<RwLock<crate::envelope_times_cache::EnvelopeTimesCache>>,
+        pre_finalization_block_cache: crate::pre_finalization_cache::PreFinalizationBlockCache,
         slasher: Option<Arc<Slasher<T::EthSpec>>>,
+        light_client_server_cache: crate::light_client_server_cache::LightClientServerCache<T>,
         light_client_server_tx: Option<Sender<LightClientProducerEvent<T::EthSpec>>>,
         config: Arc<ChainConfig>,
         slot_clock: T::SlotClock,
@@ -163,7 +169,10 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
             observed_blob_sidecars,
             observed_column_sidecars,
             block_times_cache,
+            envelope_times_cache,
+            pre_finalization_block_cache,
             slasher,
+            light_client_server_cache,
             light_client_server_tx,
             config,
             slot_clock,
@@ -1450,6 +1459,7 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
         // snapshot cache.
         if self.config.enable_light_client_server {
             chain
+                .block_importer
                 .light_client_server_cache
                 .cache_state_data(
                     &self.spec, block, block_root,
@@ -1467,6 +1477,7 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
 
         // Inform the unknown block cache, in case it was waiting on this block.
         chain
+            .block_importer
             .pre_finalization_block_cache
             .block_processed(block_root);
 
@@ -1746,7 +1757,7 @@ fn import_block_update_slasher<T: BeaconChainTypes>(
     state: &BeaconState<T::EthSpec>,
     ctxt: &mut ConsensusContext<T::EthSpec>,
 ) {
-    if let Some(slasher) = components.slasher.as_ref() {
+    if let Some(slasher) = components.block_importer.slasher.as_ref() {
         for attestation in block.body().attestations() {
             let indexed_attestation = match ctxt.get_indexed_attestation(state, attestation) {
                 Ok(indexed) => indexed,
@@ -1907,7 +1918,7 @@ fn check_blob_header_signature_and_slashability<'a, T: BeaconChainTypes>(
                 block_root,
             )
             .map_err(|e| BlockError::BeaconChainError(Box::new(e.into())))?;
-        if let Some(slasher) = components.slasher.as_ref() {
+        if let Some(slasher) = components.block_importer.slasher.as_ref() {
             slasher.accept_block_header(header);
         }
     }
@@ -1940,7 +1951,7 @@ fn check_data_column_sidecar_header_signature_and_slashability<'a, T: BeaconChai
                 block_root,
             )
             .map_err(|e| BlockError::BeaconChainError(Box::new(e.into())))?;
-        if let Some(slasher) = components.slasher.as_ref() {
+        if let Some(slasher) = components.block_importer.slasher.as_ref() {
             slasher.accept_block_header(header);
         }
     }

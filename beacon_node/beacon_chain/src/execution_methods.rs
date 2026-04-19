@@ -145,7 +145,7 @@ pub async fn process_invalid_execution_payload<T: BeaconChainTypes>(
 
     if justified_block.execution_status.is_invalid() {
         // Delegate to the free function for shutdown signalling.
-        let mut shutdown_sender = chain.shutdown_sender.clone();
+        let mut shutdown_sender = chain.block_importer.shutdown_sender.clone();
         return handle_invalid_justified_checkpoint(
             &mut shutdown_sender,
             justified_block.root,
@@ -329,7 +329,7 @@ pub async fn prepare_beacon_proposer<T: BeaconChainTypes>(
 
     // Push a server-sent event (probably to a block builder or relay).
     emit_payload_attributes_event(
-        chain.event_handler.as_deref(),
+        chain.block_importer.event_handler.as_deref(),
         &pre_payload_attributes,
         payload_attributes,
         &forkchoice_update_params,

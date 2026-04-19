@@ -51,6 +51,7 @@ impl<T: BeaconChainTypes> GossipVerifiedEnvelope<T> {
             let chain = payload_notifier.chain.clone();
             if let Some(started_execution) = chain.slot_clock.now_duration() {
                 chain
+                    .block_importer
                     .envelope_times_cache
                     .write()
                     .set_time_started_execution(block_root, slot, started_execution);

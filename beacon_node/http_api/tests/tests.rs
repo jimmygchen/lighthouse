@@ -2504,6 +2504,7 @@ impl ApiTester {
 
         let expected = self
             .chain
+            .block_importer
             .light_client_server_cache
             .get_light_client_updates(
                 &self.chain.store,
@@ -2534,6 +2535,7 @@ impl ApiTester {
 
         let expected = self
             .chain
+            .block_importer
             .light_client_server_cache
             .get_light_client_bootstrap(&self.chain.store, &block_root, 1u64, &self.chain.spec);
 
@@ -2556,6 +2558,7 @@ impl ApiTester {
 
         let expected = self
             .chain
+            .block_importer
             .light_client_server_cache
             .get_latest_optimistic_update();
         assert_eq!(result, expected);
@@ -2575,6 +2578,7 @@ impl ApiTester {
 
         let expected = self
             .chain
+            .block_importer
             .light_client_server_cache
             .get_latest_finality_update();
         assert_eq!(result, expected);

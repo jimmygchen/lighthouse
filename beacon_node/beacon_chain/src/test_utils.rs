@@ -3029,8 +3029,11 @@ where
                 spec: &self.chain.spec,
                 config: &self.chain.config,
                 genesis_validators_root: self.chain.genesis_validators_root,
-                slasher: self.chain.slasher.as_deref(),
-                pre_finalization_block_cache: &self.chain.pre_finalization_block_cache,
+                slasher: self.chain.block_importer.slasher.as_deref(),
+                pre_finalization_block_cache: &self
+                    .chain
+                    .block_importer
+                    .pre_finalization_block_cache,
             };
             for result in crate::attestation_verification::batch_verify_unaggregated_attestations(
                 unaggregated.iter().map(|(attn, subnet)| (attn, *subnet)),
@@ -3056,8 +3059,11 @@ where
                 spec: &self.chain.spec,
                 config: &self.chain.config,
                 genesis_validators_root: self.chain.genesis_validators_root,
-                slasher: self.chain.slasher.as_deref(),
-                pre_finalization_block_cache: &self.chain.pre_finalization_block_cache,
+                slasher: self.chain.block_importer.slasher.as_deref(),
+                pre_finalization_block_cache: &self
+                    .chain
+                    .block_importer
+                    .pre_finalization_block_cache,
             };
             for result in crate::attestation_verification::batch_verify_aggregated_attestations(
                 aggregated.into_iter(),
@@ -3277,6 +3283,7 @@ where
 
         let _ = self
             .chain
+            .block_importer
             .light_client_server_cache
             .recompute_and_cache_updates(
                 self.chain.store.clone(),
@@ -3744,7 +3751,7 @@ where
                     &sync_ctx,
                 )
                 .inspect(|v| {
-                    if let Some(event_handler) = self.chain.event_handler.as_ref()
+                    if let Some(event_handler) = self.chain.block_importer.event_handler.as_ref()
                         && event_handler.has_contribution_subscribers()
                     {
                         event_handler.register(eth2::types::EventKind::ContributionAndProof(

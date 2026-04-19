@@ -70,7 +70,7 @@ async fn produces_attestations_from_attestation_simulator_service() {
         );
 
         // Verify that the ua is stored in validator monitor
-        let validator_monitor = chain.validator_monitor.read();
+        let validator_monitor = chain.block_importer.validator_monitor.read();
         validator_monitor
             .get_unaggregated_attestation(slot)
             .expect("should get unaggregated attestation");

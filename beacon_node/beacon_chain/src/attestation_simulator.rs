@@ -96,6 +96,7 @@ pub fn produce_unaggregated_attestation<T: BeaconChainTypes>(
             );
 
             chain
+                .block_importer
                 .validator_monitor
                 .write()
                 .set_unaggregated_attestation(unaggregated_attestation);

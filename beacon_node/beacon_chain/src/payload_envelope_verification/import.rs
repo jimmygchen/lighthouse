@@ -41,12 +41,11 @@ pub async fn process_execution_payload_envelope<T: BeaconChainTypes>(
     // Set observed time if not already set. Usually this should be set by gossip or RPC,
     // but just in case we set it again here (useful for tests).
     if let Some(seen_timestamp) = chain.slot_clock.now_duration() {
-        chain.envelope_times_cache.write().set_time_observed(
-            block_root,
-            block_slot,
-            seen_timestamp,
-            None,
-        );
+        chain
+            .block_importer
+            .envelope_times_cache
+            .write()
+            .set_time_observed(block_root, block_slot, seen_timestamp, None);
     }
 
     // TODO(gloas) insert the pre-executed envelope into some type of cache.
@@ -67,12 +66,13 @@ pub async fn process_execution_payload_envelope<T: BeaconChainTypes>(
         // Record the time it took to complete consensus verification.
         if let Some(timestamp) = chain.slot_clock.now_duration() {
             chain
+                .block_importer
                 .envelope_times_cache
                 .write()
                 .set_time_consensus_verified(block_root, block_slot, timestamp);
         }
 
-        let envelope_times_cache = chain.envelope_times_cache.clone();
+        let envelope_times_cache = chain.block_importer.envelope_times_cache.clone();
         let slot_clock = chain.slot_clock.clone();
 
         // TODO(gloas): rename/refactor these `into_` names to be less similar and more clear
@@ -355,14 +355,14 @@ fn import_envelope_update_metrics_and_events<T: BeaconChainTypes>(
             .slot_duration()
             .saturating_mul(ENVELOPE_METRICS_CACHE_SLOT_LIMIT)
     {
-        chain.envelope_times_cache.write().set_time_imported(
-            block_root,
-            envelope_slot,
-            envelope_time_imported,
-        );
+        chain
+            .block_importer
+            .envelope_times_cache
+            .write()
+            .set_time_imported(block_root, envelope_slot, envelope_time_imported);
     }
 
-    if let Some(event_handler) = chain.event_handler.as_ref()
+    if let Some(event_handler) = chain.block_importer.event_handler.as_ref()
         && event_handler.has_execution_payload_subscribers()
     {
         event_handler.register(EventKind::ExecutionPayload(SseExecutionPayload {

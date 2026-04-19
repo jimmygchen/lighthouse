@@ -112,7 +112,8 @@ pub fn post_beacon_pool_bls_to_execution_changes<T: BeaconChainTypes>(
                                 }
 
                                 // Fire SSE event.
-                                if let Some(event_handler) = chain.event_handler.as_ref()
+                                if let Some(event_handler) =
+                                    chain.block_importer.event_handler.as_ref()
                                     && event_handler.has_bls_to_execution_change_subscribers()
                                 {
                                     event_handler.register(EventKind::BlsToExecutionChange(
@@ -281,13 +282,14 @@ pub fn post_beacon_pool_voluntary_exits<T: BeaconChainTypes>(
 
                     // Notify the validator monitor.
                     chain
+                        .block_importer
                         .validator_monitor
                         .read()
                         .register_api_voluntary_exit(&exit.message);
 
                     if let ObservationOutcome::New(ref verified_exit) = outcome {
                         // Fire SSE event.
-                        if let Some(event_handler) = chain.event_handler.as_ref()
+                        if let Some(event_handler) = chain.block_importer.event_handler.as_ref()
                             && event_handler.has_exit_subscribers()
                         {
                             event_handler.register(EventKind::VoluntaryExit(
@@ -379,13 +381,14 @@ pub fn post_beacon_pool_proposer_slashings<T: BeaconChainTypes>(
 
                     // Notify the validator monitor.
                     chain
+                        .block_importer
                         .validator_monitor
                         .read()
                         .register_api_proposer_slashing(&slashing);
 
                     if let ObservationOutcome::New(verified_slashing) = outcome {
                         // Fire SSE event.
-                        if let Some(event_handler) = chain.event_handler.as_ref()
+                        if let Some(event_handler) = chain.block_importer.event_handler.as_ref()
                             && event_handler.has_proposer_slashing_subscribers()
                         {
                             event_handler.register(EventKind::ProposerSlashing(Box::new(
@@ -515,6 +518,7 @@ pub fn post_beacon_pool_attester_slashings<T: BeaconChainTypes>(
 
                     // Notify the validator monitor.
                     chain
+                        .block_importer
                         .validator_monitor
                         .read()
                         .register_api_attester_slashing(slashing.to_ref());
@@ -527,7 +531,7 @@ pub fn post_beacon_pool_attester_slashings<T: BeaconChainTypes>(
                             .on_attester_slashing(verified_slashing.as_inner().to_ref());
 
                         // Fire SSE event.
-                        if let Some(event_handler) = chain.event_handler.as_ref()
+                        if let Some(event_handler) = chain.block_importer.event_handler.as_ref()
                             && event_handler.has_attester_slashing_subscribers()
                         {
                             event_handler.register(EventKind::AttesterSlashing(Box::new(

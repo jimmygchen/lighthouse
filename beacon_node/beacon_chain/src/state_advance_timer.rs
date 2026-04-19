@@ -228,7 +228,7 @@ async fn state_advance_timer<T: BeaconChainTypes>(
                 beacon_chain.task_executor.clone().spawn_blocking(
                     move || {
                         // Signal block proposal for the next slot (if it happens to be waiting).
-                        if let Some(tx) = &beacon_chain.fork_choice_signal_tx
+                        if let Some(tx) = &beacon_chain.canonical_head.fork_choice_signal_tx
                             && let Err(e) = tx.notify_fork_choice_complete(next_slot)
                         {
                             warn!(
@@ -317,6 +317,7 @@ fn advance_head<T: BeaconChainTypes>(beacon_chain: &Arc<BeaconChain<T>>) -> Resu
         {
             // Potentially create logs/metrics for locally monitored validators.
             if let Err(e) = beacon_chain
+                .block_importer
                 .validator_monitor
                 .read()
                 .process_validator_statuses(state.current_epoch(), &summary, &beacon_chain.spec)

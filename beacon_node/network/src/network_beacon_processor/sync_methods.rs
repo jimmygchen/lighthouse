@@ -205,13 +205,11 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                         "Failed to inform block import"
                     );
                 };
-                self.chain.block_times_cache.write().set_time_observed(
-                    *hash,
-                    slot,
-                    seen_timestamp,
-                    None,
-                    None,
-                );
+                self.chain
+                    .block_importer
+                    .block_times_cache
+                    .write()
+                    .set_time_observed(*hash, slot, seen_timestamp, None, None);
 
                 beacon_chain::canonical_head::recompute_head_at_current_slot(&self.chain).await;
             }

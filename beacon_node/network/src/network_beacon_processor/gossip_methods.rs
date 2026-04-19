@@ -233,8 +233,11 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                 spec: &self.chain.spec,
                 config: &self.chain.config,
                 genesis_validators_root: self.chain.genesis_validators_root,
-                slasher: self.chain.slasher.as_deref(),
-                pre_finalization_block_cache: &self.chain.pre_finalization_block_cache,
+                slasher: self.chain.block_importer.slasher.as_deref(),
+                pre_finalization_block_cache: &self
+                    .chain
+                    .block_importer
+                    .pre_finalization_block_cache,
             };
             beacon_chain::attestation_verification::VerifiedUnaggregatedAttestation::verify(
                 &attestation,
@@ -289,8 +292,11 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                 spec: &self.chain.spec,
                 config: &self.chain.config,
                 genesis_validators_root: self.chain.genesis_validators_root,
-                slasher: self.chain.slasher.as_deref(),
-                pre_finalization_block_cache: &self.chain.pre_finalization_block_cache,
+                slasher: self.chain.block_importer.slasher.as_deref(),
+                pre_finalization_block_cache: &self
+                    .chain
+                    .block_importer
+                    .pre_finalization_block_cache,
             };
             beacon_chain::attestation_verification::batch_verify_unaggregated_attestations(
                 attestations_and_subnets,
@@ -376,6 +382,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
 
                 // Register the attestation with any monitored validators.
                 self.chain
+                    .block_importer
                     .validator_monitor
                     .read()
                     .register_gossip_unaggregated_attestation(
@@ -503,14 +510,17 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                 spec: &self.chain.spec,
                 config: &self.chain.config,
                 genesis_validators_root: self.chain.genesis_validators_root,
-                slasher: self.chain.slasher.as_deref(),
-                pre_finalization_block_cache: &self.chain.pre_finalization_block_cache,
+                slasher: self.chain.block_importer.slasher.as_deref(),
+                pre_finalization_block_cache: &self
+                    .chain
+                    .block_importer
+                    .pre_finalization_block_cache,
             };
             beacon_chain::attestation_verification::VerifiedAggregatedAttestation::verify(
                 &aggregate, &ctx,
             )
             .inspect(|v| {
-                if let Some(event_handler) = self.chain.event_handler.as_ref()
+                if let Some(event_handler) = self.chain.block_importer.event_handler.as_ref()
                     && event_handler.has_attestation_subscribers()
                 {
                     event_handler.register(EventKind::Attestation(Box::new(
@@ -560,8 +570,11 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                 spec: &self.chain.spec,
                 config: &self.chain.config,
                 genesis_validators_root: self.chain.genesis_validators_root,
-                slasher: self.chain.slasher.as_deref(),
-                pre_finalization_block_cache: &self.chain.pre_finalization_block_cache,
+                slasher: self.chain.block_importer.slasher.as_deref(),
+                pre_finalization_block_cache: &self
+                    .chain
+                    .block_importer
+                    .pre_finalization_block_cache,
             };
             beacon_chain::attestation_verification::batch_verify_aggregated_attestations(
                 aggregates, &ctx,
@@ -643,6 +656,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
 
                 // Register the attestation with any monitored validators.
                 self.chain
+                    .block_importer
                     .validator_monitor
                     .read()
                     .register_gossip_aggregated_attestation(
@@ -1390,13 +1404,17 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             );
             // Write the time the block was observed into delay cache only for gossip
             // valid blocks.
-            self.chain.block_times_cache.write().set_time_observed(
-                verified_block.block_root,
-                block.slot(),
-                seen_duration,
-                Some(peer_id.to_string()),
-                Some(peer_client.to_string()),
-            );
+            self.chain
+                .block_importer
+                .block_times_cache
+                .write()
+                .set_time_observed(
+                    verified_block.block_root,
+                    block.slot(),
+                    seen_duration,
+                    Some(peer_id.to_string()),
+                    Some(peer_client.to_string()),
+                );
             verified_block.block_root
         } else {
             block.canonical_root()
@@ -1555,12 +1573,16 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         //
         // Run this event *prior* to importing the block, where the block is only partially
         // verified.
-        self.chain.validator_monitor.read().register_gossip_block(
-            seen_duration,
-            verified_block.block.message(),
-            verified_block.block_root,
-            &self.chain.slot_clock,
-        );
+        self.chain
+            .block_importer
+            .validator_monitor
+            .read()
+            .register_gossip_block(
+                seen_duration,
+                verified_block.block.message(),
+                verified_block.block_root,
+                &self.chain.slot_clock,
+            );
 
         let block_slot = verified_block.block.slot();
         let block_root = verified_block.block_root;
@@ -1839,7 +1861,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         ) {
             Ok(ObservationOutcome::New(exit)) => {
                 // Emit SSE event for new exits (moved from BeaconChain delegation wrapper).
-                if let Some(event_handler) = self.chain.event_handler.as_ref()
+                if let Some(event_handler) = self.chain.block_importer.event_handler.as_ref()
                     && event_handler.has_exit_subscribers()
                 {
                     event_handler.register(EventKind::VoluntaryExit(exit.as_inner().clone()));
@@ -1881,6 +1903,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
 
         // Register the exit with any monitored validators.
         self.chain
+            .block_importer
             .validator_monitor
             .read()
             .register_gossip_voluntary_exit(&exit.as_inner().message);
@@ -1963,13 +1986,14 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
 
         // Register the slashing with any monitored validators.
         self.chain
+            .block_importer
             .validator_monitor
             .read()
             .register_gossip_proposer_slashing(slashing.as_inner());
 
         // Import: emit SSE event + add to op pool (moved from BeaconChain delegation wrapper).
         let inner_slashing = self.chain.operations.import_proposer_slashing(slashing);
-        if let Some(event_handler) = self.chain.event_handler.as_ref()
+        if let Some(event_handler) = self.chain.block_importer.event_handler.as_ref()
             && event_handler.has_proposer_slashing_subscribers()
         {
             event_handler.register(EventKind::ProposerSlashing(Box::new(inner_slashing)));
@@ -2042,6 +2066,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
 
         // Register the slashing with any monitored validators.
         self.chain
+            .block_importer
             .validator_monitor
             .read()
             .register_gossip_attester_slashing(slashing.as_inner().to_ref());
@@ -2052,7 +2077,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             .fork_choice_write_lock()
             .on_attester_slashing(slashing.as_inner().to_ref());
         // Emit SSE event.
-        if let Some(event_handler) = self.chain.event_handler.as_ref()
+        if let Some(event_handler) = self.chain.block_importer.event_handler.as_ref()
             && event_handler.has_attester_slashing_subscribers()
         {
             event_handler.register(EventKind::AttesterSlashing(Box::new(
@@ -2155,7 +2180,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         let received_pre_capella = ReceivedPreCapella::No;
 
         // Emit SSE event before importing (moved from BeaconChain delegation wrapper).
-        if let Some(event_handler) = self.chain.event_handler.as_ref()
+        if let Some(event_handler) = self.chain.block_importer.event_handler.as_ref()
             && event_handler.has_bls_to_execution_change_subscribers()
         {
             event_handler.register(EventKind::BlsToExecutionChange(Box::new(
@@ -2239,6 +2264,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
 
         // Register the sync signature with any monitored validators.
         self.chain
+            .block_importer
             .validator_monitor
             .read()
             .register_gossip_sync_committee_message(
@@ -2301,7 +2327,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                 &sync_ctx,
             )
             .inspect(|v| {
-                if let Some(event_handler) = self.chain.event_handler.as_ref()
+                if let Some(event_handler) = self.chain.block_importer.event_handler.as_ref()
                     && event_handler.has_contribution_subscribers()
                 {
                     event_handler.register(EventKind::ContributionAndProof(Box::new(
@@ -2333,6 +2359,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         self.propagate_sync_message_if_timely(contribution_slot, message_id, peer_id);
 
         self.chain
+            .block_importer
             .validator_monitor
             .read()
             .register_gossip_sync_committee_contribution(
@@ -3682,7 +3709,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                         chain.execution_manager.beacon_proposer_cache(),
                         &chain.validator_query.validator_pubkey_cache,
                         chain.genesis_validators_root,
-                        chain.event_handler.as_deref(),
+                        chain.block_importer.event_handler.as_deref(),
                     );
                     beacon_chain::payload_envelope_verification::gossip_verified_envelope::verify_envelope_for_gossip(
                         &ctx,
@@ -3707,12 +3734,16 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                 );
 
                 // Write the time the envelope was observed into the delay cache.
-                self.chain.envelope_times_cache.write().set_time_observed(
-                    verified_envelope.signed_envelope.beacon_block_root(),
-                    envelope.slot(),
-                    seen_duration,
-                    Some(peer_id.to_string()),
-                );
+                self.chain
+                    .block_importer
+                    .envelope_times_cache
+                    .write()
+                    .set_time_observed(
+                        verified_envelope.signed_envelope.beacon_block_root(),
+                        envelope.slot(),
+                        seen_duration,
+                        Some(peer_id.to_string()),
+                    );
 
                 info!(
                     slot = %verified_envelope.signed_envelope.slot(),
@@ -3786,7 +3817,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                                             chain_ref.execution_manager.beacon_proposer_cache(),
                                             &chain_ref.validator_query.validator_pubkey_cache,
                                             chain_ref.genesis_validators_root,
-                                            chain_ref.event_handler.as_deref(),
+                                            chain_ref.block_importer.event_handler.as_deref(),
                                         );
                                         beacon_chain::payload_envelope_verification::gossip_verified_envelope::verify_envelope_for_gossip(
                                             &ctx,
@@ -3986,8 +4017,8 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         let verification_result =
             beacon_chain::payload_bid_verification::gossip_verified_bid::verify_payload_bid_for_gossip(
                 &self.chain.canonical_head,
-                &self.chain.gossip_verified_payload_bid_cache,
-                &self.chain.gossip_verified_proposer_preferences_cache,
+                &self.chain.block_producer.gossip_verified_payload_bid_cache,
+                &self.chain.block_producer.gossip_verified_proposer_preferences_cache,
                 &self.chain.slot_clock,
                 &self.chain.spec,
                 bid.clone(),
@@ -4045,7 +4076,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         let verification_result =
             beacon_chain::proposer_preferences_verification::gossip_verified_proposer_preferences::verify_proposer_preferences_for_gossip(
                 &self.chain.canonical_head,
-                &self.chain.gossip_verified_proposer_preferences_cache,
+                &self.chain.block_producer.gossip_verified_proposer_preferences_cache,
                 &self.chain.slot_clock,
                 &self.chain.spec,
                 proposer_preferences,

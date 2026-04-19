@@ -80,6 +80,7 @@ impl<T: BeaconChainTypes> VerifiedLightClientOptimisticUpdate<T> {
         }
 
         if let Some(latest_broadcasted_optimistic_update) = chain
+            .block_importer
             .light_client_server_cache
             .get_latest_broadcasted_optimistic_update()
         {
@@ -106,6 +107,7 @@ impl<T: BeaconChainTypes> VerifiedLightClientOptimisticUpdate<T> {
         }
 
         let latest_optimistic_update = chain
+            .block_importer
             .light_client_server_cache
             .get_latest_optimistic_update()
             .ok_or(Error::FailedConstructingUpdate)?;
@@ -146,6 +148,7 @@ impl<T: BeaconChainTypes> VerifiedLightClientOptimisticUpdate<T> {
         }
 
         chain
+            .block_importer
             .light_client_server_cache
             .set_latest_broadcasted_optimistic_update(rcv_optimistic_update.clone());
 

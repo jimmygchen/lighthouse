@@ -661,6 +661,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
 
         let lc_updates = match self
             .chain
+            .block_importer
             .light_client_server_cache
             .get_light_client_updates(
                 &self.chain.store,
@@ -773,6 +774,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             inbound_request_id,
             match self
                 .chain
+                .block_importer
                 .light_client_server_cache
                 .get_latest_optimistic_update()
             {
@@ -807,6 +809,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             inbound_request_id,
             match self
                 .chain
+                .block_importer
                 .light_client_server_cache
                 .get_latest_finality_update()
             {

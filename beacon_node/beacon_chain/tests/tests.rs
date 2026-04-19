@@ -708,8 +708,11 @@ async fn attestations_with_increasing_slots() {
             spec: &harness.chain.spec,
             config: &harness.chain.config,
             genesis_validators_root: harness.chain.genesis_validators_root,
-            slasher: harness.chain.slasher.as_deref(),
-            pre_finalization_block_cache: &harness.chain.pre_finalization_block_cache,
+            slasher: harness.chain.block_importer.slasher.as_deref(),
+            pre_finalization_block_cache: &harness
+                .chain
+                .block_importer
+                .pre_finalization_block_cache,
         };
         let res = beacon_chain::attestation_verification::VerifiedUnaggregatedAttestation::verify(
             &attestation,

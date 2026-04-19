@@ -549,7 +549,7 @@ pub(crate) fn process_block_slash_info<T: BeaconChainTypes, TErr: BlockBlobError
     chain: &BeaconChain<T>,
     slash_info: BlockSlashInfo<TErr>,
 ) -> TErr {
-    if let Some(slasher) = chain.slasher.as_ref() {
+    if let Some(slasher) = chain.block_importer.slasher.as_ref() {
         let (verified_header, error) = match slash_info {
             BlockSlashInfo::SignatureNotChecked(header, e) => {
                 if verify_header_signature::<_, TErr>(chain, &header).is_ok() {
@@ -768,7 +768,7 @@ pub trait IntoExecutionPendingBlock<T: BeaconChainTypes>: Sized {
         self.into_execution_pending_block_slashable(block_root, chain, notify_execution_layer)
             .inspect(|execution_pending| {
                 // Supply valid block to slasher.
-                if let Some(slasher) = chain.slasher.as_ref() {
+                if let Some(slasher) = chain.block_importer.slasher.as_ref() {
                     slasher.accept_block_header(execution_pending.block.signed_block_header());
                 }
             })
@@ -1027,7 +1027,7 @@ impl<T: BeaconChainTypes> GossipVerifiedBlock<T> {
         }
 
         // Beacon API block_gossip events
-        if let Some(event_handler) = chain.event_handler.as_ref()
+        if let Some(event_handler) = chain.block_importer.event_handler.as_ref()
             && event_handler.has_block_gossip_subscribers()
         {
             event_handler.register(EventKind::BlockGossip(Box::new(BlockGossip {
@@ -1456,11 +1456,11 @@ impl<T: BeaconChainTypes> ExecutionPendingBlock<T> {
             // however we run it here to keep `per_block_processing` pure (i.e., no calls to external
             // servers).
             if let Some(started_execution) = chain.slot_clock.now_duration() {
-                chain.block_times_cache.write().set_time_started_execution(
-                    block_root,
-                    block.slot(),
-                    started_execution,
-                );
+                chain
+                    .block_importer
+                    .block_times_cache
+                    .write()
+                    .set_time_started_execution(block_root, block.slot(), started_execution);
             }
             let payload_verification_status = payload_notifier.notify_new_payload().await?;
 
@@ -1574,7 +1574,7 @@ impl<T: BeaconChainTypes> ExecutionPendingBlock<T> {
                 + VALIDATOR_MONITOR_HISTORIC_EPOCHS as u64
                 >= epoch
             {
-                let validator_monitor = chain.validator_monitor.read();
+                let validator_monitor = chain.block_importer.validator_monitor.read();
                 // Update the summaries in a separate loop to `per_slot_processing`. This protects
                 // the `validator_monitor` lock from being bounced or held for a long time whilst
                 // performing `per_slot_processing`.
@@ -1752,6 +1752,7 @@ fn check_block_against_finalized_slot<T: BeaconChainTypes>(
 
     if block.slot() <= finalized_slot {
         chain
+            .block_importer
             .pre_finalization_block_cache
             .block_rejected(block_root);
         Err(BlockError::WouldRevertFinalizedSlot {

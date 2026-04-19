@@ -950,12 +950,16 @@ where
 
         let genesis_validators_root = head_snapshot.beacon_state.genesis_validators_root();
         let genesis_time = head_snapshot.beacon_state.genesis_time();
-        let canonical_head = Arc::new(CanonicalHead::with_store(
+        let mut canonical_head_inner = CanonicalHead::with_store(
             fork_choice,
             Arc::new(head_snapshot),
             head_payload_status,
             Some(store.clone()),
-        ));
+        );
+        if let Some(tx) = fork_choice_signal_tx {
+            canonical_head_inner.set_fork_choice_signal_tx(tx);
+        }
+        let canonical_head = Arc::new(canonical_head_inner);
         let shuffling_cache_size = self.chain_config.shuffling_cache_size;
         let complete_blob_backfill = self.chain_config.complete_blob_backfill;
 
@@ -1101,7 +1105,10 @@ where
             observed_blob_sidecars,
             observed_column_sidecars,
             block_times_cache.clone(),
+            <_>::default(),
+            <_>::default(),
             self.slasher.clone(),
+            LightClientServerCache::new(),
             self.light_client_server_tx.clone(),
             chain_config_arc.clone(),
             slot_clock.clone(),
@@ -1129,12 +1136,16 @@ where
             block_times_cache.clone(),
             canonical_head.clone(),
             attestation_manager.clone(),
+            <_>::default(),
+            <_>::default(),
+            rng.clone(),
             pending_payload_envelopes.clone(),
             graffiti_calculator.clone(),
             self.execution_layer.clone(),
             slot_clock.clone(),
             genesis_block_root,
             task_executor.clone(),
+            fork_choice_signal_rx,
         ));
 
         let beacon_chain = BeaconChain {
@@ -1152,23 +1163,9 @@ where
             canonical_head,
             genesis_block_root,
             genesis_state_root,
-            fork_choice_signal_tx,
-            fork_choice_signal_rx,
-            event_handler,
-            block_times_cache: block_times_cache.clone(),
-            envelope_times_cache: <_>::default(),
-            pre_finalization_block_cache: <_>::default(),
-            gossip_verified_payload_bid_cache: <_>::default(),
-            gossip_verified_proposer_preferences_cache: <_>::default(),
             validator_query: ValidatorQueryService::new(validator_pubkey_cache),
-            light_client_server_cache: LightClientServerCache::new(),
-            light_client_server_tx: self.light_client_server_tx,
-            shutdown_sender,
-            slasher: self.slasher.clone(),
-            validator_monitor,
             genesis_backfill_slot,
             kzg: kzg.clone(),
-            rng: rng.clone(),
             data_availability_manager,
             execution_manager,
             block_importer,

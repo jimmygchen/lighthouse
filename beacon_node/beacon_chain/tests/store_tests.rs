@@ -416,6 +416,7 @@ async fn light_client_updates_test() {
     // in the db.
     let lc_updates = harness
         .chain
+        .block_importer
         .light_client_server_cache
         .get_light_client_updates(&harness.chain.store, sync_period, 100, &harness.chain.spec)
         .unwrap();
@@ -438,6 +439,7 @@ async fn light_client_updates_test() {
     // we should now have two light client updates in the db
     let lc_updates = harness
         .chain
+        .block_importer
         .light_client_server_cache
         .get_light_client_updates(&harness.chain.store, sync_period, 100, &harness.chain.spec)
         .unwrap();
@@ -737,8 +739,11 @@ async fn epoch_boundary_state_attestation_processing() {
             spec: &harness.chain.spec,
             config: &harness.chain.config,
             genesis_validators_root: harness.chain.genesis_validators_root,
-            slasher: harness.chain.slasher.as_deref(),
-            pre_finalization_block_cache: &harness.chain.pre_finalization_block_cache,
+            slasher: harness.chain.block_importer.slasher.as_deref(),
+            pre_finalization_block_cache: &harness
+                .chain
+                .block_importer
+                .pre_finalization_block_cache,
         };
         let res = beacon_chain::attestation_verification::VerifiedUnaggregatedAttestation::verify(
             &attestation,

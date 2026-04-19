@@ -1664,6 +1664,7 @@ pub fn serve<T: BeaconChainTypes>(
                 task_spawner.blocking_response_task(Priority::P1, move || {
                     light_client_server_enabled?;
                     let update = chain
+                        .block_importer
                         .light_client_server_cache
                         .get_latest_optimistic_update()
                         .ok_or_else(|| {
@@ -1712,6 +1713,7 @@ pub fn serve<T: BeaconChainTypes>(
                 task_spawner.blocking_response_task(Priority::P1, move || {
                     light_client_server_enabled?;
                     let update = chain
+                        .block_importer
                         .light_client_server_cache
                         .get_latest_finality_update()
                         .ok_or_else(|| {
@@ -3174,7 +3176,7 @@ pub fn serve<T: BeaconChainTypes>(
                     // for each topic subscribed spawn a new subscription
                     let mut receivers = Vec::with_capacity(topics.topics.len());
 
-                    if let Some(event_handler) = chain.event_handler.as_ref() {
+                    if let Some(event_handler) = chain.block_importer.event_handler.as_ref() {
                         for topic in topics.topics {
                             let receiver = match topic {
                                 api_types::EventTopic::Head => event_handler.subscribe_head(),

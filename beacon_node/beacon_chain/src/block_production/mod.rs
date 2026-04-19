@@ -22,6 +22,7 @@ use fork_choice::ForkchoiceUpdateParameters;
 use operation_pool::{CompactAttestationRef, OperationPool};
 use parking_lot::{Mutex, RwLock};
 use proto_array::{DoNotReOrg, ProposerHeadError};
+use rand::RngCore;
 use slot_clock::SlotClock;
 use ssz::Encode;
 use state_processing::{
@@ -82,6 +83,9 @@ pub struct BlockProducer<T: BeaconChainTypes> {
     pub(crate) block_times_cache: Arc<RwLock<BlockTimesCache>>,
     pub(crate) canonical_head: Arc<CanonicalHead<T>>,
     pub(crate) attestation_manager: Arc<AttestationManager<T::EthSpec>>,
+    pub gossip_verified_payload_bid_cache: crate::payload_bid_verification::payload_bid_cache::GossipVerifiedPayloadBidCache<T>,
+    pub gossip_verified_proposer_preferences_cache: crate::proposer_preferences_verification::proposer_preference_cache::GossipVerifiedProposerPreferenceCache,
+    pub rng: Arc<Mutex<Box<dyn RngCore + Send>>>,
     pub pending_payload_envelopes: Arc<RwLock<PendingPayloadEnvelopes<T::EthSpec>>>,
     pub graffiti_calculator: Arc<GraffitiCalculator<T>>,
     // Cheap-to-clone wrappers around Arc.
@@ -91,6 +95,8 @@ pub struct BlockProducer<T: BeaconChainTypes> {
     pub(crate) genesis_block_root: Hash256,
     // Utilities.
     pub(crate) task_executor: TaskExecutor,
+    /// Receiver used by block production to wait on slot-start fork choice.
+    pub(crate) fork_choice_signal_rx: Option<crate::fork_choice_signal::ForkChoiceSignalRx>,
     // Weak back-reference to the parent `BeaconChain`, installed post-construction by the
     // builder. Uses `Weak` to avoid a reference cycle that would prevent cleanup in tests.
     // Upgraded via `self.system()` inside method bodies; the upgrade never fails during the
@@ -111,12 +117,16 @@ impl<T: BeaconChainTypes> BlockProducer<T> {
         block_times_cache: Arc<RwLock<BlockTimesCache>>,
         canonical_head: Arc<CanonicalHead<T>>,
         attestation_manager: Arc<AttestationManager<T::EthSpec>>,
+        gossip_verified_payload_bid_cache: crate::payload_bid_verification::payload_bid_cache::GossipVerifiedPayloadBidCache<T>,
+        gossip_verified_proposer_preferences_cache: crate::proposer_preferences_verification::proposer_preference_cache::GossipVerifiedProposerPreferenceCache,
+        rng: Arc<Mutex<Box<dyn RngCore + Send>>>,
         pending_payload_envelopes: Arc<RwLock<PendingPayloadEnvelopes<T::EthSpec>>>,
         graffiti_calculator: Arc<GraffitiCalculator<T>>,
         execution_layer: Option<ExecutionLayer<T::EthSpec>>,
         slot_clock: T::SlotClock,
         genesis_block_root: Hash256,
         task_executor: TaskExecutor,
+        fork_choice_signal_rx: Option<crate::fork_choice_signal::ForkChoiceSignalRx>,
     ) -> Self {
         Self {
             spec,
@@ -128,12 +138,16 @@ impl<T: BeaconChainTypes> BlockProducer<T> {
             block_times_cache,
             canonical_head,
             attestation_manager,
+            gossip_verified_payload_bid_cache,
+            gossip_verified_proposer_preferences_cache,
+            rng,
             pending_payload_envelopes,
             graffiti_calculator,
             execution_layer,
             slot_clock,
             genesis_block_root,
             task_executor,
+            fork_choice_signal_rx,
             system: OnceLock::new(),
         }
     }
@@ -273,8 +287,7 @@ impl<T: BeaconChainTypes> BlockProducer<T> {
         &self,
         slot: Slot,
     ) -> Result<(), BlockProductionError> {
-        let system = self.system();
-        if let Some(rx) = &system.fork_choice_signal_rx {
+        if let Some(rx) = &self.fork_choice_signal_rx {
             let current_slot = crate::state_query::current_slot(&self.slot_clock)
                 .map_err(|_| BlockProductionError::UnableToReadSlot)?;
 

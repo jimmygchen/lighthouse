@@ -45,6 +45,7 @@ impl<T: BeaconChainTypes> SlasherService<T> {
     pub fn run(&self, executor: &TaskExecutor) -> Result<(), String> {
         let slasher = self
             .beacon_chain
+            .block_importer
             .slasher
             .clone()
             .ok_or("No slasher is configured")?;
@@ -214,7 +215,7 @@ impl<T: BeaconChainTypes> SlasherService<T> {
                 .fork_choice_write_lock()
                 .on_attester_slashing(verified_slashing.as_inner().to_ref());
             // Emit SSE event.
-            if let Some(event_handler) = beacon_chain.event_handler.as_ref()
+            if let Some(event_handler) = beacon_chain.block_importer.event_handler.as_ref()
                 && event_handler.has_attester_slashing_subscribers()
             {
                 event_handler.register(EventKind::AttesterSlashing(Box::new(
@@ -276,7 +277,7 @@ impl<T: BeaconChainTypes> SlasherService<T> {
             let inner_slashing = beacon_chain
                 .operations
                 .import_proposer_slashing(verified_slashing);
-            if let Some(event_handler) = beacon_chain.event_handler.as_ref()
+            if let Some(event_handler) = beacon_chain.block_importer.event_handler.as_ref()
                 && event_handler.has_proposer_slashing_subscribers()
             {
                 event_handler.register(EventKind::ProposerSlashing(Box::new(inner_slashing)));

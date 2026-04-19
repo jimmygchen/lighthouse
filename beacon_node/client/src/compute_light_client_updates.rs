@@ -25,6 +25,7 @@ pub async fn compute_light_client_updates<T: BeaconChainTypes>(
         let (parent_root, slot, sync_aggregate) = event;
 
         chain
+            .block_importer
             .light_client_server_cache
             .recompute_and_cache_updates(
                 chain.store.clone(),

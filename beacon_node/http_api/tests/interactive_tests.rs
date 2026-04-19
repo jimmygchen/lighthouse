@@ -580,13 +580,12 @@ pub async fn proposer_boost_re_org_test(
 
     let obs_time = slot_clock.start_of(slot_b).unwrap() + slot_clock.slot_duration() / 2;
     slot_clock.set_current_time(obs_time);
-    harness.chain.block_times_cache.write().set_time_observed(
-        block_b_root,
-        slot_b,
-        obs_time,
-        None,
-        None,
-    );
+    harness
+        .chain
+        .block_importer
+        .block_times_cache
+        .write()
+        .set_time_observed(block_b_root, slot_b, obs_time, None, None);
     harness.process_block_result(block_b.clone()).await.unwrap();
 
     // Add attestations to block B.

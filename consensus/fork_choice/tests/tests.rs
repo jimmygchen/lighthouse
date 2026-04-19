@@ -92,8 +92,8 @@ fn chain_verify_unaggregated_attestation_for_gossip<'a, T: BeaconChainTypes>(
         spec: &chain.spec,
         config: &chain.config,
         genesis_validators_root: chain.genesis_validators_root,
-        slasher: chain.slasher.as_deref(),
-        pre_finalization_block_cache: &chain.pre_finalization_block_cache,
+        slasher: chain.block_importer.slasher.as_deref(),
+        pre_finalization_block_cache: &chain.block_importer.pre_finalization_block_cache,
     };
     beacon_chain::attestation_verification::VerifiedUnaggregatedAttestation::verify(
         attn, subnet_id, &ctx,
