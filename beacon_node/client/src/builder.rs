@@ -839,9 +839,9 @@ where
 
         let chain = Arc::new(chain);
         // Install the strong back-reference from the block importer to the parent components.
-        chain.block_importer.set_system(&chain);
+        chain.block_importer.set_chain(&chain);
         // Install the strong back-reference from the block producer to the parent components.
-        chain.block_producer.set_system(&chain);
+        chain.block_producer.set_chain(&chain);
         self.beacon_chain = Some(chain);
         self.beacon_chain_builder = None;
 

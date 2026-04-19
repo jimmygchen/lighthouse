@@ -239,9 +239,7 @@ pub struct BlockImporter<T: BeaconChainTypes> {
     pub shutdown_sender: Sender<ShutdownReason>,
     // Weak back-reference to the parent `BeaconChain`, installed post-construction by the
     // builder. Uses `Weak` to avoid a reference cycle that would prevent cleanup in tests.
-    // Upgraded via `self.system()` inside method bodies; the upgrade never fails during the
-    // lifetime of a running beacon chain.
-    pub(crate) system: OnceLock<Weak<BeaconChain<T>>>,
+    pub(crate) chain: OnceLock<Weak<BeaconChain<T>>>,
 }
 
 impl<T: BeaconChainTypes> BlockImporter<T> {
@@ -308,24 +306,25 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
             sync_committee_manager,
             task_executor,
             shutdown_sender,
-            system: OnceLock::new(),
+            chain: OnceLock::new(),
         }
     }
 
     /// Install the weak back-reference to the parent `BeaconChain`.
     ///
     /// Must be called once by the builder after `BeaconChain` has been wrapped in an `Arc`.
-    pub fn set_system(&self, system: &Arc<BeaconChain<T>>) {
-        let _ = self.system.set(Arc::downgrade(system));
+    pub fn set_chain(&self, chain: &Arc<BeaconChain<T>>) {
+        let _ = self.chain.set(Arc::downgrade(chain));
     }
 
-    /// Get the parent reference by upgrading the `Weak`.
+    /// Get the parent `BeaconChain` by upgrading the `Weak` back-reference.
     ///
-    /// Panics if the parent has been dropped (programming error) or not installed yet.
-    pub(crate) fn system(&self) -> Arc<BeaconChain<T>> {
-        self.system
+    /// Only needed for cross-module helpers in `block_verification.rs` that still
+    /// take `&BeaconChain<T>`. Panics if the parent has been dropped or not installed.
+    pub(crate) fn chain(&self) -> Arc<BeaconChain<T>> {
+        self.chain
             .get()
-            .expect("BlockImporter system not installed; builder bug")
+            .expect("BlockImporter chain ref not installed; builder bug")
             .upgrade()
             .expect("BeaconChain dropped while BlockImporter still alive")
     }
@@ -487,7 +486,7 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
             let mut blocks = filtered_chain_segment.split_off(last_index);
             std::mem::swap(&mut blocks, &mut filtered_chain_segment);
 
-            let chain_clone = self.system().clone();
+            let chain_clone = self.chain().clone();
             let signature_verification_future = crate::utils::spawn_blocking_handle(
                 &self.task_executor,
                 move || signature_verify_chain_segment(blocks, &chain_clone),
@@ -579,7 +578,7 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
         &self,
         block: Arc<SignedBeaconBlock<T::EthSpec>>,
     ) -> Result<GossipVerifiedBlock<T>, BlockError> {
-        let chain_clone = self.system().clone();
+        let chain_clone = self.chain().clone();
         self.task_executor
             .clone()
             .spawn_blocking_handle(
@@ -947,7 +946,7 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
         metrics::inc_counter(&metrics::BLOCK_PROCESSING_REQUESTS);
 
         // A small closure to group the verification and import errors.
-        let chain_clone = self.system().clone();
+        let chain_clone = self.chain().clone();
         let importer_clone = self.clone();
         let import_block = async move {
             let execution_pending = unverified_block.into_execution_pending_block(
@@ -1314,7 +1313,7 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
         // being able to attest to it. DO NOT add any extra processing in this initial section
         // unless it must run before fork choice.
         // -----------------------------------------------------------------------------------------
-        let chain = self.system().clone();
+        let chain = self.chain().clone();
         let current_slot = self.slot_clock.now().ok_or(Error::UnableToReadSlot)?;
         let current_epoch = current_slot.epoch(T::EthSpec::slots_per_epoch());
         let block = signed_block.message();

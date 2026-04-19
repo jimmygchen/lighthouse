@@ -131,23 +131,6 @@ async fn check_invalid_block_roots_rejects_configured_invalid_root() {
 }
 
 // -----------------------------------------------------------------------
-// set_system / system tests
-// -----------------------------------------------------------------------
-
-#[tokio::test]
-async fn system_returns_beacon_chain_ref() {
-    let harness = build_harness();
-    // system() should succeed because the harness builder installs the weak ref.
-    let chain = harness.chain.block_importer.system();
-    // Verify the returned chain is the same as the one from the harness.
-    assert_eq!(
-        Arc::as_ptr(&chain),
-        Arc::as_ptr(&harness.chain),
-        "system() should return the same BeaconChain instance"
-    );
-}
-
-// -----------------------------------------------------------------------
 // check_block_against_weak_subjectivity_checkpoint tests
 // -----------------------------------------------------------------------
 

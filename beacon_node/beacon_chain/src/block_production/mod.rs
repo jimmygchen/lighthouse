@@ -173,9 +173,8 @@ pub struct BlockProducer<T: BeaconChainTypes> {
     pub(crate) fork_choice_signal_rx: Option<crate::fork_choice_signal::ForkChoiceSignalRx>,
     // Weak back-reference to the parent `BeaconChain`, installed post-construction by the
     // builder. Uses `Weak` to avoid a reference cycle that would prevent cleanup in tests.
-    // Upgraded via `self.system()` inside method bodies; the upgrade never fails during the
-    // lifetime of a running beacon chain.
-    pub(crate) system: OnceLock<Weak<BeaconChain<T>>>,
+    // Weak back-reference to the parent `BeaconChain`.
+    pub(crate) chain: OnceLock<Weak<BeaconChain<T>>>,
 }
 
 impl<T: BeaconChainTypes> BlockProducer<T> {
@@ -222,24 +221,25 @@ impl<T: BeaconChainTypes> BlockProducer<T> {
             genesis_block_root,
             task_executor,
             fork_choice_signal_rx,
-            system: OnceLock::new(),
+            chain: OnceLock::new(),
         }
     }
 
     /// Install the weak back-reference to the parent `BeaconChain`.
     ///
     /// Must be called once by the builder after `BeaconChain` has been wrapped in an `Arc`.
-    pub fn set_system(&self, system: &Arc<BeaconChain<T>>) {
-        let _ = self.system.set(Arc::downgrade(system));
+    pub fn set_chain(&self, chain: &Arc<BeaconChain<T>>) {
+        let _ = self.chain.set(Arc::downgrade(chain));
     }
 
-    /// Get the parent reference by upgrading the `Weak`.
+    /// Get the parent `BeaconChain` by upgrading the `Weak` back-reference.
     ///
-    /// Panics if the parent has been dropped (programming error) or not installed yet.
-    pub(crate) fn system(&self) -> Arc<BeaconChain<T>> {
-        self.system
+    /// Only needed for cross-module helpers that still take `&BeaconChain<T>`.
+    /// Panics if the parent has been dropped or not installed.
+    pub(crate) fn chain(&self) -> Arc<BeaconChain<T>> {
+        self.chain
             .get()
-            .expect("BlockProducer system not installed; builder bug")
+            .expect("BlockProducer chain ref not installed; builder bug")
             .upgrade()
             .expect("BeaconChain dropped while BlockProducer still alive")
     }
@@ -1119,7 +1119,7 @@ impl<T: BeaconChainTypes> BlockProducer<T> {
         // allows it to run concurrently with things like attestation packing.
         let prepare_payload_handle = if state.fork_name_unchecked().bellatrix_enabled() {
             let prepare_payload_handle = get_execution_payload(
-                self.system().clone(),
+                self.chain().clone(),
                 &state,
                 parent_root,
                 proposer_index,
