@@ -537,7 +537,7 @@
 <section id="deps">
   <h2 class="fade-in">Structure <span class="badge">Overview</span></h2>
   <p class="lead fade-in">
-    <code>BeaconChain</code> is fully replaced. Components own the logic. Callers hold refs to components but no logic of their own.
+    <code>BeaconChain&lt;T&gt;</code> retains the name but has zero methods. Its 200+ methods are now owned by components and orchestrators. Callers access logic through typed component refs.
   </p>
 
   <div class="fade-in" style="margin:2rem 0; overflow-x:auto; padding-bottom:1rem;">
@@ -815,7 +815,7 @@
             <span class="tag own">AttestationManager</span>
             <span class="tag own">SyncCommitteeManager</span>
             <span class="tag own">DataAvailabilityMgr</span>
-            <span class="tag own">BlockImportState</span>
+            <span class="tag own">BlockImporter</span>
             <span class="tag own">CanonicalHead</span>
           </div>
         </div>
@@ -840,38 +840,16 @@
     </div>
   </details>
 
-  <details class="fade-in">
-    <summary>Unit test example &mdash; no harness needed</summary>
-    <div class="detail-body">
-      <p style="margin-bottom:1rem;">Components are directly testable. Construct with <code>::new()</code>, pass in test state, assert results.</p>
-      <div class="code-block" style="margin:0;">
-        <div class="code-header">
-          <span class="dot" aria-hidden="true"></span><span class="dot" aria-hidden="true"></span><span class="dot" aria-hidden="true"></span>
-          <span>direct component test</span>
-        </div>
-<pre><span class="kw">#[test]</span>
-<span class="kw">fn</span> <span class="fn">rejects_exit_for_unknown_validator</span>() {
-    <span class="kw">let</span> spec = <span class="ty">Arc</span>::new(<span class="ty">ChainSpec</span>::<span class="fn">mainnet</span>());
-    <span class="kw">let</span> ops = <span class="ty">OperationsManager</span>::<span class="fn">new</span>(spec.clone(), <span class="ty">Arc</span>::new(<span class="ty">OperationPool</span>::<span class="fn">new</span>()));
-    <span class="kw">let</span> (state, _keypairs) = <span class="fn">create_genesis_state</span>(&amp;spec, <span class="lt">4</span>);
 
-    <span class="kw">let</span> exit = <span class="fn">make_exit_for_validator</span>(<span class="lt">999</span>);
-    <span class="mc">assert!</span>(ops.<span class="fn">verify_voluntary_exit</span>(exit, &amp;state, <span class="ty">Epoch</span>::new(<span class="lt">0</span>)).<span class="fn">is_err</span>());
-}</pre>
-      </div>
-    </div>
-  </details>
 </section>
 
 <!-- ════════════ WHAT WE LEARNED ════════════ -->
 <section id="results">
   <h2 class="fade-in">Results <span class="badge">Status</span></h2>
   <p class="lead fade-in">
-    Seven components extracted plus two scoped orchestrators (<code>BlockImporter&lt;T&gt;</code>,
-    <code>BlockProducer&lt;T&gt;</code>). ~2,000 lines of new unit tests, full CI green,
-    and a local testnet that produces blocks and finalises. The top-level type
-    (<code>BeaconChain&lt;T&gt;</code>) shrank from 7,317 to ~1,000 lines and lost its
-    200+ methods.
+    <code>BeaconChain&lt;T&gt;</code> went from 7,317 lines and 200+ methods to
+    120 lines and zero methods. Logic lives in 7 components and 2 orchestrators,
+    each unit-testable without the harness.
   </p>
 
   <div class="compare fade-in">
@@ -928,59 +906,45 @@
 
   <h3 class="fade-in" style="margin-top:2.5rem; font-size:1.1rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-muted);">Key metrics</h3>
 
-  <div class="fade-in" style="margin:1.5rem 0 0;">
-    <div style="display:grid; gap:1.25rem;">
-
-      <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card);">
-        <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:0.75rem;">
-          <span style="font-size:0.8rem; font-weight:600;">beacon_chain.rs</span>
-          <span style="font-size:0.75rem; color:var(--text-muted);">7,317 &rarr; 120 lines</span>
-        </div>
-        <div style="display:flex; gap:2px; height:28px; border-radius:6px; overflow:hidden;">
-          <div style="width:98.4%; background:var(--accent2); display:flex; align-items:center; justify-content:center; font-size:0.65rem; font-weight:700; color:var(--bg);">moved to owning modules</div>
-          <div style="width:1.6%; background:var(--accent); min-width:24px; display:flex; align-items:center; justify-content:center; font-size:0.6rem; font-weight:700; color:var(--bg);">120</div>
-        </div>
+  <div class="fade-in" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(160px,1fr)); gap:1rem; margin:1.5rem 0 0;">
+    <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card); text-align:center;">
+      <div style="font-size:0.65rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">beacon_chain.rs</div>
+      <div style="font-size:1.8rem; font-weight:800; margin-top:0.2rem;">
+        <span style="color:var(--accent5); font-size:1rem; text-decoration:line-through;">7,317</span>
+        <span style="color:var(--accent2);">120</span>
       </div>
-
-      <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card);">
-        <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:0.75rem;">
-          <span style="font-size:0.8rem; font-weight:600;">Top-level fields</span>
-          <span style="font-size:0.75rem; color:var(--text-muted);">40+ &rarr; 21</span>
-        </div>
-        <div style="display:flex; gap:2px; height:28px; border-radius:6px; overflow:hidden;">
-          <div style="width:47.5%; background:var(--accent5); display:flex; align-items:center; justify-content:center; font-size:0.65rem; font-weight:700; color:var(--bg);">removed (absorbed by components)</div>
-          <div style="width:19%; background:var(--accent); display:flex; align-items:center; justify-content:center; font-size:0.6rem; font-weight:600; color:var(--bg);">8 components</div>
-          <div style="width:14.5%; background:var(--accent3); display:flex; align-items:center; justify-content:center; font-size:0.6rem; font-weight:600; color:var(--bg);">6 infra</div>
-          <div style="width:12%; background:var(--accent4); display:flex; align-items:center; justify-content:center; font-size:0.6rem; font-weight:600; color:var(--bg);">5 genesis</div>
-          <div style="width:7%; background:var(--accent6); display:flex; align-items:center; justify-content:center; font-size:0.6rem; font-weight:600; color:var(--bg);">2</div>
-        </div>
-      </div>
-
-      <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card);">
-        <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:0.75rem;">
-          <span style="font-size:0.8rem; font-weight:600;">Methods on the god object</span>
-          <span style="font-size:0.75rem; color:var(--text-muted);">200+ &rarr; 0</span>
-        </div>
-        <div style="display:flex; gap:2px; height:28px; border-radius:6px; overflow:hidden;">
-          <div style="width:100%; background:var(--accent2); display:flex; align-items:center; justify-content:center; font-size:0.65rem; font-weight:700; color:var(--bg);">all moved to components and orchestrators</div>
-        </div>
-      </div>
-
+      <div style="font-size:0.7rem; color:var(--text-muted);">lines</div>
     </div>
-
-    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px,1fr)); gap:1rem; margin-top:1.25rem;">
-      <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card); text-align:center;">
-        <div style="font-size:2rem; font-weight:800; color:var(--accent);">7 + 2</div>
-        <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.3rem;">components + orchestrators</div>
+    <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card); text-align:center;">
+      <div style="font-size:0.65rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">Fields</div>
+      <div style="font-size:1.8rem; font-weight:800; margin-top:0.2rem;">
+        <span style="color:var(--accent5); font-size:1rem; text-decoration:line-through;">40+</span>
+        <span style="color:var(--accent2);">21</span>
       </div>
-      <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card); text-align:center;">
-        <div style="font-size:2rem; font-weight:800; color:var(--accent2);">~2,000</div>
-        <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.3rem;">new unit test lines (no harness)</div>
+      <div style="font-size:0.7rem; color:var(--text-muted);">8 components &middot; 6 infra &middot; 5 genesis &middot; 2 other</div>
+    </div>
+    <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card); text-align:center;">
+      <div style="font-size:0.65rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">Methods</div>
+      <div style="font-size:1.8rem; font-weight:800; margin-top:0.2rem;">
+        <span style="color:var(--accent5); font-size:1rem; text-decoration:line-through;">200+</span>
+        <span style="color:var(--accent2);">0</span>
       </div>
-      <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card); text-align:center;">
-        <div style="font-size:2rem; font-weight:800; color:var(--accent2);">425/425</div>
-        <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.3rem;">Fulu tests pass (release)</div>
-      </div>
+      <div style="font-size:0.7rem; color:var(--text-muted);">on the top-level type</div>
+    </div>
+    <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card); text-align:center;">
+      <div style="font-size:0.65rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">Components</div>
+      <div style="font-size:1.8rem; font-weight:800; color:var(--accent); margin-top:0.2rem;">7 + 2</div>
+      <div style="font-size:0.7rem; color:var(--text-muted);">+ orchestrators</div>
+    </div>
+    <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card); text-align:center;">
+      <div style="font-size:0.65rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">New unit tests</div>
+      <div style="font-size:1.8rem; font-weight:800; color:var(--accent2); margin-top:0.2rem;">~2,000</div>
+      <div style="font-size:0.7rem; color:var(--text-muted);">lines &middot; no harness</div>
+    </div>
+    <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card); text-align:center;">
+      <div style="font-size:0.65rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">Fulu tests</div>
+      <div style="font-size:1.8rem; font-weight:800; color:var(--accent2); margin-top:0.2rem;">425/425</div>
+      <div style="font-size:0.7rem; color:var(--text-muted);">release mode</div>
     </div>
   </div>
 
@@ -1006,8 +970,10 @@
       </div>
       <div style="font-size:0.8rem; color:var(--text-muted); margin-top:0.5rem;">
         4-node Lighthouse + Geth mesh on the final refactored code.
-        <strong>0 errors, 0 panics, 0 reorgs.</strong>
-        Block import delay avg ~64ms. Produces blocks and finalises normally.
+        <strong>1,468 slots</strong>, <strong>389 blocks produced</strong>,
+        <strong>0 errors</strong> across all nodes.
+        Block import delay: avg <strong>81ms</strong> (range 27&ndash;94ms).
+        Finalising normally.
       </div>
     </div>
 
@@ -1018,7 +984,7 @@
       </div>
       <div style="font-size:0.8rem; color:var(--text-muted); margin-top:0.5rem;">
         <code>cargo llvm-cov nextest --release --workspace</code> &mdash;
-        <a href="http://204.168.250.92:8082/html/" style="color:var(--accent);">full report</a>.
+        <a href="http://204.168.250.92:8082/" style="color:var(--accent);">full report</a>.
         Same command and flags as the unstable baseline.
       </div>
     </div>
