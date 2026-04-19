@@ -472,57 +472,48 @@
 
 <!-- ════════════ WORKFLOW ════════════ -->
 <section id="workflow">
-  <h2 class="fade-in">How We Work <span class="badge">Workflow</span></h2>
+  <h2 class="fade-in">What This Unlocks <span class="badge">Workflow</span></h2>
   <p class="lead fade-in">
-    Modular components with clean boundaries let humans and LLMs each focus on what they're best at.
+    The modular architecture doesn't prescribe a workflow &mdash; it makes new ones possible.
   </p>
 
-  <div class="workflow-layers fade-in">
-    <div class="workflow-col human">
-      <h3>Humans own</h3>
-      <div class="wf-item">
-        <div class="wf-title">Architecture &amp; component design</div>
-        <div class="wf-desc">Define component boundaries, what each component owns, how they compose</div>
-      </div>
-      <div class="wf-item">
-        <div class="wf-title">Specifications</div>
-        <div class="wf-desc">Scenario specs for behavior alignment, correctness properties and invariants for safety</div>
-      </div>
-      <div class="wf-item">
-        <div class="wf-title">Correctness &amp; safety review</div>
-        <div class="wf-desc">Consensus constraints, liveness properties, performance-critical paths</div>
-      </div>
-      <div class="wf-item">
-        <div class="wf-title">Integration decisions</div>
-        <div class="wf-desc">How components wire together, lock ordering, cross-component coordination</div>
-      </div>
+  <div class="fade-in" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px,1fr)); gap:1rem; margin:1.5rem 0;">
+    <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card);">
+      <strong style="color:var(--accent);">Delegatable implementation</strong>
+      <p style="font-size:0.8rem; color:var(--text-muted); margin:0.5rem 0 0;">
+        Components have clear boundaries and owned state. An implementation task
+        can be scoped to a single component without understanding the rest of the
+        chain &mdash; whether that work is done by a human, an LLM, or both.
+      </p>
     </div>
-
-    <div class="workflow-divider" aria-hidden="true">&#8652;</div>
-
-    <div class="workflow-col ai">
-      <h3>LLMs handle</h3>
-      <div class="wf-item">
-        <div class="wf-title">Component implementation</div>
-        <div class="wf-desc">Implement against specs within well-defined component boundaries</div>
-      </div>
-      <div class="wf-item">
-        <div class="wf-title">Test generation</div>
-        <div class="wf-desc">Generate unit tests directly &mdash; components are testable without harness infrastructure</div>
-      </div>
-      <div class="wf-item">
-        <div class="wf-title">Fast iteration</div>
-        <div class="wf-desc">Iterate on implementation details, refactor internals without affecting other components</div>
-      </div>
-      <div class="wf-item">
-        <div class="wf-title">Boilerplate &amp; mechanical work</div>
-        <div class="wf-desc">Serialization, observer patterns, pool management, routine verification logic</div>
-      </div>
+    <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card);">
+      <strong style="color:var(--accent);">Unit-testable without the harness</strong>
+      <p style="font-size:0.8rem; color:var(--text-muted); margin:0.5rem 0 0;">
+        Components can be constructed directly with minimal deps &mdash;
+        no <code>BeaconChainHarness</code>, no store, no fork choice.
+        Tests run fast and validate generated code before integration.
+      </p>
+    </div>
+    <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card);">
+      <strong style="color:var(--accent);">Faster review</strong>
+      <p style="font-size:0.8rem; color:var(--text-muted); margin:0.5rem 0 0;">
+        A PR that touches <code>AttestationManager</code> can be reviewed
+        against its interface and tests alone. The reviewer doesn't need to
+        trace through a 7,000-line struct to assess impact.
+      </p>
+    </div>
+    <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card);">
+      <strong style="color:var(--accent);">Safe iteration</strong>
+      <p style="font-size:0.8rem; color:var(--text-muted); margin:0.5rem 0 0;">
+        Refactoring a component's internals doesn't risk breaking unrelated
+        subsystems. The type system enforces boundaries that the god object
+        left implicit.
+      </p>
     </div>
   </div>
 
   <div class="callout fade-in">
-    As LLMs improve, the proportion of work they can handle grows &mdash; but only if the codebase is structured for it. A god object is a ceiling. Modular components are a foundation that scales with model capability.
+    As LLM capabilities grow, the proportion of work that can be delegated grows with them &mdash; but only if the codebase is structured for it. A god object is a ceiling. Modular components are a foundation.
   </div>
 </section>
 
