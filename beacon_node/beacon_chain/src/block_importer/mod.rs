@@ -11,8 +11,8 @@
 mod tests;
 
 use crate::attestation_manager::AttestationManager;
-use crate::beacon_components::BeaconStore;
-use crate::beacon_components::{
+use crate::beacon_chain::BeaconStore;
+use crate::beacon_chain::{
     AvailabilityProcessingStatus, BeaconChainTypes, BeaconForkChoice, ChainSegmentResult,
     EARLY_ATTESTER_CACHE_HISTORIC_SLOTS, HashBlockTuple,
 };
@@ -329,7 +329,7 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
 
         // Filter uninteresting blocks from the chain segment in a blocking task.
         let importer_clone = self.clone();
-        let filtered_chain_segment_future = crate::beacon_components::spawn_blocking_handle(
+        let filtered_chain_segment_future = crate::beacon_chain::spawn_blocking_handle(
             &self.task_executor,
             move || importer_clone.filter_chain_segment(chain_segment),
             "filter_chain_segment",
@@ -362,7 +362,7 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
             std::mem::swap(&mut blocks, &mut filtered_chain_segment);
 
             let chain_clone = self.system().clone();
-            let signature_verification_future = crate::beacon_components::spawn_blocking_handle(
+            let signature_verification_future = crate::beacon_chain::spawn_blocking_handle(
                 &self.task_executor,
                 move || signature_verify_chain_segment(blocks, &chain_clone),
                 "signature_verify_chain_segment",
@@ -1160,7 +1160,7 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
 
         let block_root = {
             let importer_clone = self.clone();
-            crate::beacon_components::spawn_blocking_handle(
+            crate::beacon_chain::spawn_blocking_handle(
                 &self.task_executor,
                 move || {
                     importer_clone.import_block(
@@ -1415,15 +1415,13 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
         // See https://github.com/sigp/lighthouse/issues/2028
         let (_, signed_block, block_data) = signed_block.deconstruct();
 
-        if let Some(blobs_or_columns_store_op) =
-            crate::beacon_components::get_blobs_or_columns_store_op(
-                &self.data_availability_manager,
-                &self.spec,
-                block_root,
-                signed_block.slot(),
-                block_data,
-            )
-        {
+        if let Some(blobs_or_columns_store_op) = crate::beacon_chain::get_blobs_or_columns_store_op(
+            &self.data_availability_manager,
+            &self.spec,
+            block_root,
+            signed_block.slot(),
+            block_data,
+        ) {
             ops.push(blobs_or_columns_store_op);
         }
 
@@ -1518,7 +1516,7 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
         // This ensures we only perform the check once.
         if current_head_finalized_checkpoint.epoch < wss_checkpoint.epoch
             && wss_checkpoint.epoch <= new_finalized_checkpoint.epoch
-            && let Err(e) = crate::beacon_components::verify_weak_subjectivity_checkpoint(
+            && let Err(e) = crate::beacon_chain::verify_weak_subjectivity_checkpoint(
                 &self.system(),
                 wss_checkpoint,
                 block_root,
@@ -1611,7 +1609,7 @@ fn import_block_update_validator_monitor<T: BeaconChainTypes>(
                         &components.canonical_head,
                         &components.spec,
                         load_slot,
-                        crate::beacon_components::StateSkipConfig::WithoutStateRoots,
+                        crate::beacon_chain::StateSkipConfig::WithoutStateRoots,
                     )
                 },
             )

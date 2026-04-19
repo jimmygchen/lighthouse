@@ -1,7 +1,7 @@
 use crate::ChainConfig;
 use crate::CustodyContext;
 use crate::attestation_manager::AttestationManager;
-use crate::beacon_components::{
+use crate::beacon_chain::{
     BEACON_CHAIN_DB_KEY, CanonicalHead, LightClientProducerEvent, OP_POOL_DB_KEY,
 };
 use crate::beacon_proposer_cache::BeaconProposerCache;
@@ -1052,9 +1052,7 @@ where
         let operations = Arc::new(OperationsManager::with_persist_fn(
             self.spec.clone(),
             op_pool.clone(),
-            Box::new(move |op_pool| {
-                crate::beacon_components::persist_op_pool(&persist_store, op_pool)
-            }),
+            Box::new(move |op_pool| crate::beacon_chain::persist_op_pool(&persist_store, op_pool)),
         ));
         let sync_committee_manager = Arc::new(SyncCommitteeManager::new(
             self.spec.clone(),
@@ -1176,7 +1174,7 @@ where
 
         // Only perform the check if it was configured.
         if let Some(wss_checkpoint) = beacon_chain.config.weak_subjectivity_checkpoint
-            && let Err(e) = crate::beacon_components::verify_weak_subjectivity_checkpoint(
+            && let Err(e) = crate::beacon_chain::verify_weak_subjectivity_checkpoint(
                 &beacon_chain,
                 wss_checkpoint,
                 head.beacon_block_root,
@@ -1207,7 +1205,7 @@ where
                 .update_data_column_custody_info(Some(cgc_change_effective_slot));
 
             // Persist change to disk.
-            crate::beacon_components::persist_custody_ctx::<
+            crate::beacon_chain::persist_custody_ctx::<
                 Witness<TSlotClock, E, THotStore, TColdStore>,
             >(
                 &beacon_chain.spec,

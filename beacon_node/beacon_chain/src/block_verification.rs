@@ -64,7 +64,7 @@ use crate::validator_monitor::HISTORIC_EPOCHS as VALIDATOR_MONITOR_HISTORIC_EPOC
 use crate::validator_pubkey_cache::ValidatorPubkeyCache;
 use crate::{
     BeaconChain, BeaconChainError, BeaconChainTypes,
-    beacon_components::{BeaconForkChoice, ForkChoiceError},
+    beacon_chain::{BeaconForkChoice, ForkChoiceError},
     metrics,
 };
 use bls::{PublicKey, PublicKeyBytes};

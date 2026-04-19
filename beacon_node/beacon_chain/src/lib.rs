@@ -4,7 +4,7 @@ pub mod attestation_simulator;
 pub mod attestation_verification;
 pub mod beacon_block_reward;
 pub mod beacon_block_streamer;
-mod beacon_components;
+mod beacon_chain;
 mod beacon_fork_choice_store;
 pub mod beacon_proposer_cache;
 mod beacon_snapshot;
@@ -73,7 +73,7 @@ pub mod validator_monitor;
 pub mod validator_pubkey_cache;
 pub mod validator_query_service;
 
-pub use self::beacon_components::{
+pub use self::beacon_chain::{
     AttestationProcessingOutcome,
     AvailabilityProcessingStatus,
     BeaconBlockResponse,

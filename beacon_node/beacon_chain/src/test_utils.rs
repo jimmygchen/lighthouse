@@ -15,7 +15,7 @@ use crate::{
 };
 pub use crate::{
     BeaconChainError, NotifyExecutionLayer, ProduceBlockVerification,
-    beacon_components::{BEACON_CHAIN_DB_KEY, FORK_CHOICE_DB_KEY, OP_POOL_DB_KEY},
+    beacon_chain::{BEACON_CHAIN_DB_KEY, FORK_CHOICE_DB_KEY, OP_POOL_DB_KEY},
     migrate::MigratorConfig,
     single_attestation::single_attestation_to_attestation,
     sync_committee_verification::Error as SyncCommitteeError,
@@ -953,13 +953,13 @@ where
     }
 
     pub fn knows_head(&self, block_hash: &SignedBeaconBlockHash) -> bool {
-        crate::beacon_components::heads(&self.chain.canonical_head)
+        crate::beacon_chain::heads(&self.chain.canonical_head)
             .iter()
             .any(|(head, _)| *head == Hash256::from(*block_hash))
     }
 
     pub fn assert_knows_head(&self, head_block_root: Hash256) {
-        let heads = crate::beacon_components::heads(&self.chain.canonical_head);
+        let heads = crate::beacon_chain::heads(&self.chain.canonical_head);
         if !heads.iter().any(|(head, _)| *head == head_block_root) {
             let fork_choice = self.chain.canonical_head.fork_choice_read_lock();
             if heads.is_empty() {
@@ -4188,7 +4188,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         // Canonical head needs to be processed first as otherwise finalized blocks aren't detected
         // properly.
         let heads = {
-            let mut heads = crate::beacon_components::heads(&self.canonical_head);
+            let mut heads = crate::beacon_chain::heads(&self.canonical_head);
             let canonical_head_index = heads
                 .iter()
                 .position(|(block_hash, _)| *block_hash == canonical_head_hash)

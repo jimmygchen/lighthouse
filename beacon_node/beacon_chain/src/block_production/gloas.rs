@@ -35,8 +35,8 @@ use types::{
 use super::BlockProducer;
 use crate::{
     BeaconChainError, BeaconChainTypes, BlockProductionError, ProduceBlockVerification,
-    beacon_components::shuffling_is_compatible_with_fork_choice,
-    graffiti_calculator::GraffitiSettings, metrics,
+    beacon_chain::shuffling_is_compatible_with_fork_choice, graffiti_calculator::GraffitiSettings,
+    metrics,
 };
 
 pub const BID_VALUE_SELF_BUILD: u64 = 0;
@@ -694,7 +694,7 @@ impl<T: BeaconChainTypes> BlockProducer<T> {
         let builder_params = BuilderParams {
             pubkey,
             slot: state.slot(),
-            chain_health: crate::beacon_components::is_healthy(
+            chain_health: crate::beacon_chain::is_healthy(
                 &self.canonical_head,
                 &self.store,
                 &self.slot_clock,
@@ -855,7 +855,7 @@ impl<T: BeaconChainTypes> BlockProducer<T> {
         // Use a blocking task to interact with the `canonical_head` lock otherwise we risk blocking the
         // core `tokio` executor.
         let canonical_head = self.canonical_head.clone();
-        let forkchoice_update_params = crate::beacon_components::spawn_blocking_handle(
+        let forkchoice_update_params = crate::beacon_chain::spawn_blocking_handle(
             &self.task_executor,
             move || canonical_head.cached_head().forkchoice_update_parameters(),
             "prepare_execution_payload_forkchoice_update_params",

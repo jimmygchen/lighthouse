@@ -4,7 +4,7 @@
 //! `Arc<BeaconChain<T>>` directly. Callers access these via delegation methods
 //! on `BeaconChain` defined elsewhere (e.g., `canonical_head.rs`).
 
-use crate::beacon_components::{
+use crate::beacon_chain::{
     BeaconChainTypes, INVALID_JUSTIFIED_PAYLOAD_SHUTDOWN_REASON, OverrideForkchoiceUpdate,
     PrePayloadAttributes,
 };
@@ -100,7 +100,7 @@ pub async fn process_invalid_execution_payload<T: BeaconChainTypes>(
     // on the core executor is bad.
     let inner_chain = chain.clone();
     let inner_op = op.clone();
-    let fork_choice_result = crate::beacon_components::spawn_blocking_handle(
+    let fork_choice_result = crate::beacon_chain::spawn_blocking_handle(
         &chain.task_executor,
         move || {
             inner_chain
@@ -131,7 +131,7 @@ pub async fn process_invalid_execution_payload<T: BeaconChainTypes>(
     // Use a blocking task since it interacts with the `canonical_head` lock. Lock contention
     // on the core executor is bad.
     let inner_chain = chain.clone();
-    let justified_block = crate::beacon_components::spawn_blocking_handle(
+    let justified_block = crate::beacon_chain::spawn_blocking_handle(
         &chain.task_executor,
         move || {
             inner_chain
@@ -212,7 +212,7 @@ pub async fn prepare_beacon_proposer<T: BeaconChainTypes>(
     let inner_chain = chain.clone();
     let tolerance_slots = chain.config.sync_tolerance_epochs * T::EthSpec::slots_per_epoch();
     let maybe_prep_data =
-        crate::beacon_components::spawn_blocking_handle(
+        crate::beacon_chain::spawn_blocking_handle(
             &chain.task_executor,
             move || {
                 let cached_head = inner_chain.canonical_head.cached_head();
@@ -271,7 +271,7 @@ pub async fn prepare_beacon_proposer<T: BeaconChainTypes>(
 
         let withdrawals = if prepare_slot_fork.capella_enabled() {
             let inner_chain = chain.clone();
-            crate::beacon_components::spawn_blocking_handle(
+            crate::beacon_chain::spawn_blocking_handle(
                 &chain.task_executor,
                 move || {
                     inner_chain
@@ -390,7 +390,7 @@ pub async fn update_execution_engine_forkchoice<T: BeaconChainTypes>(
     // the current head at the next slot.
     let params = if override_forkchoice_update == OverrideForkchoiceUpdate::Yes {
         let inner_chain = chain.clone();
-        crate::beacon_components::spawn_blocking_handle(
+        crate::beacon_chain::spawn_blocking_handle(
             &chain.task_executor,
             move || {
                 inner_chain
@@ -457,7 +457,7 @@ pub async fn update_execution_engine_forkchoice<T: BeaconChainTypes>(
             PayloadStatus::Valid => {
                 // Ensure that fork choice knows that the block is no longer optimistic.
                 let inner_chain = chain.clone();
-                let fork_choice_update_result = crate::beacon_components::spawn_blocking_handle(
+                let fork_choice_update_result = crate::beacon_chain::spawn_blocking_handle(
                     &chain.task_executor,
                     move || {
                         inner_chain

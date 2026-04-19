@@ -35,9 +35,7 @@ use crate::persisted_fork_choice::PersistedForkChoice;
 use crate::shuffling_cache::BlockShufflingIds;
 use crate::{
     BeaconChain, BeaconChainError as Error, BeaconChainTypes, BeaconSnapshot,
-    beacon_components::{
-        BeaconForkChoice, BeaconStore, FORK_CHOICE_DB_KEY, OverrideForkchoiceUpdate,
-    },
+    beacon_chain::{BeaconForkChoice, BeaconStore, FORK_CHOICE_DB_KEY, OverrideForkchoiceUpdate},
     block_times_cache::BlockTimesCache,
     events::ServerSentEventHandler,
     metrics,
@@ -572,7 +570,7 @@ pub async fn recompute_head_at_slot<T: BeaconChainTypes>(
     let _timer = metrics::start_timer(&metrics::FORK_CHOICE_TIMES);
 
     let chain_clone = chain.clone();
-    match crate::beacon_components::spawn_blocking_handle(
+    match crate::beacon_chain::spawn_blocking_handle(
         &chain.task_executor,
         move || recompute_head_at_slot_internal(&chain_clone, current_slot),
         "recompute_head_internal",

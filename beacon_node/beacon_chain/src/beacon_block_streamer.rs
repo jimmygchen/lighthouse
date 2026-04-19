@@ -427,7 +427,7 @@ impl<T: BeaconChainTypes> BeaconBlockStreamer<T> {
     ) -> Result<Vec<(Hash256, LoadResult<T::EthSpec>)>, BeaconChainError> {
         let streamer = self.clone();
         // Loading from the DB is slow -> spawn a blocking task
-        crate::beacon_components::spawn_blocking_handle(
+        crate::beacon_chain::spawn_blocking_handle(
             &self.beacon_chain.task_executor,
             move || {
                 let mut db_blocks = Vec::new();
@@ -560,7 +560,7 @@ impl<T: BeaconChainTypes> BeaconBlockStreamer<T> {
             let block_result = if cached_block.is_some() {
                 Ok(cached_block)
             } else {
-                crate::beacon_components::get_block::<T>(
+                crate::beacon_chain::get_block::<T>(
                     &self.beacon_chain.store,
                     self.beacon_chain.execution_manager.execution_layer(),
                     &self.beacon_chain.spec,
@@ -820,16 +820,15 @@ mod tests {
         let mut expected_blocks = vec![];
         // get all blocks the old fashioned way
         for root in &block_roots {
-            let block =
-                crate::beacon_components::get_block::<EphemeralHarnessType<MinimalEthSpec>>(
-                    &harness.chain.store,
-                    harness.chain.execution_manager.execution_layer(),
-                    &harness.chain.spec,
-                    root,
-                )
-                .await
-                .expect("should get block")
-                .expect("block should exist");
+            let block = crate::beacon_chain::get_block::<EphemeralHarnessType<MinimalEthSpec>>(
+                &harness.chain.store,
+                harness.chain.execution_manager.execution_layer(),
+                &harness.chain.spec,
+                root,
+            )
+            .await
+            .expect("should get block")
+            .expect("block should exist");
             expected_blocks.push(block);
         }
 

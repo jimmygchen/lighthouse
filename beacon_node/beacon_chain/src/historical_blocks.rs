@@ -168,7 +168,7 @@ pub fn import_historical_block_batch<T: BeaconChainTypes>(
         }
 
         // Store the blobs or data columns too
-        if let Some(op) = crate::beacon_components::get_blobs_or_columns_store_op(
+        if let Some(op) = crate::beacon_chain::get_blobs_or_columns_store_op(
             &chain.data_availability_manager,
             &chain.spec,
             block_root,

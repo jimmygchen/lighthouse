@@ -46,7 +46,7 @@ use types::*;
 use types::{BeaconState, Hash256, Slot, StatePayloadStatus};
 
 use crate::attestation_manager::AttestationManager;
-use crate::beacon_components::{
+use crate::beacon_chain::{
     BeaconBlockResponse, BeaconBlockResponseWrapper, BeaconStore, PartialBeaconBlock,
     PrePayloadAttributes, ProduceBlockVerification, shuffling_is_compatible_with_fork_choice,
 };
@@ -1029,7 +1029,7 @@ impl<T: BeaconChainTypes> BlockProducer<T> {
         let builder_params = BuilderParams {
             pubkey,
             slot: state.slot(),
-            chain_health: crate::beacon_components::is_healthy(
+            chain_health: crate::beacon_chain::is_healthy(
                 &self.canonical_head,
                 &self.store,
                 &self.slot_clock,

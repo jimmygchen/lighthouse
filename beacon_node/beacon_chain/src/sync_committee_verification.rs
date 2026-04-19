@@ -344,7 +344,7 @@ impl<T: BeaconChainTypes> VerifiedSyncContribution<T> {
                         ctx.canonical_head,
                         ctx.spec,
                         load_slot,
-                        crate::beacon_components::StateSkipConfig::WithoutStateRoots,
+                        crate::beacon_chain::StateSkipConfig::WithoutStateRoots,
                     )
                 },
             )?
@@ -519,7 +519,7 @@ impl VerifiedSyncCommitteeMessage {
                         ctx.canonical_head,
                         ctx.spec,
                         load_slot,
-                        crate::beacon_components::StateSkipConfig::WithoutStateRoots,
+                        crate::beacon_chain::StateSkipConfig::WithoutStateRoots,
                     )
                 },
             )?

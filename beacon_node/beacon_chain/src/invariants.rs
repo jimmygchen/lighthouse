@@ -4,7 +4,7 @@
 //! to `HotColdDB::check_invariants`.
 
 use crate::BeaconChain;
-use crate::beacon_components::BeaconChainTypes;
+use crate::beacon_chain::BeaconChainTypes;
 use store::invariants::{InvariantCheckResult, InvariantContext};
 
 /// Run all database invariant checks.

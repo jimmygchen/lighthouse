@@ -4,7 +4,7 @@
 //! instead of `&BeaconChain`. Thin delegations on `impl BeaconChain<T>` are
 //! provided so existing callers can continue to use `chain.method()`.
 
-use crate::beacon_components::{
+use crate::beacon_chain::{
     BeaconChainTypes, BeaconStore, FinalizationAndCanonicity, StateSkipConfig, WhenSlotSkipped,
 };
 use crate::canonical_head::CanonicalHead;

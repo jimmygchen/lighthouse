@@ -14,7 +14,7 @@ static KEYPAIRS: LazyLock<Vec<Keypair>> =
 /// Compile-time regression test: ensures the `BlockImporter` is wired up and reachable from the
 /// `BeaconChain` held by `BeaconChainHarness`.
 #[tokio::test]
-async fn block_importer_is_accessible_on_beacon_components() {
+async fn block_importer_is_accessible_on_beacon_chain() {
     let spec = Arc::new(test_spec::<E>());
     let harness = BeaconChainHarness::builder(MinimalEthSpec)
         .spec(spec)

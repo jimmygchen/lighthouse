@@ -203,7 +203,7 @@ pub async fn import_available_execution_payload_envelope<T: BeaconChainTypes>(
     let block_root = {
         let task_executor = chain.task_executor.clone();
         let chain = chain.clone();
-        crate::beacon_components::spawn_blocking_handle(
+        crate::beacon_chain::spawn_blocking_handle(
             &task_executor,
             move || {
                 import_execution_payload_envelope(
@@ -273,7 +273,7 @@ fn import_execution_payload_envelope<T: BeaconChainTypes>(
 
     let mut ops = vec![];
 
-    if let Some(blobs_or_columns_store_op) = crate::beacon_components::get_blobs_or_columns_store_op(
+    if let Some(blobs_or_columns_store_op) = crate::beacon_chain::get_blobs_or_columns_store_op(
         &chain.data_availability_manager,
         &chain.spec,
         block_root,

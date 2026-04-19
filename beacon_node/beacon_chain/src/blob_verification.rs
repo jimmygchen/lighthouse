@@ -3,7 +3,7 @@ use slot_clock::SlotClock;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use crate::beacon_components::{BeaconChain, BeaconChainTypes};
+use crate::beacon_chain::{BeaconChain, BeaconChainTypes};
 use crate::block_verification::{
     BlockSlashInfo, get_validator_pubkey_cache, process_block_slash_info,
 };

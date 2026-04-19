@@ -1,4 +1,4 @@
-use crate::beacon_components::BEACON_CHAIN_DB_KEY;
+use crate::beacon_chain::BEACON_CHAIN_DB_KEY;
 use ssz::{Decode, Encode};
 use ssz_derive::{Decode, Encode};
 use store::{DBColumn, Error as StoreError, KeyValueStoreOp, StoreItem};
