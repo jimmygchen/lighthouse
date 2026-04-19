@@ -932,47 +932,59 @@
 
   <h3 class="fade-in" style="margin-top:2.5rem; font-size:1.1rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-muted);">Key metrics</h3>
 
-  <div class="fade-in" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px,1fr)); gap:1rem; margin:1rem 0 0;">
-    <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card);">
-      <div style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">Top-level file</div>
-      <div style="font-size:1.6rem; font-weight:700; margin-top:0.3rem;">
-        <span style="color:var(--accent5);">7,317</span>
-        <span style="color:var(--text-muted);">&rarr;</span>
-        <span style="color:var(--accent2);">120</span>
+  <div class="fade-in" style="margin:1.5rem 0 0;">
+    <div style="display:grid; gap:1.25rem;">
+
+      <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card);">
+        <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:0.75rem;">
+          <span style="font-size:0.8rem; font-weight:600;">beacon_chain.rs</span>
+          <span style="font-size:0.75rem; color:var(--text-muted);">7,317 &rarr; 120 lines</span>
+        </div>
+        <div style="display:flex; gap:2px; height:28px; border-radius:6px; overflow:hidden;">
+          <div style="width:98.4%; background:var(--accent2); display:flex; align-items:center; justify-content:center; font-size:0.65rem; font-weight:700; color:var(--bg);">moved to owning modules</div>
+          <div style="width:1.6%; background:var(--accent); min-width:24px; display:flex; align-items:center; justify-content:center; font-size:0.6rem; font-weight:700; color:var(--bg);">120</div>
+        </div>
       </div>
-      <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.35rem;">lines &mdash; struct + trait + type aliases only</div>
-    </div>
 
-    <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card);">
-      <div style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">Top-level methods</div>
-      <div style="font-size:1.6rem; font-weight:700; margin-top:0.3rem;">
-        <span style="color:var(--accent5);">200+</span>
-        <span style="color:var(--text-muted);">&rarr;</span>
-        <span style="color:var(--accent2);">0</span>
+      <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card);">
+        <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:0.75rem;">
+          <span style="font-size:0.8rem; font-weight:600;">Top-level fields</span>
+          <span style="font-size:0.75rem; color:var(--text-muted);">40+ &rarr; 21</span>
+        </div>
+        <div style="display:flex; gap:2px; height:28px; border-radius:6px; overflow:hidden;">
+          <div style="width:47.5%; background:var(--accent5); display:flex; align-items:center; justify-content:center; font-size:0.65rem; font-weight:700; color:var(--bg);">removed (absorbed by components)</div>
+          <div style="width:19%; background:var(--accent); display:flex; align-items:center; justify-content:center; font-size:0.6rem; font-weight:600; color:var(--bg);">8 components</div>
+          <div style="width:14.5%; background:var(--accent3); display:flex; align-items:center; justify-content:center; font-size:0.6rem; font-weight:600; color:var(--bg);">6 infra</div>
+          <div style="width:12%; background:var(--accent4); display:flex; align-items:center; justify-content:center; font-size:0.6rem; font-weight:600; color:var(--bg);">5 genesis</div>
+          <div style="width:7%; background:var(--accent6); display:flex; align-items:center; justify-content:center; font-size:0.6rem; font-weight:600; color:var(--bg);">2</div>
+        </div>
       </div>
-      <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.35rem;">logic moved into components and scoped orchestrators</div>
-    </div>
 
-    <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card);">
-      <div style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">Components + orchestrators</div>
-      <div style="font-size:1.6rem; font-weight:700; margin-top:0.3rem; color:var(--accent);">7 + 2</div>
-      <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.35rem;">7 components + <code>BlockImporter</code>, <code>BlockProducer</code></div>
-    </div>
-
-    <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card);">
-      <div style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">Top-level fields</div>
-      <div style="font-size:1.6rem; font-weight:700; margin-top:0.3rem;">
-        <span style="color:var(--accent5);">40+</span>
-        <span style="color:var(--text-muted);">&rarr;</span>
-        <span style="color:var(--accent2);">21</span>
+      <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card);">
+        <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:0.75rem;">
+          <span style="font-size:0.8rem; font-weight:600;">Methods on the god object</span>
+          <span style="font-size:0.75rem; color:var(--text-muted);">200+ &rarr; 0</span>
+        </div>
+        <div style="display:flex; gap:2px; height:28px; border-radius:6px; overflow:hidden;">
+          <div style="width:100%; background:var(--accent2); display:flex; align-items:center; justify-content:center; font-size:0.65rem; font-weight:700; color:var(--bg);">all moved to components and orchestrators</div>
+        </div>
       </div>
-      <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.35rem;">8 component Arcs &middot; 6 infra &middot; 5 genesis &middot; 1 kzg &middot; 1 service</div>
+
     </div>
 
-    <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card);">
-      <div style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">New unit tests</div>
-      <div style="font-size:1.6rem; font-weight:700; margin-top:0.3rem; color:var(--accent2);">~2,000</div>
-      <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.35rem;">lines &middot; no <code>BeaconChainHarness</code> required</div>
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px,1fr)); gap:1rem; margin-top:1.25rem;">
+      <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card); text-align:center;">
+        <div style="font-size:2rem; font-weight:800; color:var(--accent);">7 + 2</div>
+        <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.3rem;">components + orchestrators</div>
+      </div>
+      <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card); text-align:center;">
+        <div style="font-size:2rem; font-weight:800; color:var(--accent2);">~2,000</div>
+        <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.3rem;">new unit test lines (no harness)</div>
+      </div>
+      <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card); text-align:center;">
+        <div style="font-size:2rem; font-weight:800; color:var(--accent2);">425/425</div>
+        <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.3rem;">Fulu tests pass (release)</div>
+      </div>
     </div>
   </div>
 
@@ -997,9 +1009,9 @@
         <strong style="font-size:0.9rem;">Kurtosis local testnet</strong>
       </div>
       <div style="font-size:0.8rem; color:var(--text-muted); margin-top:0.5rem;">
-        4-node BN mesh, 27-hour run (slot 30,969&ndash;32,530). 1,398+ proposals over 1,411+
-        slots (&ge;99% coverage). 0 errors, 0 panics, 0 reorgs. Block publish
-        delay avg ~2 ms, import delay avg ~80 ms.
+        4-node Lighthouse + Geth mesh on the final refactored code.
+        <strong>0 errors, 0 panics, 0 reorgs.</strong>
+        Block import delay avg ~64ms. Produces blocks and finalises normally.
       </div>
     </div>
 
