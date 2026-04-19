@@ -31,6 +31,7 @@ pub mod execution_methods;
 pub mod execution_payload;
 pub mod fetch_blobs;
 pub mod fork_choice_signal;
+pub mod fork_digest;
 pub mod graffiti_calculator;
 pub mod historical_blocks;
 pub mod historical_data_columns;
@@ -70,6 +71,7 @@ pub mod sync_committee_manager;
 pub mod sync_committee_rewards;
 pub mod sync_committee_verification;
 pub mod test_utils;
+pub mod utils;
 pub mod validator_monitor;
 pub mod validator_pubkey_cache;
 pub mod validator_query_service;
@@ -77,20 +79,7 @@ pub mod validator_query_service;
 pub use self::attestation_manager::{
     AttestationProcessingOutcome, shuffling_is_compatible_with_fork_choice, validator_seen_at_epoch,
 };
-pub use self::beacon_chain::{
-    BeaconChain,
-    BeaconChainTypes,
-    BeaconStore,
-    ForkChoiceError,
-    StateSkipConfig,
-    WhenSlotSkipped,
-    // Free functions
-    compute_fork_digest,
-    duration_to_next_digest,
-    enr_fork_id,
-    heads,
-    spawn_blocking_handle,
-};
+pub use self::beacon_chain::{BeaconChain, BeaconChainTypes, BeaconStore};
 pub use self::beacon_snapshot::BeaconSnapshot;
 pub use self::block_importer::BlockImporter;
 pub use self::block_importer::verify_weak_subjectivity_checkpoint;
@@ -102,6 +91,7 @@ pub use self::block_production::{
     BeaconBlockResponse, BeaconBlockResponseWrapper, ProduceBlockVerification,
 };
 pub use self::canonical_head::manually_finalize_state;
+pub use self::canonical_head::{ForkChoiceError, heads};
 pub use self::chain_config::ChainConfig;
 pub use self::data_availability_manager::{
     AvailabilityProcessingStatus, get_blobs_or_columns_store_op,
@@ -113,10 +103,13 @@ pub use self::execution_methods::{
     INVALID_JUSTIFIED_PAYLOAD_SHUTDOWN_REASON, OverrideForkchoiceUpdate, PrePayloadAttributes,
     is_healthy,
 };
+pub use self::fork_digest::{compute_fork_digest, duration_to_next_digest, enr_fork_id};
 pub use self::historical_blocks::HistoricalBlockError;
 pub use self::operations_manager::persist_op_pool;
 pub use self::per_slot::per_slot_task;
 pub use self::state_query::get_block;
+pub use self::state_query::{FinalizationAndCanonicity, StateSkipConfig, WhenSlotSkipped};
+pub use self::utils::spawn_blocking_handle;
 pub use attestation_verification::Error as AttestationError;
 pub use beacon_fork_choice_store::{
     BeaconForkChoiceStore, Error as ForkChoiceStoreError, PersistedForkChoiceStore,

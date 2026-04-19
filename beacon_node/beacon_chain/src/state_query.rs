@@ -4,9 +4,7 @@
 //! instead of `&BeaconChain`. Thin delegations on `impl BeaconChain<T>` are
 //! provided so existing callers can continue to use `chain.method()`.
 
-use crate::beacon_chain::{
-    BeaconChainTypes, BeaconStore, FinalizationAndCanonicity, StateSkipConfig, WhenSlotSkipped,
-};
+use crate::beacon_chain::{BeaconChainTypes, BeaconStore};
 use crate::canonical_head::CanonicalHead;
 use crate::errors::BeaconChainError as Error;
 use execution_layer::ExecutionLayer;
@@ -20,6 +18,52 @@ use store::DatabaseBlock;
 use store::iter::{BlockRootsIterator, StateRootsIterator};
 use tracing::{debug, instrument, warn};
 use types::*;
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+/// Defines the behaviour when a block/block-root for a skipped slot is requested.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WhenSlotSkipped {
+    /// If the slot is a skip slot, return `None`.
+    ///
+    /// This is how the HTTP API behaves.
+    None,
+    /// If the slot is a skip slot, return the previous non-skipped block.
+    ///
+    /// This is generally how the specification behaves.
+    Prev,
+}
+
+/// Information about a state/block at a specific slot.
+#[derive(Debug, Clone, Copy)]
+pub struct FinalizationAndCanonicity {
+    /// True if the slot of the state or block is finalized.
+    ///
+    /// This alone DOES NOT imply that the state/block is finalized, use `self.is_finalized()`.
+    pub slot_is_finalized: bool,
+    /// True if the state or block is canonical at its slot.
+    pub canonical: bool,
+}
+
+impl FinalizationAndCanonicity {
+    pub fn is_finalized(self) -> bool {
+        self.slot_is_finalized && self.canonical
+    }
+}
+
+/// Defines how a `BeaconState` should be "skipped" through skip-slots.
+pub enum StateSkipConfig {
+    /// Calculate the state root during each skip slot, producing a fully-valid `BeaconState`.
+    WithStateRoots,
+    /// Don't calculate the state root at each slot, instead just use the zero hash. This is orders
+    /// of magnitude faster, however it produces a partially invalid state.
+    ///
+    /// This state is useful for operations that don't use the state roots; e.g., for calculating
+    /// the shuffling.
+    WithoutStateRoots,
+}
 
 // ---------------------------------------------------------------------------
 // Free functions

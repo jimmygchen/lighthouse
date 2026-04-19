@@ -12,7 +12,7 @@ mod tests;
 
 use crate::attestation_manager::AttestationManager;
 use crate::beacon_chain::BeaconStore;
-use crate::beacon_chain::{BeaconChainTypes, BeaconForkChoice, HashBlockTuple};
+use crate::beacon_chain::{BeaconChainTypes, BeaconForkChoice};
 use crate::blob_verification::GossipVerifiedBlob;
 use crate::block_times_cache::BlockTimesCache;
 use crate::block_verification::{
@@ -24,6 +24,9 @@ use crate::block_verification_types::{
     AsBlock, AvailableExecutedBlock, BlockImportData, ExecutedBlock, RangeSyncBlock,
 };
 use crate::canonical_head::CanonicalHead;
+
+/// Alias to appease clippy.
+pub(crate) type HashBlockTuple<E> = (Hash256, RangeSyncBlock<E>);
 use crate::data_availability_checker::{
     Availability, AvailabilityCheckError, AvailableBlock, DataAvailabilityChecker,
     DataColumnReconstructionResult,
@@ -436,7 +439,7 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
 
         // Filter uninteresting blocks from the chain segment in a blocking task.
         let importer_clone = self.clone();
-        let filtered_chain_segment_future = crate::beacon_chain::spawn_blocking_handle(
+        let filtered_chain_segment_future = crate::utils::spawn_blocking_handle(
             &self.task_executor,
             move || importer_clone.filter_chain_segment(chain_segment),
             "filter_chain_segment",
@@ -469,7 +472,7 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
             std::mem::swap(&mut blocks, &mut filtered_chain_segment);
 
             let chain_clone = self.system().clone();
-            let signature_verification_future = crate::beacon_chain::spawn_blocking_handle(
+            let signature_verification_future = crate::utils::spawn_blocking_handle(
                 &self.task_executor,
                 move || signature_verify_chain_segment(blocks, &chain_clone),
                 "signature_verify_chain_segment",
@@ -1267,7 +1270,7 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
 
         let block_root = {
             let importer_clone = self.clone();
-            crate::beacon_chain::spawn_blocking_handle(
+            crate::utils::spawn_blocking_handle(
                 &self.task_executor,
                 move || {
                     importer_clone.import_block(
@@ -1718,7 +1721,7 @@ fn import_block_update_validator_monitor<T: BeaconChainTypes>(
                         &components.canonical_head,
                         &components.spec,
                         load_slot,
-                        crate::beacon_chain::StateSkipConfig::WithoutStateRoots,
+                        crate::state_query::StateSkipConfig::WithoutStateRoots,
                     )
                 },
             )

@@ -1,6 +1,6 @@
 use crate::beacon_block_streamer::Error as BlockStreamerError;
-use crate::beacon_chain::ForkChoiceError;
 use crate::beacon_fork_choice_store::Error as ForkChoiceStoreError;
+use crate::canonical_head::ForkChoiceError;
 use crate::data_availability_checker::AvailabilityCheckError;
 use crate::migrate::PruningError;
 use crate::naive_aggregation_pool::Error as NaiveAggregationError;

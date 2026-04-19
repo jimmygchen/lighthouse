@@ -1,8 +1,10 @@
-use crate::beacon_chain::BEACON_CHAIN_DB_KEY;
 use ssz::{Decode, Encode};
 use ssz_derive::{Decode, Encode};
 use store::{DBColumn, Error as StoreError, KeyValueStoreOp, StoreItem};
 use types::Hash256;
+
+// This key is all zero because it gets stored in its own column, see `DBColumn` type.
+pub const BEACON_CHAIN_DB_KEY: Hash256 = Hash256::ZERO;
 
 /// Return a database operation for writing the `PersistedBeaconChain` to disk.
 ///

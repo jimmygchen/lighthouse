@@ -1,6 +1,7 @@
+use crate::beacon_chain::BeaconForkChoice;
 use crate::beacon_fork_choice_store::PersistedForkChoiceStoreV28;
 use crate::errors::BeaconChainError;
-use crate::{BeaconChainTypes, BeaconForkChoiceStore, metrics};
+use crate::{BeaconChainTypes, metrics};
 use fork_choice::{ForkChoice, ResetPayloadStatuses};
 use ssz::{Decode, Encode};
 use ssz_derive::{Decode, Encode};
@@ -8,16 +9,8 @@ use store::{DBColumn, Error, KeyValueStore, KeyValueStoreOp, StoreConfig};
 use superstruct::superstruct;
 use types::{ChainSpec, Hash256};
 
-pub type BeaconForkChoice<T> = ForkChoice<
-    BeaconForkChoiceStore<
-        <T as BeaconChainTypes>::EthSpec,
-        <T as BeaconChainTypes>::HotStore,
-        <T as BeaconChainTypes>::ColdStore,
-    >,
-    <T as BeaconChainTypes>::EthSpec,
->;
-
-pub use crate::beacon_chain::FORK_CHOICE_DB_KEY;
+// This key is all zero because it gets stored in its own column, see `DBColumn` type.
+pub const FORK_CHOICE_DB_KEY: Hash256 = Hash256::ZERO;
 
 // If adding a new version you should update this type alias and fix the breakages.
 pub type PersistedForkChoice = PersistedForkChoiceV29;

@@ -63,9 +63,8 @@ use crate::observed_block_producers::SeenBlock;
 use crate::validator_monitor::HISTORIC_EPOCHS as VALIDATOR_MONITOR_HISTORIC_EPOCHS;
 use crate::validator_pubkey_cache::ValidatorPubkeyCache;
 use crate::{
-    BeaconChain, BeaconChainError, BeaconChainTypes,
-    beacon_chain::{BeaconForkChoice, ForkChoiceError},
-    metrics,
+    BeaconChain, BeaconChainError, BeaconChainTypes, beacon_chain::BeaconForkChoice,
+    canonical_head::ForkChoiceError, metrics,
 };
 use bls::{PublicKey, PublicKeyBytes};
 use educe::Educe;

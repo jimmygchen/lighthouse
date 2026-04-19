@@ -1,9 +1,11 @@
 #[cfg(test)]
 mod tests;
 
-use crate::beacon_chain::OP_POOL_DB_KEY;
 use crate::errors::BeaconChainError as Error;
 use crate::metrics;
+
+// This key is all zero because it gets stored in its own column, see `DBColumn` type.
+pub const OP_POOL_DB_KEY: Hash256 = Hash256::ZERO;
 use crate::observed_operations::{ObservationOutcome, ObservedOperations};
 use operation_pool::{OperationPool, PersistedOperationPool, ReceivedPreCapella};
 use parking_lot::Mutex;
@@ -12,7 +14,7 @@ use std::sync::Arc;
 use store::HotColdDB;
 use tracing::error;
 use types::{
-    AttesterSlashing, BeaconState, ChainSpec, Epoch, EthSpec, ProposerSlashing,
+    AttesterSlashing, BeaconState, ChainSpec, Epoch, EthSpec, Hash256, ProposerSlashing,
     SignedBlsToExecutionChange, SignedVoluntaryExit,
 };
 

@@ -855,7 +855,7 @@ impl<T: BeaconChainTypes> BlockProducer<T> {
         // Use a blocking task to interact with the `canonical_head` lock otherwise we risk blocking the
         // core `tokio` executor.
         let canonical_head = self.canonical_head.clone();
-        let forkchoice_update_params = crate::beacon_chain::spawn_blocking_handle(
+        let forkchoice_update_params = crate::utils::spawn_blocking_handle(
             &self.task_executor,
             move || canonical_head.cached_head().forkchoice_update_parameters(),
             "prepare_execution_payload_forkchoice_update_params",

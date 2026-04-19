@@ -427,7 +427,7 @@ impl<T: BeaconChainTypes> BeaconBlockStreamer<T> {
     ) -> Result<Vec<(Hash256, LoadResult<T::EthSpec>)>, BeaconChainError> {
         let streamer = self.clone();
         // Loading from the DB is slow -> spawn a blocking task
-        crate::beacon_chain::spawn_blocking_handle(
+        crate::utils::spawn_blocking_handle(
             &self.beacon_chain.task_executor,
             move || {
                 let mut db_blocks = Vec::new();

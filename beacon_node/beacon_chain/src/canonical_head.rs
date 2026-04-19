@@ -36,11 +36,12 @@ use crate::persisted_fork_choice::PersistedForkChoice;
 use crate::shuffling_cache::BlockShufflingIds;
 use crate::{
     BeaconChain, BeaconChainError as Error, BeaconChainTypes, BeaconSnapshot,
-    beacon_chain::{BeaconForkChoice, BeaconStore, FORK_CHOICE_DB_KEY},
+    beacon_chain::{BeaconForkChoice, BeaconStore},
     block_times_cache::BlockTimesCache,
     events::ServerSentEventHandler,
     execution_methods::OverrideForkchoiceUpdate,
     metrics,
+    persisted_fork_choice::FORK_CHOICE_DB_KEY,
     validator_monitor::get_slot_delay_ms,
 };
 use eth2::types::{EventKind, SseChainReorg, SseFinalizedCheckpoint, SseLateHead};
@@ -48,6 +49,8 @@ use fork_choice::{
     ExecutionStatus, ForkChoiceStore, ForkChoiceView, ForkchoiceUpdateParameters, ProtoBlock,
     ResetPayloadStatuses,
 };
+
+pub type ForkChoiceError = fork_choice::Error<crate::ForkChoiceStoreError>;
 use itertools::process_results;
 
 use logging::crit;
@@ -572,7 +575,7 @@ pub async fn recompute_head_at_slot<T: BeaconChainTypes>(
     let _timer = metrics::start_timer(&metrics::FORK_CHOICE_TIMES);
 
     let chain_clone = chain.clone();
-    match crate::beacon_chain::spawn_blocking_handle(
+    match crate::utils::spawn_blocking_handle(
         &chain.task_executor,
         move || recompute_head_at_slot_internal(&chain_clone, current_slot),
         "recompute_head_internal",
@@ -1614,4 +1617,18 @@ pub fn manually_finalize_state<T: BeaconChainTypes>(
 
     chain.store_migrator.process_manual_finalization(notif);
     Ok(())
+}
+
+/// Returns the current heads of the `BeaconChain`. For the canonical head, see
+/// `CanonicalHead::cached_head`.
+///
+/// Returns `(block_root, block_slot)`.
+pub fn heads<T: BeaconChainTypes>(canonical_head: &CanonicalHead<T>) -> Vec<(Hash256, Slot)> {
+    let fork_choice = canonical_head.fork_choice_read_lock();
+    fork_choice
+        .proto_array()
+        .heads_descended_from_finalization::<T::EthSpec>(fork_choice.finalized_checkpoint())
+        .iter()
+        .map(|node| (node.root(), node.slot()))
+        .collect()
 }

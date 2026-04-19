@@ -203,7 +203,7 @@ pub async fn import_available_execution_payload_envelope<T: BeaconChainTypes>(
     let block_root = {
         let task_executor = chain.task_executor.clone();
         let chain = chain.clone();
-        crate::beacon_chain::spawn_blocking_handle(
+        crate::utils::spawn_blocking_handle(
             &task_executor,
             move || {
                 import_execution_payload_envelope(
