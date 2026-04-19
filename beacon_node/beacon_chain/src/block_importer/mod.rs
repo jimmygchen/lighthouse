@@ -121,7 +121,7 @@ pub fn get_light_client_bootstrap<T: BeaconChainTypes>(
 
 /// Verify that the weak subjectivity checkpoint is consistent with the finalized chain.
 pub fn verify_weak_subjectivity_checkpoint<T: BeaconChainTypes>(
-    chain: &BeaconChain<T>,
+    store: &BeaconStore<T>,
     wss_checkpoint: Checkpoint,
     beacon_block_root: Hash256,
     state: &BeaconState<T::EthSpec>,
@@ -147,7 +147,7 @@ pub fn verify_weak_subjectivity_checkpoint<T: BeaconChainTypes>(
             .start_slot(T::EthSpec::slots_per_epoch());
 
         match crate::state_query::root_at_slot_from_state::<T>(
-            &chain.store,
+            store,
             slot,
             beacon_block_root,
             state,
@@ -183,7 +183,7 @@ pub fn verify_weak_subjectivity_checkpoint<T: BeaconChainTypes>(
 /// For cross-module verification helpers that still take `&BeaconChain<T>`
 /// (`check_block_relevancy`, `signature_verify_chain_segment`, `GossipVerifiedBlock::new`,
 /// `IntoExecutionPendingBlock::into_execution_pending_block`,
-/// `check_block_is_finalized_checkpoint_or_descendant`, `verify_weak_subjectivity_checkpoint`,
+/// `check_block_is_finalized_checkpoint_or_descendant`,
 /// `verify_header_signature`, `get_blobs_or_columns_store_op`, `state_at_slot`), a
 /// `Weak<BeaconChain<T>>` back-reference is installed by the builder post-construction.
 /// The `Weak` avoids a reference cycle, allowing proper cleanup in tests. Rewriting those
@@ -611,11 +611,10 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
         blob: GossipVerifiedBlob<T>,
     ) -> Result<AvailabilityProcessingStatus, BlockError> {
         let block_root = blob.block_root();
-        let chain = self.system().clone();
 
         // If this block has already been imported to forkchoice it must have been available, so
         // we don't need to process its blobs again.
-        if chain
+        if self
             .canonical_head
             .fork_choice_read_lock()
             .contains_block(&block_root)
@@ -628,7 +627,7 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
             return Err(BlockError::BlobNotRequired(blob.slot()));
         }
 
-        emit_sse_blob_sidecar_events(&chain, &block_root, std::iter::once(blob.as_blob()));
+        emit_sse_blob_sidecar_events(self, &block_root, std::iter::once(blob.as_blob()));
 
         self.check_gossip_blob_availability_and_import(blob).await
     }
@@ -652,11 +651,9 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
             ));
         };
 
-        let chain = self.system().clone();
-
         // If this block has already been imported to forkchoice it must have been available, so
         // we don't need to process its samples again.
-        if chain
+        if self
             .canonical_head
             .fork_choice_read_lock()
             .contains_block(&block_root)
@@ -665,7 +662,7 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
         }
 
         emit_sse_data_column_sidecar_events(
-            &chain,
+            self,
             &block_root,
             data_columns.iter().map(|column| column.as_data_column()),
         );
@@ -688,11 +685,9 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
         block_root: Hash256,
         blobs: FixedBlobSidecarList<T::EthSpec>,
     ) -> Result<AvailabilityProcessingStatus, BlockError> {
-        let chain = self.system().clone();
-
         // If this block has already been imported to forkchoice it must have been available, so
         // we don't need to process its blobs again.
-        if chain
+        if self
             .canonical_head
             .fork_choice_read_lock()
             .contains_block(&block_root)
@@ -707,7 +702,7 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
             .iter()
             .filter_map(|b| b.as_ref().map(|b| b.block_parent_root()))
             .next()
-            && !chain
+            && !self
                 .canonical_head
                 .fork_choice_read_lock()
                 .contains_block(&parent_root)
@@ -715,7 +710,7 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
             return Err(BlockError::ParentUnknown { parent_root });
         }
 
-        emit_sse_blob_sidecar_events(&chain, &block_root, blobs.iter().flatten().map(Arc::as_ref));
+        emit_sse_blob_sidecar_events(self, &block_root, blobs.iter().flatten().map(Arc::as_ref));
 
         self.check_rpc_blob_availability_and_import(slot, block_root, blobs)
             .await
@@ -728,11 +723,9 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
         block_root: Hash256,
         engine_get_blobs_output: EngineGetBlobsOutput<T>,
     ) -> Result<AvailabilityProcessingStatus, BlockError> {
-        let chain = self.system().clone();
-
         // If this block has already been imported to forkchoice it must have been available, so
         // we don't need to process its blobs again.
-        if chain
+        if self
             .canonical_head
             .fork_choice_read_lock()
             .contains_block(&block_root)
@@ -742,15 +735,11 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
 
         match &engine_get_blobs_output {
             EngineGetBlobsOutput::Blobs(blobs) => {
-                emit_sse_blob_sidecar_events(
-                    &chain,
-                    &block_root,
-                    blobs.iter().map(|b| b.as_blob()),
-                );
+                emit_sse_blob_sidecar_events(self, &block_root, blobs.iter().map(|b| b.as_blob()));
             }
             EngineGetBlobsOutput::CustodyColumns(columns) => {
                 emit_sse_data_column_sidecar_events(
-                    &chain,
+                    self,
                     &block_root,
                     columns.iter().map(|column| column.as_data_column()),
                 );
@@ -779,13 +768,11 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
             ));
         };
 
-        let chain = self.system().clone();
-
         // If this block has already been imported to forkchoice it must have been available, so
         // we don't need to process its columns again.
         // TODO(gloas) the block will be available in fork choice for gloas. This does not indicate availability
         // anymore.
-        if chain
+        if self
             .canonical_head
             .fork_choice_read_lock()
             .contains_block(&block_root)
@@ -804,7 +791,7 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
                 _ => None,
             })
             .next()
-            && !chain
+            && !self
                 .canonical_head
                 .fork_choice_read_lock()
                 .contains_block(&parent_root)
@@ -813,7 +800,7 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
         }
 
         emit_sse_data_column_sidecar_events(
-            &chain,
+            self,
             &block_root,
             custody_columns.iter().map(|column| column.as_ref()),
         );
@@ -1628,8 +1615,8 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
         // This ensures we only perform the check once.
         if current_head_finalized_checkpoint.epoch < wss_checkpoint.epoch
             && wss_checkpoint.epoch <= new_finalized_checkpoint.epoch
-            && let Err(e) = verify_weak_subjectivity_checkpoint(
-                &self.system(),
+            && let Err(e) = verify_weak_subjectivity_checkpoint::<T>(
+                &self.store,
                 wss_checkpoint,
                 block_root,
                 state,
@@ -1955,16 +1942,16 @@ fn import_block_update_metrics_and_events<T: BeaconChainTypes>(
 }
 
 fn emit_sse_blob_sidecar_events<'a, T: BeaconChainTypes, I>(
-    components: &BeaconChain<T>,
+    block_importer: &BlockImporter<T>,
     block_root: &Hash256,
     blobs_iter: I,
 ) where
     I: Iterator<Item = &'a BlobSidecar<T::EthSpec>>,
 {
-    if let Some(event_handler) = components.block_importer.event_handler.as_ref()
+    if let Some(event_handler) = block_importer.event_handler.as_ref()
         && event_handler.has_blob_sidecar_subscribers()
     {
-        let imported_blobs = components
+        let imported_blobs = block_importer
             .data_availability_manager
             .data_availability_checker()
             .cached_blob_indexes(block_root)
@@ -1980,16 +1967,16 @@ fn emit_sse_blob_sidecar_events<'a, T: BeaconChainTypes, I>(
 }
 
 fn emit_sse_data_column_sidecar_events<'a, T: BeaconChainTypes, I>(
-    components: &BeaconChain<T>,
+    block_importer: &BlockImporter<T>,
     block_root: &Hash256,
     data_columns_iter: I,
 ) where
     I: Iterator<Item = &'a DataColumnSidecar<T::EthSpec>>,
 {
-    if let Some(event_handler) = components.block_importer.event_handler.as_ref()
+    if let Some(event_handler) = block_importer.event_handler.as_ref()
         && event_handler.has_data_column_sidecar_subscribers()
     {
-        let imported_data_columns = components
+        let imported_data_columns = block_importer
             .data_availability_manager
             .data_availability_checker()
             .cached_data_column_indexes(block_root)

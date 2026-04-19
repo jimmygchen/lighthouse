@@ -1177,8 +1177,10 @@ where
 
         // Only perform the check if it was configured.
         if let Some(wss_checkpoint) = beacon_chain.config.weak_subjectivity_checkpoint
-            && let Err(e) = crate::block_importer::verify_weak_subjectivity_checkpoint(
-                &beacon_chain,
+            && let Err(e) = crate::block_importer::verify_weak_subjectivity_checkpoint::<
+                Witness<TSlotClock, E, THotStore, TColdStore>,
+            >(
+                &beacon_chain.store,
                 wss_checkpoint,
                 head.beacon_block_root,
                 &head.beacon_state,
