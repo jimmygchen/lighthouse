@@ -17,8 +17,8 @@ use crate::blob_verification::GossipVerifiedBlob;
 use crate::block_times_cache::BlockTimesCache;
 use crate::block_verification::{
     BlockError, ExecutionPendingBlock, GossipVerifiedBlock, IntoExecutionPendingBlock,
-    check_block_is_finalized_checkpoint_or_descendant, check_block_relevancy,
-    signature_verify_chain_segment, verify_header_signature,
+    check_block_is_finalized_checkpoint_or_descendant,
+    signature_verify_chain_segment,
 };
 use crate::block_verification_types::{
     AsBlock, AvailableExecutedBlock, BlockImportData, ExecutedBlock, RangeSyncBlock,
@@ -66,6 +66,10 @@ use types::*;
 
 /// Defines how old a block can be before it's no longer a candidate for the early attester cache.
 pub(crate) const EARLY_ATTESTER_CACHE_HISTORIC_SLOTS: u64 = 4;
+
+/// Maximum block slot number. Block with slots bigger than this constant will NOT be processed.
+/// Mirrors the constant in `block_verification.rs`.
+const MAXIMUM_BLOCK_SLOT_NUMBER: u64 = 4_294_967_296; // 2^32
 
 /// The result of a chain segment processing.
 pub enum ChainSegmentResult {
@@ -181,10 +185,11 @@ pub fn verify_weak_subjectivity_checkpoint<T: BeaconChainTypes>(
 /// optional event handler, data availability manager, store, spec, and various caches.
 ///
 /// For cross-module verification helpers that still take `&BeaconChain<T>`
-/// (`check_block_relevancy`, `signature_verify_chain_segment`, `GossipVerifiedBlock::new`,
+/// (`signature_verify_chain_segment`, `GossipVerifiedBlock::new`,
 /// `IntoExecutionPendingBlock::into_execution_pending_block`,
 /// `check_block_is_finalized_checkpoint_or_descendant`,
-/// `verify_header_signature`, `get_blobs_or_columns_store_op`, `state_at_slot`), a
+/// `handle_import_block_db_write_error`, `import_block_observe_attestations`,
+/// `import_block_update_validator_monitor`, `import_block_update_slasher`), a
 /// `Weak<BeaconChain<T>>` back-reference is installed by the builder post-construction.
 /// The `Weak` avoids a reference cycle, allowing proper cleanup in tests. Rewriting those
 /// helper signatures to take only the dependencies they need would let us drop the
@@ -223,6 +228,12 @@ pub struct BlockImporter<T: BeaconChainTypes> {
     // Copy/Clone value fields.
     pub(crate) slot_clock: T::SlotClock,
     pub(crate) genesis_block_root: Hash256,
+    pub(crate) genesis_validators_root: Hash256,
+    pub(crate) validator_query: Arc<crate::validator_query_service::ValidatorQueryService<T>>,
+    #[allow(dead_code)]
+    pub(crate) execution_manager: Arc<crate::execution_manager::ExecutionManager<T>>,
+    #[allow(dead_code)]
+    pub(crate) sync_committee_manager: Arc<crate::sync_committee_manager::SyncCommitteeManager<T::EthSpec>>,
     // Utilities.
     pub(crate) task_executor: TaskExecutor,
     pub shutdown_sender: Sender<ShutdownReason>,
@@ -262,6 +273,10 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
         config: Arc<ChainConfig>,
         slot_clock: T::SlotClock,
         genesis_block_root: Hash256,
+        genesis_validators_root: Hash256,
+        validator_query: Arc<crate::validator_query_service::ValidatorQueryService<T>>,
+        execution_manager: Arc<crate::execution_manager::ExecutionManager<T>>,
+        sync_committee_manager: Arc<crate::sync_committee_manager::SyncCommitteeManager<T::EthSpec>>,
         task_executor: TaskExecutor,
         shutdown_sender: Sender<ShutdownReason>,
     ) -> Self {
@@ -287,6 +302,10 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
             config,
             slot_clock,
             genesis_block_root,
+            genesis_validators_root,
+            validator_query,
+            execution_manager,
+            sync_committee_manager,
             task_executor,
             shutdown_sender,
             system: OnceLock::new(),
@@ -318,7 +337,6 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
         // This function will never import any blocks.
         let imported_blocks = vec![];
         let mut filtered_chain_segment = Vec::with_capacity(chain_segment.len());
-        let chain = self.system().clone();
 
         // Produce a list of the parent root and slot of the child of each block.
         //
@@ -362,13 +380,11 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
                 }
             }
 
-            match check_block_relevancy(block.as_block(), block_root, &chain) {
+            // Inline check_block_relevancy: check the block is relevant for import.
+            match self.check_block_relevancy(block.as_block(), block_root) {
                 // If the block is relevant, add it to the filtered chain segment.
                 Ok(_) => filtered_chain_segment.push((block_root, block)),
                 // If the block is already known, simply ignore this block.
-                //
-                // Note that `check_block_relevancy` is incapable of returning
-                // `DuplicateImportStatusUnknown` so we don't need to handle that case here.
                 Err(BlockError::DuplicateFullyImported(_)) => continue,
                 // If the block is the genesis block, simply ignore this block.
                 Err(BlockError::GenesisBlock) => continue,
@@ -1127,7 +1143,7 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
         blobs: FixedBlobSidecarList<T::EthSpec>,
     ) -> Result<AvailabilityProcessingStatus, BlockError> {
         check_blob_header_signature_and_slashability(
-            &self.system(),
+            self,
             block_root,
             blobs.iter().flatten().map(Arc::as_ref),
         )?;
@@ -1148,7 +1164,7 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
         let availability = match engine_get_blobs_output {
             EngineGetBlobsOutput::Blobs(blobs) => {
                 check_blob_header_signature_and_slashability(
-                    &self.system(),
+                    self,
                     block_root,
                     blobs.iter().map(|b| b.as_blob()),
                 )?;
@@ -1158,7 +1174,7 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
             EngineGetBlobsOutput::CustodyColumns(data_columns) => {
                 // TODO(gloas) verify that this check is no longer relevant for gloas
                 check_data_column_sidecar_header_signature_and_slashability(
-                    &self.system(),
+                    self,
                     block_root,
                     data_columns
                         .iter()
@@ -1186,7 +1202,7 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
     ) -> Result<AvailabilityProcessingStatus, BlockError> {
         // TODO(gloas) ensure that this check is no longer relevant post gloas
         check_data_column_sidecar_header_signature_and_slashability(
-            &self.system(),
+            self,
             block_root,
             custody_columns.iter().filter_map(|c| match c.as_ref() {
                 DataColumnSidecar::Fulu(fulu) => Some(fulu),
@@ -1318,7 +1334,7 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
         // would be difficult to check that they all lock fork choice first.
         let mut ops = {
             let _timer = metrics::start_timer(&metrics::BLOCK_PROCESSING_PUBKEY_CACHE_LOCK);
-            let pubkey_cache = chain
+            let pubkey_cache = self
                 .validator_query
                 .validator_pubkey_cache
                 .upgradable_read();
@@ -1400,7 +1416,7 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
                         let new_head_is_optimistic =
                             proto_block.execution_status.is_optimistic_or_invalid();
 
-                        if let Err(e) = chain
+                        if let Err(e) = self
                             .attestation_manager
                             .early_attester_cache
                             .add_head_block(block_root, &signed_block, proto_block, &state)
@@ -1555,8 +1571,7 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
         // compute state proofs for light client updates before inserting the state into the
         // snapshot cache.
         if self.config.enable_light_client_server {
-            chain
-                .block_importer
+            self
                 .light_client_server_cache
                 .cache_state_data(
                     &self.spec, block, block_root,
@@ -1573,8 +1588,7 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
         metrics::inc_counter(&metrics::BLOCK_PROCESSING_SUCCESSES);
 
         // Inform the unknown block cache, in case it was waiting on this block.
-        chain
-            .block_importer
+        self
             .pre_finalization_block_cache
             .block_processed(block_root);
 
@@ -1650,6 +1664,74 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
         }
 
         Ok(())
+    }
+
+    /// Performs simple, cheap checks to ensure that the block is relevant to be imported.
+    ///
+    /// `Ok(block_root)` is returned if the block passes these checks and should progress with
+    /// verification (viz., it is relevant).
+    ///
+    /// Inlined from `block_verification::check_block_relevancy` to avoid the
+    /// `&BeaconChain<T>` parameter.
+    fn check_block_relevancy(
+        &self,
+        signed_block: &SignedBeaconBlock<T::EthSpec>,
+        block_root: Hash256,
+    ) -> Result<Hash256, BlockError> {
+        let block = signed_block.message();
+
+        let present_slot = self
+            .slot_clock
+            .now()
+            .ok_or(BeaconChainError::UnableToReadSlot)?;
+
+        // Do not process blocks from the future.
+        if block.slot() > present_slot {
+            return Err(BlockError::FutureSlot {
+                present_slot,
+                block_slot: block.slot(),
+            });
+        }
+
+        // Do not re-process the genesis block.
+        if block.slot() == 0 {
+            return Err(BlockError::GenesisBlock);
+        }
+
+        // This is an artificial (non-spec) restriction that provides some protection from overflow
+        // abuses.
+        if block.slot() >= MAXIMUM_BLOCK_SLOT_NUMBER {
+            return Err(BlockError::BlockSlotLimitReached);
+        }
+
+        // Do not process a block from a finalized slot.
+        let finalized_slot = self
+            .canonical_head
+            .cached_head()
+            .finalized_checkpoint()
+            .epoch
+            .start_slot(T::EthSpec::slots_per_epoch());
+
+        if block.slot() <= finalized_slot {
+            self.pre_finalization_block_cache
+                .block_rejected(block_root);
+            return Err(BlockError::WouldRevertFinalizedSlot {
+                block_slot: block.slot(),
+                finalized_slot,
+            });
+        }
+
+        // Check if the block is already known. We know it is post-finalization, so it is
+        // sufficient to check the fork choice.
+        if self
+            .canonical_head
+            .fork_choice_read_lock()
+            .contains_block(&block_root)
+        {
+            return Err(BlockError::DuplicateFullyImported(block_root));
+        }
+
+        Ok(block_root)
     }
 }
 
@@ -1993,11 +2075,11 @@ fn emit_sse_data_column_sidecar_events<'a, T: BeaconChainTypes, I>(
 }
 
 fn check_blob_header_signature_and_slashability<'a, T: BeaconChainTypes>(
-    components: &BeaconChain<T>,
+    block_importer: &BlockImporter<T>,
     block_root: Hash256,
     blobs: impl IntoIterator<Item = &'a BlobSidecar<T::EthSpec>>,
 ) -> Result<(), BlockError> {
-    let mut slashable_cache = components.block_importer.observed_slashable.write();
+    let mut slashable_cache = block_importer.observed_slashable.write();
     for header in blobs
         .into_iter()
         .map(|b| b.signed_block_header.clone())
@@ -2006,7 +2088,7 @@ fn check_blob_header_signature_and_slashability<'a, T: BeaconChainTypes>(
         // Return an error if *any* header signature is invalid, we do not want to import this
         // list of blobs into the DA checker. However, we will process any valid headers prior
         // to the first invalid header in the slashable cache & slasher.
-        verify_header_signature::<T, BlockError>(components, &header)?;
+        verify_header_signature_inline::<T>(block_importer, &header)?;
 
         slashable_cache
             .observe_slashable(
@@ -2015,7 +2097,7 @@ fn check_blob_header_signature_and_slashability<'a, T: BeaconChainTypes>(
                 block_root,
             )
             .map_err(|e| BlockError::BeaconChainError(Box::new(e.into())))?;
-        if let Some(slasher) = components.block_importer.slasher.as_ref() {
+        if let Some(slasher) = block_importer.slasher.as_ref() {
             slasher.accept_block_header(header);
         }
     }
@@ -2023,11 +2105,11 @@ fn check_blob_header_signature_and_slashability<'a, T: BeaconChainTypes>(
 }
 
 fn check_data_column_sidecar_header_signature_and_slashability<'a, T: BeaconChainTypes>(
-    components: &BeaconChain<T>,
+    block_importer: &BlockImporter<T>,
     block_root: Hash256,
     custody_columns: impl IntoIterator<Item = &'a DataColumnSidecarFulu<T::EthSpec>>,
 ) -> Result<(), BlockError> {
-    let mut slashable_cache = components.block_importer.observed_slashable.write();
+    let mut slashable_cache = block_importer.observed_slashable.write();
     // Process all unique block headers - previous logic assumed all headers were identical and
     // only processed the first one. However, we should not make assumptions about data received
     // from RPC.
@@ -2039,7 +2121,7 @@ fn check_data_column_sidecar_header_signature_and_slashability<'a, T: BeaconChai
         // Return an error if *any* header signature is invalid, we do not want to import this
         // list of blobs into the DA checker. However, we will process any valid headers prior
         // to the first invalid header in the slashable cache & slasher.
-        verify_header_signature::<T, BlockError>(components, &header)?;
+        verify_header_signature_inline::<T>(block_importer, &header)?;
 
         slashable_cache
             .observe_slashable(
@@ -2048,11 +2130,44 @@ fn check_data_column_sidecar_header_signature_and_slashability<'a, T: BeaconChai
                 block_root,
             )
             .map_err(|e| BlockError::BeaconChainError(Box::new(e.into())))?;
-        if let Some(slasher) = components.block_importer.slasher.as_ref() {
+        if let Some(slasher) = block_importer.slasher.as_ref() {
             slasher.accept_block_header(header);
         }
     }
     Ok(())
+}
+
+/// Verify that `header` was signed with a valid signature from its proposer.
+///
+/// Inlined from `block_verification::verify_header_signature` to avoid
+/// requiring a `&BeaconChain<T>` parameter.
+fn verify_header_signature_inline<T: BeaconChainTypes>(
+    block_importer: &BlockImporter<T>,
+    header: &SignedBeaconBlockHeader,
+) -> Result<(), BlockError> {
+    let proposer_pubkey = block_importer
+        .validator_query
+        .validator_pubkey_cache
+        .read()
+        .get(header.message.proposer_index as usize)
+        .cloned()
+        .ok_or(BlockError::UnknownValidator(header.message.proposer_index))?;
+    let fork = block_importer
+        .spec
+        .fork_at_epoch(header.message.slot.epoch(T::EthSpec::slots_per_epoch()));
+
+    if header.verify_signature::<T::EthSpec>(
+        &proposer_pubkey,
+        &fork,
+        block_importer.genesis_validators_root,
+        &block_importer.spec,
+    ) {
+        Ok(())
+    } else {
+        Err(BlockError::InvalidSignature(
+            crate::block_verification::InvalidSignature::ProposerSignature,
+        ))
+    }
 }
 
 fn handle_import_block_db_write_error<T: BeaconChainTypes>(

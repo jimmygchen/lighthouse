@@ -1091,6 +1091,7 @@ where
             Arc::new(RwLock::new(ObservedDataSidecars::new(self.spec.clone())));
         let observed_column_sidecars =
             Arc::new(RwLock::new(ObservedDataSidecars::new(self.spec.clone())));
+        let validator_query = Arc::new(ValidatorQueryService::new(validator_pubkey_cache));
 
         let block_importer = Arc::new(BlockImporter::new(
             self.spec.clone(),
@@ -1114,6 +1115,10 @@ where
             chain_config_arc.clone(),
             slot_clock.clone(),
             genesis_block_root,
+            genesis_validators_root,
+            validator_query.clone(),
+            execution_manager.clone(),
+            sync_committee_manager.clone(),
             task_executor.clone(),
             shutdown_sender.clone(),
         ));
@@ -1164,7 +1169,7 @@ where
             canonical_head,
             genesis_block_root,
             genesis_state_root,
-            validator_query: ValidatorQueryService::new(validator_pubkey_cache),
+            validator_query: validator_query.clone(),
             genesis_backfill_slot,
             kzg: kzg.clone(),
             data_availability_manager,

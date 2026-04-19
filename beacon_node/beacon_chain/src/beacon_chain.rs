@@ -83,7 +83,7 @@ pub struct BeaconChain<T: BeaconChainTypes> {
     /// The genesis time of this `BeaconChain` (seconds since UNIX epoch).
     pub genesis_time: u64,
     /// Handles validator public key and index lookups.
-    pub validator_query: ValidatorQueryService<T>,
+    pub validator_query: Arc<ValidatorQueryService<T>>,
     /// The slot at which blocks are downloaded back to.
     pub genesis_backfill_slot: Slot,
     /// The KZG trusted setup used by this chain.
