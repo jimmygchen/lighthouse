@@ -45,8 +45,7 @@ pub type BeaconStore<T> = Arc<
 /// The top-level container for all beacon-chain subsystems.
 ///
 /// Holds shared state (store, slot clock, spec, etc.) and the various manager
-/// components that implement beacon-chain logic. Previously named `BeaconChain`;
-/// the alias above keeps external crates compiling while the rename propagates.
+/// components that implement beacon-chain logic.
 pub struct BeaconChain<T: BeaconChainTypes> {
     pub spec: Arc<ChainSpec>,
     /// Configuration for `BeaconChain` runtime behaviour.

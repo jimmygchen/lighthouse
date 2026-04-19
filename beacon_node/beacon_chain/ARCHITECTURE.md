@@ -392,7 +392,7 @@ Seven components extracted plus two scoped orchestrators
 (`BlockImporter<T>`, `BlockProducer<T>`). ~2,000 lines of new unit
 tests, full CI green, and a local testnet that produces blocks and
 finalises. The top-level type (`BeaconChain<T>`) shrank from 7,317 to
-~1,000 lines and lost its 200+ methods.
+~126 lines and lost its 200+ methods.
 
 ### Wins
 

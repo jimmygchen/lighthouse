@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="color-scheme" content="dark">
-<title>BeaconChain, Refactored</title>
+<title>BeaconChain, Modularised</title>
 <style>
   :root {
     --bg: #0f1117;
@@ -435,10 +435,9 @@
     <div class="saber" style="left:52%;top:68%;width:90px;background:linear-gradient(90deg,var(--accent5),rgba(255,123,114,0.3),transparent);box-shadow:0 0 8px var(--accent5), 0 0 20px rgba(255,123,114,0.4);animation-delay:4.0s;transform:rotate(-25deg);"></div>
   </div>
 
-  <h1>BeaconChain, Refactored</h1>
+  <h1>BeaconChain, Modularised</h1>
   <p class="subtitle">
-    Decomposing <code>BeaconChain&lt;T&gt;</code> into testable components &mdash;
-    designed for fast iteration and human-AI collaboration.
+    Testable components &middot; shorter feedback loops &middot; faster reviews &middot; built for what's next.
   </p>
   <div class="scroll-hint" aria-hidden="true">&#8595;</div>
 </div>
@@ -629,7 +628,7 @@
   <h2 class="fade-in">Results <span class="badge">Proof</span></h2>
   <p class="lead fade-in">
     <code>BeaconChain&lt;T&gt;</code> went from 7,317 lines and 200+ methods to
-    120 lines and zero methods. Logic lives in 7 components and 2 orchestrators,
+    126 lines and zero methods. Logic lives in 7 components and 2 orchestrators,
     each unit-testable without the harness.
   </p>
 
@@ -640,7 +639,7 @@
       <div style="font-size:0.65rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">beacon_chain.rs</div>
       <div style="font-size:1.8rem; font-weight:800; margin-top:0.2rem;">
         <span style="color:var(--accent5); font-size:1rem; text-decoration:line-through;">7,317</span>
-        <span style="color:var(--accent2);">120</span>
+        <span style="color:var(--accent2);">126</span>
       </div>
       <div style="font-size:0.7rem; color:var(--text-muted);">lines</div>
     </div>
@@ -650,7 +649,7 @@
         <span style="color:var(--accent5); font-size:1rem; text-decoration:line-through;">40+</span>
         <span style="color:var(--accent2);">21</span>
       </div>
-      <div style="font-size:0.7rem; color:var(--text-muted);">8 components &middot; 6 infra &middot; 5 genesis &middot; 2 other</div>
+      <div style="font-size:0.7rem; color:var(--text-muted);">9 components &middot; 6 infra &middot; 5 genesis &middot; 1 other</div>
     </div>
     <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card); text-align:center;">
       <div style="font-size:0.65rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">Methods</div>
@@ -1264,7 +1263,7 @@
 </section>
 
 <footer>
-  <p>Lighthouse &mdash; BeaconChain, Refactored</p>
+  <p>Lighthouse &mdash; BeaconChain, Modularised</p>
 </footer>
 
 <script>
