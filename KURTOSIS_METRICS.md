@@ -3,6 +3,7 @@
 ## Testnet Setup
 
 - **Commit**: `48f771af4` (Final doc pass: update all sections for BlockImporter/BlockProducer)
+- **Note**: 5 subsequent commits are structural only (file renames, field moves, doc updates) — zero runtime code changes. Binary is identical.
 - **Configuration**: 4 Lighthouse BN + 4 Geth EL, Fulu fork at epoch 0
 - **Slot duration**: 3 seconds
 - **ethereum-package version**: 6.1.0

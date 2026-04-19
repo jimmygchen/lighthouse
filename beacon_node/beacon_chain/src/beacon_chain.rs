@@ -56,6 +56,12 @@ pub struct BeaconChain<T: BeaconChainTypes> {
     /// Used for spawning async and blocking tasks.
     pub task_executor: TaskExecutor,
     /// Database migrator for running background maintenance on the store.
+    ///
+    /// This is a store infrastructure concern (finalization migration, blob pruning, compaction,
+    /// reconstruction) that remains on `BeaconChain` because it is triggered by beacon chain
+    /// events (finalization, historical block import) across multiple call sites. Moving it into
+    /// the store crate would require the store to depend on beacon chain event hooks, creating a
+    /// circular dependency.
     pub store_migrator: BackgroundMigrator<T::EthSpec, T::HotStore, T::ColdStore>,
     /// Reports the current slot, typically based upon the system clock.
     pub slot_clock: T::SlotClock,

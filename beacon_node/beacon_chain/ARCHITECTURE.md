@@ -26,8 +26,7 @@ the workflow viable.
 - **Fast iteration** — change a component's internals without risking
   the rest of the system. Test in isolation, then integration.
 - **Spec-driven development** — scenario specs for behavior alignment,
-  formal specs for mathematically proven invariants. Both feed into
-  LLM-generated implementations.
+  feeding directly into LLM-generated implementations and tests.
 
 ### What stays the same
 
