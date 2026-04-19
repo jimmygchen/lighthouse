@@ -1,4 +1,4 @@
-# BeaconChain, Refactored
+# BeaconChain, Modularised
 
 Decomposing `BeaconChain<T>` into testable components — designed for fast
 iteration and human-AI collaboration.

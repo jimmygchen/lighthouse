@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="color-scheme" content="dark">
-<title>BeaconChain, Modularised</title>
+<title>BeaconChain 2</title>
 <style>
   :root {
     --bg: #0f1117;
@@ -106,6 +106,24 @@
     30%  { opacity:0.8; }
     100% { opacity:0.3; }
   }
+  .decompose .conn-lines {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    opacity: 0;
+    animation: conn-fade-in 0.5s ease-out 3.5s forwards;
+  }
+  @keyframes conn-fade-in {
+    0%   { opacity: 0; }
+    100% { opacity: 1; }
+  }
+  .conn-lines line {
+    stroke-dasharray: 300;
+    stroke-dashoffset: 300;
+    animation: conn-draw 1.2s ease-out forwards;
+  }
+  @keyframes conn-draw {
+    0%   { stroke-dashoffset: 300; }
+    100% { stroke-dashoffset: 0; }
+  }
   @keyframes spark-fly {
     0%   { opacity:0.9; transform:translate(0,0) scale(1); }
     100% { opacity:0; transform:translate(var(--sx), var(--sy)) scale(0); }
@@ -115,7 +133,41 @@
     font-weight: 800; letter-spacing: -0.03em;
     background: linear-gradient(135deg, var(--accent), var(--accent3));
     -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
     margin-bottom: 1rem; position: relative;
+  }
+  .reveal-2 {
+    opacity: 0;
+    transform: translateX(-8px);
+    display: inline-block;
+    animation: reveal2-in 1.2s cubic-bezier(0.16, 1, 0.3, 1) 2.8s forwards;
+    margin-left: 0.08em;
+    background: linear-gradient(135deg, var(--accent), var(--accent3));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  @keyframes reveal2-in {
+    0%   { opacity: 0; transform: translateX(-8px); text-shadow: none; filter: brightness(1); }
+    40%  { opacity: 1; transform: translateX(0); filter: brightness(2.5); }
+    60%  { filter: brightness(1.8); }
+    100% { opacity: 1; transform: translateX(0); filter: brightness(1); }
+  }
+  .reveal-2::after {
+    content: '';
+    position: absolute;
+    inset: -8px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(88,166,255,0.4) 0%, rgba(210,168,255,0.2) 40%, transparent 70%);
+    opacity: 0;
+    animation: glow-pulse 1.6s ease-out 2.8s forwards;
+    pointer-events: none;
+    z-index: -1;
+  }
+  @keyframes glow-pulse {
+    0%   { opacity: 0; transform: scale(0.5); }
+    30%  { opacity: 0.8; transform: scale(1.2); }
+    60%  { opacity: 0.3; transform: scale(1.0); }
+    100% { opacity: 0; transform: scale(1.0); }
   }
   .hero .subtitle {
     font-size: clamp(1rem, 2.5vw, 1.4rem);
@@ -399,6 +451,28 @@
     transition: opacity 0.6s ease, transform 0.6s ease;
   }
   .fade-in.visible { opacity: 1; transform: translateY(0); }
+
+  /* ── Hero label ── */
+  .hero-label {
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: var(--text-muted);
+    opacity: 0;
+    margin-bottom: 0.3rem;
+    font-weight: 500;
+    animation: hero-label-in 1.2s cubic-bezier(0.16, 1, 0.3, 1) 2.8s forwards;
+  }
+  @keyframes hero-label-in {
+    0%   { opacity: 0; }
+    100% { opacity: 0.7; }
+  }
+
+  /* ── Coverage bar animation ── */
+  .coverage-bar {
+    width: 0%;
+    transition: width 1.2s cubic-bezier(0.22, 1, 0.36, 1);
+  }
 </style>
 </head>
 <body>
@@ -426,16 +500,39 @@
     <div class="comp" style="left:35%;top:70%;border-color:var(--accent5);background:rgba(255,123,114,0.08);box-shadow:0 0 20px rgba(255,123,114,0.4), 0 0 40px rgba(255,123,114,0.15);animation-delay:3.0s;"></div>
     <div class="comp" style="left:65%;top:72%;border-color:var(--accent6);background:rgba(121,192,255,0.08);box-shadow:0 0 20px rgba(121,192,255,0.4), 0 0 40px rgba(121,192,255,0.15);animation-delay:3.2s;"></div>
     <div class="comp" style="left:50%;top:38%;border-color:var(--accent2);background:rgba(63,185,80,0.08);box-shadow:0 0 20px rgba(63,185,80,0.4), 0 0 40px rgba(63,185,80,0.15);animation-delay:2.5s;"></div>
-    <!-- Lightsaber connection beams (bright, glowing) -->
-    <div class="saber" style="left:33%;top:33%;width:120px;background:linear-gradient(90deg,var(--accent),rgba(88,166,255,0.3),transparent);box-shadow:0 0 8px var(--accent), 0 0 20px rgba(88,166,255,0.4);animation-delay:3.5s;transform:rotate(8deg);"></div>
-    <div class="saber" style="left:53%;top:40%;width:100px;background:linear-gradient(90deg,var(--accent2),rgba(63,185,80,0.3),transparent);box-shadow:0 0 8px var(--accent2), 0 0 20px rgba(63,185,80,0.4);animation-delay:3.7s;transform:rotate(-12deg);"></div>
-    <div class="saber" style="left:38%;top:55%;width:130px;background:linear-gradient(90deg,var(--accent3),rgba(210,168,255,0.3),transparent);box-shadow:0 0 8px var(--accent3), 0 0 20px rgba(210,168,255,0.4);animation-delay:3.9s;transform:rotate(22deg);"></div>
-    <div class="saber" style="left:58%;top:60%;width:80px;background:linear-gradient(90deg,var(--accent4),rgba(240,136,62,0.3),transparent);box-shadow:0 0 8px var(--accent4), 0 0 20px rgba(240,136,62,0.4);animation-delay:4.1s;transform:rotate(-8deg);"></div>
-    <div class="saber" style="left:26%;top:44%;width:110px;background:linear-gradient(90deg,var(--accent6),rgba(121,192,255,0.3),transparent);box-shadow:0 0 8px var(--accent6), 0 0 20px rgba(121,192,255,0.4);animation-delay:4.3s;transform:rotate(38deg);"></div>
-    <div class="saber" style="left:52%;top:68%;width:90px;background:linear-gradient(90deg,var(--accent5),rgba(255,123,114,0.3),transparent);box-shadow:0 0 8px var(--accent5), 0 0 20px rgba(255,123,114,0.4);animation-delay:4.0s;transform:rotate(-25deg);"></div>
+    <!-- SVG connection lines from center component (50%,38%) to all others -->
+    <svg class="conn-lines" viewBox="0 0 100 100" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <filter id="glow-blue" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="0.4" result="g"/><feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        <filter id="glow-green" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="0.4" result="g"/><feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        <filter id="glow-purple" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="0.4" result="g"/><feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        <filter id="glow-orange" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="0.4" result="g"/><feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        <filter id="glow-red" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="0.4" result="g"/><feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        <filter id="glow-lightblue" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="0.4" result="g"/><feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+      </defs>
+      <!-- center (50,38) → comp1 (30,28) blue — shortened to box edges -->
+      <line x1="47.3" y1="36.7" x2="32.7" y2="29.3" stroke="#58a6ff" stroke-width="0.15" opacity="0.4" filter="url(#glow-blue)" style="animation-delay:3.5s;"/>
+      <circle cx="32.7" cy="29.3" r="0.6" fill="#58a6ff" opacity="0.6" filter="url(#glow-blue)"/>
+      <!-- center (50,38) → comp2 (70,26) green -->
+      <line x1="52.6" y1="36.5" x2="67.4" y2="27.5" stroke="#3fb950" stroke-width="0.15" opacity="0.4" filter="url(#glow-green)" style="animation-delay:3.7s;"/>
+      <circle cx="67.4" cy="27.5" r="0.6" fill="#3fb950" opacity="0.6" filter="url(#glow-green)"/>
+      <!-- center (50,38) → comp3 (22,50) purple -->
+      <line x1="47.2" y1="39.2" x2="24.8" y2="48.8" stroke="#d2a8ff" stroke-width="0.15" opacity="0.4" filter="url(#glow-purple)" style="animation-delay:3.9s;"/>
+      <circle cx="24.8" cy="48.8" r="0.6" fill="#d2a8ff" opacity="0.6" filter="url(#glow-purple)"/>
+      <!-- center (50,38) → comp4 (78,48) orange -->
+      <line x1="52.8" y1="39.0" x2="75.2" y2="47.0" stroke="#f0883e" stroke-width="0.15" opacity="0.4" filter="url(#glow-orange)" style="animation-delay:4.1s;"/>
+      <circle cx="75.2" cy="47.0" r="0.6" fill="#f0883e" opacity="0.6" filter="url(#glow-orange)"/>
+      <!-- center (50,38) → comp5 (35,70) red -->
+      <line x1="48.7" y1="40.7" x2="36.3" y2="67.3" stroke="#ff7b72" stroke-width="0.15" opacity="0.4" filter="url(#glow-red)" style="animation-delay:4.3s;"/>
+      <circle cx="36.3" cy="67.3" r="0.6" fill="#ff7b72" opacity="0.6" filter="url(#glow-red)"/>
+      <!-- center (50,38) → comp6 (65,72) lightblue -->
+      <line x1="51.2" y1="40.7" x2="63.8" y2="69.3" stroke="#79c0ff" stroke-width="0.15" opacity="0.4" filter="url(#glow-lightblue)" style="animation-delay:4.5s;"/>
+      <circle cx="63.8" cy="69.3" r="0.6" fill="#79c0ff" opacity="0.6" filter="url(#glow-lightblue)"/>
+    </svg>
   </div>
 
-  <h1>BeaconChain, Modularised</h1>
+  <p class="hero-label">Lighthouse</p>
+  <h1>BeaconChain<span class="reveal-2">2</span></h1>
   <p class="subtitle">
     From 200+ methods to zero. 7,317 lines to 126.<br>
     Our tiniest BeaconChain, ever.
@@ -460,23 +557,21 @@
 <section id="problem">
   <h2 class="fade-in">The Problem <span class="badge">Why</span></h2>
   <p class="lead fade-in">
-    <code>BeaconChain&lt;T&gt;</code> is a single struct with 40+ fields and 200+ methods.
-    Every caller holds <code>Arc&lt;BeaconChain&gt;</code> and can reach everything.
-    This creates three compounding problems:
+    One struct. 40+ fields. 200+ methods. Everyone gets <code>Arc&lt;BeaconChain&gt;</code> and can reach everything.
   </p>
 
   <div class="fade-in" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(250px,1fr)); gap:1rem; margin:1rem 0 1.5rem;">
     <div style="border:1px solid var(--border); border-radius:10px; padding:1rem; background:var(--bg-card);">
       <strong style="color:var(--accent5);">Low confidence in generated code</strong>
-      <p style="font-size:0.8rem; color:var(--text-muted); margin:0.5rem 0 0;">Without unit-testable components, AI-generated code can only be validated by full integration tests or manual review. Each change requires understanding the entire 7,000-line struct to assess impact.</p>
+      <p style="font-size:0.8rem; color:var(--text-muted); margin:0.5rem 0 0;">No unit-testable components. Every change requires understanding 7,000 lines to assess impact.</p>
     </div>
     <div style="border:1px solid var(--border); border-radius:10px; padding:1rem; background:var(--bg-card);">
       <strong style="color:var(--accent5);">Slow manual review process</strong>
-      <p style="font-size:0.8rem; color:var(--text-muted); margin:0.5rem 0 0;">Reviewers must trace through the god object to understand what a change touches, because boundaries aren't enforced by the type system. Every PR risks unintended side effects through shared mutable state.</p>
+      <p style="font-size:0.8rem; color:var(--text-muted); margin:0.5rem 0 0;">No type-enforced boundaries. Reviewers trace the god object to understand what a change actually touches.</p>
     </div>
     <div style="border:1px solid var(--border); border-radius:10px; padding:1rem; background:var(--bg-card);">
       <strong style="color:var(--accent5);">Hard to iterate without risk</strong>
-      <p style="font-size:0.8rem; color:var(--text-muted); margin:0.5rem 0 0;">Any change to one concern (attestation handling, block production, fork choice) can break another because they share the same type and lock scopes. Testing in isolation is impossible.</p>
+      <p style="font-size:0.8rem; color:var(--text-muted); margin:0.5rem 0 0;">Attestations, block production, fork choice all share one type and its lock scopes. Isolated testing is impossible.</p>
     </div>
   </div>
 
@@ -502,7 +597,7 @@
 
     <div class="compare-card after">
       <h3>After &mdash; Components + Composition</h3>
-      <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:1rem;">Focused components that own their state and are testable in isolation. Callers hold typed refs but no logic &mdash; logic lives in the components and composed orchestrator workflows.</p>
+      <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:1rem;">Focused components own their state. Callers hold typed refs, no logic. Testable in isolation.</p>
       <p style="font-size:0.75rem; color:var(--text-muted);">See the <a href="#deps" style="color:var(--accent);">Structure</a> diagram for the full component map.</p>
     </div>
   </div>
@@ -512,45 +607,38 @@
 <section id="workflow">
   <h2 class="fade-in">What This Unlocks <span class="badge">Workflow</span></h2>
   <p class="lead fade-in">
-    This architecture doesn't prescribe a workflow. It makes new ones possible.
+    Not a workflow prescription. A foundation for new ones.
   </p>
 
   <div class="fade-in" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px,1fr)); gap:1rem; margin:1.5rem 0;">
     <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card);">
       <strong style="color:var(--accent);">Delegatable implementation</strong>
       <p style="font-size:0.8rem; color:var(--text-muted); margin:0.5rem 0 0;">
-        Components have clear boundaries and owned state. An implementation task
-        can be scoped to a single component without understanding the rest of the
-        chain &mdash; whether that work is done by a human, an LLM, or both.
+        Scope a task to one component. No need to understand the rest of the chain.
       </p>
     </div>
     <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card);">
       <strong style="color:var(--accent);">Unit-testable without the harness</strong>
       <p style="font-size:0.8rem; color:var(--text-muted); margin:0.5rem 0 0;">
-        Components can be constructed directly with minimal deps &mdash;
-        no <code>BeaconChainHarness</code>, no store, no fork choice.
-        Tests run fast and validate generated code before integration.
+        Construct a component directly. No harness, no store, no fork choice. Fast tests that validate before integration.
       </p>
     </div>
     <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card);">
       <strong style="color:var(--accent);">Faster review</strong>
       <p style="font-size:0.8rem; color:var(--text-muted); margin:0.5rem 0 0;">
-        A PR that touches <code>AttestationManager</code> can be reviewed
-        against its interface and tests alone. No tracing through a 7,000-line struct.
+        Review <code>AttestationManager</code> against its interface and tests. Not 7,000 lines.
       </p>
     </div>
     <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card);">
       <strong style="color:var(--accent);">Safe iteration</strong>
       <p style="font-size:0.8rem; color:var(--text-muted); margin:0.5rem 0 0;">
-        Refactoring a component's internals doesn't risk breaking unrelated
-        subsystems. The type system enforces boundaries that the god object
-        left implicit.
+        Refactor internals without breaking unrelated subsystems. Type-enforced boundaries replace implicit ones.
       </p>
     </div>
   </div>
 
   <div class="callout fade-in">
-    As LLM capabilities grow, the proportion of work that can be delegated grows with them &mdash; but only if the codebase is structured for it. A god object is a ceiling. Modular components are a foundation.
+    A god object is a ceiling. Modular components are a foundation.
   </div>
 </section>
 
@@ -558,7 +646,7 @@
 <section id="deps">
   <h2 class="fade-in">Structure <span class="badge">Overview</span></h2>
   <p class="lead fade-in">
-    <code>BeaconChain&lt;T&gt;</code> keeps the name but has zero methods. Its 200+ methods now live in components and orchestrators. Callers access logic through typed component refs.
+    Same name. Zero methods. All logic lives in components and orchestrators.
   </p>
 
   <div class="fade-in" style="margin:2rem 0; overflow-x:auto; padding-bottom:1rem;">
@@ -628,9 +716,7 @@
 <section id="results">
   <h2 class="fade-in">Results <span class="badge">Proof</span></h2>
   <p class="lead fade-in">
-    <code>BeaconChain&lt;T&gt;</code> went from 7,317 lines and 200+ methods to
-    126 lines and zero methods. Logic lives in 7 components and 2 orchestrators,
-    each unit-testable without the harness.
+    7,317 lines to 126. 200+ methods to zero. 7 components + 2 orchestrators, each unit-testable.
   </p>
 
   <h3 class="fade-in" style="margin-top:1rem; font-size:1.1rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-muted);">Key metrics</h3>
@@ -640,7 +726,7 @@
       <div style="font-size:0.65rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">beacon_chain.rs</div>
       <div style="font-size:1.8rem; font-weight:800; margin-top:0.2rem;">
         <span style="color:var(--accent5); font-size:1rem; text-decoration:line-through;">7,317</span>
-        <span style="color:var(--accent2);">126</span>
+        <span class="metric-counter" data-target="126" style="color:var(--accent2);">0</span>
       </div>
       <div style="font-size:0.7rem; color:var(--text-muted);">lines</div>
     </div>
@@ -648,7 +734,7 @@
       <div style="font-size:0.65rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">Fields</div>
       <div style="font-size:1.8rem; font-weight:800; margin-top:0.2rem;">
         <span style="color:var(--accent5); font-size:1rem; text-decoration:line-through;">40+</span>
-        <span style="color:var(--accent2);">21</span>
+        <span class="metric-counter" data-target="21" style="color:var(--accent2);">0</span>
       </div>
       <div style="font-size:0.7rem; color:var(--text-muted);">9 components &middot; 6 infra &middot; 5 genesis &middot; 1 other</div>
     </div>
@@ -656,7 +742,7 @@
       <div style="font-size:0.65rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">Methods</div>
       <div style="font-size:1.8rem; font-weight:800; margin-top:0.2rem;">
         <span style="color:var(--accent5); font-size:1rem; text-decoration:line-through;">200+</span>
-        <span style="color:var(--accent2);">0</span>
+        <span class="metric-counter" data-target="0" style="color:var(--accent2);">0</span>
       </div>
       <div style="font-size:0.7rem; color:var(--text-muted);">on the top-level type</div>
     </div>
@@ -719,7 +805,7 @@
 
   <h3 class="fade-in" style="margin-top:2.5rem; font-size:1.1rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-muted);">Performance: unstable vs branch</h3>
   <p class="fade-in" style="font-size:0.85rem; color:var(--text-muted); margin:0.5rem 0 1rem;">
-    Same Kurtosis config (4 LH + 4 Geth, Fulu, 3s slots). Metrics from Prometheus.
+    4 LH + 4 Geth, Fulu, 3s slots. Prometheus metrics.
   </p>
 
   <div class="fade-in" style="overflow-x:auto;">
@@ -778,16 +864,13 @@
       </tbody>
     </table>
     <p style="font-size:0.7rem; color:var(--text-muted); margin-top:0.5rem;">
-      Block processing core shows +0.46ms which is within noise for a local testnet with 128 validators.
-      All other metrics are equivalent or slightly faster.
+      +0.46ms on block processing core is within noise for 128 validators. Everything else is equivalent or faster.
     </p>
   </div>
 
   <h3 class="fade-in" style="margin-top:2.5rem; font-size:1.1rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-muted);">Coverage: monolith vs components</h3>
   <p class="fade-in" style="font-size:0.85rem; color:var(--text-muted); margin:0.5rem 0 1rem;">
-    Same test suite, same <code>cargo llvm-cov</code> command.
-    The monolithic <code>beacon_chain.rs</code> is now broken into focused modules &mdash;
-    each with measurable, independent coverage.
+    Same test suite, same <code>cargo llvm-cov</code>. One blob of coverage becomes per-component visibility.
   </p>
 
   <div class="fade-in" style="overflow-x:auto;">
@@ -811,7 +894,7 @@
           <td style="padding:0.5rem 0.8rem;">
             <div style="display:flex; align-items:center; gap:0.5rem;">
               <div style="flex:1; height:16px; background:var(--surface2); border-radius:4px; overflow:hidden;">
-                <div style="width:75.1%; height:100%; background:var(--accent5); border-radius:4px;"></div>
+                <div class="coverage-bar" data-width="75.1%" style="height:100%; background:var(--accent5); border-radius:4px;"></div>
               </div>
               <span style="font-family:monospace; font-weight:600; color:var(--accent5); min-width:3.5em;">75.1%</span>
             </div>
@@ -825,7 +908,7 @@
           <td style="padding:0.4rem 0.8rem;">
             <div style="display:flex; align-items:center; gap:0.5rem;">
               <div style="flex:1; height:12px; background:var(--surface2); border-radius:3px; overflow:hidden;">
-                <div style="width:89%; height:100%; background:var(--accent2); border-radius:3px;"></div>
+                <div class="coverage-bar" data-width="89%" style="height:100%; background:var(--accent2); border-radius:3px;"></div>
               </div>
               <span style="font-family:monospace; font-weight:600; color:var(--accent2); min-width:3.5em;">89.0%</span>
             </div>
@@ -838,7 +921,7 @@
           <td style="padding:0.4rem 0.8rem;">
             <div style="display:flex; align-items:center; gap:0.5rem;">
               <div style="flex:1; height:12px; background:var(--surface2); border-radius:3px; overflow:hidden;">
-                <div style="width:92.8%; height:100%; background:var(--accent2); border-radius:3px;"></div>
+                <div class="coverage-bar" data-width="92.8%" style="height:100%; background:var(--accent2); border-radius:3px;"></div>
               </div>
               <span style="font-family:monospace; font-weight:600; color:var(--accent2); min-width:3.5em;">92.8%</span>
             </div>
@@ -851,7 +934,7 @@
           <td style="padding:0.4rem 0.8rem;">
             <div style="display:flex; align-items:center; gap:0.5rem;">
               <div style="flex:1; height:12px; background:var(--surface2); border-radius:3px; overflow:hidden;">
-                <div style="width:89.3%; height:100%; background:var(--accent2); border-radius:3px;"></div>
+                <div class="coverage-bar" data-width="89.3%" style="height:100%; background:var(--accent2); border-radius:3px;"></div>
               </div>
               <span style="font-family:monospace; font-weight:600; color:var(--accent2); min-width:3.5em;">89.3%</span>
             </div>
@@ -864,7 +947,7 @@
           <td style="padding:0.4rem 0.8rem;">
             <div style="display:flex; align-items:center; gap:0.5rem;">
               <div style="flex:1; height:12px; background:var(--surface2); border-radius:3px; overflow:hidden;">
-                <div style="width:87.6%; height:100%; background:var(--accent2); border-radius:3px;"></div>
+                <div class="coverage-bar" data-width="87.6%" style="height:100%; background:var(--accent2); border-radius:3px;"></div>
               </div>
               <span style="font-family:monospace; font-weight:600; color:var(--accent2); min-width:3.5em;">87.6%</span>
             </div>
@@ -877,7 +960,7 @@
           <td style="padding:0.4rem 0.8rem;">
             <div style="display:flex; align-items:center; gap:0.5rem;">
               <div style="flex:1; height:12px; background:var(--surface2); border-radius:3px; overflow:hidden;">
-                <div style="width:85.2%; height:100%; background:var(--accent2); border-radius:3px;"></div>
+                <div class="coverage-bar" data-width="85.2%" style="height:100%; background:var(--accent2); border-radius:3px;"></div>
               </div>
               <span style="font-family:monospace; font-weight:600; color:var(--accent2); min-width:3.5em;">85.2%</span>
             </div>
@@ -890,7 +973,7 @@
           <td style="padding:0.4rem 0.8rem;">
             <div style="display:flex; align-items:center; gap:0.5rem;">
               <div style="flex:1; height:12px; background:var(--surface2); border-radius:3px; overflow:hidden;">
-                <div style="width:82.3%; height:100%; background:var(--accent2); border-radius:3px;"></div>
+                <div class="coverage-bar" data-width="82.3%" style="height:100%; background:var(--accent2); border-radius:3px;"></div>
               </div>
               <span style="font-family:monospace; font-weight:600; color:var(--accent2); min-width:3.5em;">82.3%</span>
             </div>
@@ -903,7 +986,7 @@
           <td style="padding:0.4rem 0.8rem;">
             <div style="display:flex; align-items:center; gap:0.5rem;">
               <div style="flex:1; height:12px; background:var(--surface2); border-radius:3px; overflow:hidden;">
-                <div style="width:64%; height:100%; background:var(--accent4); border-radius:3px;"></div>
+                <div class="coverage-bar" data-width="64%" style="height:100%; background:var(--accent4); border-radius:3px;"></div>
               </div>
               <span style="font-family:monospace; font-weight:600; color:var(--accent4); min-width:3.5em;">64.0%</span>
             </div>
@@ -916,7 +999,7 @@
           <td style="padding:0.4rem 0.8rem;">
             <div style="display:flex; align-items:center; gap:0.5rem;">
               <div style="flex:1; height:12px; background:var(--surface2); border-radius:3px; overflow:hidden;">
-                <div style="width:59.9%; height:100%; background:var(--accent4); border-radius:3px;"></div>
+                <div class="coverage-bar" data-width="59.9%" style="height:100%; background:var(--accent4); border-radius:3px;"></div>
               </div>
               <span style="font-family:monospace; font-weight:600; color:var(--accent4); min-width:3.5em;">59.9%</span>
             </div>
@@ -929,7 +1012,7 @@
           <td style="padding:0.4rem 0.8rem;">
             <div style="display:flex; align-items:center; gap:0.5rem;">
               <div style="flex:1; height:12px; background:var(--surface2); border-radius:3px; overflow:hidden;">
-                <div style="width:93.5%; height:100%; background:var(--accent2); border-radius:3px;"></div>
+                <div class="coverage-bar" data-width="93.5%" style="height:100%; background:var(--accent2); border-radius:3px;"></div>
               </div>
               <span style="font-family:monospace; font-weight:600; color:var(--accent2); min-width:3.5em;">93.5%</span>
             </div>
@@ -942,7 +1025,7 @@
           <td style="padding:0.4rem 0.8rem;">
             <div style="display:flex; align-items:center; gap:0.5rem;">
               <div style="flex:1; height:12px; background:var(--surface2); border-radius:3px; overflow:hidden;">
-                <div style="width:92.3%; height:100%; background:var(--accent2); border-radius:3px;"></div>
+                <div class="coverage-bar" data-width="92.3%" style="height:100%; background:var(--accent2); border-radius:3px;"></div>
               </div>
               <span style="font-family:monospace; font-weight:600; color:var(--accent2); min-width:3.5em;">92.3%</span>
             </div>
@@ -969,36 +1052,36 @@
 <section id="principles">
   <h2 class="fade-in">Design Principles <span class="badge">Constraints</span></h2>
   <p class="lead fade-in">
-    Derived from specific problems in <code>BeaconChain&lt;T&gt;</code>. These guide design decisions.
+    Born from specific <code>BeaconChain&lt;T&gt;</code> pain points.
   </p>
 
   <div class="principles fade-in">
     <div class="principle">
       <div class="principle-num">1</div>
       <h3>Favour composition over god objects</h3>
-      <p>Workflows compose the specific capabilities they need &mdash; not whole components. Pass what you need, not what <em>has</em> what you need.</p>
-      <div class="why">Today <code>produce_block_on_state</code> accesses <code>self.*</code> for everything because the god object makes it easy. Tracing what it actually uses reveals 3 domain dependencies out of 40+ fields. See the <a href="#howitworks" style="color:var(--accent);">block production example</a> below.</div>
+      <p>Pass what you need, not what <em>has</em> what you need.</p>
+      <div class="why"><code>produce_block_on_state</code> uses 3 domain deps out of 40+ fields. See the <a href="#howitworks" style="color:var(--accent);">block production example</a>.</div>
     </div>
 
     <div class="principle">
       <div class="principle-num">2</div>
       <h3>Separate business logic from infrastructure</h3>
-      <p>Components own verification logic and state. Infrastructure like chain state, current slot, and event dispatch is provided by the caller &mdash; as values, references, or callbacks.</p>
-      <div class="why">Today verification methods internally reach into <code>CanonicalHead</code> for head state and <code>SlotClock</code> for the current epoch. This couples every component to chain infrastructure and makes isolated testing impossible.</div>
+      <p>Components own verification logic. Infrastructure (chain state, slot, events) comes from the caller.</p>
+      <div class="why">Today verification methods reach into <code>CanonicalHead</code> and <code>SlotClock</code> internally. Coupling that makes isolated testing impossible.</div>
     </div>
 
     <div class="principle">
       <div class="principle-num">3</div>
       <h3>Components are testable in isolation</h3>
-      <p>Construct a component, pass in test state, assert results &mdash; without <code>BeaconChainHarness</code>, store, or fork choice.</p>
-      <div class="why">Today you can't test verification logic without spinning up the full chain. Deterministic components that receive context as parameters can be tested directly, verified against specs, and safely modified.</div>
+      <p>Construct, pass state, assert. No harness, no store, no fork choice.</p>
+      <div class="why">Today you spin up the full chain just to test verification logic. Deterministic components with parameterized context fix that.</div>
     </div>
 
     <div class="principle">
       <div class="principle-num">4</div>
       <h3>Fork choice write locks are concentrated</h3>
-      <p>Write locks are acquired only by block import, head recomputation, attestation application, and EL callbacks. Components like OperationsManager and SyncCommitteeManager never touch them.</p>
-      <div class="why">The lock ordering in <code>canonical_head.rs</code> is where deadlocks happen. Today any code holding <code>Arc&lt;BeaconChain&gt;</code> can reach the fork choice lock. This architecture enforces that boundary.</div>
+      <p>Only block import, head recomputation, attestation application, and EL callbacks acquire write locks.</p>
+      <div class="why"><code>canonical_head.rs</code> lock ordering is where deadlocks happen. Today any <code>Arc&lt;BeaconChain&gt;</code> holder can reach it. Now that boundary is enforced.</div>
     </div>
   </div>
 </section>
@@ -1007,13 +1090,13 @@
 <section id="howitworks">
   <h2 class="fade-in">How It Works <span class="badge">Details</span></h2>
   <p class="lead fade-in">
-    Block production as a worked example, followed by the component reference.
+    Block production as a worked example. Component reference below.
   </p>
 
   <details class="fade-in" open>
     <summary>What block production actually needs</summary>
     <div class="detail-body">
-      <p style="margin-bottom:1rem;"><code>produce_block_on_state</code> looks like it needs the entire <code>BeaconChain</code>. It doesn't. Tracing what it actually <em>uses</em>:</p>
+      <p style="margin-bottom:1rem;">Looks like it needs the whole <code>BeaconChain</code>. It doesn't.</p>
 
       <div style="display:grid; grid-template-columns:auto 1fr; gap:0.5rem 1rem; font-size:0.85rem; margin-bottom:1.5rem;">
         <strong style="color:var(--accent);">Domain</strong><span></span>
@@ -1035,7 +1118,7 @@
         <span style="color:var(--text-muted);">Spawn blocking work</span>
       </div>
 
-      <p><strong>3 domain dependencies</strong> vs 40+ fields on the god object. The infrastructure deps (spec, clock, executor) are just Rust requiring you to be explicit about what other languages grab from globals.</p>
+      <p><strong>3 domain deps</strong> vs 40+ fields. Infrastructure deps (spec, clock, executor) are Rust making implicit globals explicit.</p>
     </div>
   </details>
 
@@ -1081,7 +1164,7 @@
   <details class="fade-in">
     <summary>Components &mdash; what each one owns and holds</summary>
     <div class="detail-body">
-      <p style="margin-bottom:1rem;">Each component owns its verification state and holds shared references.</p>
+      <p style="margin-bottom:1rem;">Owned state and shared references for each component.</p>
       <div class="ref-grid">
         <div class="ref-card">
           <h4>OperationsManager</h4>
@@ -1173,7 +1256,7 @@
   <details class="fade-in">
     <summary>Dependency injection &mdash; what each caller receives</summary>
     <div class="detail-body">
-      <p style="margin-bottom:1rem;">Callers hold refs to components but no logic of their own. Handler functions pull the specific refs they need.</p>
+      <p style="margin-bottom:1rem;">Callers hold refs, no logic. Handlers pull only what they need.</p>
       <div class="ref-grid">
         <div class="ref-card">
           <h4>NetworkBeaconProcessor</h4>
@@ -1213,7 +1296,7 @@
 <section id="cheatsheet">
   <h2 class="fade-in">Quick Reference <span class="badge">Cheat Sheet</span></h2>
   <p class="lead fade-in">
-    Patterns and anti-patterns for working in this architecture.
+    Do this. Not that.
   </p>
 
   <div class="cheat fade-in">
@@ -1272,6 +1355,42 @@ const observer = new IntersectionObserver((entries) => {
   entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
 }, { threshold: 0.15 });
 document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+
+// Coverage bar animation
+const barObserver = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      e.target.style.width = e.target.dataset.width;
+      barObserver.unobserve(e.target);
+    }
+  });
+}, { threshold: 0.3 });
+document.querySelectorAll('.coverage-bar').forEach(el => barObserver.observe(el));
+
+// Metric counter animation
+const counterObserver = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      const target = parseInt(e.target.dataset.target);
+      if (target === 0) {
+        e.target.textContent = '0';
+        counterObserver.unobserve(e.target);
+        return;
+      }
+      const duration = 1000;
+      const start = performance.now();
+      const tick = (now) => {
+        const t = Math.min((now - start) / duration, 1);
+        const eased = 1 - Math.pow(1 - t, 3);
+        e.target.textContent = Math.round(eased * target).toLocaleString();
+        if (t < 1) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+      counterObserver.unobserve(e.target);
+    }
+  });
+}, { threshold: 0.5 });
+document.querySelectorAll('.metric-counter').forEach(el => counterObserver.observe(el));
 
 const sections = document.querySelectorAll('section[id]');
 const navLinks = document.querySelectorAll('nav a');
