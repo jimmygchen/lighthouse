@@ -52,43 +52,63 @@
     100% { transform: translate(30px, -20px) scale(1.05); }
   }
 
-  /* ── Decomposition animation ── */
+  /* ── Decomposition animation — sci-fi energy burst ── */
   .decompose { position:absolute; inset:0; pointer-events:none; z-index:0; }
-  .decompose .box {
-    position:absolute; border-radius:6px; opacity:0;
-    animation: emerge 1.5s ease-out forwards;
-  }
   .decompose .god {
-    width:120px; height:80px; left:50%; top:50%;
-    transform:translate(-50%,-50%) scale(1);
+    position:absolute; width:140px; height:90px; left:50%; top:50%;
+    transform:translate(-50%,-50%);
     border:2px solid var(--accent5);
-    background:rgba(255,123,114,0.08);
-    box-shadow:0 0 30px rgba(255,123,114,0.15);
-    animation: god-shrink 3s ease-in-out forwards;
-    opacity:0.3;
+    background:rgba(255,123,114,0.12);
+    border-radius:8px;
+    box-shadow: 0 0 40px rgba(255,123,114,0.4), 0 0 80px rgba(255,123,114,0.2), inset 0 0 20px rgba(255,123,114,0.1);
+    animation: god-explode 2.5s ease-in-out forwards;
+  }
+  .decompose .burst {
+    position:absolute; left:50%; top:50%; width:0; height:0;
+    border-radius:50%;
+    background:radial-gradient(circle, rgba(255,123,114,0.6) 0%, rgba(88,166,255,0.3) 40%, transparent 70%);
+    transform:translate(-50%,-50%);
+    animation: energy-burst 1.5s ease-out 1.5s forwards;
   }
   .decompose .comp {
-    width:60px; height:36px;
-    border:1.5px solid; opacity:0;
-    animation: comp-appear 0.8s ease-out forwards;
+    position:absolute; width:56px; height:34px;
+    border:1.5px solid; border-radius:6px; opacity:0;
+    backdrop-filter:blur(4px);
+    animation: comp-fly-in 1s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
   }
-  .decompose .line {
-    position:absolute; height:1px; transform-origin:left center;
-    animation: line-draw 0.6s ease-out forwards;
-    opacity:0;
+  .decompose .saber {
+    position:absolute; height:2px; transform-origin:left center;
+    border-radius:2px; opacity:0;
+    animation: saber-ignite 0.8s ease-out forwards;
   }
-  @keyframes god-shrink {
-    0%   { opacity:0.3; transform:translate(-50%,-50%) scale(1); }
-    30%  { opacity:0.25; transform:translate(-50%,-50%) scale(1); }
-    100% { opacity:0; transform:translate(-50%,-50%) scale(0.3); }
+  .decompose .spark {
+    position:absolute; width:4px; height:4px; border-radius:50%; opacity:0;
+    animation: spark-fly 1.2s ease-out forwards;
   }
-  @keyframes comp-appear {
-    0%   { opacity:0; transform:translate(-50%,-50%) scale(0.3); }
-    100% { opacity:0.2; transform:translate(-50%,-50%) scale(1); }
+  @keyframes god-explode {
+    0%   { opacity:1; transform:translate(-50%,-50%) scale(1); box-shadow: 0 0 40px rgba(255,123,114,0.4), 0 0 80px rgba(255,123,114,0.2); }
+    50%  { opacity:1; transform:translate(-50%,-50%) scale(1.1); box-shadow: 0 0 60px rgba(255,123,114,0.6), 0 0 120px rgba(255,123,114,0.3); }
+    70%  { opacity:0.8; transform:translate(-50%,-50%) scale(1.15); box-shadow: 0 0 80px rgba(255,255,255,0.3), 0 0 160px rgba(88,166,255,0.4); }
+    100% { opacity:0; transform:translate(-50%,-50%) scale(0.1); }
   }
-  @keyframes line-draw {
-    0%   { opacity:0; transform:scaleX(0); }
-    100% { opacity:0.15; transform:scaleX(1); }
+  @keyframes energy-burst {
+    0%   { width:0; height:0; opacity:0.8; }
+    50%  { width:500px; height:500px; opacity:0.4; }
+    100% { width:800px; height:800px; opacity:0; }
+  }
+  @keyframes comp-fly-in {
+    0%   { opacity:0; transform:translate(-50%,-50%) scale(0.2); filter:brightness(3); }
+    60%  { opacity:0.5; filter:brightness(1.5); }
+    100% { opacity:0.35; transform:translate(-50%,-50%) scale(1); filter:brightness(1); }
+  }
+  @keyframes saber-ignite {
+    0%   { opacity:0; width:0; }
+    30%  { opacity:0.8; }
+    100% { opacity:0.3; }
+  }
+  @keyframes spark-fly {
+    0%   { opacity:0.9; transform:translate(0,0) scale(1); }
+    100% { opacity:0; transform:translate(var(--sx), var(--sy)) scale(0); }
   }
   .hero h1 {
     font-size: clamp(2.5rem, 6vw, 4.5rem);
@@ -385,24 +405,34 @@
 
 <!-- ════════════ HERO ════════════ -->
 <div class="hero">
-  <!-- Decomposition animation: god object splits into connected components -->
+  <!-- Decomposition animation: god object explodes into connected components -->
   <div class="decompose" aria-hidden="true">
-    <!-- The god object (fades out) -->
-    <div class="box god"></div>
-    <!-- Components emerge and settle (lightsaber glow connections) -->
-    <div class="comp box" style="left:35%;top:30%;border-color:var(--accent);box-shadow:0 0 12px rgba(88,166,255,0.3);animation-delay:1.2s;"></div>
-    <div class="comp box" style="left:65%;top:28%;border-color:var(--accent2);box-shadow:0 0 12px rgba(63,185,80,0.3);animation-delay:1.4s;"></div>
-    <div class="comp box" style="left:28%;top:50%;border-color:var(--accent3);box-shadow:0 0 12px rgba(210,168,255,0.3);animation-delay:1.6s;"></div>
-    <div class="comp box" style="left:72%;top:48%;border-color:var(--accent4);box-shadow:0 0 12px rgba(240,136,62,0.3);animation-delay:1.8s;"></div>
-    <div class="comp box" style="left:38%;top:68%;border-color:var(--accent5);box-shadow:0 0 12px rgba(255,123,114,0.3);animation-delay:2.0s;"></div>
-    <div class="comp box" style="left:62%;top:70%;border-color:var(--accent6);box-shadow:0 0 12px rgba(121,192,255,0.3);animation-delay:2.2s;"></div>
-    <div class="comp box" style="left:50%;top:38%;border-color:var(--accent2);box-shadow:0 0 12px rgba(63,185,80,0.3);animation-delay:1.5s;"></div>
-    <!-- Lightsaber-style connection lines -->
-    <div class="line" style="left:37%;top:34%;width:80px;background:linear-gradient(90deg,var(--accent),transparent);box-shadow:0 0 6px var(--accent);animation-delay:2.5s;transform:rotate(5deg);"></div>
-    <div class="line" style="left:55%;top:40%;width:70px;background:linear-gradient(90deg,var(--accent2),transparent);box-shadow:0 0 6px var(--accent2);animation-delay:2.7s;transform:rotate(-15deg);"></div>
-    <div class="line" style="left:40%;top:55%;width:90px;background:linear-gradient(90deg,var(--accent3),transparent);box-shadow:0 0 6px var(--accent3);animation-delay:2.9s;transform:rotate(20deg);"></div>
-    <div class="line" style="left:58%;top:58%;width:60px;background:linear-gradient(90deg,var(--accent4),transparent);box-shadow:0 0 6px var(--accent4);animation-delay:3.1s;transform:rotate(-10deg);"></div>
-    <div class="line" style="left:32%;top:45%;width:75px;background:linear-gradient(90deg,var(--accent6),transparent);box-shadow:0 0 6px var(--accent6);animation-delay:3.3s;transform:rotate(35deg);"></div>
+    <!-- The god object (swells then explodes) -->
+    <div class="god"></div>
+    <!-- Energy burst on explosion -->
+    <div class="burst"></div>
+    <!-- Sparks flying out from center -->
+    <div class="spark" style="left:50%;top:50%;background:var(--accent);box-shadow:0 0 8px var(--accent);--sx:-80px;--sy:-60px;animation-delay:1.8s;"></div>
+    <div class="spark" style="left:50%;top:50%;background:var(--accent2);box-shadow:0 0 8px var(--accent2);--sx:90px;--sy:-40px;animation-delay:1.9s;"></div>
+    <div class="spark" style="left:50%;top:50%;background:var(--accent3);box-shadow:0 0 8px var(--accent3);--sx:-60px;--sy:70px;animation-delay:2.0s;"></div>
+    <div class="spark" style="left:50%;top:50%;background:var(--accent5);box-shadow:0 0 8px var(--accent5);--sx:70px;--sy:80px;animation-delay:1.85s;"></div>
+    <div class="spark" style="left:50%;top:50%;background:var(--accent4);box-shadow:0 0 8px var(--accent4);--sx:-100px;--sy:10px;animation-delay:1.95s;"></div>
+    <div class="spark" style="left:50%;top:50%;background:var(--accent6);box-shadow:0 0 8px var(--accent6);--sx:50px;--sy:-90px;animation-delay:2.1s;"></div>
+    <!-- Components fly in from explosion center -->
+    <div class="comp" style="left:30%;top:28%;border-color:var(--accent);background:rgba(88,166,255,0.08);box-shadow:0 0 20px rgba(88,166,255,0.4), 0 0 40px rgba(88,166,255,0.15);animation-delay:2.2s;"></div>
+    <div class="comp" style="left:70%;top:26%;border-color:var(--accent2);background:rgba(63,185,80,0.08);box-shadow:0 0 20px rgba(63,185,80,0.4), 0 0 40px rgba(63,185,80,0.15);animation-delay:2.4s;"></div>
+    <div class="comp" style="left:22%;top:50%;border-color:var(--accent3);background:rgba(210,168,255,0.08);box-shadow:0 0 20px rgba(210,168,255,0.4), 0 0 40px rgba(210,168,255,0.15);animation-delay:2.6s;"></div>
+    <div class="comp" style="left:78%;top:48%;border-color:var(--accent4);background:rgba(240,136,62,0.08);box-shadow:0 0 20px rgba(240,136,62,0.4), 0 0 40px rgba(240,136,62,0.15);animation-delay:2.8s;"></div>
+    <div class="comp" style="left:35%;top:70%;border-color:var(--accent5);background:rgba(255,123,114,0.08);box-shadow:0 0 20px rgba(255,123,114,0.4), 0 0 40px rgba(255,123,114,0.15);animation-delay:3.0s;"></div>
+    <div class="comp" style="left:65%;top:72%;border-color:var(--accent6);background:rgba(121,192,255,0.08);box-shadow:0 0 20px rgba(121,192,255,0.4), 0 0 40px rgba(121,192,255,0.15);animation-delay:3.2s;"></div>
+    <div class="comp" style="left:50%;top:38%;border-color:var(--accent2);background:rgba(63,185,80,0.08);box-shadow:0 0 20px rgba(63,185,80,0.4), 0 0 40px rgba(63,185,80,0.15);animation-delay:2.5s;"></div>
+    <!-- Lightsaber connection beams (bright, glowing) -->
+    <div class="saber" style="left:33%;top:33%;width:120px;background:linear-gradient(90deg,var(--accent),rgba(88,166,255,0.3),transparent);box-shadow:0 0 8px var(--accent), 0 0 20px rgba(88,166,255,0.4);animation-delay:3.5s;transform:rotate(8deg);"></div>
+    <div class="saber" style="left:53%;top:40%;width:100px;background:linear-gradient(90deg,var(--accent2),rgba(63,185,80,0.3),transparent);box-shadow:0 0 8px var(--accent2), 0 0 20px rgba(63,185,80,0.4);animation-delay:3.7s;transform:rotate(-12deg);"></div>
+    <div class="saber" style="left:38%;top:55%;width:130px;background:linear-gradient(90deg,var(--accent3),rgba(210,168,255,0.3),transparent);box-shadow:0 0 8px var(--accent3), 0 0 20px rgba(210,168,255,0.4);animation-delay:3.9s;transform:rotate(22deg);"></div>
+    <div class="saber" style="left:58%;top:60%;width:80px;background:linear-gradient(90deg,var(--accent4),rgba(240,136,62,0.3),transparent);box-shadow:0 0 8px var(--accent4), 0 0 20px rgba(240,136,62,0.4);animation-delay:4.1s;transform:rotate(-8deg);"></div>
+    <div class="saber" style="left:26%;top:44%;width:110px;background:linear-gradient(90deg,var(--accent6),rgba(121,192,255,0.3),transparent);box-shadow:0 0 8px var(--accent6), 0 0 20px rgba(121,192,255,0.4);animation-delay:4.3s;transform:rotate(38deg);"></div>
+    <div class="saber" style="left:52%;top:68%;width:90px;background:linear-gradient(90deg,var(--accent5),rgba(255,123,114,0.3),transparent);box-shadow:0 0 8px var(--accent5), 0 0 20px rgba(255,123,114,0.4);animation-delay:4.0s;transform:rotate(-25deg);"></div>
   </div>
 
   <h1>BeaconChain, Refactored</h1>
