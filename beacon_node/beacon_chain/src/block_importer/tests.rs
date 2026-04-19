@@ -88,7 +88,10 @@ async fn check_invalid_block_roots_accepts_valid_root() {
     let harness = build_harness();
     let block_root = Hash256::random();
     // Default config has no invalid roots.
-    let result = harness.chain.block_importer.check_invalid_block_roots(block_root);
+    let result = harness
+        .chain
+        .block_importer
+        .check_invalid_block_roots(block_root);
     assert!(result.is_ok());
 }
 
@@ -107,7 +110,10 @@ async fn check_invalid_block_roots_rejects_configured_invalid_root() {
         })
         .build();
 
-    let result = harness.chain.block_importer.check_invalid_block_roots(invalid_root);
+    let result = harness
+        .chain
+        .block_importer
+        .check_invalid_block_roots(invalid_root);
     assert!(matches!(
         result,
         Err(BlockError::KnownInvalidExecutionPayload(root)) if root == invalid_root
@@ -115,7 +121,13 @@ async fn check_invalid_block_roots_rejects_configured_invalid_root() {
 
     // A different root should still be accepted.
     let other_root = Hash256::random();
-    assert!(harness.chain.block_importer.check_invalid_block_roots(other_root).is_ok());
+    assert!(
+        harness
+            .chain
+            .block_importer
+            .check_invalid_block_roots(other_root)
+            .is_ok()
+    );
 }
 
 // -----------------------------------------------------------------------
@@ -178,7 +190,12 @@ async fn metrics_and_events_fires_block_sse_event() {
     let head = harness.chain.canonical_head.cached_head();
     let block_root = head.head_block_root();
     let block = head.snapshot.beacon_block.message();
-    let current_slot = harness.chain.block_importer.slot_clock.now().expect("slot should be available");
+    let current_slot = harness
+        .chain
+        .block_importer
+        .slot_clock
+        .now()
+        .expect("slot should be available");
 
     // Call the function - it should not panic and should register an SSE event.
     import_block_update_metrics_and_events(
@@ -205,7 +222,12 @@ async fn metrics_and_events_optimistic_block_sse() {
     let head = harness.chain.canonical_head.cached_head();
     let block_root = head.head_block_root();
     let block = head.snapshot.beacon_block.message();
-    let current_slot = harness.chain.block_importer.slot_clock.now().expect("slot should be available");
+    let current_slot = harness
+        .chain
+        .block_importer
+        .slot_clock
+        .now()
+        .expect("slot should be available");
 
     // Should not panic when called with optimistic status.
     import_block_update_metrics_and_events(
@@ -353,7 +375,12 @@ async fn validator_monitor_processes_recent_block() {
     let state = &head.snapshot.beacon_state;
 
     let mut ctxt = ConsensusContext::new(state.slot());
-    let current_slot = harness.chain.block_importer.slot_clock.now().expect("slot should be available");
+    let current_slot = harness
+        .chain
+        .block_importer
+        .slot_clock
+        .now()
+        .expect("slot should be available");
     let parent_block_slot = Slot::new(0);
 
     import_block_update_validator_monitor(
@@ -400,7 +427,10 @@ async fn block_importer_fields_are_populated() {
     let importer = &harness.chain.block_importer;
 
     // Verify key fields are populated correctly.
-    assert_eq!(importer.genesis_block_root, harness.chain.genesis_block_root);
+    assert_eq!(
+        importer.genesis_block_root,
+        harness.chain.genesis_block_root
+    );
     assert!(importer.event_handler.is_some());
     assert!(importer.slasher.is_none()); // Default harness has no slasher.
     assert!(importer.light_client_server_tx.is_none()); // Default harness.

@@ -69,14 +69,8 @@ fn build_dam_with_fulu(fulu_epoch: Epoch) -> Arc<DataAvailabilityManager<Ephemer
     ));
 
     let data_availability_checker = Arc::new(
-        DataAvailabilityChecker::new(
-            true,
-            slot_clock,
-            kzg.clone(),
-            custody_context,
-            spec.clone(),
-        )
-        .expect("should create data availability checker"),
+        DataAvailabilityChecker::new(true, slot_clock, kzg.clone(), custody_context, spec.clone())
+            .expect("should create data availability checker"),
     );
 
     Arc::new(DataAvailabilityManager::new(
@@ -165,8 +159,7 @@ fn availability_processing_status_imported_try_into_signed_beacon_block_hash() {
 
 #[test]
 fn availability_processing_status_missing_try_into_signed_beacon_block_hash() {
-    let status =
-        AvailabilityProcessingStatus::MissingComponents(Slot::new(1), Hash256::ZERO);
+    let status = AvailabilityProcessingStatus::MissingComponents(Slot::new(1), Hash256::ZERO);
     let result: Result<SignedBeaconBlockHash, ()> = status.try_into();
     assert!(result.is_err());
 }
@@ -374,10 +367,7 @@ fn custody_columns_for_specific_epoch() {
 fn sampling_columns_for_epoch_returns_nonempty() {
     let dam = build_dam();
     let columns = dam.sampling_columns_for_epoch(Epoch::new(0));
-    assert!(
-        !columns.is_empty(),
-        "sampling columns should not be empty"
-    );
+    assert!(!columns.is_empty(), "sampling columns should not be empty");
 }
 
 // -----------------------------------------------------------------------
@@ -573,7 +563,10 @@ fn persist_custody_ctx_no_peer_das_is_noop() {
             .expect("should create data availability checker"),
     );
 
-    let result =
-        persist_custody_ctx::<EphemeralHarnessType<E>>(&spec, &data_availability_checker, &Arc::new(store));
+    let result = persist_custody_ctx::<EphemeralHarnessType<E>>(
+        &spec,
+        &data_availability_checker,
+        &Arc::new(store),
+    );
     assert!(result.is_ok());
 }
