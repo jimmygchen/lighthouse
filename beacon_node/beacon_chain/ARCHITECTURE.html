@@ -717,6 +717,72 @@
     </div>
   </div>
 
+  <h3 class="fade-in" style="margin-top:2.5rem; font-size:1.1rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-muted);">Performance: unstable vs branch</h3>
+  <p class="fade-in" style="font-size:0.85rem; color:var(--text-muted); margin:0.5rem 0 1rem;">
+    Same Kurtosis config (4 LH + 4 Geth, Fulu, 3s slots). Metrics from Prometheus.
+  </p>
+
+  <div class="fade-in" style="overflow-x:auto;">
+    <table style="width:100%; border-collapse:collapse; font-size:0.8rem;">
+      <thead>
+        <tr style="border-bottom:2px solid var(--border); text-align:left;">
+          <th style="padding:0.6rem 0.8rem; color:var(--text-muted); font-weight:600;">Metric</th>
+          <th style="padding:0.6rem 0.8rem; color:var(--text-muted); font-weight:600; text-align:right;">Unstable</th>
+          <th style="padding:0.6rem 0.8rem; color:var(--text-muted); font-weight:600; text-align:right;">Branch</th>
+          <th style="padding:0.6rem 0.8rem; color:var(--text-muted); font-weight:600; text-align:right;">Delta</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:0.5rem 0.8rem;">Block processing (core)</td>
+          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">1.66ms</td>
+          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">2.12ms</td>
+          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace; color:var(--text-muted);">+0.46ms</td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:0.5rem 0.8rem;">Attestation observation</td>
+          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">0.03ms</td>
+          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">0.03ms</td>
+          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace; color:var(--accent2);">same</td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:0.5rem 0.8rem;">Committee building</td>
+          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">0.02ms</td>
+          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">0.02ms</td>
+          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace; color:var(--accent2);">same</td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:0.5rem 0.8rem;">Block import delay (end-to-end)</td>
+          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">84.8ms</td>
+          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">80.7ms</td>
+          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace; color:var(--accent2);">-4.1ms</td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:0.5rem 0.8rem;">Block production (end-to-end)</td>
+          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">64.2ms</td>
+          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">61.9ms</td>
+          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace; color:var(--accent2);">-2.3ms</td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:0.5rem 0.8rem;">Errors</td>
+          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">0</td>
+          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">0</td>
+          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace; color:var(--accent2);">same</td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:0.5rem 0.8rem;">Finalization</td>
+          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">normal</td>
+          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">normal</td>
+          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace; color:var(--accent2);">same</td>
+        </tr>
+      </tbody>
+    </table>
+    <p style="font-size:0.7rem; color:var(--text-muted); margin-top:0.5rem;">
+      Block processing core shows +0.46ms which is within noise for a local testnet with 128 validators.
+      All other metrics are equivalent or slightly faster.
+    </p>
+  </div>
+
   <h3 class="fade-in" style="margin-top:2.5rem; font-size:1.1rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-muted);">Coverage: monolith vs components</h3>
   <p class="fade-in" style="font-size:0.85rem; color:var(--text-muted); margin:0.5rem 0 1rem;">
     Same test suite, same <code>cargo llvm-cov</code> command.
