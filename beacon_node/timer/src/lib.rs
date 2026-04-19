@@ -2,7 +2,7 @@
 //!
 //! This service allows task execution on the beacon node for various functionality.
 
-use beacon_chain::{BeaconChainTypes, BeaconSystem};
+use beacon_chain::{BeaconChain, BeaconChainTypes};
 use slot_clock::SlotClock;
 use std::sync::Arc;
 use tokio::time::sleep;
@@ -11,7 +11,7 @@ use tracing::{info, warn};
 /// Spawns a timer service which periodically executes tasks for the beacon chain
 pub fn spawn_timer<T: BeaconChainTypes>(
     executor: task_executor::TaskExecutor,
-    beacon_chain: Arc<BeaconSystem<T>>,
+    beacon_chain: Arc<BeaconChain<T>>,
 ) -> Result<(), &'static str> {
     let timer_future = async move {
         loop {

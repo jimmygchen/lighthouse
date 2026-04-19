@@ -1162,10 +1162,10 @@ fn check_equal<T: Debug + PartialEq>(check: &str, result: T, expected: T) -> Res
     }
 }
 
-/// An attestation that is not verified in the `BeaconSystem` sense, but verified-enough for these
+/// An attestation that is not verified in the `BeaconChain` sense, but verified-enough for these
 /// tests.
 ///
-/// The `BeaconSystem` verification is not appropriate since these tests use `Attestation`s with
+/// The `BeaconChain` verification is not appropriate since these tests use `Attestation`s with
 /// multiple participating validators. Therefore, they are neither aggregated or unaggregated
 /// attestations.
 pub struct ManuallyVerifiedAttestation<'a, T: BeaconChainTypes> {

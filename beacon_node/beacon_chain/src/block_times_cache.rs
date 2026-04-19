@@ -1,6 +1,6 @@
 //! This module provides the `BlockTimesCache' which contains information regarding block timings.
 //!
-//! This provides `BeaconSystem` and associated functions with access to the timestamps of when a
+//! This provides `BeaconChain` and associated functions with access to the timestamps of when a
 //! certain block was observed, imported and set as head.
 //! This allows for better traceability and allows us to determine the root cause for why a block
 //! was set as head late.

@@ -1,7 +1,7 @@
 use crate::api_types::GenericResponse;
 use crate::unsupported_version_rejection;
 use crate::version::{V1, V2, add_consensus_version_header};
-use beacon_chain::{BeaconChainTypes, BeaconSystem};
+use beacon_chain::{BeaconChain, BeaconChainTypes};
 use eth2::types::{self, EndpointVersion, Hash256, Slot};
 use std::sync::Arc;
 use types::beacon_response::EmptyMetadata;
@@ -16,7 +16,7 @@ pub fn get_aggregate_attestation<T: BeaconChainTypes>(
     attestation_data_root: &Hash256,
     committee_index: Option<CommitteeIndex>,
     endpoint_version: EndpointVersion,
-    chain: Arc<BeaconSystem<T>>,
+    chain: Arc<BeaconChain<T>>,
 ) -> Result<Response<Body>, warp::reject::Rejection> {
     let fork_name = chain.spec.fork_name_at_slot::<T::EthSpec>(slot);
     let aggregate_attestation = if fork_name.electra_enabled() {

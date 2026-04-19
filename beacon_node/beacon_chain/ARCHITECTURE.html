@@ -977,7 +977,7 @@
     Seven components extracted plus two scoped orchestrators (<code>BlockImporter&lt;T&gt;</code>,
     <code>BlockProducer&lt;T&gt;</code>). ~2,000 lines of new unit tests, full CI green,
     and a local testnet that produces blocks and finalises. The top-level type
-    (<code>BeaconSystem&lt;T&gt;</code>) shrank from 7,317 to ~1,000 lines and lost its
+    (<code>BeaconChain&lt;T&gt;</code>) shrank from 7,317 to ~1,000 lines and lost its
     200+ methods.
   </p>
 
@@ -1020,7 +1020,7 @@
       <ul class="bullet-list">
         <li>
           <strong>Duplicate <code>Arc</code> paths for <code>event_handler</code> and <code>validator_monitor</code>.</strong>
-          Both live on <code>BeaconSystem&lt;T&gt;</code> <em>and</em>
+          Both live on <code>BeaconChain&lt;T&gt;</code> <em>and</em>
           <code>BlockImporter&lt;T&gt;</code>. 25+ call sites each in
           <code>http_api</code>, <code>network</code>, <code>canonical_head</code>,
           etc. make consolidation too invasive for now.

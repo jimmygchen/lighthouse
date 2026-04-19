@@ -1,6 +1,6 @@
 use crate::fetch_blobs::{EngineGetBlobsOutput, FetchEngineBlobError};
 use crate::observed_data_sidecars::ObservationKey;
-use crate::{AvailabilityProcessingStatus, BeaconChainTypes, BeaconSystem};
+use crate::{AvailabilityProcessingStatus, BeaconChain, BeaconChainTypes};
 use execution_layer::json_structures::{BlobAndProofV1, BlobAndProofV2};
 use kzg::Kzg;
 #[cfg(test)]
@@ -10,15 +10,15 @@ use std::sync::Arc;
 use task_executor::TaskExecutor;
 use types::{ChainSpec, ColumnIndex, Hash256, Slot};
 
-/// An adapter to the `BeaconSystem` functionalities to remove `BeaconSystem` from direct dependency to enable testing fetch blobs logic.
+/// An adapter to the `BeaconChain` functionalities to remove `BeaconChain` from direct dependency to enable testing fetch blobs logic.
 pub(crate) struct FetchBlobsBeaconAdapter<T: BeaconChainTypes> {
-    chain: Arc<BeaconSystem<T>>,
+    chain: Arc<BeaconChain<T>>,
     spec: Arc<ChainSpec>,
 }
 
 #[cfg_attr(test, automock, allow(dead_code))]
 impl<T: BeaconChainTypes> FetchBlobsBeaconAdapter<T> {
-    pub(crate) fn new(chain: Arc<BeaconSystem<T>>) -> Self {
+    pub(crate) fn new(chain: Arc<BeaconChain<T>>) -> Self {
         let spec = chain.spec.clone();
         Self { chain, spec }
     }

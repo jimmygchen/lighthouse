@@ -6,7 +6,7 @@ use crate::persisted_dht::{clear_dht, load_dht, persist_dht};
 use crate::router::{Router, RouterMessage};
 use crate::subnet_service::{SubnetService, SubnetServiceMessage, Subscription};
 use beacon_chain::{
-    BeaconChainTypes, BeaconSystem, compute_fork_digest, duration_to_next_digest, enr_fork_id,
+    BeaconChain, BeaconChainTypes, compute_fork_digest, duration_to_next_digest, enr_fork_id,
 };
 use beacon_processor::BeaconProcessorSend;
 use futures::channel::mpsc::Sender;
@@ -175,7 +175,7 @@ impl<E: EthSpec> NetworkSenders<E> {
 /// Service that handles communication between internal services and the `lighthouse_network` network service.
 pub struct NetworkService<T: BeaconChainTypes> {
     /// A reference to the underlying beacon chain.
-    beacon_chain: Arc<BeaconSystem<T>>,
+    beacon_chain: Arc<BeaconChain<T>>,
     /// The underlying libp2p service that drives all the network interactions.
     libp2p: Network<T::EthSpec>,
     /// An attestation and sync committee subnet manager service.
@@ -211,7 +211,7 @@ pub struct NetworkService<T: BeaconChainTypes> {
 
 impl<T: BeaconChainTypes> NetworkService<T> {
     async fn build(
-        beacon_chain: Arc<BeaconSystem<T>>,
+        beacon_chain: Arc<BeaconChain<T>>,
         config: Arc<NetworkConfig>,
         executor: task_executor::TaskExecutor,
         libp2p_registry: Option<&'_ mut Registry>,
@@ -371,7 +371,7 @@ impl<T: BeaconChainTypes> NetworkService<T> {
 
     #[allow(clippy::type_complexity)]
     pub async fn start(
-        beacon_chain: Arc<BeaconSystem<T>>,
+        beacon_chain: Arc<BeaconChain<T>>,
         config: Arc<NetworkConfig>,
         executor: task_executor::TaskExecutor,
         libp2p_registry: Option<&'_ mut Registry>,
@@ -917,7 +917,7 @@ impl<T: BeaconChainTypes> NetworkService<T> {
 /// Returns a `Sleep` that triggers after the next change in the fork digest.
 /// If there is no scheduled fork, `None` is returned.
 fn next_digest_delay<T: BeaconChainTypes>(
-    beacon_chain: &BeaconSystem<T>,
+    beacon_chain: &BeaconChain<T>,
 ) -> Option<tokio::time::Sleep> {
     duration_to_next_digest::<T>(&beacon_chain.slot_clock, &beacon_chain.spec)
         .map(|(_, until_epoch)| tokio::time::sleep(until_epoch))
@@ -926,7 +926,7 @@ fn next_digest_delay<T: BeaconChainTypes>(
 /// Returns a `Sleep` that triggers `SUBSCRIBE_DELAY_SLOTS` before the next fork digest changes.
 /// Returns `None` if there are no scheduled forks or we are already past `current_slot + SUBSCRIBE_DELAY_SLOTS > fork_slot`.
 fn next_topic_subscriptions_delay<T: BeaconChainTypes>(
-    beacon_chain: &BeaconSystem<T>,
+    beacon_chain: &BeaconChain<T>,
 ) -> Option<tokio::time::Sleep> {
     if let Some((_, duration_to_epoch)) =
         duration_to_next_digest::<T>(&beacon_chain.slot_clock, &beacon_chain.spec)

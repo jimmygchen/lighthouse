@@ -1,4 +1,4 @@
-use crate::{BeaconChainError, BeaconChainTypes, BeaconSystem, BlockProcessStatus, metrics};
+use crate::{BeaconChain, BeaconChainError, BeaconChainTypes, BlockProcessStatus, metrics};
 use execution_layer::{ExecutionLayer, ExecutionPayloadBodyV1};
 use logging::crit;
 use std::collections::HashMap;
@@ -379,12 +379,12 @@ impl<E: EthSpec> EngineRequest<E> {
 pub struct BeaconBlockStreamer<T: BeaconChainTypes> {
     execution_layer: ExecutionLayer<T::EthSpec>,
     check_caches: CheckCaches,
-    beacon_chain: Arc<BeaconSystem<T>>,
+    beacon_chain: Arc<BeaconChain<T>>,
 }
 
 impl<T: BeaconChainTypes> BeaconBlockStreamer<T> {
     pub fn new(
-        beacon_chain: &Arc<BeaconSystem<T>>,
+        beacon_chain: &Arc<BeaconChain<T>>,
         check_caches: CheckCaches,
     ) -> Result<Arc<Self>, BeaconChainError> {
         let execution_layer = beacon_chain
@@ -694,7 +694,7 @@ impl From<Error> for BeaconChainError {
 /// Fetch blocks from the store by root, checking caches first.
 #[allow(clippy::type_complexity)]
 pub fn get_blocks_checking_caches<T: BeaconChainTypes>(
-    chain: &Arc<BeaconSystem<T>>,
+    chain: &Arc<BeaconChain<T>>,
     block_roots: Vec<Hash256>,
 ) -> Result<
     impl Stream<
@@ -711,7 +711,7 @@ pub fn get_blocks_checking_caches<T: BeaconChainTypes>(
 /// Fetch blocks from the store by root, without checking caches.
 #[allow(clippy::type_complexity)]
 pub fn get_blocks<T: BeaconChainTypes>(
-    chain: &Arc<BeaconSystem<T>>,
+    chain: &Arc<BeaconChain<T>>,
     block_roots: Vec<Hash256>,
 ) -> Result<
     impl Stream<

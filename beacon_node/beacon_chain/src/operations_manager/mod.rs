@@ -21,7 +21,7 @@ type PersistFn<E> = Box<dyn Fn(&OperationPool<E>) -> Result<(), Error> + Send + 
 /// attester slashings, and BLS-to-execution changes.
 ///
 /// Generic over `E: EthSpec` rather than `T: BeaconChainTypes` so it can be
-/// constructed and tested without a full `BeaconSystem`.
+/// constructed and tested without a full `BeaconChain`.
 ///
 /// State is passed as method parameters -- this component never fetches head
 /// state, slot clock values, or similar chain-level context on its own.
@@ -145,7 +145,7 @@ impl<E: EthSpec> OperationsManager<E> {
     /// Accept a pre-verified attester slashing and add it to the op pool.
     ///
     /// Note: the fork-choice write (`on_attester_slashing`) stays on
-    /// `BeaconSystem` because it requires the fork-choice write lock.
+    /// `BeaconChain` because it requires the fork-choice write lock.
     pub fn import_attester_slashing(
         &self,
         attester_slashing: SigVerifiedOp<AttesterSlashing<E>, E>,

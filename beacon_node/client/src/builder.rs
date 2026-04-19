@@ -10,7 +10,7 @@ use beacon_chain::graffiti_calculator::start_engine_version_cache_refresh_servic
 use beacon_chain::proposer_prep_service::start_proposer_prep_service;
 use beacon_chain::schema_change::migrate_schema;
 use beacon_chain::{
-    BeaconChainTypes, BeaconSystem, MigratorConfig, ServerSentEventHandler,
+    BeaconChain, BeaconChainTypes, MigratorConfig, ServerSentEventHandler,
     builder::{BeaconChainBuilder, Witness},
     slot_clock::{SlotClock, SystemTimeSlotClock},
     state_advance_timer::spawn_state_advance_timer,
@@ -77,7 +77,7 @@ pub struct ClientBuilder<T: BeaconChainTypes> {
     runtime_context: Option<RuntimeContext<T::EthSpec>>,
     chain_spec: Option<Arc<ChainSpec>>,
     beacon_chain_builder: Option<BeaconChainBuilder<T>>,
-    beacon_chain: Option<Arc<BeaconSystem<T>>>,
+    beacon_chain: Option<Arc<BeaconChain<T>>>,
     network_globals: Option<Arc<NetworkGlobals<T::EthSpec>>>,
     network_senders: Option<NetworkSenders<T::EthSpec>>,
     libp2p_registry: Option<Registry>,
@@ -150,7 +150,7 @@ where
     }
 
     /// Initializes the `BeaconChainBuilder`. The `build_beacon_chain` method will need to be
-    /// called later in order to actually instantiate the `BeaconSystem`.
+    /// called later in order to actually instantiate the `BeaconChain`.
     #[instrument(skip_all)]
     pub async fn beacon_chain_builder(
         mut self,
@@ -816,7 +816,7 @@ where
     THotStore: ItemStore<E> + 'static,
     TColdStore: ItemStore<E> + 'static,
 {
-    /// Consumes the internal `BeaconChainBuilder`, attaching the resulting `BeaconSystem` to self.
+    /// Consumes the internal `BeaconChainBuilder`, attaching the resulting `BeaconChain` to self.
     #[instrument(skip_all)]
     pub fn build_beacon_chain(mut self) -> Result<Self, String> {
         let context = self

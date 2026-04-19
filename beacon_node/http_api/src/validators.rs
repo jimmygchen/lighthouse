@@ -1,5 +1,5 @@
 use crate::state_id::StateId;
-use beacon_chain::{BeaconChainTypes, BeaconSystem};
+use beacon_chain::{BeaconChain, BeaconChainTypes};
 use eth2::types::{
     self as api_types, ExecutionOptimisticFinalizedResponse, ValidatorBalanceData, ValidatorData,
     ValidatorId, ValidatorIdentityData, ValidatorStatus,
@@ -8,7 +8,7 @@ use std::{collections::HashSet, sync::Arc};
 
 pub fn get_beacon_state_validators<T: BeaconChainTypes>(
     state_id: StateId,
-    chain: Arc<BeaconSystem<T>>,
+    chain: Arc<BeaconChain<T>>,
     query_ids: &Option<Vec<ValidatorId>>,
     query_statuses: &Option<Vec<ValidatorStatus>>,
 ) -> Result<ExecutionOptimisticFinalizedResponse<Vec<ValidatorData>>, warp::Rejection> {
@@ -85,7 +85,7 @@ pub fn get_beacon_state_validators<T: BeaconChainTypes>(
 
 pub fn get_beacon_state_validator_balances<T: BeaconChainTypes>(
     state_id: StateId,
-    chain: Arc<BeaconSystem<T>>,
+    chain: Arc<BeaconChain<T>>,
     optional_ids: Option<&[ValidatorId]>,
 ) -> Result<ExecutionOptimisticFinalizedResponse<Vec<ValidatorBalanceData>>, warp::Rejection> {
     let (data, execution_optimistic, finalized) = state_id
@@ -133,7 +133,7 @@ pub fn get_beacon_state_validator_balances<T: BeaconChainTypes>(
 
 pub fn get_beacon_state_validator_identities<T: BeaconChainTypes>(
     state_id: StateId,
-    chain: Arc<BeaconSystem<T>>,
+    chain: Arc<BeaconChain<T>>,
     optional_ids: Option<&[ValidatorId]>,
 ) -> Result<ExecutionOptimisticFinalizedResponse<Vec<ValidatorIdentityData>>, warp::Rejection> {
     let (data, execution_optimistic, finalized) = state_id

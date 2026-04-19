@@ -7,7 +7,7 @@ use beacon_chain::attestation_verification::{
 use beacon_chain::observed_aggregates::ObservedAttestationKey;
 use beacon_chain::test_utils::{HARNESS_GENESIS_TIME, MakeAttestationOptions};
 use beacon_chain::{
-    BeaconChainError, BeaconChainTypes, BeaconSystem, ChainConfig, WhenSlotSkipped,
+    BeaconChain, BeaconChainError, BeaconChainTypes, ChainConfig, WhenSlotSkipped,
     attestation_verification::Error as AttnError,
     test_utils::{
         AttestationStrategy, BeaconChainHarness, BlockStrategy, EphemeralHarnessType,
@@ -33,7 +33,7 @@ pub type E = MainnetEthSpec;
 
 /// Build an `AttestationVerificationContext` borrowing from the given chain.
 fn ctx<'a, T: BeaconChainTypes>(
-    chain: &'a BeaconSystem<T>,
+    chain: &'a BeaconChain<T>,
 ) -> beacon_chain::attestation_verification::AttestationVerificationContext<'a, T> {
     beacon_chain::attestation_verification::AttestationVerificationContext {
         canonical_head: &chain.canonical_head,
@@ -51,7 +51,7 @@ fn ctx<'a, T: BeaconChainTypes>(
 
 /// Equivalent of the old `chain.verify_unaggregated_attestation_for_gossip(att, subnet)`.
 fn verify_unaggregated_for_gossip<'a, T: BeaconChainTypes>(
-    chain: &'a BeaconSystem<T>,
+    chain: &'a BeaconChain<T>,
     attn: &'a SingleAttestation,
     subnet_id: Option<SubnetId>,
 ) -> Result<beacon_chain::attestation_verification::VerifiedUnaggregatedAttestation<'a, T>, AttnError>
@@ -64,7 +64,7 @@ fn verify_unaggregated_for_gossip<'a, T: BeaconChainTypes>(
 
 /// Equivalent of the old `chain.verify_aggregated_attestation_for_gossip(aggregate)`.
 fn verify_aggregated_for_gossip<'a, T: BeaconChainTypes>(
-    chain: &'a BeaconSystem<T>,
+    chain: &'a BeaconChain<T>,
     aggregate: &'a SignedAggregateAndProof<T::EthSpec>,
 ) -> Result<beacon_chain::attestation_verification::VerifiedAggregatedAttestation<'a, T>, AttnError>
 {
@@ -74,7 +74,7 @@ fn verify_aggregated_for_gossip<'a, T: BeaconChainTypes>(
 
 /// Equivalent of the old `chain.block_at_slot(...)`.
 fn chain_block_at_slot<T: BeaconChainTypes>(
-    chain: &BeaconSystem<T>,
+    chain: &BeaconChain<T>,
     slot: Slot,
     skips: WhenSlotSkipped,
 ) -> Result<Option<types::SignedBlindedBeaconBlock<T::EthSpec>>, BeaconChainError> {
@@ -92,7 +92,7 @@ fn chain_block_at_slot<T: BeaconChainTypes>(
 /// Equivalent of the old `chain.block_root_at_slot(...)`.
 #[allow(dead_code)]
 fn chain_block_root_at_slot<T: BeaconChainTypes>(
-    chain: &BeaconSystem<T>,
+    chain: &BeaconChain<T>,
     slot: Slot,
     skips: WhenSlotSkipped,
 ) -> Result<Option<Hash256>, BeaconChainError> {
@@ -195,7 +195,7 @@ fn get_harness_capella_spec(
 ///
 /// Also returns some info about who created it.
 fn get_valid_unaggregated_attestation<T: BeaconChainTypes>(
-    chain: &BeaconSystem<T>,
+    chain: &BeaconChain<T>,
 ) -> (SingleAttestation, SecretKey, SubnetId) {
     let head = chain.canonical_head.head_snapshot();
     let current_slot =
@@ -258,7 +258,7 @@ fn get_valid_unaggregated_attestation<T: BeaconChainTypes>(
 }
 
 fn get_valid_aggregated_attestation<T: BeaconChainTypes>(
-    chain: &BeaconSystem<T>,
+    chain: &BeaconChain<T>,
     aggregate: Attestation<T::EthSpec>,
 ) -> (SignedAggregateAndProof<T::EthSpec>, usize, SecretKey) {
     let head = chain.canonical_head.head_snapshot();
@@ -314,7 +314,7 @@ fn get_valid_aggregated_attestation<T: BeaconChainTypes>(
 /// Returns a proof and index for a validator that is **not** an aggregator for the given
 /// attestation.
 fn get_non_aggregator<T: BeaconChainTypes>(
-    chain: &BeaconSystem<T>,
+    chain: &BeaconChain<T>,
     aggregate: AttestationRef<T::EthSpec>,
 ) -> (usize, SecretKey) {
     let head = chain.canonical_head.head_snapshot();

@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::sync::block_sidecar_coupling::{ByRangeRequest, CouplingError};
 use crate::sync::network_context::MAX_COLUMN_RETRIES;
-use beacon_chain::{BeaconChainTypes, BeaconSystem};
+use beacon_chain::{BeaconChain, BeaconChainTypes};
 use itertools::Itertools;
 use lighthouse_network::PeerId;
 use lighthouse_network::service::api_types::DataColumnsByRangeRequestId;
@@ -18,14 +18,14 @@ pub struct RangeDataColumnBatchRequest<T: BeaconChainTypes> {
     column_peers: HashMap<DataColumnsByRangeRequestId, Vec<ColumnIndex>>,
     expected_custody_columns: HashSet<ColumnIndex>,
     attempt: usize,
-    beacon_chain: Arc<BeaconSystem<T>>,
+    beacon_chain: Arc<BeaconChain<T>>,
     epoch: Epoch,
 }
 
 impl<T: BeaconChainTypes> RangeDataColumnBatchRequest<T> {
     pub fn new(
         by_range_requests: Vec<(DataColumnsByRangeRequestId, Vec<ColumnIndex>)>,
-        beacon_chain: Arc<BeaconSystem<T>>,
+        beacon_chain: Arc<BeaconChain<T>>,
         epoch: Epoch,
     ) -> Self {
         let requests = by_range_requests

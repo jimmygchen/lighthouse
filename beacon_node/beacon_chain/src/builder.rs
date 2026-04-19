@@ -30,7 +30,7 @@ use crate::validator_monitor::{ValidatorMonitor, ValidatorMonitorConfig};
 use crate::validator_pubkey_cache::ValidatorPubkeyCache;
 use crate::validator_query_service::ValidatorQueryService;
 use crate::{
-    BeaconChainTypes, BeaconForkChoiceStore, BeaconSnapshot, BeaconSystem, ServerSentEventHandler,
+    BeaconChain, BeaconChainTypes, BeaconForkChoiceStore, BeaconSnapshot, ServerSentEventHandler,
 };
 use bls::Signature;
 use execution_layer::ExecutionLayer;
@@ -81,7 +81,7 @@ where
     type EthSpec = E;
 }
 
-/// Builds a `BeaconSystem` by either creating anew from genesis, or, resuming from an existing chain
+/// Builds a `BeaconChain` by either creating anew from genesis, or, resuming from an existing chain
 /// persisted to `store`.
 ///
 /// Types may be elided and the compiler will infer them if all necessary builder methods have been
@@ -673,7 +673,7 @@ where
         Ok(self.empty_op_pool())
     }
 
-    /// Sets the `BeaconSystem` execution layer.
+    /// Sets the `BeaconChain` execution layer.
     pub fn execution_layer(mut self, execution_layer: Option<ExecutionLayer<E>>) -> Self {
         self.execution_layer = execution_layer;
         self
@@ -695,7 +695,7 @@ where
         self
     }
 
-    /// Sets the `BeaconSystem` event handler backend.
+    /// Sets the `BeaconChain` event handler backend.
     ///
     /// For example, provide `ServerSentEventHandler` as a `handler`.
     pub fn event_handler(mut self, handler: Option<ServerSentEventHandler<E>>) -> Self {
@@ -703,7 +703,7 @@ where
         self
     }
 
-    /// Sets the `BeaconSystem` slot clock.
+    /// Sets the `BeaconChain` slot clock.
     ///
     /// For example, provide `SystemTimeSlotClock` as a `clock`.
     pub fn slot_clock(mut self, clock: TSlotClock) -> Self {
@@ -742,7 +742,7 @@ where
         self
     }
 
-    /// Sets the `ChainConfig` that determines `BeaconSystem` runtime behaviour.
+    /// Sets the `ChainConfig` that determines `BeaconChain` runtime behaviour.
     pub fn chain_config(mut self, config: ChainConfig) -> Self {
         self.chain_config = config;
         self
@@ -764,7 +764,7 @@ where
         self
     }
 
-    /// Consumes `self`, returning a `BeaconSystem` if all required parameters have been supplied.
+    /// Consumes `self`, returning a `BeaconChain` if all required parameters have been supplied.
     ///
     /// An error will be returned at runtime if all required parameters have not been configured.
     ///
@@ -773,7 +773,7 @@ where
     #[allow(clippy::type_complexity)] // I think there's nothing to be gained here from a type alias.
     pub fn build(
         mut self,
-    ) -> Result<BeaconSystem<Witness<TSlotClock, E, THotStore, TColdStore>>, String> {
+    ) -> Result<BeaconChain<Witness<TSlotClock, E, THotStore, TColdStore>>, String> {
         let slot_clock = self
             .slot_clock
             .ok_or("Cannot build without a slot_clock.")?;
@@ -932,7 +932,7 @@ where
         // Store the `PersistedBeaconChain` in the database atomically with the metadata so that on
         // restart we can correctly detect the presence of an initialized database.
         //
-        // This *must* be stored before constructing the `BeaconSystem`, so that its `Drop` instance
+        // This *must* be stored before constructing the `BeaconChain`, so that its `Drop` instance
         // doesn't write a `PersistedBeaconChain` without the rest of the batch.
         self.pending_io_batch.push(
             crate::persisted_beacon_chain::persist_head_in_batch_standalone(genesis_block_root),
@@ -1066,11 +1066,11 @@ where
         // immutable snapshot.
         let chain_config_arc = Arc::new(self.chain_config.clone());
 
-        // Shared caches/handles used by both `BlockImporter` and `BeaconSystem`.
+        // Shared caches/handles used by both `BlockImporter` and `BeaconChain`.
         let block_times_cache: Arc<RwLock<BlockTimesCache>> =
             Arc::new(RwLock::new(Default::default()));
 
-        // Shared owned state used by both `BlockImporter` and `BeaconSystem`.
+        // Shared owned state used by both `BlockImporter` and `BeaconChain`.
         let attestation_manager = Arc::new(AttestationManager::new(
             self.spec.clone(),
             genesis_block_root,
@@ -1110,7 +1110,7 @@ where
             shutdown_sender.clone(),
         ));
 
-        // Pre-declare shared handles so both `BlockProducer` and `BeaconSystem` can hold them.
+        // Pre-declare shared handles so both `BlockProducer` and `BeaconChain` can hold them.
         let pending_payload_envelopes: Arc<RwLock<PendingPayloadEnvelopes<E>>> =
             Arc::new(RwLock::new(PendingPayloadEnvelopes::default()));
         let graffiti_calculator = Arc::new(GraffitiCalculator::new(
@@ -1137,7 +1137,7 @@ where
             task_executor.clone(),
         ));
 
-        let beacon_chain = BeaconSystem {
+        let beacon_chain = BeaconChain {
             spec: self.spec.clone(),
             config: self.chain_config,
             store: store.clone(),
@@ -1268,7 +1268,7 @@ where
     TColdStore: ItemStore<E> + 'static,
     E: EthSpec + 'static,
 {
-    /// Sets the `BeaconSystem` slot clock to `TestingSlotClock`.
+    /// Sets the `BeaconChain` slot clock to `TestingSlotClock`.
     ///
     /// Requires the state to be initialized.
     pub fn testing_slot_clock(self, slot_duration: Duration) -> Result<Self, String> {

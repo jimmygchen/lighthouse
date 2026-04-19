@@ -3,7 +3,7 @@ use slot_clock::SlotClock;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use crate::beacon_components::{BeaconChainTypes, BeaconSystem};
+use crate::beacon_components::{BeaconChain, BeaconChainTypes};
 use crate::block_verification::{
     BlockSlashInfo, get_validator_pubkey_cache, process_block_slash_info,
 };
@@ -182,7 +182,7 @@ impl<T: BeaconChainTypes, O: ObservationStrategy> GossipVerifiedBlob<T, O> {
     pub fn new(
         blob: Arc<BlobSidecar<T::EthSpec>>,
         subnet_id: u64,
-        chain: &BeaconSystem<T>,
+        chain: &BeaconChain<T>,
     ) -> Result<Self, GossipBlobError> {
         let header = blob.signed_block_header.clone();
         // We only process slashing info if the gossip verification failed
@@ -393,7 +393,7 @@ where
 pub fn validate_blob_sidecar_for_gossip<T: BeaconChainTypes, O: ObservationStrategy>(
     blob_sidecar: Arc<BlobSidecar<T::EthSpec>>,
     subnet: u64,
-    chain: &BeaconSystem<T>,
+    chain: &BeaconChain<T>,
 ) -> Result<GossipVerifiedBlob<T, O>, GossipBlobError> {
     let blob_slot = blob_sidecar.slot();
     let blob_index = blob_sidecar.index;
@@ -590,7 +590,7 @@ pub fn validate_blob_sidecar_for_gossip<T: BeaconChainTypes, O: ObservationStrat
 
 pub fn observe_gossip_blob<T: BeaconChainTypes>(
     blob_sidecar: &BlobSidecar<T::EthSpec>,
-    chain: &BeaconSystem<T>,
+    chain: &BeaconChain<T>,
 ) -> Result<(), GossipBlobError> {
     // Now the signature is valid, store the proposal so we don't accept another blob sidecar
     // with the same `BlobIdentifier`.  It's important to double-check that the proposer still

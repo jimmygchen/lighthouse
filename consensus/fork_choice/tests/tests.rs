@@ -4,7 +4,7 @@ use beacon_chain::test_utils::{
     AttestationStrategy, BeaconChainHarness, BlockStrategy, EphemeralHarnessType,
 };
 use beacon_chain::{
-    BeaconChainError, BeaconChainTypes, BeaconForkChoiceStore, BeaconSystem, ChainConfig,
+    BeaconChain, BeaconChainError, BeaconChainTypes, BeaconForkChoiceStore, ChainConfig,
     ForkChoiceError, StateSkipConfig, WhenSlotSkipped,
 };
 use bls::AggregateSignature;
@@ -29,7 +29,7 @@ pub type E = MainnetEthSpec;
 
 /// Helper: call `block_at_slot` against the chain via the new free function.
 fn chain_block_at_slot<T: BeaconChainTypes>(
-    chain: &BeaconSystem<T>,
+    chain: &BeaconChain<T>,
     slot: Slot,
     skips: WhenSlotSkipped,
 ) -> Result<Option<types::SignedBlindedBeaconBlock<T::EthSpec>>, BeaconChainError> {
@@ -46,7 +46,7 @@ fn chain_block_at_slot<T: BeaconChainTypes>(
 
 /// Helper: call `state_at_slot` against the chain via the new free function.
 fn chain_state_at_slot<T: BeaconChainTypes>(
-    chain: &BeaconSystem<T>,
+    chain: &BeaconChain<T>,
     slot: Slot,
     config: StateSkipConfig,
 ) -> Result<BeaconState<T::EthSpec>, BeaconChainError> {
@@ -61,7 +61,7 @@ fn chain_state_at_slot<T: BeaconChainTypes>(
 
 /// Helper: call `produce_unaggregated_attestation` against the chain.
 fn chain_produce_unaggregated_attestation<T: BeaconChainTypes>(
-    chain: &BeaconSystem<T>,
+    chain: &BeaconChain<T>,
     slot: Slot,
     index: types::CommitteeIndex,
 ) -> Result<Attestation<T::EthSpec>, BeaconChainError> {
@@ -76,7 +76,7 @@ fn chain_produce_unaggregated_attestation<T: BeaconChainTypes>(
 
 /// Helper: verify a `SingleAttestation` for gossip against the chain.
 fn chain_verify_unaggregated_attestation_for_gossip<'a, T: BeaconChainTypes>(
-    chain: &'a BeaconSystem<T>,
+    chain: &'a BeaconChain<T>,
     attn: &'a SingleAttestation,
     subnet_id: Option<SubnetId>,
 ) -> Result<
@@ -102,7 +102,7 @@ fn chain_verify_unaggregated_attestation_for_gossip<'a, T: BeaconChainTypes>(
 
 /// Helper: apply a verified attestation to fork choice (was `chain.apply_attestation_to_fork_choice`).
 fn chain_apply_attestation_to_fork_choice<T: BeaconChainTypes>(
-    chain: &BeaconSystem<T>,
+    chain: &BeaconChain<T>,
     verified: &beacon_chain::attestation_verification::VerifiedUnaggregatedAttestation<'_, T>,
 ) -> Result<(), BeaconChainError> {
     chain
@@ -508,7 +508,7 @@ impl ForkChoiceTest {
         mut comparison_func: G,
     ) -> Self
     where
-        F: FnMut(&mut IndexedAttestation<E>, &BeaconSystem<EphemeralHarnessType<E>>),
+        F: FnMut(&mut IndexedAttestation<E>, &BeaconChain<EphemeralHarnessType<E>>),
         G: FnMut(Result<(), BeaconChainError>),
     {
         let head = self.harness.chain.canonical_head.head_snapshot();

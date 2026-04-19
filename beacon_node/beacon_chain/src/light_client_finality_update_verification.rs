@@ -1,4 +1,4 @@
-use crate::{BeaconChainTypes, BeaconSystem};
+use crate::{BeaconChain, BeaconChainTypes};
 use educe::Educe;
 use slot_clock::SlotClock;
 use std::time::Duration;
@@ -67,7 +67,7 @@ impl<T: BeaconChainTypes> VerifiedLightClientFinalityUpdate<T> {
     /// network.
     pub fn verify(
         rcv_finality_update: LightClientFinalityUpdate<T::EthSpec>,
-        chain: &BeaconSystem<T>,
+        chain: &BeaconChain<T>,
         seen_timestamp: Duration,
     ) -> Result<Self, Error> {
         // verify that enough time has passed for the block to have been propagated

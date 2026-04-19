@@ -1,7 +1,7 @@
 //! This module provides the `EnvelopeTimesCache` which contains information regarding payload
 //! envelope timings.
 //!
-//! This provides `BeaconSystem` and associated functions with access to the timestamps of when a
+//! This provides `BeaconChain` and associated functions with access to the timestamps of when a
 //! payload envelope was observed, verified, executed, and imported.
 //! This allows for better traceability and allows us to determine the root cause for why an
 //! envelope was imported late.

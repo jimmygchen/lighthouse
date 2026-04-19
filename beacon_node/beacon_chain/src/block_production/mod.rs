@@ -4,9 +4,9 @@
 //! `BlockProducer<T>` owns the subsystems required to produce beacon blocks. It holds
 //! `Arc`-shared handles to every piece of state it accesses directly (store, spec, slot clock,
 //! op pool, execution manager, canonical head, attestation manager, etc.). For cross-module
-//! helpers that still take `&BeaconSystem<T>` / `Arc<BeaconSystem<T>>` (e.g.
+//! helpers that still take `&BeaconChain<T>` / `Arc<BeaconChain<T>>` (e.g.
 //! `get_execution_payload`, `state_at_slot`, `is_healthy`, `compute_beacon_block_reward`),
-//! a `Weak<BeaconSystem<T>>` back-reference is installed by the builder
+//! a `Weak<BeaconChain<T>>` back-reference is installed by the builder
 //! post-construction. The `Weak` avoids a reference cycle, allowing proper cleanup in tests.
 
 pub mod gloas;
@@ -58,7 +58,7 @@ use crate::execution_payload::get_execution_payload;
 use crate::graffiti_calculator::{GraffitiCalculator, GraffitiSettings};
 use crate::pending_payload_envelopes::PendingPayloadEnvelopes;
 use crate::{
-    BeaconChainError, BeaconChainTypes, BeaconSystem, BlockProductionError, CachedHead,
+    BeaconChain, BeaconChainError, BeaconChainTypes, BlockProductionError, CachedHead,
     StateSkipConfig, block_times_cache::BlockTimesCache, fork_choice_signal::ForkChoiceWaitResult,
     metrics,
 };
@@ -67,9 +67,9 @@ use crate::{
 ///
 /// Owns injected `Arc` handles to every subsystem it reaches for directly (store, spec, slot
 /// clock, op pool, execution manager, canonical head, attestation manager, etc.). A
-/// `Weak<BeaconSystem<T>>` back-reference is installed by the builder after `Arc` wrapping
-/// and used for cross-module helpers that still take `&BeaconSystem<T>` /
-/// `Arc<BeaconSystem<T>>` (`get_execution_payload`, `state_at_slot`, `is_healthy`,
+/// `Weak<BeaconChain<T>>` back-reference is installed by the builder after `Arc` wrapping
+/// and used for cross-module helpers that still take `&BeaconChain<T>` /
+/// `Arc<BeaconChain<T>>` (`get_execution_payload`, `state_at_slot`, `is_healthy`,
 /// `compute_beacon_block_reward`). The `Weak` avoids a reference cycle.
 pub struct BlockProducer<T: BeaconChainTypes> {
     // Arc-held subsystems cloned at construction.
@@ -91,11 +91,11 @@ pub struct BlockProducer<T: BeaconChainTypes> {
     pub(crate) genesis_block_root: Hash256,
     // Utilities.
     pub(crate) task_executor: TaskExecutor,
-    // Weak back-reference to the parent `BeaconSystem`, installed post-construction by the
+    // Weak back-reference to the parent `BeaconChain`, installed post-construction by the
     // builder. Uses `Weak` to avoid a reference cycle that would prevent cleanup in tests.
     // Upgraded via `self.system()` inside method bodies; the upgrade never fails during the
     // lifetime of a running beacon chain.
-    pub(crate) system: OnceLock<Weak<BeaconSystem<T>>>,
+    pub(crate) system: OnceLock<Weak<BeaconChain<T>>>,
 }
 
 impl<T: BeaconChainTypes> BlockProducer<T> {
@@ -138,22 +138,22 @@ impl<T: BeaconChainTypes> BlockProducer<T> {
         }
     }
 
-    /// Install the weak back-reference to the parent `BeaconSystem`.
+    /// Install the weak back-reference to the parent `BeaconChain`.
     ///
-    /// Must be called once by the builder after `BeaconSystem` has been wrapped in an `Arc`.
-    pub fn set_system(&self, system: &Arc<BeaconSystem<T>>) {
+    /// Must be called once by the builder after `BeaconChain` has been wrapped in an `Arc`.
+    pub fn set_system(&self, system: &Arc<BeaconChain<T>>) {
         let _ = self.system.set(Arc::downgrade(system));
     }
 
     /// Get the parent reference by upgrading the `Weak`.
     ///
     /// Panics if the parent has been dropped (programming error) or not installed yet.
-    pub(crate) fn system(&self) -> Arc<BeaconSystem<T>> {
+    pub(crate) fn system(&self) -> Arc<BeaconChain<T>> {
         self.system
             .get()
             .expect("BlockProducer system not installed; builder bug")
             .upgrade()
-            .expect("BeaconSystem dropped while BlockProducer still alive")
+            .expect("BeaconChain dropped while BlockProducer still alive")
     }
 
     /// Check if the block with `block_root` was observed after the attestation deadline of `slot`.

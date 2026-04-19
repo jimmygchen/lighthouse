@@ -1,7 +1,7 @@
 //! Free functions for state and block root queries on the canonical chain.
 //!
 //! Each function takes explicit params (`store`, `canonical_head`, `spec`, etc.)
-//! instead of `&BeaconSystem`. Thin delegations on `impl BeaconSystem<T>` are
+//! instead of `&BeaconChain`. Thin delegations on `impl BeaconChain<T>` are
 //! provided so existing callers can continue to use `chain.method()`.
 
 use crate::beacon_components::{

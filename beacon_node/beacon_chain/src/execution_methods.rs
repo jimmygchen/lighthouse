@@ -1,8 +1,8 @@
 //! Execution layer integration and fork choice update methods.
 //!
 //! All methods are free functions. Async methods that need `spawn_blocking` take
-//! `Arc<BeaconSystem<T>>` directly. Callers access these via delegation methods
-//! on `BeaconSystem` defined elsewhere (e.g., `canonical_head.rs`).
+//! `Arc<BeaconChain<T>>` directly. Callers access these via delegation methods
+//! on `BeaconChain` defined elsewhere (e.g., `canonical_head.rs`).
 
 use crate::beacon_components::{
     BeaconChainTypes, INVALID_JUSTIFIED_PAYLOAD_SHUTDOWN_REASON, OverrideForkchoiceUpdate,
@@ -10,7 +10,7 @@ use crate::beacon_components::{
 };
 use crate::errors::BeaconChainError as Error;
 use crate::events::ServerSentEventHandler;
-use crate::{BeaconChainError, BeaconSystem};
+use crate::{BeaconChain, BeaconChainError};
 use eth2::beacon_response::ForkVersionedResponse;
 use eth2::types::{EventKind, SseExtendedPayloadAttributes};
 use execution_layer::{ExecutionBlockHash, PayloadAttributes, PayloadStatus};
@@ -89,7 +89,7 @@ pub(crate) fn emit_payload_attributes_event<E: EthSpec>(
 }
 
 pub async fn process_invalid_execution_payload<T: BeaconChainTypes>(
-    chain: &Arc<BeaconSystem<T>>,
+    chain: &Arc<BeaconChain<T>>,
     op: &InvalidationOperation,
 ) -> Result<(), Error> {
     debug!(?op, "Processing payload invalidation");
@@ -157,7 +157,7 @@ pub async fn process_invalid_execution_payload<T: BeaconChainTypes>(
 }
 
 pub fn block_is_known_to_fork_choice<T: BeaconChainTypes>(
-    chain: &BeaconSystem<T>,
+    chain: &BeaconChain<T>,
     root: &Hash256,
 ) -> bool {
     chain
@@ -178,7 +178,7 @@ pub fn block_is_known_to_fork_choice<T: BeaconChainTypes>(
 /// Return `Ok(Some(head_block_root))` if this node prepared to propose at the next slot on
 /// top of `head_block_root`.
 pub async fn prepare_beacon_proposer<T: BeaconChainTypes>(
-    chain: &Arc<BeaconSystem<T>>,
+    chain: &Arc<BeaconChain<T>>,
     current_slot: Slot,
 ) -> Result<Option<Hash256>, Error> {
     let prepare_slot = current_slot + 1;
@@ -376,7 +376,7 @@ pub async fn prepare_beacon_proposer<T: BeaconChainTypes>(
 }
 
 pub async fn update_execution_engine_forkchoice<T: BeaconChainTypes>(
-    chain: &Arc<BeaconSystem<T>>,
+    chain: &Arc<BeaconChain<T>>,
     current_slot: Slot,
     input_params: ForkchoiceUpdateParameters,
     override_forkchoice_update: OverrideForkchoiceUpdate,
@@ -584,7 +584,7 @@ pub fn is_optimistic_or_invalid_block<
     T: BeaconChainTypes,
     Payload: AbstractExecPayload<T::EthSpec>,
 >(
-    chain: &BeaconSystem<T>,
+    chain: &BeaconChain<T>,
     block: &SignedBeaconBlock<T::EthSpec, Payload>,
 ) -> Result<bool, BeaconChainError> {
     chain
@@ -596,7 +596,7 @@ pub fn is_optimistic_or_invalid_head_block<
     T: BeaconChainTypes,
     Payload: AbstractExecPayload<T::EthSpec>,
 >(
-    chain: &BeaconSystem<T>,
+    chain: &BeaconChain<T>,
     head_block: &SignedBeaconBlock<T::EthSpec, Payload>,
 ) -> Result<bool, BeaconChainError> {
     chain
@@ -605,7 +605,7 @@ pub fn is_optimistic_or_invalid_head_block<
 }
 
 pub fn is_optimistic_or_invalid_head<T: BeaconChainTypes>(
-    chain: &BeaconSystem<T>,
+    chain: &BeaconChain<T>,
 ) -> Result<bool, BeaconChainError> {
     chain
         .execution_manager

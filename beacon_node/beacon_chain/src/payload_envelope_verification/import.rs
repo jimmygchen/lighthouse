@@ -13,7 +13,7 @@ use super::{
     ExecutedEnvelope, gossip_verified_envelope::GossipVerifiedEnvelope,
 };
 use crate::{
-    AvailabilityProcessingStatus, BeaconChainError, BeaconChainTypes, BeaconSystem,
+    AvailabilityProcessingStatus, BeaconChain, BeaconChainError, BeaconChainTypes,
     NotifyExecutionLayer, block_verification_types::AvailableBlockData, metrics,
     payload_envelope_verification::ExecutionPendingEnvelope, validator_monitor::get_slot_delay_ms,
 };
@@ -29,7 +29,7 @@ const ENVELOPE_METRICS_CACHE_SLOT_LIMIT: u32 = 64;
 /// verification.
 #[instrument(skip_all, fields(block_root = ?block_root, block_source = %block_source))]
 pub async fn process_execution_payload_envelope<T: BeaconChainTypes>(
-    chain: &Arc<BeaconSystem<T>>,
+    chain: &Arc<BeaconChain<T>>,
     block_root: Hash256,
     unverified_envelope: GossipVerifiedEnvelope<T>,
     notify_execution_layer: NotifyExecutionLayer,
@@ -153,7 +153,7 @@ pub async fn process_execution_payload_envelope<T: BeaconChainTypes>(
 /// An error is returned if the verification handle couldn't be awaited.
 #[instrument(skip_all, level = "debug")]
 async fn into_executed_payload_envelope<T: BeaconChainTypes>(
-    _chain: Arc<BeaconSystem<T>>,
+    _chain: Arc<BeaconChain<T>>,
     pending_envelope: ExecutionPendingEnvelope<T::EthSpec>,
 ) -> Result<ExecutedEnvelope<T::EthSpec>, EnvelopeError> {
     let ExecutionPendingEnvelope {
@@ -186,7 +186,7 @@ async fn into_executed_payload_envelope<T: BeaconChainTypes>(
 
 #[instrument(skip_all)]
 pub async fn import_available_execution_payload_envelope<T: BeaconChainTypes>(
-    chain: &Arc<BeaconSystem<T>>,
+    chain: &Arc<BeaconChain<T>>,
     envelope: Box<AvailableExecutedEnvelope<T::EthSpec>>,
 ) -> Result<AvailabilityProcessingStatus, EnvelopeError> {
     let AvailableExecutedEnvelope {
@@ -230,7 +230,7 @@ pub async fn import_available_execution_payload_envelope<T: BeaconChainTypes>(
 #[allow(clippy::too_many_arguments)]
 #[instrument(skip_all)]
 fn import_execution_payload_envelope<T: BeaconChainTypes>(
-    chain: &BeaconSystem<T>,
+    chain: &BeaconChain<T>,
     signed_envelope: AvailableEnvelope<T::EthSpec>,
     block_root: Hash256,
     state: BeaconState<T::EthSpec>,
@@ -337,7 +337,7 @@ fn import_execution_payload_envelope<T: BeaconChainTypes>(
 }
 
 fn import_envelope_update_metrics_and_events<T: BeaconChainTypes>(
-    chain: &BeaconSystem<T>,
+    chain: &BeaconChain<T>,
     signed_envelope: Arc<SignedExecutionPayloadEnvelope<T::EthSpec>>,
     block_root: Hash256,
     payload_verification_status: PayloadVerificationStatus,

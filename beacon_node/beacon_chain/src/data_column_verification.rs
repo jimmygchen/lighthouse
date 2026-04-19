@@ -5,7 +5,7 @@ use crate::kzg_utils::{reconstruct_data_columns, validate_data_columns};
 use crate::observed_data_sidecars::{
     Error as ObservedDataSidecarsError, ObservationKey, ObservationStrategy, Observe,
 };
-use crate::{BeaconChainError, BeaconChainTypes, BeaconSystem, metrics};
+use crate::{BeaconChain, BeaconChainError, BeaconChainTypes, metrics};
 use educe::Educe;
 use fork_choice::ProtoBlock;
 use kzg::{Error as KzgError, Kzg};
@@ -222,7 +222,7 @@ impl<T: BeaconChainTypes, O: ObservationStrategy> GossipVerifiedDataColumn<T, O>
     pub fn new(
         column_sidecar: Arc<DataColumnSidecar<T::EthSpec>>,
         subnet_id: DataColumnSubnetId,
-        chain: &BeaconSystem<T>,
+        chain: &BeaconChain<T>,
     ) -> Result<Self, GossipDataColumnError> {
         match column_sidecar.as_ref() {
             DataColumnSidecar::Fulu(c) => {
@@ -251,7 +251,7 @@ impl<T: BeaconChainTypes, O: ObservationStrategy> GossipVerifiedDataColumn<T, O>
     /// When publishing a block constructed externally, there will be no columns here.
     pub fn new_for_block_publishing(
         column_sidecar: Arc<DataColumnSidecar<T::EthSpec>>,
-        chain: &BeaconSystem<T>,
+        chain: &BeaconChain<T>,
     ) -> Result<Self, GossipDataColumnError> {
         verify_data_column_sidecar(&column_sidecar, &chain.spec)?;
 
@@ -536,7 +536,7 @@ where
 pub fn validate_data_column_sidecar_for_gossip_fulu<T: BeaconChainTypes, O: ObservationStrategy>(
     data_column: Arc<DataColumnSidecar<T::EthSpec>>,
     subnet: DataColumnSubnetId,
-    chain: &BeaconSystem<T>,
+    chain: &BeaconChain<T>,
 ) -> Result<GossipVerifiedDataColumn<T, O>, GossipDataColumnError> {
     let DataColumnSidecar::Fulu(data_column_fulu) = data_column.as_ref() else {
         return Err(GossipDataColumnError::InvalidVariant);
@@ -650,7 +650,7 @@ fn verify_data_column_sidecar<E: EthSpec>(
 /// Verify that `column_sidecar` is not yet known, i.e. this is the first time `column_sidecar` has been received for the tuple:
 /// `(block_header.slot, block_header.proposer_index, column_sidecar.index)`
 fn verify_is_unknown_sidecar<T: BeaconChainTypes>(
-    chain: &BeaconSystem<T>,
+    chain: &BeaconChain<T>,
     column_sidecar: &DataColumnSidecar<T::EthSpec>,
 ) -> Result<(), GossipDataColumnError> {
     if let Some(observation_key) = chain
@@ -696,7 +696,7 @@ fn verify_slot_higher_than_parent(
 
 fn verify_parent_block_and_finalized_descendant<T: BeaconChainTypes>(
     data_column: &DataColumnSidecarFulu<T::EthSpec>,
-    chain: &BeaconSystem<T>,
+    chain: &BeaconChain<T>,
 ) -> Result<ProtoBlock, GossipDataColumnError> {
     let fork_choice = chain.canonical_head.fork_choice_read_lock();
 
@@ -721,7 +721,7 @@ fn verify_parent_block_and_finalized_descendant<T: BeaconChainTypes>(
 fn verify_proposer_and_signature<T: BeaconChainTypes>(
     data_column: &DataColumnSidecarFulu<T::EthSpec>,
     parent_block: &ProtoBlock,
-    chain: &BeaconSystem<T>,
+    chain: &BeaconChain<T>,
 ) -> Result<(), GossipDataColumnError> {
     let column_slot = data_column.slot();
     let slots_per_epoch = T::EthSpec::slots_per_epoch();
@@ -814,7 +814,7 @@ fn verify_index_matches_subnet<E: EthSpec>(
 }
 
 fn verify_slot_greater_than_latest_finalized_slot<T: BeaconChainTypes>(
-    chain: &BeaconSystem<T>,
+    chain: &BeaconChain<T>,
     column_slot: Slot,
 ) -> Result<(), GossipDataColumnError> {
     let latest_finalized_slot = chain
@@ -833,7 +833,7 @@ fn verify_slot_greater_than_latest_finalized_slot<T: BeaconChainTypes>(
 }
 
 fn verify_sidecar_not_from_future_slot<T: BeaconChainTypes>(
-    chain: &BeaconSystem<T>,
+    chain: &BeaconChain<T>,
     column_slot: Slot,
 ) -> Result<(), GossipDataColumnError> {
     let latest_permissible_slot = chain
@@ -851,7 +851,7 @@ fn verify_sidecar_not_from_future_slot<T: BeaconChainTypes>(
 
 pub fn observe_gossip_data_column<T: BeaconChainTypes>(
     data_column_sidecar: &DataColumnSidecar<T::EthSpec>,
-    chain: &BeaconSystem<T>,
+    chain: &BeaconChain<T>,
 ) -> Result<(), GossipDataColumnError> {
     // Pre-gloas: Now the signature is valid, store the proposal so we don't accept another data column sidecar
     // with the same `ColumnIndex`.

@@ -1,5 +1,5 @@
 use super::manager::SLOT_IMPORT_TOLERANCE;
-use beacon_chain::{BeaconChainTypes, BeaconSystem};
+use beacon_chain::{BeaconChain, BeaconChainTypes};
 use lighthouse_network::{SyncInfo, SyncStatus as PeerSyncStatus};
 use std::cmp::Ordering;
 
@@ -26,7 +26,7 @@ impl PeerSyncType {
 pub fn remote_sync_type<T: BeaconChainTypes>(
     local: &SyncInfo,
     remote: &SyncInfo,
-    chain: &BeaconSystem<T>,
+    chain: &BeaconChain<T>,
 ) -> PeerSyncType {
     // auxiliary variables for clarity: Inclusive boundaries of the range in which we consider a peer's
     // head "near" ours.

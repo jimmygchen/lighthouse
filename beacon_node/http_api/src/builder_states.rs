@@ -1,5 +1,5 @@
 use crate::StateId;
-use beacon_chain::{BeaconChainTypes, BeaconSystem};
+use beacon_chain::{BeaconChain, BeaconChainTypes};
 use safe_arith::SafeArith;
 use state_processing::per_block_processing::get_expected_withdrawals;
 use state_processing::state_advance::partial_state_advance;
@@ -11,7 +11,7 @@ const MAX_EPOCH_LOOKAHEAD: u64 = 2;
 /// Get the withdrawals computed from the specified state, that will be included in the block
 /// that gets built on the specified state.
 pub fn get_next_withdrawals<T: BeaconChainTypes>(
-    chain: &Arc<BeaconSystem<T>>,
+    chain: &Arc<BeaconChain<T>>,
     mut state: BeaconState<T::EthSpec>,
     state_id: StateId,
     proposal_slot: Slot,
@@ -41,7 +41,7 @@ pub fn get_next_withdrawals<T: BeaconChainTypes>(
 }
 
 fn get_next_withdrawals_sanity_checks<T: BeaconChainTypes>(
-    chain: &BeaconSystem<T>,
+    chain: &BeaconChain<T>,
     state: &BeaconState<T::EthSpec>,
     proposal_slot: Slot,
 ) -> Result<(), warp::Rejection> {

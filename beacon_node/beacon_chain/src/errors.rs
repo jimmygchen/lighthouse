@@ -295,7 +295,7 @@ pub enum BlockProductionError {
     BeaconStateError(BeaconStateError),
     StateAdvanceError(StateAdvanceError),
     OpPoolError(OpPoolError),
-    /// The `BeaconSystem` was explicitly configured _without_ a connection to eth1, therefore it
+    /// The `BeaconChain` was explicitly configured _without_ a connection to eth1, therefore it
     /// cannot produce blocks.
     NoEth1ChainConnection,
     StateSlotTooHigh {

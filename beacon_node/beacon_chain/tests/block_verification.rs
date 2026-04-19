@@ -4,7 +4,7 @@ use beacon_chain::block_verification_types::{AsBlock, ExecutedBlock, LookupBlock
 use beacon_chain::data_availability_checker::{AvailabilityCheckError, AvailableBlockData};
 use beacon_chain::data_column_verification::CustodyDataColumn;
 use beacon_chain::{
-    AvailabilityProcessingStatus, BeaconChainTypes, BeaconSystem, ExecutionPendingBlock,
+    AvailabilityProcessingStatus, BeaconChain, BeaconChainTypes, ExecutionPendingBlock,
     WhenSlotSkipped,
     custody_context::NodeCustodyType,
     test_utils::{
@@ -142,7 +142,7 @@ fn get_harness(
 fn chain_segment_blocks<T>(
     chain_segment: &[BeaconSnapshot<E>],
     chain_segment_sidecars: &[Option<DataSidecars<E>>],
-    chain: Arc<BeaconSystem<T>>,
+    chain: Arc<BeaconChain<T>>,
 ) -> Vec<RangeSyncBlock<E>>
 where
     T: BeaconChainTypes<EthSpec = E>,
@@ -160,7 +160,7 @@ where
 fn build_range_sync_block<T>(
     block: Arc<SignedBeaconBlock<E>>,
     data_sidecars: &Option<DataSidecars<E>>,
-    chain: Arc<BeaconSystem<T>>,
+    chain: Arc<BeaconChain<T>>,
 ) -> RangeSyncBlock<E>
 where
     T: BeaconChainTypes<EthSpec = E>,
@@ -2029,7 +2029,7 @@ async fn import_duplicate_block_unrealized_justification() {
 }
 
 async fn import_execution_pending_block<T: BeaconChainTypes>(
-    chain: Arc<BeaconSystem<T>>,
+    chain: Arc<BeaconChain<T>>,
     execution_pending_block: ExecutionPendingBlock<T>,
 ) -> Result<AvailabilityProcessingStatus, String> {
     match chain

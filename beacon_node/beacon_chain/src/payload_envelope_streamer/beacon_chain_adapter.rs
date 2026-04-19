@@ -5,16 +5,16 @@ use mockall::automock;
 use task_executor::TaskExecutor;
 use types::{Hash256, SignedExecutionPayloadEnvelope, Slot};
 
-use crate::{BeaconChainError, BeaconChainTypes, BeaconSystem};
+use crate::{BeaconChain, BeaconChainError, BeaconChainTypes};
 
-/// An adapter to the `BeaconSystem` functionalities to remove `BeaconSystem` from direct dependency to enable testing envelope streamer logic.
+/// An adapter to the `BeaconChain` functionalities to remove `BeaconChain` from direct dependency to enable testing envelope streamer logic.
 pub(crate) struct EnvelopeStreamerBeaconAdapter<T: BeaconChainTypes> {
-    chain: Arc<BeaconSystem<T>>,
+    chain: Arc<BeaconChain<T>>,
 }
 
 #[cfg_attr(test, automock, allow(dead_code))]
 impl<T: BeaconChainTypes> EnvelopeStreamerBeaconAdapter<T> {
-    pub(crate) fn new(chain: Arc<BeaconSystem<T>>) -> Self {
+    pub(crate) fn new(chain: Arc<BeaconChain<T>>) -> Self {
         Self { chain }
     }
 

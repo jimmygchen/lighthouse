@@ -8,7 +8,7 @@ use super::sync_type::RangeSyncType;
 use crate::metrics;
 use crate::sync::batch::BatchMetricsState;
 use crate::sync::network_context::SyncNetworkContext;
-use beacon_chain::{BeaconChainTypes, BeaconSystem};
+use beacon_chain::{BeaconChain, BeaconChainTypes};
 use fnv::FnvHashMap;
 use lighthouse_network::PeerId;
 use lighthouse_network::SyncInfo;
@@ -53,7 +53,7 @@ pub struct ChainCollectionMetrics {
 /// A collection of finalized and head chains currently being processed.
 pub struct ChainCollection<T: BeaconChainTypes> {
     /// The beacon chain for processing.
-    beacon_chain: Arc<BeaconSystem<T>>,
+    beacon_chain: Arc<BeaconChain<T>>,
     /// The set of finalized chains being synced.
     finalized_chains: FnvHashMap<ChainId, SyncingChain<T>>,
     /// The set of head chains being synced.
@@ -66,7 +66,7 @@ pub struct ChainCollection<T: BeaconChainTypes> {
 }
 
 impl<T: BeaconChainTypes> ChainCollection<T> {
-    pub fn new(beacon_chain: Arc<BeaconSystem<T>>) -> Self {
+    pub fn new(beacon_chain: Arc<BeaconChain<T>>) -> Self {
         ChainCollection {
             beacon_chain,
             finalized_chains: FnvHashMap::default(),

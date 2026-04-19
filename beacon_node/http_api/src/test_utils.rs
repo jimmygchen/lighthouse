@@ -1,6 +1,6 @@
 use crate::{Config, Context};
 use beacon_chain::{
-    BeaconChainTypes, BeaconSystem,
+    BeaconChain, BeaconChainTypes,
     custody_context::NodeCustodyType,
     test_utils::{BeaconChainHarness, BoxedMutator, Builder, EphemeralHarnessType},
 };
@@ -181,14 +181,14 @@ impl<E: EthSpec> InteractiveTester<E> {
 }
 
 pub async fn create_api_server<T: BeaconChainTypes>(
-    chain: Arc<BeaconSystem<T>>,
+    chain: Arc<BeaconChain<T>>,
     test_runtime: &TestRuntime,
 ) -> ApiServer<T, impl Future<Output = ()> + use<T>> {
     create_api_server_with_config(chain, Config::default(), test_runtime).await
 }
 
 pub async fn create_api_server_with_config<T: BeaconChainTypes>(
-    chain: Arc<BeaconSystem<T>>,
+    chain: Arc<BeaconChain<T>>,
     http_config: Config,
     test_runtime: &TestRuntime,
 ) -> ApiServer<T, impl Future<Output = ()> + use<T>> {

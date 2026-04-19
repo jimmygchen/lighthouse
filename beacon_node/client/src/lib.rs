@@ -5,7 +5,7 @@ mod notifier;
 
 pub mod builder;
 
-use beacon_chain::BeaconSystem;
+use beacon_chain::BeaconChain;
 use lighthouse_network::{Enr, Multiaddr, NetworkGlobals};
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -19,7 +19,7 @@ pub use eth2_config::Eth2Config;
 ///
 /// Holds references to running services, cleanly shutting them down when dropped.
 pub struct Client<T: BeaconChainTypes> {
-    beacon_chain: Option<Arc<BeaconSystem<T>>>,
+    beacon_chain: Option<Arc<BeaconChain<T>>>,
     network_globals: Option<Arc<NetworkGlobals<T::EthSpec>>>,
     /// Listen address for the standard eth2.0 API, if the service was started.
     http_api_listen_addr: Option<SocketAddr>,
@@ -28,8 +28,8 @@ pub struct Client<T: BeaconChainTypes> {
 }
 
 impl<T: BeaconChainTypes> Client<T> {
-    /// Returns an `Arc` reference to the client's `BeaconSystem`, if it was started.
-    pub fn beacon_chain(&self) -> Option<Arc<BeaconSystem<T>>> {
+    /// Returns an `Arc` reference to the client's `BeaconChain`, if it was started.
+    pub fn beacon_chain(&self) -> Option<Arc<BeaconChain<T>>> {
         self.beacon_chain.clone()
     }
 

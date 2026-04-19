@@ -3,7 +3,7 @@
 //! `BlockImporter<T>` owns the subsystems required to import blocks, blobs and data columns. It
 //! holds `Arc`-shared handles to every piece of state it accesses directly (store, spec, slot
 //! clock, canonical head, attestation manager, etc.). For cross-module verification helpers that
-//! still take `&BeaconSystem<T>`, a `Weak<BeaconSystem<T>>` back-reference is installed
+//! still take `&BeaconChain<T>`, a `Weak<BeaconChain<T>>` back-reference is installed
 //! post-construction by the builder. The `Weak` avoids a reference cycle, allowing proper
 //! cleanup in tests.
 
@@ -45,7 +45,7 @@ use crate::validator_monitor::{
     HISTORIC_EPOCHS as VALIDATOR_MONITOR_HISTORIC_EPOCHS, ValidatorMonitor, get_slot_delay_ms,
 };
 use crate::{
-    AvailabilityPendingExecutedBlock, BeaconChainError, BeaconSystem, ChainConfig,
+    AvailabilityPendingExecutedBlock, BeaconChain, BeaconChainError, ChainConfig,
     LightClientProducerEvent, metrics,
 };
 use eth2::types::{EventKind, SseBlobSidecar, SseBlock, SseDataColumnSidecar, SseHead};
@@ -70,12 +70,12 @@ use types::*;
 /// canonical head, attestation manager, observed slashable cache, validator monitor,
 /// optional event handler, data availability manager, store, spec, and various caches.
 ///
-/// For cross-module verification helpers that still take `&BeaconSystem<T>`
+/// For cross-module verification helpers that still take `&BeaconChain<T>`
 /// (`check_block_relevancy`, `signature_verify_chain_segment`, `GossipVerifiedBlock::new`,
 /// `IntoExecutionPendingBlock::into_execution_pending_block`,
 /// `check_block_is_finalized_checkpoint_or_descendant`, `verify_weak_subjectivity_checkpoint`,
 /// `verify_header_signature`, `get_blobs_or_columns_store_op`, `state_at_slot`), a
-/// `Weak<BeaconSystem<T>>` back-reference is installed by the builder post-construction.
+/// `Weak<BeaconChain<T>>` back-reference is installed by the builder post-construction.
 /// The `Weak` avoids a reference cycle, allowing proper cleanup in tests. Rewriting those
 /// helper signatures to take only the dependencies they need would let us drop the
 /// back-reference entirely.
@@ -88,7 +88,7 @@ pub struct BlockImporter<T: BeaconChainTypes> {
     pub(crate) canonical_head: Arc<CanonicalHead<T>>,
     pub(crate) attestation_manager: Arc<AttestationManager<T::EthSpec>>,
     // Held as direct Arc handles even when current access still goes through free helpers that
-    // take `&BeaconSystem<T>`; retaining the Arcs here lets us migrate those helpers to
+    // take `&BeaconChain<T>`; retaining the Arcs here lets us migrate those helpers to
     // per-component inputs without churning this struct again.
     pub(crate) validator_monitor: Arc<RwLock<ValidatorMonitor<T::EthSpec>>>,
     pub observed_slashable: Arc<RwLock<ObservedSlashable<T::EthSpec>>>,
@@ -113,11 +113,11 @@ pub struct BlockImporter<T: BeaconChainTypes> {
     // Utilities.
     pub(crate) task_executor: TaskExecutor,
     pub(crate) shutdown_sender: Sender<ShutdownReason>,
-    // Weak back-reference to the parent `BeaconSystem`, installed post-construction by the
+    // Weak back-reference to the parent `BeaconChain`, installed post-construction by the
     // builder. Uses `Weak` to avoid a reference cycle that would prevent cleanup in tests.
     // Upgraded via `self.system()` inside method bodies; the upgrade never fails during the
     // lifetime of a running beacon chain.
-    pub(crate) system: OnceLock<Weak<BeaconSystem<T>>>,
+    pub(crate) system: OnceLock<Weak<BeaconChain<T>>>,
 }
 
 impl<T: BeaconChainTypes> BlockImporter<T> {
@@ -174,22 +174,22 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
         }
     }
 
-    /// Install the weak back-reference to the parent `BeaconSystem`.
+    /// Install the weak back-reference to the parent `BeaconChain`.
     ///
-    /// Must be called once by the builder after `BeaconSystem` has been wrapped in an `Arc`.
-    pub fn set_system(&self, system: &Arc<BeaconSystem<T>>) {
+    /// Must be called once by the builder after `BeaconChain` has been wrapped in an `Arc`.
+    pub fn set_system(&self, system: &Arc<BeaconChain<T>>) {
         let _ = self.system.set(Arc::downgrade(system));
     }
 
     /// Get the parent reference by upgrading the `Weak`.
     ///
     /// Panics if the parent has been dropped (programming error) or not installed yet.
-    pub(crate) fn system(&self) -> Arc<BeaconSystem<T>> {
+    pub(crate) fn system(&self) -> Arc<BeaconChain<T>> {
         self.system
             .get()
             .expect("BlockImporter system not installed; builder bug")
             .upgrade()
-            .expect("BeaconSystem dropped while BlockImporter still alive")
+            .expect("BeaconChain dropped while BlockImporter still alive")
     }
 
     pub fn filter_chain_segment(
@@ -1548,14 +1548,14 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
 // --- Module-level private helpers ---
 //
 // These helpers either consume a `&BlockImporter<T>` (which provides `self.parent()` on demand
-// for reaching `BeaconSystem` fields not yet held by the importer) or take the specific
-// components they need explicitly. Crucially they do NOT have a `chain: &BeaconSystem<T>`
+// for reaching `BeaconChain` fields not yet held by the importer) or take the specific
+// components they need explicitly. Crucially they do NOT have a `chain: &BeaconChain<T>`
 // parameter — the importer is the sole entry point for block-import state.
 
 /// Process a block for the validator monitor, including all its constituent messages.
 #[instrument(skip_all, level = "debug")]
 fn import_block_update_validator_monitor<T: BeaconChainTypes>(
-    components: &BeaconSystem<T>,
+    components: &BeaconChain<T>,
     block: BeaconBlockRef<T::EthSpec>,
     state: &BeaconState<T::EthSpec>,
     ctxt: &mut ConsensusContext<T::EthSpec>,
@@ -1670,7 +1670,7 @@ fn import_block_update_validator_monitor<T: BeaconChainTypes>(
 /// This will stop us from propagating them on the gossip network.
 #[instrument(skip_all, level = "debug")]
 fn import_block_observe_attestations<T: BeaconChainTypes>(
-    components: &BeaconSystem<T>,
+    components: &BeaconChain<T>,
     block: BeaconBlockRef<T::EthSpec>,
     state: &BeaconState<T::EthSpec>,
     ctxt: &mut ConsensusContext<T::EthSpec>,
@@ -1741,7 +1741,7 @@ fn import_block_observe_attestations<T: BeaconChainTypes>(
 /// If a slasher is configured, provide the attestations from the block.
 #[instrument(skip_all, level = "debug")]
 fn import_block_update_slasher<T: BeaconChainTypes>(
-    components: &BeaconSystem<T>,
+    components: &BeaconChain<T>,
     block: BeaconBlockRef<T::EthSpec>,
     state: &BeaconState<T::EthSpec>,
     ctxt: &mut ConsensusContext<T::EthSpec>,
@@ -1834,7 +1834,7 @@ fn import_block_update_metrics_and_events<T: BeaconChainTypes>(
 }
 
 fn emit_sse_blob_sidecar_events<'a, T: BeaconChainTypes, I>(
-    components: &BeaconSystem<T>,
+    components: &BeaconChain<T>,
     block_root: &Hash256,
     blobs_iter: I,
 ) where
@@ -1859,7 +1859,7 @@ fn emit_sse_blob_sidecar_events<'a, T: BeaconChainTypes, I>(
 }
 
 fn emit_sse_data_column_sidecar_events<'a, T: BeaconChainTypes, I>(
-    components: &BeaconSystem<T>,
+    components: &BeaconChain<T>,
     block_root: &Hash256,
     data_columns_iter: I,
 ) where
@@ -1885,7 +1885,7 @@ fn emit_sse_data_column_sidecar_events<'a, T: BeaconChainTypes, I>(
 }
 
 fn check_blob_header_signature_and_slashability<'a, T: BeaconChainTypes>(
-    components: &BeaconSystem<T>,
+    components: &BeaconChain<T>,
     block_root: Hash256,
     blobs: impl IntoIterator<Item = &'a BlobSidecar<T::EthSpec>>,
 ) -> Result<(), BlockError> {
@@ -1915,7 +1915,7 @@ fn check_blob_header_signature_and_slashability<'a, T: BeaconChainTypes>(
 }
 
 fn check_data_column_sidecar_header_signature_and_slashability<'a, T: BeaconChainTypes>(
-    components: &BeaconSystem<T>,
+    components: &BeaconChain<T>,
     block_root: Hash256,
     custody_columns: impl IntoIterator<Item = &'a DataColumnSidecarFulu<T::EthSpec>>,
 ) -> Result<(), BlockError> {
@@ -1948,7 +1948,7 @@ fn check_data_column_sidecar_header_signature_and_slashability<'a, T: BeaconChai
 }
 
 fn handle_import_block_db_write_error<T: BeaconChainTypes>(
-    components: &BeaconSystem<T>,
+    components: &BeaconChain<T>,
     // We don't actually need this value, however it's always present when we call this function
     // and it needs to be dropped to prevent a dead-lock. Requiring it to be passed here is
     // defensive programming.

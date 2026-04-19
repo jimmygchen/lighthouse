@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::{
-    BeaconChainError, BeaconChainTypes, BeaconSystem,
+    BeaconChain, BeaconChainError, BeaconChainTypes,
     data_column_verification::verify_kzg_for_data_column_list,
 };
 use store::{Error as StoreError, KeyValueStore};
@@ -50,7 +50,7 @@ impl From<StoreError> for HistoricalDataColumnError {
 /// Return the number of `data_columns` successfully imported.
 #[instrument(skip_all, fields(columns_imported_count = tracing::field::Empty ))]
 pub fn import_historical_data_column_batch<T: BeaconChainTypes>(
-    chain: &BeaconSystem<T>,
+    chain: &BeaconChain<T>,
     epoch: Epoch,
     historical_data_column_sidecar_list: DataColumnSidecarList<T::EthSpec>,
     expected_cgc: u64,

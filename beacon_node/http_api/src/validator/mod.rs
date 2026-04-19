@@ -9,7 +9,7 @@ use crate::utils::{
 use crate::version::{V1, V2, V3, unsupported_version_rejection};
 use crate::{StateId, attester_duties, proposer_duties, sync_committees};
 use beacon_chain::attestation_verification::VerifiedAttestation;
-use beacon_chain::{AttestationError, BeaconChainError, BeaconChainTypes, BeaconSystem};
+use beacon_chain::{AttestationError, BeaconChain, BeaconChainError, BeaconChainTypes};
 use bls::PublicKeyBytes;
 use eth2::types::{
     Accept, BeaconCommitteeSubscription, EndpointVersion, Failure, GenericResponse,
@@ -37,7 +37,7 @@ pub mod execution_payload_envelope;
 /// Uses the `chain.validator_query.validator_pubkey_cache` to resolve a pubkey to a validator
 /// index and then ensures that the validator exists in the given `state`.
 pub fn pubkey_to_validator_index<T: BeaconChainTypes>(
-    chain: &BeaconSystem<T>,
+    chain: &BeaconChain<T>,
     state: &BeaconState<T::EthSpec>,
     pubkey: &PublicKeyBytes,
 ) -> Result<Option<usize>, Box<BeaconChainError>> {
@@ -75,7 +75,7 @@ pub fn get_validator_sync_committee_contribution<T: BeaconChainTypes>(
             |sync_committee_data: SyncContributionData,
              not_synced_filter: Result<(), Rejection>,
              task_spawner: TaskSpawner<T::EthSpec>,
-             chain: Arc<BeaconSystem<T>>| {
+             chain: Arc<BeaconChain<T>>| {
                 task_spawner.blocking_json_task(Priority::P0, move || {
                     not_synced_filter?;
                     let contribution = chain
@@ -144,7 +144,7 @@ pub fn post_validator_duties_sync<T: BeaconChainTypes>(
              not_synced_filter: Result<(), Rejection>,
              indices: ValidatorIndexData,
              task_spawner: TaskSpawner<T::EthSpec>,
-             chain: Arc<BeaconSystem<T>>| {
+             chain: Arc<BeaconChain<T>>| {
                 task_spawner.blocking_json_task(Priority::P0, move || {
                     not_synced_filter?;
                     sync_committees::sync_committee_duties(epoch, &indices.0, &chain)
@@ -180,7 +180,7 @@ pub fn post_validator_duties_attester<T: BeaconChainTypes>(
              not_synced_filter: Result<(), Rejection>,
              indices: ValidatorIndexData,
              task_spawner: TaskSpawner<T::EthSpec>,
-             chain: Arc<BeaconSystem<T>>| {
+             chain: Arc<BeaconChain<T>>| {
                 task_spawner.blocking_json_task(Priority::P0, move || {
                     not_synced_filter?;
                     attester_duties::attester_duties(epoch, &indices.0, &chain)
@@ -210,7 +210,7 @@ pub fn get_validator_aggregate_attestation<T: BeaconChainTypes>(
              query: ValidatorAggregateAttestationQuery,
              not_synced_filter: Result<(), Rejection>,
              task_spawner: TaskSpawner<T::EthSpec>,
-             chain: Arc<BeaconSystem<T>>| {
+             chain: Arc<BeaconChain<T>>| {
                 task_spawner.blocking_response_task(Priority::P0, move || {
                     not_synced_filter?;
                     crate::aggregate_attestation::get_aggregate_attestation(
@@ -245,7 +245,7 @@ pub fn get_validator_attestation_data<T: BeaconChainTypes>(
             |query: ValidatorAttestationDataQuery,
              not_synced_filter: Result<(), Rejection>,
              task_spawner: TaskSpawner<T::EthSpec>,
-             chain: Arc<BeaconSystem<T>>| {
+             chain: Arc<BeaconChain<T>>| {
                 task_spawner.blocking_json_task(Priority::P0, move || {
                     not_synced_filter?;
 
@@ -305,7 +305,7 @@ pub fn get_validator_blinded_blocks<T: BeaconChainTypes>(
              query: ValidatorBlocksQuery,
              accept_header: Option<Accept>,
              task_spawner: TaskSpawner<T::EthSpec>,
-             chain: Arc<BeaconSystem<T>>| {
+             chain: Arc<BeaconChain<T>>| {
                 task_spawner.spawn_async_with_rejection(Priority::P0, async move {
                     not_synced_filter?;
                     produce_blinded_block_v2(accept_header, chain, slot, query).await
@@ -343,7 +343,7 @@ pub fn get_validator_blocks<T: BeaconChainTypes>(
              not_synced_filter: Result<(), Rejection>,
              query: ValidatorBlocksQuery,
              task_spawner: TaskSpawner<T::EthSpec>,
-             chain: Arc<BeaconSystem<T>>| {
+             chain: Arc<BeaconChain<T>>| {
                 task_spawner.spawn_async_with_rejection(Priority::P0, async move {
                     debug!(?slot, "Block production request from HTTP API");
 
@@ -382,7 +382,7 @@ pub fn post_validator_liveness_epoch<T: BeaconChainTypes>(
             |epoch: Epoch,
              indices: ValidatorIndexData,
              task_spawner: TaskSpawner<T::EthSpec>,
-             chain: Arc<BeaconSystem<T>>| {
+             chain: Arc<BeaconChain<T>>| {
                 task_spawner.blocking_json_task(Priority::P0, move || {
                     // Ensure the request is for either the current, previous or next epoch.
                     let current_epoch = beacon_chain::state_query::current_epoch::<T::EthSpec, _>(
@@ -439,7 +439,7 @@ pub fn post_validator_sync_committee_subscriptions<T: BeaconChainTypes>(
             |subscriptions: Vec<types::SyncCommitteeSubscription>,
              validator_subscription_tx: Sender<ValidatorSubscriptionMessage>,
              task_spawner: TaskSpawner<T::EthSpec>,
-             chain: Arc<BeaconSystem<T>>,
+             chain: Arc<BeaconChain<T>>,
             | {
                 task_spawner.blocking_json_task(Priority::P0, move || {
                     for subscription in subscriptions {
@@ -484,7 +484,7 @@ pub fn post_validator_register_validator<T: BeaconChainTypes>(
         .and(warp_utils::json::json())
         .then(
             |task_spawner: TaskSpawner<T::EthSpec>,
-             chain: Arc<BeaconSystem<T>>,
+             chain: Arc<BeaconChain<T>>,
              register_val_data: Vec<SignedValidatorRegistrationData>| async {
                 let (tx, rx) = oneshot::channel();
 
@@ -679,7 +679,7 @@ pub fn post_validator_prepare_beacon_proposer<T: BeaconChainTypes>(
             |not_synced_filter: Result<(), Rejection>,
              network_tx: UnboundedSender<NetworkMessage<T::EthSpec>>,
              task_spawner: TaskSpawner<T::EthSpec>,
-             chain: Arc<BeaconSystem<T>>,
+             chain: Arc<BeaconChain<T>>,
              preparation_data: Vec<ProposerPreparationData>| {
                 task_spawner.spawn_async_with_rejection(Priority::P0, async move {
                     not_synced_filter?;
@@ -816,7 +816,7 @@ pub fn post_validator_beacon_committee_subscriptions<T: BeaconChainTypes>(
             |committee_subscriptions: Vec<BeaconCommitteeSubscription>,
              validator_subscription_tx: Sender<ValidatorSubscriptionMessage>,
              task_spawner: TaskSpawner<T::EthSpec>,
-             chain: Arc<BeaconSystem<T>>| {
+             chain: Arc<BeaconChain<T>>| {
                 task_spawner.blocking_json_task(Priority::P0, move || {
                     let subscriptions: std::collections::BTreeSet<_> = committee_subscriptions
                         .iter()
@@ -873,7 +873,7 @@ pub fn post_validator_contribution_and_proofs<T: BeaconChainTypes>(
         .then(
             |not_synced_filter: Result<(), Rejection>,
              task_spawner: TaskSpawner<T::EthSpec>,
-             chain: Arc<BeaconSystem<T>>,
+             chain: Arc<BeaconChain<T>>,
              contributions: Vec<SignedContributionAndProof<T::EthSpec>>,
              network_tx: UnboundedSender<NetworkMessage<T::EthSpec>>| {
                 task_spawner.blocking_json_task(Priority::P0, move || {
@@ -914,7 +914,7 @@ pub fn post_validator_aggregate_and_proofs<T: BeaconChainTypes>(
             |_endpoint_version: EndpointVersion,
              not_synced_filter: Result<(), Rejection>,
              task_spawner: TaskSpawner<T::EthSpec>,
-             chain: Arc<BeaconSystem<T>>,
+             chain: Arc<BeaconChain<T>>,
              aggregates: Vec<SignedAggregateAndProof<T::EthSpec>>,
              network_tx: UnboundedSender<NetworkMessage<T::EthSpec>>| {
                 task_spawner.blocking_json_task(Priority::P0, move || {
@@ -1078,7 +1078,7 @@ pub fn get_validator_duties_proposer<T: BeaconChainTypes>(
              epoch: Epoch,
              not_synced_filter: Result<(), Rejection>,
              task_spawner: TaskSpawner<T::EthSpec>,
-             chain: Arc<BeaconSystem<T>>| {
+             chain: Arc<BeaconChain<T>>| {
                 task_spawner.blocking_json_task(Priority::P0, move || {
                     not_synced_filter?;
                     if endpoint_version == V1 {

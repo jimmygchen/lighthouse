@@ -12,7 +12,7 @@ static KEYPAIRS: LazyLock<Vec<Keypair>> =
     LazyLock::new(|| types::test_utils::generate_deterministic_keypairs(VALIDATOR_COUNT));
 
 /// Compile-time regression test: ensures the `BlockImporter` is wired up and reachable from the
-/// `BeaconSystem` held by `BeaconChainHarness`.
+/// `BeaconChain` held by `BeaconChainHarness`.
 #[tokio::test]
 async fn block_importer_is_accessible_on_beacon_components() {
     let spec = Arc::new(test_spec::<E>());

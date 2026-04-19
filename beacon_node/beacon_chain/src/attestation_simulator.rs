@@ -1,4 +1,4 @@
-use crate::{BeaconChainTypes, BeaconSystem};
+use crate::{BeaconChain, BeaconChainTypes};
 use slot_clock::SlotClock;
 use std::sync::Arc;
 use task_executor::TaskExecutor;
@@ -15,7 +15,7 @@ const SYNCING_TOLERANCE_EPOCHS: u64 = 2;
 /// This routine will run once per slot
 pub fn start_attestation_simulator_service<T: BeaconChainTypes>(
     executor: TaskExecutor,
-    chain: Arc<BeaconSystem<T>>,
+    chain: Arc<BeaconChain<T>>,
 ) {
     executor.clone().spawn(
         async move { attestation_simulator_service(executor, chain).await },
@@ -23,10 +23,10 @@ pub fn start_attestation_simulator_service<T: BeaconChainTypes>(
     );
 }
 
-/// Loop indefinitely, calling `BeaconSystem::produce_unaggregated_attestation` every 4s into each slot.
+/// Loop indefinitely, calling `BeaconChain::produce_unaggregated_attestation` every 4s into each slot.
 async fn attestation_simulator_service<T: BeaconChainTypes>(
     executor: TaskExecutor,
-    chain: Arc<BeaconSystem<T>>,
+    chain: Arc<BeaconChain<T>>,
 ) {
     let slot_duration = chain.slot_clock.slot_duration();
     let additional_delay = slot_duration / 3;
@@ -61,7 +61,7 @@ async fn attestation_simulator_service<T: BeaconChainTypes>(
 }
 
 pub fn produce_unaggregated_attestation<T: BeaconChainTypes>(
-    chain: Arc<BeaconSystem<T>>,
+    chain: Arc<BeaconChain<T>>,
     current_slot: Slot,
 ) {
     // Don't run the attestation simulator when the head slot is far behind the

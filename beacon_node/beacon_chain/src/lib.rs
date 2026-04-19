@@ -78,9 +78,9 @@ pub use self::beacon_components::{
     AvailabilityProcessingStatus,
     BeaconBlockResponse,
     BeaconBlockResponseWrapper,
+    BeaconChain,
     BeaconChainTypes,
     BeaconStore,
-    BeaconSystem,
     BlockProcessStatus,
     ChainSegmentResult,
     ForkChoiceError,
@@ -91,7 +91,7 @@ pub use self::beacon_components::{
     ProduceBlockVerification,
     StateSkipConfig,
     WhenSlotSkipped,
-    // Free functions extracted from `impl BeaconSystem<T>`
+    // Free functions extracted from `impl BeaconChain<T>`
     compute_fork_digest,
     duration_to_next_digest,
     enr_fork_id,

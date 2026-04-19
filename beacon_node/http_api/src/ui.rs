@@ -1,5 +1,5 @@
 use beacon_chain::{
-    BeaconChainError, BeaconChainTypes, BeaconSystem, validator_monitor::HISTORIC_EPOCHS,
+    BeaconChain, BeaconChainError, BeaconChainTypes, validator_monitor::HISTORIC_EPOCHS,
 };
 use eth2::types::{Epoch, ValidatorStatus};
 use serde::{Deserialize, Serialize};
@@ -21,7 +21,7 @@ pub struct ValidatorCountResponse {
 }
 
 pub fn get_validator_count<T: BeaconChainTypes>(
-    chain: Arc<BeaconSystem<T>>,
+    chain: Arc<BeaconChain<T>>,
 ) -> Result<ValidatorCountResponse, warp::Rejection> {
     let spec = &chain.spec;
     let mut active_ongoing = 0;
@@ -100,7 +100,7 @@ pub struct ValidatorInfoResponse {
 
 pub fn get_validator_info<T: BeaconChainTypes>(
     request_data: ValidatorInfoRequestData,
-    chain: Arc<BeaconSystem<T>>,
+    chain: Arc<BeaconChain<T>>,
 ) -> Result<ValidatorInfoResponse, warp::Rejection> {
     let current_epoch =
         beacon_chain::state_query::current_epoch::<T::EthSpec, _>(&chain.slot_clock)
@@ -177,7 +177,7 @@ pub struct ValidatorMetricsResponse {
 
 pub fn post_validator_monitor_metrics<T: BeaconChainTypes>(
     request_data: ValidatorMetricsRequestData,
-    chain: Arc<BeaconSystem<T>>,
+    chain: Arc<BeaconChain<T>>,
 ) -> Result<ValidatorMetricsResponse, warp::Rejection> {
     let validator_ids = chain
         .validator_monitor

@@ -7,7 +7,7 @@ use crate::version::{
 use crate::{sync_committees, utils};
 use beacon_chain::events::EventKind;
 use beacon_chain::observed_operations::ObservationOutcome;
-use beacon_chain::{BeaconChainTypes, BeaconSystem};
+use beacon_chain::{BeaconChain, BeaconChainTypes};
 use eth2::types::{AttestationPoolQuery, EndpointVersion, Failure, GenericResponse};
 use lighthouse_network::PubsubMessage;
 use network::NetworkMessage;
@@ -27,16 +27,16 @@ use warp_utils::reject::convert_rejection;
 
 pub type BeaconPoolPathFilter<T> = BoxedFilter<(
     TaskSpawner<<T as BeaconChainTypes>::EthSpec>,
-    Arc<BeaconSystem<T>>,
+    Arc<BeaconChain<T>>,
 )>;
 pub type BeaconPoolPathV2Filter<T> = BoxedFilter<(
     TaskSpawner<<T as BeaconChainTypes>::EthSpec>,
-    Arc<BeaconSystem<T>>,
+    Arc<BeaconChain<T>>,
 )>;
 pub type BeaconPoolPathAnyFilter<T> = BoxedFilter<(
     EndpointVersion,
     TaskSpawner<<T as BeaconChainTypes>::EthSpec>,
-    Arc<BeaconSystem<T>>,
+    Arc<BeaconChain<T>>,
 )>;
 
 /// POST beacon/pool/bls_to_execution_changes
@@ -52,7 +52,7 @@ pub fn post_beacon_pool_bls_to_execution_changes<T: BeaconChainTypes>(
         .and(network_tx_filter.clone())
         .then(
             |task_spawner: TaskSpawner<T::EthSpec>,
-             chain: Arc<BeaconSystem<T>>,
+             chain: Arc<BeaconChain<T>>,
              address_changes: Vec<SignedBlsToExecutionChange>,
              network_tx: UnboundedSender<NetworkMessage<T::EthSpec>>| {
                 task_spawner.blocking_json_task(Priority::P0, move || {
@@ -174,7 +174,7 @@ pub fn get_beacon_pool_bls_to_execution_changes<T: BeaconChainTypes>(
         .and(warp::path("bls_to_execution_changes"))
         .and(warp::path::end())
         .then(
-            |task_spawner: TaskSpawner<T::EthSpec>, chain: Arc<BeaconSystem<T>>| {
+            |task_spawner: TaskSpawner<T::EthSpec>, chain: Arc<BeaconChain<T>>| {
                 task_spawner.blocking_json_task(Priority::P1, move || {
                     let address_changes =
                         chain.operations.op_pool.get_all_bls_to_execution_changes();
@@ -198,7 +198,7 @@ pub fn post_beacon_pool_sync_committees<T: BeaconChainTypes>(
         .and(network_tx_filter.clone())
         .then(
             |task_spawner: TaskSpawner<T::EthSpec>,
-             chain: Arc<BeaconSystem<T>>,
+             chain: Arc<BeaconChain<T>>,
              signatures: Vec<SyncCommitteeMessage>,
              network_tx: UnboundedSender<NetworkMessage<T::EthSpec>>| {
                 task_spawner.blocking_json_task(Priority::P0, move || {
@@ -221,7 +221,7 @@ pub fn get_beacon_pool_voluntary_exits<T: BeaconChainTypes>(
         .and(warp::path("voluntary_exits"))
         .and(warp::path::end())
         .then(
-            |task_spawner: TaskSpawner<T::EthSpec>, chain: Arc<BeaconSystem<T>>| {
+            |task_spawner: TaskSpawner<T::EthSpec>, chain: Arc<BeaconChain<T>>| {
                 task_spawner.blocking_json_task(Priority::P1, move || {
                     let attestations = chain.operations.op_pool.get_all_voluntary_exits();
                     Ok(GenericResponse::from(attestations))
@@ -244,7 +244,7 @@ pub fn post_beacon_pool_voluntary_exits<T: BeaconChainTypes>(
         .and(network_tx_filter.clone())
         .then(
             |task_spawner: TaskSpawner<T::EthSpec>,
-             chain: Arc<BeaconSystem<T>>,
+             chain: Arc<BeaconChain<T>>,
              exit: SignedVoluntaryExit,
              network_tx: UnboundedSender<NetworkMessage<T::EthSpec>>| {
                 task_spawner.blocking_json_task(Priority::P0, move || {
@@ -324,7 +324,7 @@ pub fn get_beacon_pool_proposer_slashings<T: BeaconChainTypes>(
         .and(warp::path("proposer_slashings"))
         .and(warp::path::end())
         .then(
-            |task_spawner: TaskSpawner<T::EthSpec>, chain: Arc<BeaconSystem<T>>| {
+            |task_spawner: TaskSpawner<T::EthSpec>, chain: Arc<BeaconChain<T>>| {
                 task_spawner.blocking_json_task(Priority::P1, move || {
                     let attestations = chain.operations.op_pool.get_all_proposer_slashings();
                     Ok(GenericResponse::from(attestations))
@@ -347,7 +347,7 @@ pub fn post_beacon_pool_proposer_slashings<T: BeaconChainTypes>(
         .and(network_tx_filter.clone())
         .then(
             |task_spawner: TaskSpawner<T::EthSpec>,
-             chain: Arc<BeaconSystem<T>>,
+             chain: Arc<BeaconChain<T>>,
              slashing: ProposerSlashing,
              network_tx: UnboundedSender<NetworkMessage<T::EthSpec>>| {
                 task_spawner.blocking_json_task(Priority::P0, move || {
@@ -424,7 +424,7 @@ pub fn get_beacon_pool_attester_slashings<T: BeaconChainTypes>(
         .then(
             |endpoint_version: EndpointVersion,
              task_spawner: TaskSpawner<T::EthSpec>,
-             chain: Arc<BeaconSystem<T>>| {
+             chain: Arc<BeaconChain<T>>| {
                 task_spawner.blocking_response_task(Priority::P1, move || {
                     let slashings = chain.operations.op_pool.get_all_attester_slashings();
 
@@ -483,7 +483,7 @@ pub fn post_beacon_pool_attester_slashings<T: BeaconChainTypes>(
             // this endpoint presently.
             |_endpoint_version: EndpointVersion,
              task_spawner: TaskSpawner<T::EthSpec>,
-             chain: Arc<BeaconSystem<T>>,
+             chain: Arc<BeaconChain<T>>,
              slashing: AttesterSlashing<T::EthSpec>,
              network_tx: UnboundedSender<NetworkMessage<T::EthSpec>>| {
                 task_spawner.blocking_json_task(Priority::P0, move || {
@@ -567,7 +567,7 @@ pub fn get_beacon_pool_attestations<T: BeaconChainTypes>(
         .then(
             |endpoint_version: EndpointVersion,
              task_spawner: TaskSpawner<T::EthSpec>,
-             chain: Arc<BeaconSystem<T>>,
+             chain: Arc<BeaconChain<T>>,
              query: AttestationPoolQuery| {
                 task_spawner.blocking_response_task(Priority::P1, move || {
                     let query_filter = |data: &AttestationData, committee_indices: HashSet<u64>| {
@@ -643,7 +643,7 @@ pub fn post_beacon_pool_attestations_v2<T: BeaconChainTypes>(
         .and(network_tx_filter.clone())
         .then(
             |task_spawner: TaskSpawner<T::EthSpec>,
-             chain: Arc<BeaconSystem<T>>,
+             chain: Arc<BeaconChain<T>>,
              attestations: Vec<SingleAttestation>,
              _fork_name: Option<ForkName>,
              network_tx: UnboundedSender<NetworkMessage<T::EthSpec>>| async move {

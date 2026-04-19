@@ -41,7 +41,7 @@ runtime characteristics.
 and logic. Callers (HTTP API, NetworkBeaconProcessor, Sync Manager) hold
 `Arc` refs to components but contain no business logic of their own.
 
-The top-level type `BeaconSystem<T>` holds the component `Arc`s and
+The top-level type `BeaconChain<T>` holds the component `Arc`s and
 coordinates startup. Block import and block production live on two
 scoped orchestrators (`BlockImporter<T>`, `BlockProducer<T>`) whose
 methods use `&self` over their owned `Arc` refs.
@@ -198,10 +198,10 @@ orchestrators that own their `Arc` refs and use `&self` methods:
   execution payload integration. Holds `Arc` refs to `op_pool`,
   `canonical_head`, `execution_manager`, `attestation_manager`, etc.
 
-### Duplicate fields on BeaconSystem
+### Duplicate fields on BeaconChain
 
 `event_handler` and `validator_monitor` are Arc-cloned onto both
-`BeaconSystem<T>` and `BlockImporter<T>`. They remain on `BeaconSystem`
+`BeaconChain<T>` and `BlockImporter<T>`. They remain on `BeaconChain`
 because 25+ call sites each in `http_api`, `network`,
 `canonical_head`, `block_verification`, `execution_methods`,
 `state_advance_timer`, `metrics`, and `attestation_simulator` access
@@ -210,7 +210,7 @@ them directly. Consolidating all callers to route through
 
 ### Remaining unmapped fields
 
-Several fields on `BeaconSystem<T>` don't have a clear single owner:
+Several fields on `BeaconChain<T>` don't have a clear single owner:
 
 - `config: ChainConfig` — referenced 20+ times across every domain.
 - `light_client_server_cache`, `light_client_server_tx` — cross-cutting.
@@ -392,7 +392,7 @@ handler functions need.
 Seven components extracted plus two scoped orchestrators
 (`BlockImporter<T>`, `BlockProducer<T>`). ~2,000 lines of new unit
 tests, full CI green, and a local testnet that produces blocks and
-finalises. The top-level type (`BeaconSystem<T>`) shrank from 7,317 to
+finalises. The top-level type (`BeaconChain<T>`) shrank from 7,317 to
 ~1,000 lines and lost its 200+ methods.
 
 ### Wins
@@ -416,7 +416,7 @@ finalises. The top-level type (`BeaconSystem<T>`) shrank from 7,317 to
 ### Remaining work
 
 - **Duplicate `Arc` paths for `event_handler` and `validator_monitor`.**
-  Both live on `BeaconSystem<T>` _and_ `BlockImporter<T>`. 25+ call
+  Both live on `BeaconChain<T>` _and_ `BlockImporter<T>`. 25+ call
   sites each across `http_api`, `network`, `canonical_head`, etc. make
   consolidation too invasive for now.
 - **Coverage and full test suite results pending.** Branch coverage

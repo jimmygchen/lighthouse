@@ -1,4 +1,4 @@
-use crate::{BeaconChainTypes, BeaconSystem};
+use crate::{BeaconChain, BeaconChainTypes};
 use educe::Educe;
 use eth2::types::Hash256;
 use slot_clock::SlotClock;
@@ -62,7 +62,7 @@ impl<T: BeaconChainTypes> VerifiedLightClientOptimisticUpdate<T> {
     /// network.
     pub fn verify(
         rcv_optimistic_update: LightClientOptimisticUpdate<T::EthSpec>,
-        chain: &BeaconSystem<T>,
+        chain: &BeaconChain<T>,
         seen_timestamp: Duration,
     ) -> Result<Self, Error> {
         // verify that enough time has passed for the block to have been propagated

@@ -2,7 +2,7 @@ use crate::version::{
     ResponseIncludesVersion, add_consensus_version_header, add_ssz_content_type_header,
     beacon_response,
 };
-use beacon_chain::{BeaconChainError, BeaconChainTypes, BeaconSystem, compute_fork_digest};
+use beacon_chain::{BeaconChain, BeaconChainError, BeaconChainTypes, compute_fork_digest};
 use eth2::beacon_response::BeaconResponse;
 use eth2::types::{
     self as api_types, LightClientUpdate, LightClientUpdateResponseChunk,
@@ -20,7 +20,7 @@ use warp::{
 const MAX_REQUEST_LIGHT_CLIENT_UPDATES: u64 = 128;
 
 pub fn get_light_client_updates<T: BeaconChainTypes>(
-    chain: Arc<BeaconSystem<T>>,
+    chain: Arc<BeaconChain<T>>,
     query: LightClientUpdatesQuery,
     accept_header: Option<api_types::Accept>,
 ) -> Result<Response<Body>, Rejection> {
@@ -64,7 +64,7 @@ pub fn get_light_client_updates<T: BeaconChainTypes>(
 }
 
 pub fn get_light_client_bootstrap<T: BeaconChainTypes>(
-    chain: Arc<BeaconSystem<T>>,
+    chain: Arc<BeaconChain<T>>,
     block_root: &Hash256,
     accept_header: Option<api_types::Accept>,
 ) -> Result<Response<Body>, Rejection> {
@@ -101,7 +101,7 @@ pub fn get_light_client_bootstrap<T: BeaconChainTypes>(
 }
 
 pub fn validate_light_client_updates_request<T: BeaconChainTypes>(
-    chain: &BeaconSystem<T>,
+    chain: &BeaconChain<T>,
     query: &LightClientUpdatesQuery,
 ) -> Result<(), Rejection> {
     if query.count > MAX_REQUEST_LIGHT_CLIENT_UPDATES {
@@ -151,7 +151,7 @@ pub fn validate_light_client_updates_request<T: BeaconChainTypes>(
 }
 
 fn map_light_client_update_to_response_chunk<T: BeaconChainTypes>(
-    chain: &BeaconSystem<T>,
+    chain: &BeaconChain<T>,
     light_client_update: LightClientUpdate<T::EthSpec>,
 ) -> LightClientUpdateResponseChunk<T::EthSpec> {
     let epoch = light_client_update
@@ -183,7 +183,7 @@ fn map_light_client_bootstrap_to_json_response<T: BeaconChainTypes>(
 }
 
 fn map_light_client_update_to_json_response<T: BeaconChainTypes>(
-    chain: &BeaconSystem<T>,
+    chain: &BeaconChain<T>,
     light_client_update: LightClientUpdate<T::EthSpec>,
 ) -> BeaconResponse<LightClientUpdate<T::EthSpec>> {
     let fork_name = chain
