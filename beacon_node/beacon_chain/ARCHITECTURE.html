@@ -534,8 +534,13 @@
   <p class="hero-label">Lighthouse</p>
   <h1>BeaconChain<span class="reveal-2">2</span></h1>
   <p class="subtitle">
-    From 200+ methods to zero. 7,317 lines to 126.<br>
-    Our tiniest BeaconChain, ever.
+    From 200+ methods to zero. 7,317 lines to 125.<br>
+    Our tiniest BeaconChain, ever.<span style="font-size:0.6em; vertical-align:super; opacity:0.6;">*</span>
+  </p>
+  <p style="font-size:0.55rem; color:var(--text-muted); opacity:0.5; max-width:500px; margin-top:-1.5rem; line-height:1.4;">
+    *The top-level <code style="font-size:inherit;">BeaconChain&lt;T&gt;</code> struct went from 7,317 to 125 lines.
+    Total crate line count increased &mdash; the god object's logic now lives in focused, independently testable components.
+    No methods were harmed in the making of this refactor. Several were rehomed.
   </p>
   <div class="scroll-hint" aria-hidden="true">&#8595;</div>
 </div>
@@ -557,7 +562,7 @@
 <section id="problem">
   <h2 class="fade-in">The Problem <span class="badge">Why</span></h2>
   <p class="lead fade-in">
-    One struct. 40+ fields. 200+ methods. Everyone gets <code>Arc&lt;BeaconChain&gt;</code> and can reach everything.
+    One struct. 7,317 lines. 40+ fields. 200+ methods. Everyone gets <code>Arc&lt;BeaconChain&gt;</code> and can reach everything &mdash; which sounds convenient until you try to test, review, or safely change any of it.
   </p>
 
   <div class="fade-in" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(250px,1fr)); gap:1rem; margin:1rem 0 1.5rem;">
@@ -716,7 +721,7 @@
 <section id="results">
   <h2 class="fade-in">Results <span class="badge">Proof</span></h2>
   <p class="lead fade-in">
-    7,317 lines to 126. 200+ methods to zero. 7 components + 2 orchestrators, each unit-testable.
+    7,317 lines to 125. 200+ methods to zero. 7 components + 2 orchestrators, each unit-testable.
   </p>
 
   <h3 class="fade-in" style="margin-top:1rem; font-size:1.1rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-muted);">Key metrics</h3>
@@ -726,7 +731,7 @@
       <div style="font-size:0.65rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">beacon_chain.rs</div>
       <div style="font-size:1.8rem; font-weight:800; margin-top:0.2rem;">
         <span style="color:var(--accent5); font-size:1rem; text-decoration:line-through;">7,317</span>
-        <span class="metric-counter" data-target="126" style="color:var(--accent2);">0</span>
+        <span class="metric-counter" data-target="125" style="color:var(--accent2);">0</span>
       </div>
       <div style="font-size:0.7rem; color:var(--text-muted);">lines</div>
     </div>
@@ -734,9 +739,9 @@
       <div style="font-size:0.65rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">Fields</div>
       <div style="font-size:1.8rem; font-weight:800; margin-top:0.2rem;">
         <span style="color:var(--accent5); font-size:1rem; text-decoration:line-through;">40+</span>
-        <span class="metric-counter" data-target="21" style="color:var(--accent2);">0</span>
+        <span class="metric-counter" data-target="22" style="color:var(--accent2);">0</span>
       </div>
-      <div style="font-size:0.7rem; color:var(--text-muted);">9 components &middot; 6 infra &middot; 5 genesis &middot; 1 other</div>
+      <div style="font-size:0.7rem; color:var(--text-muted);">9 component Arcs &middot; 5 infra &middot; 5 genesis &middot; 2 shared Arcs &middot; 1 migrator</div>
     </div>
     <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card); text-align:center;">
       <div style="font-size:0.65rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">Methods</div>
@@ -753,8 +758,8 @@
     </div>
     <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card); text-align:center;">
       <div style="font-size:0.65rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">New unit tests</div>
-      <div style="font-size:1.8rem; font-weight:800; color:var(--accent2); margin-top:0.2rem;">~2,000</div>
-      <div style="font-size:0.7rem; color:var(--text-muted);">lines &middot; no harness</div>
+      <div style="font-size:1.8rem; font-weight:800; color:var(--accent2); margin-top:0.2rem;">~2,900</div>
+      <div style="font-size:0.7rem; color:var(--text-muted);">lines &middot; 104 tests</div>
     </div>
     <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card); text-align:center;">
       <div style="font-size:0.65rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">Fulu tests</div>
@@ -981,14 +986,14 @@
         </tr>
         <tr style="border-bottom:1px solid var(--border);">
           <td style="padding:0.4rem 0.8rem; padding-left:1.5rem;"><span style="color:var(--accent);">BlockImporter</span></td>
-          <td style="padding:0.4rem 0.8rem; text-align:right; font-family:monospace;">55/97</td>
-          <td style="padding:0.4rem 0.8rem; text-align:right; font-family:monospace;">756/1,151</td>
+          <td style="padding:0.4rem 0.8rem; text-align:right; font-family:monospace;">66/99</td>
+          <td style="padding:0.4rem 0.8rem; text-align:right; font-family:monospace;">855/1,219</td>
           <td style="padding:0.4rem 0.8rem;">
             <div style="display:flex; align-items:center; gap:0.5rem;">
               <div style="flex:1; height:12px; background:var(--surface2); border-radius:3px; overflow:hidden;">
-                <div class="coverage-bar" data-width="65.7%" style="height:100%; background:var(--accent4); border-radius:3px;"></div>
+                <div class="coverage-bar" data-width="70.1%" style="height:100%; background:var(--accent4); border-radius:3px;"></div>
               </div>
-              <span style="font-family:monospace; font-weight:600; color:var(--accent4); min-width:3.5em;">65.7%</span>
+              <span style="font-family:monospace; font-weight:600; color:var(--accent4); min-width:3.5em;">70.1%</span>
             </div>
           </td>
         </tr>

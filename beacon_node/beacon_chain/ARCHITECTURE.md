@@ -389,10 +389,10 @@ handler functions need.
 ## Results
 
 Seven components extracted plus two scoped orchestrators
-(`BlockImporter<T>`, `BlockProducer<T>`). ~2,000 lines of new unit
-tests, full CI green, and a local testnet that produces blocks and
-finalises. The top-level type (`BeaconChain<T>`) shrank from 7,317 to
-~126 lines and lost its 200+ methods.
+(`BlockImporter<T>`, `BlockProducer<T>`). ~2,900 lines of new unit
+tests (104 tests), full CI green, and a local testnet that produces
+blocks and finalises. The top-level type (`BeaconChain<T>`) shrank
+from 7,317 to 125 lines and lost its 200+ methods.
 
 ### Wins
 
@@ -405,10 +405,11 @@ finalises. The top-level type (`BeaconChain<T>`) shrank from 7,317 to
   `BlockImporter<T>` and `BlockProducer<T>` own their `Arc` refs and
   use `&self` methods, replacing the previous `*Context` struct literal
   pattern.
-- **~2,000 lines of new unit tests** against those components, written
-  without `BeaconChainHarness`. Tests construct components directly,
-  pass in state, and assert results.
-- **Top-level file shrank from 7,317 to 120 lines.** `beacon_chain.rs`
+- **~2,900 lines of new unit tests** (104 tests across 7 component
+  test files). Six component test files construct components directly
+  without `BeaconChainHarness`; `BlockImporter` tests use the harness
+  for integration-level coverage.
+- **Top-level file shrank from 7,317 to 125 lines.** `beacon_chain.rs`
   now contains only the struct, trait, type aliases, and error conversions.
   All types, enums, constants, and functions moved to owning modules.
 
@@ -416,17 +417,21 @@ finalises. The top-level type (`BeaconChain<T>`) shrank from 7,317 to
 
 - **`store_migrator`** on `BeaconChain<T>` — the only non-component field
   left. Could be moved into the store layer.
-- **Cross-module verification helpers** still take `&BeaconChain<T>` —
-  orchestrators use a `Weak` back-reference. Rewriting those signatures
-  to take narrow deps would eliminate the back-reference.
+- **`chain()` back-references** — orchestrators hold a `Weak<BeaconChain<T>>`
+  and expose `chain()` to upgrade it. 5 call sites remain (4 in
+  `BlockImporter`, 1 in `BlockProducer`), all used to pass
+  `Arc<BeaconChain<T>>` into cross-module verification helpers
+  (`block_verification`, `blob_verification`, etc.) that still take
+  `&BeaconChain<T>`. Rewriting those signatures to accept narrow deps
+  would eliminate the back-reference entirely.
 
 ### Key metrics
 
-- **Top-level file:** 7,317 → 120 lines (struct + trait + aliases only)
-- **Top-level fields:** 40+ → 21 (8 component Arcs, 6 infra, 5 genesis, 1 kzg, 1 service)
+- **Top-level file:** 7,317 → 125 lines (struct + trait + aliases only)
+- **Top-level fields:** 40+ → 22 (9 component Arcs, 5 infra, 5 genesis, 2 shared Arcs, 1 migrator)
 - **Top-level methods:** 200+ → 0
 - **Components + orchestrators:** 7 + 2 (`BlockImporter`, `BlockProducer`)
-- **New unit tests:** ~2,000 lines
+- **New unit tests:** ~2,900 lines (104 tests across 7 component test files)
 
 ### Verification
 
