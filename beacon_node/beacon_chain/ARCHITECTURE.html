@@ -1016,19 +1016,18 @@
     </div>
 
     <div class="compare-card before">
-      <h3>Remaining work</h3>
+      <h3>What remains</h3>
       <ul class="bullet-list">
         <li>
-          <strong>Duplicate <code>Arc</code> paths for <code>event_handler</code> and <code>validator_monitor</code>.</strong>
-          Both live on <code>BeaconChain&lt;T&gt;</code> <em>and</em>
-          <code>BlockImporter&lt;T&gt;</code>. 25+ call sites each in
-          <code>http_api</code>, <code>network</code>, <code>canonical_head</code>,
-          etc. make consolidation too invasive for now.
+          <strong><code>store_migrator</code> on <code>BeaconChain&lt;T&gt;</code>.</strong>
+          Low priority &mdash; the only non-component field left. Could be
+          moved into the store layer.
         </li>
         <li>
-          <strong>Coverage and full test suite results pending.</strong>
-          Branch coverage build and <code>make test-beacon-chain</code>
-          results will land once verified.
+          <strong>Cross-module verification helpers</strong> still take
+          <code>&amp;BeaconChain&lt;T&gt;</code> &mdash; orchestrators use a
+          <code>Weak</code> back-reference to reach them. Rewriting those
+          signatures to take narrow deps would eliminate the back-reference.
         </li>
       </ul>
     </div>
@@ -1061,6 +1060,16 @@
       <div style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">Components + orchestrators</div>
       <div style="font-size:1.6rem; font-weight:700; margin-top:0.3rem; color:var(--accent);">7 + 2</div>
       <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.35rem;">7 components + <code>BlockImporter</code>, <code>BlockProducer</code></div>
+    </div>
+
+    <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card);">
+      <div style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">Top-level fields</div>
+      <div style="font-size:1.6rem; font-weight:700; margin-top:0.3rem;">
+        <span style="color:var(--accent5);">40+</span>
+        <span style="color:var(--text-muted);">&rarr;</span>
+        <span style="color:var(--accent2);">22</span>
+      </div>
+      <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.35rem;">9 component Arcs &middot; 6 infra &middot; 5 genesis &middot; 1 kzg &middot; 1 service</div>
     </div>
 
     <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card);">
