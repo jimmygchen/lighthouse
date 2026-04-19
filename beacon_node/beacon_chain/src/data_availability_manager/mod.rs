@@ -1,18 +1,150 @@
 #[cfg(test)]
 mod tests;
 
+use crate::BeaconChain;
 use crate::BeaconChainTypes;
 use crate::beacon_chain::BeaconStore;
-use crate::data_availability_checker::DataAvailabilityChecker;
+use crate::custody_context::CustodyContextSsz;
+use crate::data_availability_checker::{AvailableBlockData, DataAvailabilityChecker};
 use crate::errors::BeaconChainError as Error;
 use crate::kzg_utils::reconstruct_blobs;
+use crate::persisted_custody::persist_custody_context;
 use kzg::Kzg;
 use std::collections::HashSet;
 use std::sync::Arc;
-use store::BlobSidecarListFromRoot;
-use tracing::error;
+use store::{BlobSidecarListFromRoot, StoreOp};
+use tracing::{debug, error};
 use types::data::{ColumnIndex, DataColumnSidecar, DataColumnSidecarList};
 use types::*;
+
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum AvailabilityProcessingStatus {
+    MissingComponents(Slot, Hash256),
+    Imported(Hash256),
+}
+
+impl TryInto<SignedBeaconBlockHash> for AvailabilityProcessingStatus {
+    type Error = ();
+
+    fn try_into(self) -> Result<SignedBeaconBlockHash, Self::Error> {
+        match self {
+            AvailabilityProcessingStatus::Imported(hash) => Ok(hash.into()),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryInto<Hash256> for AvailabilityProcessingStatus {
+    type Error = ();
+
+    fn try_into(self) -> Result<Hash256, Self::Error> {
+        match self {
+            AvailabilityProcessingStatus::Imported(hash) => Ok(hash),
+            _ => Err(()),
+        }
+    }
+}
+
+/// Persists the custody information to disk.
+pub fn persist_custody_ctx<T: BeaconChainTypes>(
+    spec: &ChainSpec,
+    data_availability_checker: &DataAvailabilityChecker<T>,
+    store: &BeaconStore<T>,
+) -> Result<(), Error> {
+    if !spec.is_peer_das_scheduled() {
+        return Ok(());
+    }
+
+    let custody_context: CustodyContextSsz =
+        data_availability_checker.custody_context().as_ref().into();
+
+    let CustodyContextSsz {
+        validator_custody_at_head,
+        epoch_validator_custody_requirements,
+        persisted_is_supernode: _,
+    } = &custody_context;
+    debug!(
+        validator_custody_at_head,
+        ?epoch_validator_custody_requirements,
+        "Persisting custody context to store"
+    );
+
+    persist_custody_context::<T::EthSpec, T::HotStore, T::ColdStore>(
+        store.clone(),
+        custody_context,
+    )?;
+
+    Ok(())
+}
+
+/// Returns data columns for the given block root, checking all caches first.
+pub fn get_data_columns_checking_all_caches<T: BeaconChainTypes>(
+    chain: &BeaconChain<T>,
+    block_root: Hash256,
+    indices: &[ColumnIndex],
+) -> Result<DataColumnSidecarList<T::EthSpec>, Error> {
+    let all_cached_columns_opt = chain
+        .data_availability_manager
+        .data_availability_checker()
+        .get_data_columns(block_root)
+        .or_else(|| {
+            chain
+                .attestation_manager
+                .early_attester_cache
+                .get_data_columns(block_root)
+        });
+
+    if let Some(mut all_cached_columns) = all_cached_columns_opt {
+        all_cached_columns.retain(|col| indices.contains(col.index()));
+        Ok(all_cached_columns)
+    } else if let Some(block) = chain.store.get_blinded_block(&block_root)? {
+        indices
+            .iter()
+            .filter_map(|index| {
+                chain
+                    .data_availability_manager
+                    .get_data_column(&block_root, index, block.fork_name_unchecked())
+                    .transpose()
+            })
+            .collect::<Result<_, _>>()
+    } else {
+        Ok(vec![])
+    }
+}
+
+/// Returns a store op for writing blobs or data columns, filtering by custody columns.
+pub fn get_blobs_or_columns_store_op<'a, T: BeaconChainTypes>(
+    data_availability_manager: &DataAvailabilityManager<T>,
+    spec: &ChainSpec,
+    block_root: Hash256,
+    block_slot: Slot,
+    block_data: AvailableBlockData<T::EthSpec>,
+) -> Option<StoreOp<'a, T::EthSpec>> {
+    match block_data {
+        AvailableBlockData::NoData => None,
+        AvailableBlockData::Blobs(blobs) => {
+            debug!(
+                %block_root,
+                count = blobs.len(),
+                "Writing blobs to store"
+            );
+            Some(StoreOp::PutBlobs(block_root, blobs))
+        }
+        AvailableBlockData::DataColumns(mut data_columns) => {
+            let columns_to_custody = data_availability_manager
+                .custody_columns_for_epoch(Some(block_slot.epoch(T::EthSpec::slots_per_epoch())));
+            if columns_to_custody.len() != spec.number_of_custody_groups as usize {
+                data_columns.retain(|data_column| columns_to_custody.contains(data_column.index()));
+            }
+            debug!(
+                %block_root,
+                count = data_columns.len(),
+                "Writing data columns to store"
+            );
+            Some(StoreOp::PutDataColumns(block_root, data_columns))
+        }
+    }
+}
 
 /// Manages data availability concerns: blob/column processing, custody boundary
 /// calculations, and DA queries.
@@ -312,11 +444,9 @@ impl<T: BeaconChainTypes> DataAvailabilityManager<T> {
 
 impl<T: BeaconChainTypes> Drop for DataAvailabilityManager<T> {
     fn drop(&mut self) {
-        if let Err(e) = crate::beacon_chain::persist_custody_ctx::<T>(
-            &self.spec,
-            &self.data_availability_checker,
-            &self.store,
-        ) {
+        if let Err(e) =
+            persist_custody_ctx::<T>(&self.spec, &self.data_availability_checker, &self.store)
+        {
             error!(
                 error = ?e,
                 "Failed to persist custody context on DataAvailabilityManager drop"

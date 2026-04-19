@@ -35,8 +35,8 @@ use types::{
 use super::BlockProducer;
 use crate::{
     BeaconChainError, BeaconChainTypes, BlockProductionError, ProduceBlockVerification,
-    beacon_chain::shuffling_is_compatible_with_fork_choice, graffiti_calculator::GraffitiSettings,
-    metrics,
+    attestation_manager::shuffling_is_compatible_with_fork_choice,
+    graffiti_calculator::GraffitiSettings, metrics,
 };
 
 pub const BID_VALUE_SELF_BUILD: u64 = 0;
@@ -694,7 +694,7 @@ impl<T: BeaconChainTypes> BlockProducer<T> {
         let builder_params = BuilderParams {
             pubkey,
             slot: state.slot(),
-            chain_health: crate::beacon_chain::is_healthy(
+            chain_health: crate::execution_methods::is_healthy(
                 &self.canonical_head,
                 &self.store,
                 &self.slot_clock,

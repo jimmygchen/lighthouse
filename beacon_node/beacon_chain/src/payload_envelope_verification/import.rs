@@ -273,13 +273,15 @@ fn import_execution_payload_envelope<T: BeaconChainTypes>(
 
     let mut ops = vec![];
 
-    if let Some(blobs_or_columns_store_op) = crate::beacon_chain::get_blobs_or_columns_store_op(
-        &chain.data_availability_manager,
-        &chain.spec,
-        block_root,
-        signed_envelope.slot(),
-        AvailableBlockData::DataColumns(columns),
-    ) {
+    if let Some(blobs_or_columns_store_op) =
+        crate::data_availability_manager::get_blobs_or_columns_store_op(
+            &chain.data_availability_manager,
+            &chain.spec,
+            block_root,
+            signed_envelope.slot(),
+            AvailableBlockData::DataColumns(columns),
+        )
+    {
         ops.push(blobs_or_columns_store_op);
     }
 

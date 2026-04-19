@@ -46,15 +46,15 @@ use types::*;
 use types::{BeaconState, Hash256, Slot, StatePayloadStatus};
 
 use crate::attestation_manager::AttestationManager;
-use crate::beacon_chain::{
-    BeaconBlockResponse, BeaconBlockResponseWrapper, BeaconStore, PartialBeaconBlock,
-    PrePayloadAttributes, ProduceBlockVerification, shuffling_is_compatible_with_fork_choice,
-};
+use crate::attestation_manager::shuffling_is_compatible_with_fork_choice;
+use crate::beacon_chain::BeaconStore;
 use crate::beacon_proposer_cache::BeaconProposerCache;
 use crate::canonical_head::CanonicalHead;
 use crate::chain_config::ChainConfig;
 use crate::errors::BeaconChainError as Error;
 use crate::execution_manager::ExecutionManager;
+use crate::execution_methods::PrePayloadAttributes;
+use crate::execution_payload::PreparePayloadHandle;
 use crate::execution_payload::get_execution_payload;
 use crate::graffiti_calculator::{GraffitiCalculator, GraffitiSettings};
 use crate::pending_payload_envelopes::PendingPayloadEnvelopes;
@@ -63,6 +63,80 @@ use crate::{
     StateSkipConfig, block_times_cache::BlockTimesCache, fork_choice_signal::ForkChoiceWaitResult,
     metrics,
 };
+
+/// Configure the signature verification of produced blocks.
+pub enum ProduceBlockVerification {
+    VerifyRandao,
+    NoVerification,
+}
+
+pub(crate) struct PartialBeaconBlock<E: EthSpec> {
+    pub(crate) state: BeaconState<E>,
+    pub(crate) slot: Slot,
+    pub(crate) proposer_index: u64,
+    pub(crate) parent_root: Hash256,
+    pub(crate) randao_reveal: Signature,
+    pub(crate) eth1_data: Eth1Data,
+    pub(crate) graffiti: Graffiti,
+    pub(crate) proposer_slashings: Vec<ProposerSlashing>,
+    pub(crate) attester_slashings: Vec<AttesterSlashing<E>>,
+    pub(crate) attestations: Vec<Attestation<E>>,
+    pub(crate) deposits: Vec<Deposit>,
+    pub(crate) voluntary_exits: Vec<SignedVoluntaryExit>,
+    pub(crate) sync_aggregate: Option<SyncAggregate<E>>,
+    pub(crate) prepare_payload_handle: Option<PreparePayloadHandle<E>>,
+    pub(crate) bls_to_execution_changes: Vec<SignedBlsToExecutionChange>,
+}
+
+pub enum BeaconBlockResponseWrapper<E: EthSpec> {
+    Full(BeaconBlockResponse<E, FullPayload<E>>),
+    Blinded(BeaconBlockResponse<E, BlindedPayload<E>>),
+}
+
+impl<E: EthSpec> BeaconBlockResponseWrapper<E> {
+    pub fn fork_name(&self, spec: &ChainSpec) -> Result<ForkName, InconsistentFork> {
+        Ok(match self {
+            BeaconBlockResponseWrapper::Full(resp) => resp.block.to_ref().fork_name(spec)?,
+            BeaconBlockResponseWrapper::Blinded(resp) => resp.block.to_ref().fork_name(spec)?,
+        })
+    }
+
+    pub fn execution_payload_value(&self) -> Uint256 {
+        match self {
+            BeaconBlockResponseWrapper::Full(resp) => resp.execution_payload_value,
+            BeaconBlockResponseWrapper::Blinded(resp) => resp.execution_payload_value,
+        }
+    }
+
+    pub fn consensus_block_value_gwei(&self) -> u64 {
+        match self {
+            BeaconBlockResponseWrapper::Full(resp) => resp.consensus_block_value,
+            BeaconBlockResponseWrapper::Blinded(resp) => resp.consensus_block_value,
+        }
+    }
+
+    pub fn consensus_block_value_wei(&self) -> Uint256 {
+        Uint256::from(self.consensus_block_value_gwei()) * Uint256::from(1_000_000_000)
+    }
+
+    pub fn is_blinded(&self) -> bool {
+        matches!(self, BeaconBlockResponseWrapper::Blinded(_))
+    }
+}
+
+/// The components produced when the local beacon node creates a new block to extend the chain
+pub struct BeaconBlockResponse<E: EthSpec, Payload: AbstractExecPayload<E>> {
+    /// The newly produced beacon block
+    pub block: BeaconBlock<E, Payload>,
+    /// The post-state after applying the new block
+    pub state: BeaconState<E>,
+    /// The Blobs / Proofs associated with the new block
+    pub blob_items: Option<(KzgProofs<E>, BlobsList<E>)>,
+    /// The execution layer reward for the block
+    pub execution_payload_value: Uint256,
+    /// The consensus layer reward to the proposer
+    pub consensus_block_value: u64,
+}
 
 /// Handles block production for the beacon chain.
 ///
@@ -1029,7 +1103,7 @@ impl<T: BeaconChainTypes> BlockProducer<T> {
         let builder_params = BuilderParams {
             pubkey,
             slot: state.slot(),
-            chain_health: crate::beacon_chain::is_healthy(
+            chain_health: crate::execution_methods::is_healthy(
                 &self.canonical_head,
                 &self.store,
                 &self.slot_clock,

@@ -12,10 +12,7 @@ mod tests;
 
 use crate::attestation_manager::AttestationManager;
 use crate::beacon_chain::BeaconStore;
-use crate::beacon_chain::{
-    AvailabilityProcessingStatus, BeaconChainTypes, BeaconForkChoice, ChainSegmentResult,
-    EARLY_ATTESTER_CACHE_HISTORIC_SLOTS, HashBlockTuple,
-};
+use crate::beacon_chain::{BeaconChainTypes, BeaconForkChoice, HashBlockTuple};
 use crate::blob_verification::GossipVerifiedBlob;
 use crate::block_times_cache::BlockTimesCache;
 use crate::block_verification::{
@@ -31,6 +28,7 @@ use crate::data_availability_checker::{
     Availability, AvailabilityCheckError, AvailableBlock, DataAvailabilityChecker,
     DataColumnReconstructionResult,
 };
+use crate::data_availability_manager::AvailabilityProcessingStatus;
 use crate::data_availability_manager::DataAvailabilityManager;
 use crate::data_column_verification::GossipVerifiedDataColumn;
 use crate::errors::BeaconChainError as Error;
@@ -45,8 +43,7 @@ use crate::validator_monitor::{
     HISTORIC_EPOCHS as VALIDATOR_MONITOR_HISTORIC_EPOCHS, ValidatorMonitor, get_slot_delay_ms,
 };
 use crate::{
-    AvailabilityPendingExecutedBlock, BeaconChain, BeaconChainError, ChainConfig,
-    LightClientProducerEvent, metrics,
+    AvailabilityPendingExecutedBlock, BeaconChain, BeaconChainError, ChainConfig, metrics,
 };
 use eth2::types::{EventKind, SseBlobSidecar, SseBlock, SseDataColumnSidecar, SseHead};
 use fork_choice::{PayloadVerificationStatus, ResetPayloadStatuses};
@@ -61,8 +58,118 @@ use std::sync::{Arc, OnceLock, Weak};
 use std::time::Duration;
 use store::StoreOp;
 use task_executor::{RayonPoolType, ShutdownReason, TaskExecutor};
-use tracing::{debug, debug_span, error, info_span, instrument, warn};
+use tracing::{debug, debug_span, error, info, info_span, instrument, warn};
 use types::*;
+
+/// Defines how old a block can be before it's no longer a candidate for the early attester cache.
+pub(crate) const EARLY_ATTESTER_CACHE_HISTORIC_SLOTS: u64 = 4;
+
+/// The result of a chain segment processing.
+pub enum ChainSegmentResult {
+    /// Processing this chain segment finished successfully.
+    Successful {
+        imported_blocks: Vec<(Hash256, Slot)>,
+    },
+    /// There was an error processing this chain segment. Before the error, some blocks could
+    /// have been imported.
+    Failed {
+        imported_blocks: Vec<(Hash256, Slot)>,
+        error: BlockError,
+    },
+}
+
+impl ChainSegmentResult {
+    pub fn into_block_error(self) -> Result<(), BlockError> {
+        match self {
+            ChainSegmentResult::Failed { error, .. } => Err(error),
+            ChainSegmentResult::Successful { .. } => Ok(()),
+        }
+    }
+}
+
+pub enum BlockProcessStatus<E: EthSpec> {
+    /// Block is not in any pre-import cache. Block may be in the data-base or in the fork-choice.
+    Unknown,
+    /// Block is currently processing but not yet validated.
+    NotValidated(Arc<SignedBeaconBlock<E>>, BlockImportSource),
+    /// Block is fully valid, but not yet imported. It's cached in the da_checker while awaiting
+    /// missing block components.
+    ExecutionValidated(Arc<SignedBeaconBlock<E>>),
+}
+
+pub type LightClientProducerEvent<T> = (Hash256, Slot, SyncAggregate<T>);
+
+/// Gets the `LightClientBootstrap` object for a requested block root.
+#[allow(clippy::type_complexity)]
+pub fn get_light_client_bootstrap<T: BeaconChainTypes>(
+    chain: &BeaconChain<T>,
+    block_root: &Hash256,
+) -> Result<Option<(LightClientBootstrap<T::EthSpec>, ForkName)>, Error> {
+    let head_state = &chain.canonical_head.cached_head().snapshot.beacon_state;
+    let finalized_period = head_state
+        .finalized_checkpoint()
+        .epoch
+        .sync_committee_period(&chain.spec)?;
+    chain
+        .block_importer
+        .light_client_server_cache
+        .get_light_client_bootstrap(&chain.store, block_root, finalized_period, &chain.spec)
+}
+
+/// Verify that the weak subjectivity checkpoint is consistent with the finalized chain.
+pub fn verify_weak_subjectivity_checkpoint<T: BeaconChainTypes>(
+    chain: &BeaconChain<T>,
+    wss_checkpoint: Checkpoint,
+    beacon_block_root: Hash256,
+    state: &BeaconState<T::EthSpec>,
+) -> Result<(), BeaconChainError> {
+    let finalized_checkpoint = state.finalized_checkpoint();
+    info!(
+        weak_subjectivity_epoch = %wss_checkpoint.epoch,
+        weak_subjectivity_root = ?wss_checkpoint.root,
+        "Verifying the configured weak subjectivity checkpoint"
+    );
+    if wss_checkpoint.epoch == finalized_checkpoint.epoch
+        && wss_checkpoint.root != finalized_checkpoint.root
+    {
+        crit!(
+            weak_subjectivity_root = ?wss_checkpoint.root,
+            finalized_checkpoint_root = ?finalized_checkpoint.root,
+             "Root found at the specified checkpoint differs"
+        );
+        return Err(BeaconChainError::WeakSubjectivtyVerificationFailure);
+    } else if wss_checkpoint.epoch < finalized_checkpoint.epoch {
+        let slot = wss_checkpoint
+            .epoch
+            .start_slot(T::EthSpec::slots_per_epoch());
+
+        match crate::state_query::root_at_slot_from_state::<T>(
+            &chain.store,
+            slot,
+            beacon_block_root,
+            state,
+        )? {
+            Some(root) => {
+                if root != wss_checkpoint.root {
+                    crit!(
+                        weak_subjectivity_root = ?wss_checkpoint.root,
+                        finalized_checkpoint_root = ?finalized_checkpoint.root,
+                         "Root found at the specified checkpoint differs"
+                    );
+                    return Err(BeaconChainError::WeakSubjectivtyVerificationFailure);
+                }
+            }
+            None => {
+                crit!(
+                    wss_checkpoint_slot = ?slot,
+                    "The root at the start slot of the given epoch could not be found"
+                );
+                return Err(BeaconChainError::WeakSubjectivtyVerificationFailure);
+            }
+        }
+    }
+    Ok(())
+}
 
 /// Handles block, blob, and data-column import into the beacon chain.
 ///
@@ -1415,13 +1522,15 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
         // See https://github.com/sigp/lighthouse/issues/2028
         let (_, signed_block, block_data) = signed_block.deconstruct();
 
-        if let Some(blobs_or_columns_store_op) = crate::beacon_chain::get_blobs_or_columns_store_op(
-            &self.data_availability_manager,
-            &self.spec,
-            block_root,
-            signed_block.slot(),
-            block_data,
-        ) {
+        if let Some(blobs_or_columns_store_op) =
+            crate::data_availability_manager::get_blobs_or_columns_store_op(
+                &self.data_availability_manager,
+                &self.spec,
+                block_root,
+                signed_block.slot(),
+                block_data,
+            )
+        {
             ops.push(blobs_or_columns_store_op);
         }
 
@@ -1516,7 +1625,7 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
         // This ensures we only perform the check once.
         if current_head_finalized_checkpoint.epoch < wss_checkpoint.epoch
             && wss_checkpoint.epoch <= new_finalized_checkpoint.epoch
-            && let Err(e) = crate::beacon_chain::verify_weak_subjectivity_checkpoint(
+            && let Err(e) = verify_weak_subjectivity_checkpoint(
                 &self.system(),
                 wss_checkpoint,
                 block_root,

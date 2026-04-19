@@ -31,13 +31,15 @@
 //! the head block root. This is unacceptable for fast-responding functions like the networking
 //! stack.
 
+use crate::migrate::ManualFinalizationNotification;
 use crate::persisted_fork_choice::PersistedForkChoice;
 use crate::shuffling_cache::BlockShufflingIds;
 use crate::{
     BeaconChain, BeaconChainError as Error, BeaconChainTypes, BeaconSnapshot,
-    beacon_chain::{BeaconForkChoice, BeaconStore, FORK_CHOICE_DB_KEY, OverrideForkchoiceUpdate},
+    beacon_chain::{BeaconForkChoice, BeaconStore, FORK_CHOICE_DB_KEY},
     block_times_cache::BlockTimesCache,
     events::ServerSentEventHandler,
+    execution_methods::OverrideForkchoiceUpdate,
     metrics,
     validator_monitor::get_slot_delay_ms,
 };
@@ -1578,4 +1580,38 @@ fn observe_head_block_delays<E: EthSpec, S: SlotClock>(
             );
         }
     }
+}
+
+/// Finalize the state at the given root via the background migrator.
+pub fn manually_finalize_state<T: BeaconChainTypes>(
+    chain: &BeaconChain<T>,
+    state_root: Hash256,
+    checkpoint: Checkpoint,
+) -> Result<(), Error> {
+    let store::HotStateSummary {
+        slot,
+        latest_block_root,
+        ..
+    } = chain
+        .store
+        .load_hot_state_summary(&state_root)
+        .map_err(Error::DBError)?
+        .ok_or(Error::MissingHotStateSummary(state_root))?;
+
+    if slot != checkpoint.epoch.start_slot(T::EthSpec::slots_per_epoch())
+        || latest_block_root != *checkpoint.root
+    {
+        return Err(Error::InvalidCheckpoint {
+            state_root,
+            checkpoint,
+        });
+    }
+
+    let notif = ManualFinalizationNotification {
+        state_root: state_root.into(),
+        checkpoint,
+    };
+
+    chain.store_migrator.process_manual_finalization(notif);
+    Ok(())
 }

@@ -9,19 +9,74 @@ use crate::beacon_chain::{
 };
 use crate::canonical_head::CanonicalHead;
 use crate::errors::BeaconChainError as Error;
+use execution_layer::ExecutionLayer;
 use fixed_bytes::FixedBytesExtended;
 use itertools::Itertools;
 use itertools::process_results;
 use slot_clock::SlotClock;
 use state_processing::per_slot_processing;
 use std::cmp::Ordering;
+use store::DatabaseBlock;
 use store::iter::{BlockRootsIterator, StateRootsIterator};
-use tracing::{instrument, warn};
+use tracing::{debug, instrument, warn};
 use types::*;
 
 // ---------------------------------------------------------------------------
 // Free functions
 // ---------------------------------------------------------------------------
+
+/// Returns the block at the given root, reconstructing the execution payload from the EL if
+/// needed.
+pub async fn get_block<T: BeaconChainTypes>(
+    store: &BeaconStore<T>,
+    execution_layer: Option<&ExecutionLayer<T::EthSpec>>,
+    spec: &ChainSpec,
+    block_root: &Hash256,
+) -> Result<Option<SignedBeaconBlock<T::EthSpec>>, Error> {
+    let blinded_block = match store.try_get_full_block(block_root)? {
+        Some(DatabaseBlock::Full(block)) => return Ok(Some(block)),
+        Some(DatabaseBlock::Blinded(block)) => block,
+        None => return Ok(None),
+    };
+    let fork = blinded_block.fork_name(spec)?;
+
+    let block_message = blinded_block.message();
+    let execution_payload_header = block_message
+        .execution_payload()
+        .map_err(|_| Error::BlockVariantLacksExecutionPayload(*block_root))?
+        .to_execution_payload_header();
+
+    let exec_block_hash = execution_payload_header.block_hash();
+
+    let execution_payload = execution_layer
+        .ok_or(Error::ExecutionLayerMissing)?
+        .get_payload_for_header(&execution_payload_header, fork)
+        .await
+        .map_err(|e| Error::ExecutionLayerErrorPayloadReconstruction(exec_block_hash, Box::new(e)))?
+        .ok_or(Error::BlockHashMissingFromExecutionLayer(exec_block_hash))?;
+
+    let header_from_payload = ExecutionPayloadHeader::from(execution_payload.to_ref());
+    if header_from_payload != execution_payload_header {
+        for txn in execution_payload.transactions() {
+            debug!(
+                bytes = format!("0x{}", hex::encode(&**txn)),
+                "Reconstructed txn"
+            );
+        }
+
+        return Err(Error::InconsistentPayloadReconstructed {
+            slot: blinded_block.slot(),
+            exec_block_hash,
+            canonical_transactions_root: execution_payload_header.transactions_root(),
+            reconstructed_transactions_root: header_from_payload.transactions_root(),
+        });
+    }
+
+    blinded_block
+        .try_into_full_block(Some(execution_payload))
+        .ok_or(Error::AddPayloadLogicError)
+        .map(Some)
+}
 
 /// Returns the current slot according to the given slot clock.
 pub fn current_slot<S: SlotClock>(slot_clock: &S) -> Result<Slot, Error> {

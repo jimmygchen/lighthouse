@@ -53,6 +53,7 @@ pub mod payload_bid_verification;
 pub mod payload_envelope_streamer;
 pub mod payload_envelope_verification;
 pub mod pending_payload_envelopes;
+mod per_slot;
 pub mod persisted_beacon_chain;
 pub mod persisted_custody;
 mod persisted_fork_choice;
@@ -73,49 +74,49 @@ pub mod validator_monitor;
 pub mod validator_pubkey_cache;
 pub mod validator_query_service;
 
+pub use self::attestation_manager::{
+    AttestationProcessingOutcome, shuffling_is_compatible_with_fork_choice, validator_seen_at_epoch,
+};
 pub use self::beacon_chain::{
-    AttestationProcessingOutcome,
-    AvailabilityProcessingStatus,
-    BeaconBlockResponse,
-    BeaconBlockResponseWrapper,
     BeaconChain,
     BeaconChainTypes,
     BeaconStore,
-    BlockProcessStatus,
-    ChainSegmentResult,
     ForkChoiceError,
-    INVALID_FINALIZED_MERGE_TRANSITION_BLOCK_SHUTDOWN_REASON,
-    INVALID_JUSTIFIED_PAYLOAD_SHUTDOWN_REASON,
-    LightClientProducerEvent,
-    OverrideForkchoiceUpdate,
-    ProduceBlockVerification,
     StateSkipConfig,
     WhenSlotSkipped,
-    // Free functions extracted from `impl BeaconChain<T>`
+    // Free functions
     compute_fork_digest,
     duration_to_next_digest,
     enr_fork_id,
-    get_blobs_or_columns_store_op,
-    get_block,
-    get_data_columns_checking_all_caches,
-    get_light_client_bootstrap,
     heads,
-    is_healthy,
-    manually_finalize_state,
-    per_slot_task,
-    persist_custody_ctx,
-    persist_op_pool,
-    shuffling_is_compatible_with_fork_choice,
     spawn_blocking_handle,
-    validator_seen_at_epoch,
-    verify_weak_subjectivity_checkpoint,
 };
 pub use self::beacon_snapshot::BeaconSnapshot;
 pub use self::block_importer::BlockImporter;
+pub use self::block_importer::verify_weak_subjectivity_checkpoint;
+pub use self::block_importer::{
+    BlockProcessStatus, ChainSegmentResult, LightClientProducerEvent, get_light_client_bootstrap,
+};
 pub use self::block_production::BlockProducer;
+pub use self::block_production::{
+    BeaconBlockResponse, BeaconBlockResponseWrapper, ProduceBlockVerification,
+};
+pub use self::canonical_head::manually_finalize_state;
 pub use self::chain_config::ChainConfig;
+pub use self::data_availability_manager::{
+    AvailabilityProcessingStatus, get_blobs_or_columns_store_op,
+    get_data_columns_checking_all_caches, persist_custody_ctx,
+};
 pub use self::errors::{BeaconChainError, BlockProductionError};
+pub use self::execution_methods::{
+    INVALID_FINALIZED_MERGE_TRANSITION_BLOCK_SHUTDOWN_REASON,
+    INVALID_JUSTIFIED_PAYLOAD_SHUTDOWN_REASON, OverrideForkchoiceUpdate, PrePayloadAttributes,
+    is_healthy,
+};
 pub use self::historical_blocks::HistoricalBlockError;
+pub use self::operations_manager::persist_op_pool;
+pub use self::per_slot::per_slot_task;
+pub use self::state_query::get_block;
 pub use attestation_verification::Error as AttestationError;
 pub use beacon_fork_choice_store::{
     BeaconForkChoiceStore, Error as ForkChoiceStoreError, PersistedForkChoiceStore,

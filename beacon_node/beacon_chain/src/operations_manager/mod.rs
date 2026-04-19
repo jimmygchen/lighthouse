@@ -1,17 +1,33 @@
 #[cfg(test)]
 mod tests;
 
+use crate::beacon_chain::OP_POOL_DB_KEY;
 use crate::errors::BeaconChainError as Error;
+use crate::metrics;
 use crate::observed_operations::{ObservationOutcome, ObservedOperations};
-use operation_pool::{OperationPool, ReceivedPreCapella};
+use operation_pool::{OperationPool, PersistedOperationPool, ReceivedPreCapella};
 use parking_lot::Mutex;
 use state_processing::SigVerifiedOp;
 use std::sync::Arc;
+use store::HotColdDB;
 use tracing::error;
 use types::{
     AttesterSlashing, BeaconState, ChainSpec, Epoch, EthSpec, ProposerSlashing,
     SignedBlsToExecutionChange, SignedVoluntaryExit,
 };
+
+/// Persists `op_pool` to disk.
+pub fn persist_op_pool<E: EthSpec, Hot: store::ItemStore<E>, Cold: store::ItemStore<E>>(
+    store: &HotColdDB<E, Hot, Cold>,
+    op_pool: &OperationPool<E>,
+) -> Result<(), Error> {
+    let _timer = metrics::start_timer(&metrics::PERSIST_OP_POOL);
+    store.put_item(
+        &OP_POOL_DB_KEY,
+        &PersistedOperationPool::from_operation_pool(op_pool),
+    )?;
+    Ok(())
+}
 
 /// Type-erased persistence callback so `OperationsManager` can persist its
 /// op pool without being generic over store types.

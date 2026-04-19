@@ -44,14 +44,125 @@ use crate::naive_aggregation_pool::{
 use crate::observed_aggregates::ObservedAggregateAttestations;
 use crate::observed_attesters::{ObservedAggregators, ObservedAttesters};
 use crate::shuffling_cache::{BlockShufflingIds, ShufflingCache};
-use crate::{BeaconChainError, BeaconChainTypes, BeaconStore, metrics};
+use crate::{BeaconChain, BeaconChainError, BeaconChainTypes, BeaconStore, metrics};
 use fork_choice::{self, ExecutionStatus};
 use parking_lot::RwLock;
+use state_processing::per_block_processing::errors::AttestationValidationError;
 use state_processing::state_advance::partial_state_advance;
 use std::sync::Arc;
 use tracing::{debug, error, trace, warn};
 use tree_hash::TreeHash;
 use types::*;
+
+#[derive(Debug, PartialEq)]
+pub enum AttestationProcessingOutcome {
+    Processed,
+    EmptyAggregationBitfield,
+    UnknownHeadBlock {
+        beacon_block_root: Hash256,
+    },
+    /// The attestation is attesting to a state that is later than itself. (Viz., attesting to the
+    /// future).
+    AttestsToFutureBlock {
+        block: Slot,
+        attestation: Slot,
+    },
+    /// The slot is finalized, no need to import.
+    FinalizedSlot {
+        attestation: Slot,
+        finalized: Slot,
+    },
+    FutureEpoch {
+        attestation_epoch: Epoch,
+        current_epoch: Epoch,
+    },
+    PastEpoch {
+        attestation_epoch: Epoch,
+        current_epoch: Epoch,
+    },
+    BadTargetEpoch,
+    UnknownTargetRoot(Hash256),
+    InvalidSignature,
+    NoCommitteeForSlotAndIndex {
+        slot: Slot,
+        index: CommitteeIndex,
+    },
+    Invalid(AttestationValidationError),
+}
+
+/// Checks if attestations have been seen from the given `validator_index` at the given `epoch`.
+pub fn validator_seen_at_epoch<T: BeaconChainTypes>(
+    chain: &BeaconChain<T>,
+    validator_index: usize,
+    epoch: Epoch,
+) -> bool {
+    let attested_or_aggregated = chain
+        .attestation_manager
+        .validator_seen_at_epoch(validator_index, epoch);
+    let produced_block = chain
+        .block_importer
+        .observed_block_producers
+        .read()
+        .index_seen_at_epoch(validator_index as u64, epoch);
+    attested_or_aggregated || produced_block
+}
+
+/// Check that the shuffling at `block_root` is equal to one of the shufflings of `state`.
+///
+/// This is a free function extracted from `BeaconChain` to avoid coupling to `self`. It loads the
+/// block's shuffling ID from fork choice and delegates to `AttestationManager::shuffling_is_compatible`.
+pub fn shuffling_is_compatible_with_fork_choice<T: BeaconChainTypes>(
+    block_root: &Hash256,
+    target_epoch: Epoch,
+    state: &BeaconState<T::EthSpec>,
+    canonical_head: &CanonicalHead<T>,
+    attestation_manager: &AttestationManager<T::EthSpec>,
+) -> bool {
+    let result = (|| -> Result<bool, crate::errors::BeaconChainError> {
+        let fork_choice_lock = canonical_head.fork_choice_read_lock();
+        let block = fork_choice_lock
+            .get_block(block_root)
+            .ok_or(crate::errors::BeaconChainError::AttestationHeadNotInForkChoice(*block_root))?;
+        drop(fork_choice_lock);
+
+        let block_shuffling_id = if target_epoch == block.current_epoch_shuffling_id.shuffling_epoch
+        {
+            block.current_epoch_shuffling_id
+        } else if target_epoch == block.next_epoch_shuffling_id.shuffling_epoch {
+            block.next_epoch_shuffling_id
+        } else if target_epoch > block.next_epoch_shuffling_id.shuffling_epoch {
+            AttestationShufflingId {
+                shuffling_epoch: target_epoch,
+                shuffling_decision_block: *block_root,
+            }
+        } else {
+            debug!(
+                ?block_root,
+                %target_epoch,
+                reason = "target epoch less than block epoch",
+                "Skipping attestation with incompatible shuffling"
+            );
+            return Ok(false);
+        };
+
+        Ok(attestation_manager.shuffling_is_compatible(
+            block_root,
+            target_epoch,
+            state,
+            block_shuffling_id,
+        ))
+    })();
+
+    result.unwrap_or_else(|e| {
+        debug!(
+            ?block_root,
+            %target_epoch,
+            reason = ?e,
+            "Skipping attestation with incompatible shuffling"
+        );
+        false
+    })
+}
 
 /// Manages attestation-related pools, observation tracking, and the shuffling cache.
 ///

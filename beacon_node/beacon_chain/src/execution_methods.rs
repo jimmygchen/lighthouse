@@ -4,16 +4,17 @@
 //! `Arc<BeaconChain<T>>` directly. Callers access these via delegation methods
 //! on `BeaconChain` defined elsewhere (e.g., `canonical_head.rs`).
 
-use crate::beacon_chain::{
-    BeaconChainTypes, INVALID_JUSTIFIED_PAYLOAD_SHUTDOWN_REASON, OverrideForkchoiceUpdate,
-    PrePayloadAttributes,
-};
+use crate::beacon_chain::{BeaconChainTypes, BeaconStore, WhenSlotSkipped};
+use crate::canonical_head::CanonicalHead;
+use crate::chain_config::ChainConfig;
 use crate::errors::BeaconChainError as Error;
 use crate::events::ServerSentEventHandler;
 use crate::{BeaconChain, BeaconChainError};
 use eth2::beacon_response::ForkVersionedResponse;
 use eth2::types::{EventKind, SseExtendedPayloadAttributes};
-use execution_layer::{ExecutionBlockHash, PayloadAttributes, PayloadStatus};
+use execution_layer::{
+    ChainHealth, ExecutionBlockHash, FailedCondition, PayloadAttributes, PayloadStatus,
+};
 use fork_choice::{ForkchoiceUpdateParameters, InvalidationOperation};
 use futures::channel::mpsc::Sender;
 use logging::crit;
@@ -22,6 +23,110 @@ use std::sync::Arc;
 use task_executor::ShutdownReason;
 use tracing::{debug, error, info, warn};
 use types::*;
+
+/// Reported to the user when the justified block has an invalid execution payload.
+pub const INVALID_JUSTIFIED_PAYLOAD_SHUTDOWN_REASON: &str =
+    "Justified block has an invalid execution payload.";
+
+pub const INVALID_FINALIZED_MERGE_TRANSITION_BLOCK_SHUTDOWN_REASON: &str =
+    "Finalized merge transition block is invalid.";
+
+/// Payload attributes for which the `beacon_chain` crate is responsible.
+pub struct PrePayloadAttributes {
+    pub proposer_index: u64,
+    pub prev_randao: Hash256,
+    /// The block number of the block being built upon (same block as fcU `headBlockHash`).
+    ///
+    /// The parent block number is not part of the payload attributes sent to the EL, but *is*
+    /// sent to builders via SSE.
+    pub parent_block_number: Option<u64>,
+    /// The block root of the block being built upon (same block as fcU `headBlockHash`).
+    pub parent_beacon_block_root: Hash256,
+}
+
+/// Define whether a forkchoiceUpdate needs to be checked for an override (`Yes`) or has already
+/// been checked (`AlreadyApplied`). It is safe to specify `Yes` even if re-orgs are disabled.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum OverrideForkchoiceUpdate {
+    #[default]
+    Yes,
+    AlreadyApplied,
+}
+
+/// Determine chain health for builder fallback decisions.
+pub fn is_healthy<T: BeaconChainTypes>(
+    canonical_head: &CanonicalHead<T>,
+    store: &BeaconStore<T>,
+    slot_clock: &T::SlotClock,
+    config: &ChainConfig,
+    spec: &ChainSpec,
+    genesis_block_root: Hash256,
+    parent_root: &Hash256,
+) -> Result<ChainHealth, Error> {
+    let cached_head = canonical_head.cached_head();
+    if let Some(head_hash) = cached_head.forkchoice_update_parameters().head_hash {
+        if ExecutionBlockHash::zero() == head_hash {
+            return Ok(ChainHealth::PreMerge);
+        }
+    } else {
+        return Ok(ChainHealth::PreMerge);
+    };
+
+    if let Some(execution_status) = canonical_head
+        .fork_choice_read_lock()
+        .get_block_execution_status(parent_root)
+        && execution_status.is_strictly_optimistic()
+    {
+        return Ok(ChainHealth::Optimistic);
+    }
+
+    if config.builder_fallback_disable_checks {
+        return Ok(ChainHealth::Healthy);
+    }
+
+    let current_slot = slot_clock.now().ok_or(Error::UnableToReadSlot)?;
+
+    let prev_slot = current_slot.saturating_sub(Slot::new(1));
+    let head_skips = prev_slot.saturating_sub(cached_head.head_slot());
+    let head_skips_check = head_skips.as_usize() <= config.builder_fallback_skips;
+
+    let current_epoch = current_slot.epoch(T::EthSpec::slots_per_epoch());
+    let epochs_since_finalization =
+        current_epoch.saturating_sub(cached_head.finalized_checkpoint().epoch);
+    let finalization_check =
+        epochs_since_finalization.as_usize() <= config.builder_fallback_epochs_since_finalization;
+
+    let start_slot = current_slot.saturating_sub(T::EthSpec::slots_per_epoch());
+    let mut epoch_skips = 0;
+    for slot in start_slot.as_u64()..current_slot.as_u64() {
+        if crate::state_query::block_root_at_slot(
+            store,
+            canonical_head,
+            spec,
+            slot_clock,
+            genesis_block_root,
+            Slot::new(slot),
+            WhenSlotSkipped::None,
+        )?
+        .is_none()
+        {
+            epoch_skips += 1;
+        }
+    }
+    let epoch_skips_check = epoch_skips <= config.builder_fallback_skips_per_epoch;
+
+    if !head_skips_check {
+        Ok(ChainHealth::Unhealthy(FailedCondition::Skips))
+    } else if !finalization_check {
+        Ok(ChainHealth::Unhealthy(
+            FailedCondition::EpochsSinceFinalization,
+        ))
+    } else if !epoch_skips_check {
+        Ok(ChainHealth::Unhealthy(FailedCondition::SkipsPerEpoch))
+    } else {
+        Ok(ChainHealth::Healthy)
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Free functions
