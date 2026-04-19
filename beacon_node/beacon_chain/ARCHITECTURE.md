@@ -409,35 +409,33 @@ finalises. The top-level type (`BeaconChain<T>`) shrank from 7,317 to
 - **~2,000 lines of new unit tests** against those components, written
   without `BeaconChainHarness`. Tests construct components directly,
   pass in state, and assert results.
-- **Top-level file shrank from 7,317 to ~1,000 lines.** `beacon_chain.rs`
-  -> `beacon_components.rs`. The remainder is struct definition, builder
-  plumbing, and a few cross-component helpers.
+- **Top-level file shrank from 7,317 to 120 lines.** `beacon_chain.rs`
+  now contains only the struct, trait, type aliases, and error conversions.
+  All types, enums, constants, and functions moved to owning modules.
 
 ### Remaining work
 
-- **Duplicate `Arc` paths for `event_handler` and `validator_monitor`.**
-  Both live on `BeaconChain<T>` _and_ `BlockImporter<T>`. 25+ call
-  sites each across `http_api`, `network`, `canonical_head`, etc. make
-  consolidation too invasive for now.
-- **Coverage and full test suite results pending.** Branch coverage
-  build and `make test-beacon-chain` results will land once verified.
+- **`store_migrator`** on `BeaconChain<T>` — the only non-component field
+  left. Could be moved into the store layer.
+- **Cross-module verification helpers** still take `&BeaconChain<T>` —
+  orchestrators use a `Weak` back-reference. Rewriting those signatures
+  to take narrow deps would eliminate the back-reference.
 
 ### Key metrics
 
-- **Top-level file:** 7,317 -> ~1,000 lines (`beacon_chain.rs` ->
-  `beacon_components.rs`)
-- **Top-level methods:** 200+ -> 0
+- **Top-level file:** 7,317 → 120 lines (struct + trait + aliases only)
+- **Top-level fields:** 40+ → 21 (8 component Arcs, 6 infra, 5 genesis, 1 kzg, 1 service)
+- **Top-level methods:** 200+ → 0
 - **Components + orchestrators:** 7 + 2 (`BlockImporter`, `BlockProducer`)
 - **New unit tests:** ~2,000 lines
 
 ### Verification
 
-- **CI:** `cargo check --workspace --tests` green, `make lint` clean,
-  `cargo fmt` applied.
-- **Kurtosis local testnet:** 4-BN mesh, slot 899–2310 (~70 min). 1,398
-  proposals over 1,411 slots (≥99% coverage). 0 errors, 0 panics, 0
-  reorgs. Block publish delay avg ~2 ms, import delay avg ~80 ms.
-- **Coverage:** branch coverage build in progress; numbers and the link
-  to the full report land here when complete.
-- **Full test suite:** `make test-beacon-chain` result lands here once
-  the orchestrator extractions complete.
+- **CI:** `cargo check --workspace --tests --release` green, `make lint`
+  clean, `cargo fmt` applied.
+- **Fulu tests:** 425/425 passed (`FORK_NAME=fulu`, release mode).
+- **Kurtosis local testnet:** 4-BN mesh, 27-hour run (slot 30,969–32,530).
+  0 errors, 0 panics, 0 reorgs. Block publish delay avg ~2 ms, import
+  delay avg ~80 ms.
+- **Coverage:** report at http://204.168.250.92:8082/ (same command as
+  unstable baseline).

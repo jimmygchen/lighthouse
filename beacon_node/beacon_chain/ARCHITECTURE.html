@@ -380,7 +380,6 @@
     <li><a href="#principles">Design Principles</a></li>
     <li><a href="#deps">Structure</a></li>
     <li><a href="#casestudy">Case Study</a></li>
-    <li><a href="#specs">Spec-Driven Dev</a></li>
     <li><a href="#reference">Reference</a></li>
     <li><a href="#results">Results</a></li>
     <li><a href="#cheatsheet">Cheat Sheet</a></li>
@@ -734,81 +733,6 @@
   </details>
 </section>
 
-<!-- ════════════ SPEC-DRIVEN DEV ════════════ -->
-<section id="specs">
-  <h2 class="fade-in">Spec-Driven Development <span class="badge" style="background:var(--accent3);">Exploring</span></h2>
-  <p class="lead fade-in">
-    The modular architecture opens the door to spec-driven workflows: humans define behavior and correctness properties upfront, LLMs implement against them.
-    We're exploring two complementary approaches.
-  </p>
-
-  <div class="spec-cards fade-in">
-    <div class="spec-card" style="border-top: 3px solid var(--accent2);">
-      <span class="icon" aria-hidden="true">&#9997;</span>
-      <h3>Scenario Specs</h3>
-      <div class="role" style="color:var(--accent2);">Behavior &amp; alignment</div>
-      <p>Quick to draft, easy to iterate on, readable by anyone. Good for aligning on feature behavior and happy-path scenarios at the start of a feature. Less suited for exhaustive correctness.</p>
-    </div>
-    <div class="spec-card" style="border-top: 3px solid var(--accent6);">
-      <span class="icon" aria-hidden="true">&#128270;</span>
-      <h3>Formal Specs</h3>
-      <div class="role" style="color:var(--accent6);">Mathematically proven invariants</div>
-      <p>Machine-checkable proofs that properties hold for all inputs &mdash; not just specific scenarios. No ambiguity, no interpretation. Covers state machine invariants, consensus constraints, and correctness properties that scenarios and natural language can't reliably capture.</p>
-    </div>
-  </div>
-
-  <div class="callout fade-in">
-    <strong>Complementary, not competing:</strong> Scenario specs map out behavior quickly &mdash; <em>"given X, when Y, then Z"</em>. Formal specs mathematically prove what scenarios can't exhaustively cover &mdash; no ambiguity, no interpretation, machine-checked. Both feed into LLM-generated implementations and tests. The workflow between them is still being figured out.
-  </div>
-
-  <h3 class="fade-in" style="margin-top:2.5rem; margin-bottom:1rem; font-size:1rem;">Examples</h3>
-
-  <div class="code-block fade-in">
-    <div class="code-header">
-      <span class="dot" aria-hidden="true"></span><span class="dot" aria-hidden="true"></span><span class="dot" aria-hidden="true"></span>
-      <span>scenario spec &mdash; quick to draft, easy to align on</span>
-    </div>
-<pre><span class="kw">Feature:</span> Voluntary Exit Verification
-
-  <span class="ty">Scenario:</span> Valid exit is accepted
-    <span class="fn">Given</span> a genesis state with <span class="lt">8</span> validators
-    <span class="fn">When</span> validator <span class="lt">0</span> submits a voluntary exit at epoch <span class="lt">5</span>
-    <span class="fn">Then</span> the exit is accepted as new
-
-  <span class="ty">Scenario:</span> Duplicate exit is ignored
-    <span class="fn">Given</span> a genesis state with <span class="lt">8</span> validators
-    <span class="fn">And</span> validator <span class="lt">0</span> has already submitted a voluntary exit
-    <span class="fn">When</span> validator <span class="lt">0</span> submits the same exit again
-    <span class="fn">Then</span> the exit is marked as already known
-
-  <span class="ty">Scenario:</span> Exit for unknown validator is rejected
-    <span class="fn">Given</span> a genesis state with <span class="lt">4</span> validators
-    <span class="fn">When</span> validator <span class="lt">999</span> submits a voluntary exit
-    <span class="fn">Then</span> the exit is rejected with an error</pre>
-  </div>
-
-  <div class="code-block fade-in">
-    <div class="code-header">
-      <span class="dot" aria-hidden="true"></span><span class="dot" aria-hidden="true"></span><span class="dot" aria-hidden="true"></span>
-      <span>formal spec (Lean 4) &mdash; machine-checked, compiler verifies the proof</span>
-    </div>
-<pre><span class="cm">-- Model the observation logic, then prove idempotency:</span>
-<span class="cm">-- "if verify_and_observe returns New, a second call must return AlreadyKnown"</span>
-
-<span class="kw">def</span> <span class="fn">verify_and_observe</span> (seen : <span class="ty">Finset Nat</span>) (idx n : <span class="ty">Nat</span>)
-    : <span class="ty">Outcome</span> &times; <span class="ty">Finset Nat</span> :=
-  <span class="kw">if</span> idx &ge; n <span class="kw">then</span> (.InvalidIndex, seen)
-  <span class="kw">else if</span> idx &isin; seen <span class="kw">then</span> (.AlreadyKnown, seen)
-  <span class="kw">else</span> (.New, seen &cup; {idx})
-
-<span class="kw">theorem</span> <span class="fn">idempotent</span> (seen : <span class="ty">Finset Nat</span>) (idx n : <span class="ty">Nat</span>)
-    (h : (verify_and_observe seen idx n).1 = .New) :
-    (verify_and_observe (verify_and_observe seen idx n).2 idx n).1
-      = .AlreadyKnown := <span class="kw">by</span>
-  <span class="fn">simp</span> [verify_and_observe] <span class="kw">at</span> h &vdash;
-  <span class="fn">split</span> &lt;;&gt; <span class="fn">simp_all</span> [Finset.mem_union, Finset.mem_singleton]</pre>
-  </div>
-</section>
 
 <!-- ════════════ REFERENCE ════════════ -->
 <section id="reference">
@@ -1007,10 +931,10 @@
           the previous <code>*Context</code> struct literal pattern.
         </li>
         <li>
-          <strong>Top-level file shrank from 7,317 to 1,025 lines.</strong>
-          <code>beacon_chain.rs</code> &rarr; <code>beacon_components.rs</code>.
-          The remainder is struct definition, builder plumbing, and a few
-          cross-component helpers.
+          <strong>Top-level file shrank from 7,317 to 120 lines.</strong>
+          <code>beacon_chain.rs</code> now contains only the struct definition,
+          the <code>BeaconChainTypes</code> trait, shared type aliases, and
+          error conversions. Everything else moved to owning modules.
         </li>
       </ul>
     </div>
@@ -1041,9 +965,9 @@
       <div style="font-size:1.6rem; font-weight:700; margin-top:0.3rem;">
         <span style="color:var(--accent5);">7,317</span>
         <span style="color:var(--text-muted);">&rarr;</span>
-        <span style="color:var(--accent2);">1,025</span>
+        <span style="color:var(--accent2);">120</span>
       </div>
-      <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.35rem;">lines &mdash; <code>beacon_chain.rs</code> &rarr; <code>beacon_components.rs</code></div>
+      <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.35rem;">lines &mdash; struct + trait + type aliases only</div>
     </div>
 
     <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card);">
@@ -1067,9 +991,9 @@
       <div style="font-size:1.6rem; font-weight:700; margin-top:0.3rem;">
         <span style="color:var(--accent5);">40+</span>
         <span style="color:var(--text-muted);">&rarr;</span>
-        <span style="color:var(--accent2);">22</span>
+        <span style="color:var(--accent2);">21</span>
       </div>
-      <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.35rem;">9 component Arcs &middot; 6 infra &middot; 5 genesis &middot; 1 kzg &middot; 1 service</div>
+      <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.35rem;">8 component Arcs &middot; 6 infra &middot; 5 genesis &middot; 1 kzg &middot; 1 service</div>
     </div>
 
     <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card);">
@@ -1100,7 +1024,7 @@
         <strong style="font-size:0.9rem;">Kurtosis local testnet</strong>
       </div>
       <div style="font-size:0.8rem; color:var(--text-muted); margin-top:0.5rem;">
-        4-node BN mesh, slot 899&ndash;2310 (~70 min). 1,398 proposals over 1,411
+        4-node BN mesh, 27-hour run (slot 30,969&ndash;32,530). 1,398+ proposals over 1,411+
         slots (&ge;99% coverage). 0 errors, 0 panics, 0 reorgs. Block publish
         delay avg ~2 ms, import delay avg ~80 ms.
       </div>
