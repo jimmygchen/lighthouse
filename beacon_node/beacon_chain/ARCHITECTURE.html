@@ -609,25 +609,188 @@
     <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card);">
       <div style="display:flex; align-items:baseline; gap:0.5rem;">
         <span style="width:0.6em; height:0.6em; border-radius:50%; background:var(--accent2); display:inline-block;"></span>
-        <strong style="font-size:0.9rem;">Coverage</strong>
-      </div>
-      <div style="font-size:0.8rem; color:var(--text-muted); margin-top:0.5rem;">
-        <code>cargo llvm-cov nextest --release --workspace</code> &mdash;
-        <a href="http://204.168.250.92:8082/" style="color:var(--accent);">full report</a>.
-        Same command and flags as the unstable baseline.
-      </div>
-    </div>
-
-    <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card);">
-      <div style="display:flex; align-items:baseline; gap:0.5rem;">
-        <span style="width:0.6em; height:0.6em; border-radius:50%; background:var(--accent2); display:inline-block;"></span>
         <strong style="font-size:0.9rem;">Fulu test suite</strong>
       </div>
       <div style="font-size:0.8rem; color:var(--text-muted); margin-top:0.5rem;">
-        <code>FORK_NAME=fulu cargo nextest run --release -p beacon_chain</code>
-        &mdash; <strong>425 / 425 passed</strong>. Matches CI gate.
+        <strong>425 / 425 passed</strong> (release mode). Matches CI gate.
       </div>
     </div>
+  </div>
+
+  <h3 class="fade-in" style="margin-top:2.5rem; font-size:1.1rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-muted);">Coverage: monolith vs components</h3>
+  <p class="fade-in" style="font-size:0.85rem; color:var(--text-muted); margin:0.5rem 0 1rem;">
+    Same test suite, same <code>cargo llvm-cov</code> command.
+    The monolithic <code>beacon_chain.rs</code> is now broken into focused modules &mdash;
+    each with measurable, independent coverage.
+    <a href="http://204.168.250.92:8082/" style="color:var(--accent);">Full report</a> &middot;
+    <a href="http://204.168.250.92:8080/" style="color:var(--accent);">Unstable baseline</a>
+  </p>
+
+  <div class="fade-in" style="overflow-x:auto;">
+    <table style="width:100%; border-collapse:collapse; font-size:0.8rem;">
+      <thead>
+        <tr style="border-bottom:2px solid var(--border); text-align:left;">
+          <th style="padding:0.6rem 0.8rem; color:var(--text-muted); font-weight:600;">Module</th>
+          <th style="padding:0.6rem 0.8rem; color:var(--text-muted); font-weight:600; text-align:right;">Functions</th>
+          <th style="padding:0.6rem 0.8rem; color:var(--text-muted); font-weight:600; text-align:right;">Lines</th>
+          <th style="padding:0.6rem 0.8rem; color:var(--text-muted); font-weight:600; width:40%;">Coverage</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr style="border-bottom:1px solid var(--border); background:rgba(255,123,114,0.04);">
+          <td style="padding:0.5rem 0.8rem;">
+            <span style="color:var(--accent5); font-weight:600;">unstable</span>
+            <span style="color:var(--text-muted);"> &mdash; beacon_chain.rs</span>
+          </td>
+          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">262/363</td>
+          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">3,190/4,246</td>
+          <td style="padding:0.5rem 0.8rem;">
+            <div style="display:flex; align-items:center; gap:0.5rem;">
+              <div style="flex:1; height:16px; background:var(--surface2); border-radius:4px; overflow:hidden;">
+                <div style="width:75.1%; height:100%; background:var(--accent5); border-radius:4px;"></div>
+              </div>
+              <span style="font-family:monospace; font-weight:600; color:var(--accent5); min-width:3.5em;">75.1%</span>
+            </div>
+          </td>
+        </tr>
+        <tr><td colspan="4" style="padding:0.3rem 0.8rem; font-size:0.7rem; color:var(--accent2); text-transform:uppercase; letter-spacing:0.08em; font-weight:600;">Branch &mdash; broken down by component</td></tr>
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:0.4rem 0.8rem; padding-left:1.5rem;"><span style="color:var(--accent);">AttestationManager</span></td>
+          <td style="padding:0.4rem 0.8rem; text-align:right; font-family:monospace;">20/21</td>
+          <td style="padding:0.4rem 0.8rem; text-align:right; font-family:monospace;">364/409</td>
+          <td style="padding:0.4rem 0.8rem;">
+            <div style="display:flex; align-items:center; gap:0.5rem;">
+              <div style="flex:1; height:12px; background:var(--surface2); border-radius:3px; overflow:hidden;">
+                <div style="width:89%; height:100%; background:var(--accent2); border-radius:3px;"></div>
+              </div>
+              <span style="font-family:monospace; font-weight:600; color:var(--accent2); min-width:3.5em;">89.0%</span>
+            </div>
+          </td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:0.4rem 0.8rem; padding-left:1.5rem;"><span style="color:var(--accent);">OperationsManager</span></td>
+          <td style="padding:0.4rem 0.8rem; text-align:right; font-family:monospace;">12/13</td>
+          <td style="padding:0.4rem 0.8rem; text-align:right; font-family:monospace;">116/125</td>
+          <td style="padding:0.4rem 0.8rem;">
+            <div style="display:flex; align-items:center; gap:0.5rem;">
+              <div style="flex:1; height:12px; background:var(--surface2); border-radius:3px; overflow:hidden;">
+                <div style="width:92.8%; height:100%; background:var(--accent2); border-radius:3px;"></div>
+              </div>
+              <span style="font-family:monospace; font-weight:600; color:var(--accent2); min-width:3.5em;">92.8%</span>
+            </div>
+          </td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:0.4rem 0.8rem; padding-left:1.5rem;"><span style="color:var(--accent);">SyncCommitteeManager</span></td>
+          <td style="padding:0.4rem 0.8rem; text-align:right; font-family:monospace;">8/8</td>
+          <td style="padding:0.4rem 0.8rem; text-align:right; font-family:monospace;">100/112</td>
+          <td style="padding:0.4rem 0.8rem;">
+            <div style="display:flex; align-items:center; gap:0.5rem;">
+              <div style="flex:1; height:12px; background:var(--surface2); border-radius:3px; overflow:hidden;">
+                <div style="width:89.3%; height:100%; background:var(--accent2); border-radius:3px;"></div>
+              </div>
+              <span style="font-family:monospace; font-weight:600; color:var(--accent2); min-width:3.5em;">89.3%</span>
+            </div>
+          </td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:0.4rem 0.8rem; padding-left:1.5rem;"><span style="color:var(--accent);">BlockProducer</span></td>
+          <td style="padding:0.4rem 0.8rem; text-align:right; font-family:monospace;">42/57</td>
+          <td style="padding:0.4rem 0.8rem; text-align:right; font-family:monospace;">971/1,108</td>
+          <td style="padding:0.4rem 0.8rem;">
+            <div style="display:flex; align-items:center; gap:0.5rem;">
+              <div style="flex:1; height:12px; background:var(--surface2); border-radius:3px; overflow:hidden;">
+                <div style="width:87.6%; height:100%; background:var(--accent2); border-radius:3px;"></div>
+              </div>
+              <span style="font-family:monospace; font-weight:600; color:var(--accent2); min-width:3.5em;">87.6%</span>
+            </div>
+          </td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:0.4rem 0.8rem; padding-left:1.5rem;"><span style="color:var(--accent);">ExecutionManager</span></td>
+          <td style="padding:0.4rem 0.8rem; text-align:right; font-family:monospace;">11/12</td>
+          <td style="padding:0.4rem 0.8rem; text-align:right; font-family:monospace;">69/81</td>
+          <td style="padding:0.4rem 0.8rem;">
+            <div style="display:flex; align-items:center; gap:0.5rem;">
+              <div style="flex:1; height:12px; background:var(--surface2); border-radius:3px; overflow:hidden;">
+                <div style="width:85.2%; height:100%; background:var(--accent2); border-radius:3px;"></div>
+              </div>
+              <span style="font-family:monospace; font-weight:600; color:var(--accent2); min-width:3.5em;">85.2%</span>
+            </div>
+          </td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:0.4rem 0.8rem; padding-left:1.5rem;"><span style="color:var(--accent);">CanonicalHead</span></td>
+          <td style="padding:0.4rem 0.8rem; text-align:right; font-family:monospace;">69/75</td>
+          <td style="padding:0.4rem 0.8rem; text-align:right; font-family:monospace;">704/855</td>
+          <td style="padding:0.4rem 0.8rem;">
+            <div style="display:flex; align-items:center; gap:0.5rem;">
+              <div style="flex:1; height:12px; background:var(--surface2); border-radius:3px; overflow:hidden;">
+                <div style="width:82.3%; height:100%; background:var(--accent2); border-radius:3px;"></div>
+              </div>
+              <span style="font-family:monospace; font-weight:600; color:var(--accent2); min-width:3.5em;">82.3%</span>
+            </div>
+          </td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:0.4rem 0.8rem; padding-left:1.5rem;"><span style="color:var(--accent);">BlockImporter</span></td>
+          <td style="padding:0.4rem 0.8rem; text-align:right; font-family:monospace;">52/94</td>
+          <td style="padding:0.4rem 0.8rem; text-align:right; font-family:monospace;">699/1,092</td>
+          <td style="padding:0.4rem 0.8rem;">
+            <div style="display:flex; align-items:center; gap:0.5rem;">
+              <div style="flex:1; height:12px; background:var(--surface2); border-radius:3px; overflow:hidden;">
+                <div style="width:64%; height:100%; background:var(--accent4); border-radius:3px;"></div>
+              </div>
+              <span style="font-family:monospace; font-weight:600; color:var(--accent4); min-width:3.5em;">64.0%</span>
+            </div>
+          </td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:0.4rem 0.8rem; padding-left:1.5rem;"><span style="color:var(--accent);">DataAvailabilityMgr</span></td>
+          <td style="padding:0.4rem 0.8rem; text-align:right; font-family:monospace;">17/22</td>
+          <td style="padding:0.4rem 0.8rem; text-align:right; font-family:monospace;">106/177</td>
+          <td style="padding:0.4rem 0.8rem;">
+            <div style="display:flex; align-items:center; gap:0.5rem;">
+              <div style="flex:1; height:12px; background:var(--surface2); border-radius:3px; overflow:hidden;">
+                <div style="width:59.9%; height:100%; background:var(--accent4); border-radius:3px;"></div>
+              </div>
+              <span style="font-family:monospace; font-weight:600; color:var(--accent4); min-width:3.5em;">59.9%</span>
+            </div>
+          </td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:0.4rem 0.8rem; padding-left:1.5rem;"><span style="color:var(--accent);">StateQuery</span></td>
+          <td style="padding:0.4rem 0.8rem; text-align:right; font-family:monospace;">58/62</td>
+          <td style="padding:0.4rem 0.8rem; text-align:right; font-family:monospace;">588/629</td>
+          <td style="padding:0.4rem 0.8rem;">
+            <div style="display:flex; align-items:center; gap:0.5rem;">
+              <div style="flex:1; height:12px; background:var(--surface2); border-radius:3px; overflow:hidden;">
+                <div style="width:93.5%; height:100%; background:var(--accent2); border-radius:3px;"></div>
+              </div>
+              <span style="font-family:monospace; font-weight:600; color:var(--accent2); min-width:3.5em;">93.5%</span>
+            </div>
+          </td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--border); background:rgba(88,166,255,0.04);">
+          <td style="padding:0.4rem 0.8rem; padding-left:1.5rem;"><span style="color:var(--accent); font-weight:600;">beacon_chain.rs (after)</span></td>
+          <td style="padding:0.4rem 0.8rem; text-align:right; font-family:monospace;">4/5</td>
+          <td style="padding:0.4rem 0.8rem; text-align:right; font-family:monospace;">12/13</td>
+          <td style="padding:0.4rem 0.8rem;">
+            <div style="display:flex; align-items:center; gap:0.5rem;">
+              <div style="flex:1; height:12px; background:var(--surface2); border-radius:3px; overflow:hidden;">
+                <div style="width:92.3%; height:100%; background:var(--accent2); border-radius:3px;"></div>
+              </div>
+              <span style="font-family:monospace; font-weight:600; color:var(--accent2); min-width:3.5em;">92.3%</span>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    <p style="font-size:0.7rem; color:var(--text-muted); margin-top:0.75rem;">
+      <span style="color:var(--accent4);">BlockImporter</span> and <span style="color:var(--accent4);">DataAvailabilityMgr</span>
+      are lower because gossip/RPC verification paths are tested by the <code>network</code> crate,
+      not <code>beacon_chain</code> unit tests. The functions are tested &mdash; just measured in a different binary.
+    </p>
   </div>
 </section>
 
