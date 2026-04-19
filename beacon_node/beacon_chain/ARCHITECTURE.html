@@ -51,6 +51,45 @@
     0%   { transform: translate(0, 0) scale(1); }
     100% { transform: translate(30px, -20px) scale(1.05); }
   }
+
+  /* ── Decomposition animation ── */
+  .decompose { position:absolute; inset:0; pointer-events:none; z-index:0; }
+  .decompose .box {
+    position:absolute; border-radius:6px; opacity:0;
+    animation: emerge 1.5s ease-out forwards;
+  }
+  .decompose .god {
+    width:120px; height:80px; left:50%; top:50%;
+    transform:translate(-50%,-50%) scale(1);
+    border:2px solid var(--accent5);
+    background:rgba(255,123,114,0.08);
+    box-shadow:0 0 30px rgba(255,123,114,0.15);
+    animation: god-shrink 3s ease-in-out forwards;
+    opacity:0.3;
+  }
+  .decompose .comp {
+    width:60px; height:36px;
+    border:1.5px solid; opacity:0;
+    animation: comp-appear 0.8s ease-out forwards;
+  }
+  .decompose .line {
+    position:absolute; height:1px; transform-origin:left center;
+    animation: line-draw 0.6s ease-out forwards;
+    opacity:0;
+  }
+  @keyframes god-shrink {
+    0%   { opacity:0.3; transform:translate(-50%,-50%) scale(1); }
+    30%  { opacity:0.25; transform:translate(-50%,-50%) scale(1); }
+    100% { opacity:0; transform:translate(-50%,-50%) scale(0.3); }
+  }
+  @keyframes comp-appear {
+    0%   { opacity:0; transform:translate(-50%,-50%) scale(0.3); }
+    100% { opacity:0.2; transform:translate(-50%,-50%) scale(1); }
+  }
+  @keyframes line-draw {
+    0%   { opacity:0; transform:scaleX(0); }
+    100% { opacity:0.15; transform:scaleX(1); }
+  }
   .hero h1 {
     font-size: clamp(2.5rem, 6vw, 4.5rem);
     font-weight: 800; letter-spacing: -0.03em;
@@ -346,6 +385,26 @@
 
 <!-- ════════════ HERO ════════════ -->
 <div class="hero">
+  <!-- Decomposition animation: god object splits into connected components -->
+  <div class="decompose" aria-hidden="true">
+    <!-- The god object (fades out) -->
+    <div class="box god"></div>
+    <!-- Components emerge and settle (lightsaber glow connections) -->
+    <div class="comp box" style="left:35%;top:30%;border-color:var(--accent);box-shadow:0 0 12px rgba(88,166,255,0.3);animation-delay:1.2s;"></div>
+    <div class="comp box" style="left:65%;top:28%;border-color:var(--accent2);box-shadow:0 0 12px rgba(63,185,80,0.3);animation-delay:1.4s;"></div>
+    <div class="comp box" style="left:28%;top:50%;border-color:var(--accent3);box-shadow:0 0 12px rgba(210,168,255,0.3);animation-delay:1.6s;"></div>
+    <div class="comp box" style="left:72%;top:48%;border-color:var(--accent4);box-shadow:0 0 12px rgba(240,136,62,0.3);animation-delay:1.8s;"></div>
+    <div class="comp box" style="left:38%;top:68%;border-color:var(--accent5);box-shadow:0 0 12px rgba(255,123,114,0.3);animation-delay:2.0s;"></div>
+    <div class="comp box" style="left:62%;top:70%;border-color:var(--accent6);box-shadow:0 0 12px rgba(121,192,255,0.3);animation-delay:2.2s;"></div>
+    <div class="comp box" style="left:50%;top:38%;border-color:var(--accent2);box-shadow:0 0 12px rgba(63,185,80,0.3);animation-delay:1.5s;"></div>
+    <!-- Lightsaber-style connection lines -->
+    <div class="line" style="left:37%;top:34%;width:80px;background:linear-gradient(90deg,var(--accent),transparent);box-shadow:0 0 6px var(--accent);animation-delay:2.5s;transform:rotate(5deg);"></div>
+    <div class="line" style="left:55%;top:40%;width:70px;background:linear-gradient(90deg,var(--accent2),transparent);box-shadow:0 0 6px var(--accent2);animation-delay:2.7s;transform:rotate(-15deg);"></div>
+    <div class="line" style="left:40%;top:55%;width:90px;background:linear-gradient(90deg,var(--accent3),transparent);box-shadow:0 0 6px var(--accent3);animation-delay:2.9s;transform:rotate(20deg);"></div>
+    <div class="line" style="left:58%;top:58%;width:60px;background:linear-gradient(90deg,var(--accent4),transparent);box-shadow:0 0 6px var(--accent4);animation-delay:3.1s;transform:rotate(-10deg);"></div>
+    <div class="line" style="left:32%;top:45%;width:75px;background:linear-gradient(90deg,var(--accent6),transparent);box-shadow:0 0 6px var(--accent6);animation-delay:3.3s;transform:rotate(35deg);"></div>
+  </div>
+
   <h1>BeaconChain, Refactored</h1>
   <p class="subtitle">
     Decomposing <code>BeaconChain&lt;T&gt;</code> into testable components &mdash;
@@ -358,13 +417,12 @@
 <nav>
   <ul>
     <li><a href="#problem">Problem</a></li>
-    <li><a href="#workflow">Workflow</a></li>
-    <li><a href="#principles">Design Principles</a></li>
-    <li><a href="#deps">Structure</a></li>
-    <li><a href="#casestudy">Case Study</a></li>
-    <li><a href="#reference">Reference</a></li>
+    <li><a href="#workflow">What This Unlocks</a></li>
     <li><a href="#results">Results</a></li>
-    <li><a href="#cheatsheet">Cheat Sheet</a></li>
+    <li><a href="#deps">Structure</a></li>
+    <li><a href="#principles">Design Principles</a></li>
+    <li><a href="#howitworks">How It Works</a></li>
+    <li><a href="#cheatsheet">Quick Reference</a></li>
   </ul>
 </nav>
 
@@ -414,45 +472,17 @@
 
     <div class="compare-card after">
       <h3>After &mdash; Components + Composition</h3>
-      <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:1rem;"><code>BeaconChain</code> is replaced by focused components. Callers hold refs but no logic &mdash; logic lives in the components and composed workflow functions.</p>
-      <div style="display:flex; flex-direction:column; gap:0.5rem;">
-        <div style="display:flex; align-items:center; gap:0.5rem;">
-          <span style="padding:0.3em 0.6em; border-radius:6px; font-size:0.75rem; font-weight:600; background:rgba(88,166,255,0.1); border:1px solid var(--accent); color:var(--accent); white-space:nowrap;">OperationsManager</span>
-        </div>
-        <div style="display:flex; align-items:center; gap:0.5rem;">
-          <span style="padding:0.3em 0.6em; border-radius:6px; font-size:0.75rem; font-weight:600; background:rgba(63,185,80,0.1); border:1px solid var(--accent2); color:var(--accent2); white-space:nowrap;">AttestationManager</span>
-        </div>
-        <div style="display:flex; align-items:center; gap:0.5rem;">
-          <span style="padding:0.3em 0.6em; border-radius:6px; font-size:0.75rem; font-weight:600; background:rgba(210,168,255,0.1); border:1px solid var(--accent3); color:var(--accent3); white-space:nowrap;">SyncCommitteeMgr</span>
-        </div>
-        <div style="display:flex; align-items:center; gap:0.5rem;">
-          <span style="padding:0.3em 0.6em; border-radius:6px; font-size:0.75rem; font-weight:600; background:rgba(240,136,62,0.1); border:1px solid var(--accent4); color:var(--accent4); white-space:nowrap;">DataAvailabilityMgr</span>
-        </div>
-        <div style="display:flex; align-items:center; gap:0.5rem;">
-          <span style="padding:0.3em 0.6em; border-radius:6px; font-size:0.75rem; font-weight:600; background:rgba(255,123,114,0.1); border:1px solid var(--accent5); color:var(--accent5); white-space:nowrap;">CanonicalHead</span>
-        </div>
-        <div style="display:flex; align-items:center; gap:0.5rem;">
-          <span style="padding:0.3em 0.6em; border-radius:6px; font-size:0.75rem; font-weight:600; background:rgba(126,231,135,0.1); border:1px solid #7ee787; color:#7ee787; white-space:nowrap;">ExecutionManager</span>
-        </div>
-        <div style="display:flex; align-items:center; gap:0.5rem;">
-          <span style="padding:0.3em 0.6em; border-radius:6px; font-size:0.75rem; font-weight:600; background:rgba(121,192,255,0.1); border:1px solid var(--accent6); color:var(--accent6); white-space:nowrap;">ValidatorQueryService</span>
-        </div>
-        <div style="display:flex; align-items:center; gap:0.5rem; margin-top:0.5rem;">
-          <span style="padding:0.3em 0.6em; border-radius:6px; font-size:0.7rem; font-weight:600; background:rgba(240,136,62,0.1); border:1px solid var(--accent4); color:var(--accent4); white-space:nowrap;">BlockImporter&lt;T&gt;</span>
-          <span style="padding:0.3em 0.6em; border-radius:6px; font-size:0.7rem; font-weight:600; background:rgba(240,136,62,0.1); border:1px solid var(--accent4); color:var(--accent4); white-space:nowrap;">BlockProducer&lt;T&gt;</span>
-          <span style="font-size:0.7rem; color:var(--text-muted);">orchestrators</span>
-        </div>
-      </div>
-      <p style="font-size:0.75rem; color:var(--text-muted); margin-top:0.75rem;">Components own their state and are testable in isolation</p>
+      <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:1rem;">Focused components that own their state and are testable in isolation. Callers hold typed refs but no logic &mdash; logic lives in the components and composed orchestrator workflows.</p>
+      <p style="font-size:0.75rem; color:var(--text-muted);">See the <a href="#deps" style="color:var(--accent);">Structure</a> diagram for the full component map.</p>
     </div>
   </div>
 </section>
 
-<!-- ════════════ WORKFLOW ════════════ -->
+<!-- ════════════ WHAT THIS UNLOCKS ════════════ -->
 <section id="workflow">
   <h2 class="fade-in">What This Unlocks <span class="badge">Workflow</span></h2>
   <p class="lead fade-in">
-    The modular architecture doesn't prescribe a workflow &mdash; it makes new ones possible.
+    This architecture doesn't prescribe a workflow. It makes new ones possible.
   </p>
 
   <div class="fade-in" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px,1fr)); gap:1rem; margin:1.5rem 0;">
@@ -476,8 +506,7 @@
       <strong style="color:var(--accent);">Faster review</strong>
       <p style="font-size:0.8rem; color:var(--text-muted); margin:0.5rem 0 0;">
         A PR that touches <code>AttestationManager</code> can be reviewed
-        against its interface and tests alone. The reviewer doesn't need to
-        trace through a 7,000-line struct to assess impact.
+        against its interface and tests alone. No tracing through a 7,000-line struct.
       </p>
     </div>
     <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card);">
@@ -495,416 +524,16 @@
   </div>
 </section>
 
-<!-- ════════════ RULES ════════════ -->
-<section id="principles">
-  <h2 class="fade-in">Design Principles <span class="badge">Constraints</span></h2>
-  <p class="lead fade-in">
-    Derived from specific problems in the current <code>BeaconChain&lt;T&gt;</code>. Not prescriptive &mdash; these guide design decisions.
-  </p>
-
-  <div class="principles fade-in">
-    <div class="principle">
-      <div class="principle-num">1</div>
-      <h3>Favour composition over god objects</h3>
-      <p>Workflows compose the specific capabilities they need &mdash; not whole components. Pass what you need, not what <em>has</em> what you need.</p>
-      <div class="why">Today <code>produce_block_on_state</code> accesses <code>self.*</code> for everything because the god object makes it easy. Tracing what it actually uses reveals 3 domain dependencies out of 40+ fields. See the <a href="#casestudy" style="color:var(--accent);">block production case study</a> below.</div>
-    </div>
-
-    <div class="principle">
-      <div class="principle-num">2</div>
-      <h3>Separate business logic from infrastructure</h3>
-      <p>Components own verification logic and state. Infrastructure like chain state, current slot, and event dispatch is provided by the caller &mdash; either as values, references, or callbacks.</p>
-      <div class="why">Today verification methods internally reach into <code>CanonicalHead</code> for head state and <code>SlotClock</code> for the current epoch. This couples every component to chain infrastructure and makes isolated testing impossible. For example, the caller could read <code>slot_clock.now()</code> and pass the resulting <code>Epoch</code> in, or pass a callback for mid-workflow side effects like SSE events.</div>
-    </div>
-
-    <div class="principle">
-      <div class="principle-num">3</div>
-      <h3>Components are testable in isolation</h3>
-      <p>You should be able to construct a component, pass in test state, and assert results &mdash; without <code>BeaconChainHarness</code>, store, or fork choice.</p>
-      <div class="why">Today you can't test verification logic without spinning up the full chain. Deterministic components that receive context as parameters can be tested directly, verified against specs, and safely modified by LLMs.</div>
-    </div>
-
-    <div class="principle">
-      <div class="principle-num">4</div>
-      <h3>Fork choice write locks are concentrated</h3>
-      <p>Fork choice write locks are acquired only by block import, head recomputation, attestation application, and execution layer callbacks. Components like OperationsManager and SyncCommitteeManager never touch them.</p>
-      <div class="why">The lock ordering in <code>canonical_head.rs</code> is where deadlocks happen. Today any code holding <code>Arc&lt;BeaconChain&gt;</code> can reach the fork choice lock. No fork choice write locks exist outside <code>beacon_chain</code> &mdash; this architecture enforces that.</div>
-    </div>
-  </div>
-</section>
-
-<!-- ════════════ DEPENDENCIES ════════════ -->
-<section id="deps">
-  <h2 class="fade-in">Structure <span class="badge">Overview</span></h2>
-  <p class="lead fade-in">
-    <code>BeaconChain&lt;T&gt;</code> retains the name but has zero methods. Its 200+ methods are now owned by components and orchestrators. Callers access logic through typed component refs.
-  </p>
-
-  <div class="fade-in" style="margin:2rem 0; overflow-x:auto; padding-bottom:1rem;">
-    <svg viewBox="0 0 780 400" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Architecture overview" style="display:block; margin:0 auto; width:100%; max-width:780px; height:auto;">
-
-      <!-- Components -->
-      <text x="20" y="20" fill="#58a6ff" font-size="11" font-weight="600">COMPONENTS (own state + logic)</text>
-
-      <rect x="20" y="32" width="170" height="30" rx="5" fill="rgba(88,166,255,0.1)" stroke="#58a6ff" stroke-width="1"/>
-      <text x="105" y="52" text-anchor="middle" fill="#58a6ff" font-size="11" font-weight="600">OperationsManager</text>
-
-      <rect x="20" y="68" width="170" height="30" rx="5" fill="rgba(63,185,80,0.1)" stroke="#3fb950" stroke-width="1"/>
-      <text x="105" y="88" text-anchor="middle" fill="#3fb950" font-size="11" font-weight="600">AttestationManager</text>
-
-      <rect x="20" y="104" width="170" height="30" rx="5" fill="rgba(210,168,255,0.1)" stroke="#d2a8ff" stroke-width="1"/>
-      <text x="105" y="124" text-anchor="middle" fill="#d2a8ff" font-size="11" font-weight="600">SyncCommitteeMgr</text>
-
-      <rect x="20" y="140" width="170" height="30" rx="5" fill="rgba(240,136,62,0.1)" stroke="#f0883e" stroke-width="1"/>
-      <text x="105" y="160" text-anchor="middle" fill="#f0883e" font-size="11" font-weight="600">DataAvailabilityMgr</text>
-
-      <rect x="200" y="32" width="170" height="30" rx="5" fill="rgba(255,123,114,0.1)" stroke="#ff7b72" stroke-width="1"/>
-      <text x="285" y="52" text-anchor="middle" fill="#ff7b72" font-size="11" font-weight="600">CanonicalHead</text>
-
-      <rect x="200" y="68" width="170" height="30" rx="5" fill="rgba(126,231,135,0.1)" stroke="#7ee787" stroke-width="1"/>
-      <text x="285" y="88" text-anchor="middle" fill="#7ee787" font-size="11" font-weight="600">ExecutionManager</text>
-
-      <rect x="200" y="104" width="170" height="30" rx="5" fill="rgba(121,192,255,0.1)" stroke="#79c0ff" stroke-width="1"/>
-      <text x="285" y="124" text-anchor="middle" fill="#79c0ff" font-size="11" font-weight="600">ValidatorQuerySvc</text>
-
-      <!-- BlockImporter moved to ORCHESTRATORS section below -->
-
-      <!-- Orchestrators (compose components) -->
-      <text x="20" y="190" fill="#f0883e" font-size="11" font-weight="600">ORCHESTRATORS (compose components, &amp;self methods)</text>
-      <rect x="20" y="202" width="170" height="30" rx="5" fill="rgba(240,136,62,0.1)" stroke="#f0883e" stroke-width="1"/>
-      <text x="105" y="222" text-anchor="middle" fill="#f0883e" font-size="11" font-weight="600">BlockImporter&lt;T&gt;</text>
-
-      <rect x="200" y="202" width="170" height="30" rx="5" fill="rgba(240,136,62,0.1)" stroke="#f0883e" stroke-width="1"/>
-      <text x="285" y="222" text-anchor="middle" fill="#f0883e" font-size="11" font-weight="600">BlockProducer&lt;T&gt;</text>
-
-      <!-- Callers -->
-      <text x="450" y="20" fill="#8b949e" font-size="11" font-weight="600">CALLERS (hold refs, no logic)</text>
-      <rect x="450" y="32" width="210" height="30" rx="6" fill="#1c2129" stroke="#30363d" stroke-width="1"/>
-      <text x="555" y="52" text-anchor="middle" fill="#8b949e" font-size="11">HTTP API Context</text>
-      <rect x="450" y="68" width="210" height="30" rx="6" fill="#1c2129" stroke="#30363d" stroke-width="1"/>
-      <text x="555" y="88" text-anchor="middle" fill="#8b949e" font-size="11">NetworkBeaconProcessor</text>
-      <rect x="450" y="104" width="210" height="30" rx="6" fill="#1c2129" stroke="#30363d" stroke-width="1"/>
-      <text x="555" y="124" text-anchor="middle" fill="#8b949e" font-size="11">Sync Manager</text>
-
-      <!-- Arrows -->
-      <line x1="448" y1="47" x2="372" y2="47" stroke="#30363d" stroke-width="1" marker-end="url(#arrowBlue)" opacity="0.5"/>
-      <line x1="448" y1="83" x2="372" y2="83" stroke="#30363d" stroke-width="1" marker-end="url(#arrowBlue)" opacity="0.5"/>
-      <line x1="448" y1="119" x2="372" y2="119" stroke="#30363d" stroke-width="1" marker-end="url(#arrowBlue)" opacity="0.5"/>
-
-      <!-- Testing -->
-      <text x="20" y="260" fill="#3fb950" font-size="11" font-weight="600">TESTING</text>
-      <rect x="20" y="272" width="350" height="30" rx="5" fill="rgba(63,185,80,0.06)" stroke="rgba(63,185,80,0.25)" stroke-width="1"/>
-      <text x="195" y="292" text-anchor="middle" fill="#3fb950" font-size="10" font-weight="500">Unit tests &mdash; construct component, pass test state, assert</text>
-      <rect x="20" y="308" width="350" height="30" rx="5" fill="rgba(240,136,62,0.06)" stroke="rgba(240,136,62,0.25)" stroke-width="1"/>
-      <text x="195" y="328" text-anchor="middle" fill="#f0883e" font-size="10" font-weight="500">Acceptance tests &mdash; event-based via sync manager TestRig</text>
-      <rect x="20" y="344" width="350" height="30" rx="5" fill="rgba(121,192,255,0.06)" stroke="rgba(121,192,255,0.25)" stroke-width="1"/>
-      <text x="195" y="364" text-anchor="middle" fill="#79c0ff" font-size="10" font-weight="500">Integration tests &mdash; existing BeaconChainHarness (still works)</text>
-    </svg>
-  </div>
-</section>
-
-<!-- ════════════ CASE STUDY ════════════ -->
-<section id="casestudy">
-  <h2 class="fade-in">Case Study: Block Production <span class="badge">Composition</span></h2>
-  <p class="lead fade-in">
-    <code>produce_block_on_state</code> looks like it needs the entire <code>BeaconChain</code>. It doesn't.
-    Tracing the actual code reveals three domain dependencies &mdash; the rest is infrastructure.
-  </p>
-
-  <details class="fade-in" open>
-    <summary>What block production actually needs</summary>
-    <div class="detail-body">
-      <p style="margin-bottom:1rem;">Today <code>produce_block_on_state</code> accesses <code>self.*</code> everywhere because the god object makes it easy. But tracing what it actually <em>uses</em>:</p>
-
-      <div style="display:grid; grid-template-columns:auto 1fr; gap:0.5rem 1rem; font-size:0.85rem; margin-bottom:1.5rem;">
-        <strong style="color:var(--accent);">Domain</strong><span></span>
-        <code style="color:var(--accent6);">&amp;OperationPool</code>
-        <span style="color:var(--text-muted);">Pull attestations, exits, slashings, sync aggregate, BLS changes</span>
-        <code style="color:var(--accent6);">CanonicalHead</code>
-        <span style="color:var(--text-muted);">Head slot, finalized checkpoint, forkchoice params (read-only)</span>
-        <code style="color:var(--accent6);">ExecutionLayer</code>
-        <span style="color:var(--text-muted);">Get payload from EL, fee recipient, gas limit</span>
-
-        <strong style="color:var(--text-muted); margin-top:0.5rem;">Infrastructure</strong><span></span>
-        <code style="color:var(--text-muted);">&amp;ChainSpec</code>
-        <span style="color:var(--text-muted);">Spec constants (everything needs this)</span>
-        <code style="color:var(--text-muted);">BlockProductionConfig</code>
-        <span style="color:var(--text-muted);">~5 flags: paranoid mode, size limits, builder fallback</span>
-        <code style="color:var(--text-muted);">SlotClock</code>
-        <span style="color:var(--text-muted);">Current slot</span>
-        <code style="color:var(--text-muted);">TaskExecutor</code>
-        <span style="color:var(--text-muted);">Spawn blocking work</span>
-      </div>
-
-      <p><strong>3 domain dependencies</strong> vs 40+ fields on the god object. The infrastructure deps (spec, clock, executor) are just Rust requiring you to be explicit about what other languages grab from globals.</p>
-    </div>
-  </details>
-
-  <details class="fade-in">
-    <summary>BlockProducer&lt;T&gt; &mdash; constructor injection with &amp;self</summary>
-    <div class="detail-body">
-      <div class="code-block" style="margin:0 0 1rem 0;">
-        <div class="code-header">
-          <span class="dot" aria-hidden="true"></span><span class="dot" aria-hidden="true"></span><span class="dot" aria-hidden="true"></span>
-          <span>block_production/mod.rs &mdash; struct owns its Arcs, methods use &amp;self</span>
-        </div>
-<pre><span class="cm">/// Owns the subsystems required to produce beacon blocks.</span>
-<span class="cm">/// Constructed once by the builder; methods use &amp;self.</span>
-<span class="kw">pub struct</span> <span class="ty">BlockProducer</span>&lt;<span class="ty">T: BeaconChainTypes</span>&gt; {
-    spec: <span class="ty">Arc</span>&lt;<span class="ty">ChainSpec</span>&gt;,
-    store: <span class="ty">BeaconStore</span>&lt;<span class="ty">T</span>&gt;,
-    config: <span class="ty">Arc</span>&lt;<span class="ty">ChainConfig</span>&gt;,
-    op_pool: <span class="ty">Arc</span>&lt;<span class="ty">OperationPool</span>&lt;<span class="ty">T::EthSpec</span>&gt;&gt;,
-    canonical_head: <span class="ty">Arc</span>&lt;<span class="ty">CanonicalHead</span>&lt;<span class="ty">T</span>&gt;&gt;,
-    execution_manager: <span class="ty">Arc</span>&lt;<span class="ty">ExecutionManager</span>&lt;<span class="ty">T</span>&gt;&gt;,
-    attestation_manager: <span class="ty">Arc</span>&lt;<span class="ty">AttestationManager</span>&lt;<span class="ty">T::EthSpec</span>&gt;&gt;,
-    <span class="cm">// ... (other fields elided)</span>
-}
-
-<span class="kw">impl</span>&lt;<span class="ty">T: BeaconChainTypes</span>&gt; <span class="ty">BlockProducer</span>&lt;<span class="ty">T</span>&gt; {
-    <span class="kw">pub async fn</span> <span class="fn">produce_block_on_state</span>(
-        &amp;<span class="kw">self</span>,
-        state: <span class="ty">BeaconState</span>&lt;<span class="ty">T::EthSpec</span>&gt;,
-        produce_at_slot: <span class="ty">Slot</span>,
-        randao_reveal: <span class="ty">Signature</span>,
-        <span class="cm">// ...</span>
-    ) -&gt; <span class="ty">Result</span>&lt;<span class="ty">BeaconBlockResponseWrapper</span>&lt;<span class="ty">T::EthSpec</span>&gt;&gt; {
-        <span class="cm">// All deps accessed via self.* -- no god object needed</span>
-        <span class="kw">let</span> attestations = <span class="kw">self</span>.op_pool.<span class="fn">get_attestations</span>(&amp;state, &amp;<span class="kw">self</span>.spec)?;
-        <span class="kw">let</span> health = <span class="fn">is_healthy</span>(&amp;<span class="kw">self</span>.canonical_head, <span class="cm">/* ... */</span>)?;
-        <span class="cm">// ...</span>
-    }
-}</pre>
-      </div>
-    </div>
-  </details>
-
-  <details class="fade-in">
-    <summary>Testing without the harness</summary>
-    <div class="detail-body">
-      <p style="margin-bottom:1rem;">Components are directly testable. Construct with <code>::new()</code>, pass in test state, assert results. No <code>BeaconChainHarness</code> needed.</p>
-      <div class="code-block" style="margin:0;">
-        <div class="code-header">
-          <span class="dot" aria-hidden="true"></span><span class="dot" aria-hidden="true"></span><span class="dot" aria-hidden="true"></span>
-          <span>test &mdash; component unit test without harness</span>
-        </div>
-<pre><span class="kw">#[test]</span>
-<span class="kw">fn</span> <span class="fn">rejects_exit_for_unknown_validator</span>() {
-    <span class="kw">let</span> spec = <span class="ty">Arc</span>::new(<span class="ty">ChainSpec</span>::<span class="fn">mainnet</span>());
-    <span class="kw">let</span> ops = <span class="ty">OperationsManager</span>::<span class="fn">new</span>(spec.clone(), <span class="ty">Arc</span>::new(<span class="ty">OperationPool</span>::<span class="fn">new</span>()));
-    <span class="kw">let</span> (state, _keypairs) = <span class="fn">create_genesis_state</span>(&amp;spec, <span class="lt">4</span>);
-
-    <span class="kw">let</span> exit = <span class="fn">make_exit_for_validator</span>(<span class="lt">999</span>);
-    <span class="mc">assert!</span>(ops.<span class="fn">verify_voluntary_exit</span>(exit, &amp;state, <span class="ty">Epoch</span>::new(<span class="lt">0</span>)).<span class="fn">is_err</span>());
-}</pre>
-      </div>
-    </div>
-  </details>
-</section>
-
-
-<!-- ════════════ REFERENCE ════════════ -->
-<section id="reference">
-  <h2 class="fade-in">Reference <span class="badge" style="background:var(--text-muted);">Implementation Details</span></h2>
-  <p class="lead fade-in">
-    Implementation details &mdash; one way to apply the design principles above. The specifics may evolve.
-  </p>
-
-  <details class="fade-in">
-    <summary>Components &mdash; what each one owns and holds</summary>
-    <div class="detail-body">
-      <p style="margin-bottom:1rem;">Each component owns its verification state and holds shared references. See <code>ARCHITECTURE.md</code> for the full specification.</p>
-      <div class="ref-grid">
-        <div class="ref-card">
-          <h4>OperationsManager</h4>
-          <p>Voluntary exits, slashings, BLS changes. Verification, dedup, pool insertion.</p>
-          <div class="tag-list">
-            <span class="tag own">observed_voluntary_exits</span>
-            <span class="tag own">observed_proposer_slashings</span>
-            <span class="tag own">observed_attester_slashings</span>
-            <span class="tag hld">spec</span>
-            <span class="tag hld">op_pool</span>
-          </div>
-        </div>
-        <div class="ref-card">
-          <h4>AttestationManager</h4>
-          <p>Attestation production, verification, aggregation, pool management.</p>
-          <div class="tag-list">
-            <span class="tag own">naive_aggregation_pool</span>
-            <span class="tag own">observed_attestations</span>
-            <span class="tag own">shuffling_cache</span>
-            <span class="tag hld">spec</span>
-            <span class="tag hld">op_pool</span>
-          </div>
-        </div>
-        <div class="ref-card">
-          <h4>SyncCommitteeManager</h4>
-          <p>Sync committee message/contribution verification, aggregation pool.</p>
-          <div class="tag-list">
-            <span class="tag own">naive_sync_aggregation_pool</span>
-            <span class="tag own">observed_sync_contributions</span>
-            <span class="tag hld">spec</span>
-            <span class="tag hld">op_pool</span>
-          </div>
-        </div>
-        <div class="ref-card">
-          <h4>DataAvailabilityManager</h4>
-          <p>Blob/data column processing, custody, DA boundary calculations.</p>
-          <div class="tag-list">
-            <span class="tag own">data_availability_checker</span>
-            <span class="tag own">observed_blob_sidecars</span>
-            <span class="tag own">kzg</span>
-            <span class="tag hld">spec</span>
-            <span class="tag hld">store</span>
-          </div>
-        </div>
-        <div class="ref-card">
-          <h4>ExecutionManager</h4>
-          <p>Execution layer integration, proposer preparation, forkchoice updates.</p>
-          <div class="tag-list">
-            <span class="tag own">beacon_proposer_cache</span>
-            <span class="tag hld">spec</span>
-            <span class="tag hld">execution_layer</span>
-          </div>
-        </div>
-        <div class="ref-card">
-          <h4>ValidatorQueryService</h4>
-          <p>Validator pubkey lookups, committee cache access.</p>
-          <div class="tag-list">
-            <span class="tag own">validator_pubkey_cache</span>
-            <span class="tag hld">spec</span>
-          </div>
-        </div>
-        <div class="ref-card">
-          <h4>BlockImporter&lt;T&gt;</h4>
-          <p>Scoped orchestrator for block, blob, and data-column import. Owns import caches and observation tracking; methods use <code>&amp;self</code>.</p>
-          <div class="tag-list">
-            <span class="tag own">observed_block_producers</span>
-            <span class="tag own">observed_slashable</span>
-            <span class="tag own">event_handler</span>
-            <span class="tag own">validator_monitor</span>
-            <span class="tag hld">canonical_head</span>
-            <span class="tag hld">attestation_manager</span>
-            <span class="tag hld">data_availability_manager</span>
-          </div>
-        </div>
-        <div class="ref-card">
-          <h4>BlockProducer&lt;T&gt;</h4>
-          <p>Scoped orchestrator for block production: state loading, partial block assembly, execution payload integration. Methods use <code>&amp;self</code>.</p>
-          <div class="tag-list">
-            <span class="tag hld">op_pool</span>
-            <span class="tag hld">canonical_head</span>
-            <span class="tag hld">execution_manager</span>
-            <span class="tag hld">attestation_manager</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </details>
-
-  <details class="fade-in">
-    <summary>Dependency injection &mdash; what each caller receives</summary>
-    <div class="detail-body">
-      <p style="margin-bottom:1rem;">Callers hold refs to components but no logic of their own. Handler functions pull the specific refs they need. <em>(Illustrative groupings &mdash; the specifics may evolve.)</em></p>
-      <div class="ref-grid">
-        <div class="ref-card">
-          <h4>NetworkBeaconProcessor</h4>
-          <p>Gossip handlers, sync</p>
-          <div class="tag-list">
-            <span class="tag own">OperationsManager</span>
-            <span class="tag own">AttestationManager</span>
-            <span class="tag own">SyncCommitteeManager</span>
-            <span class="tag own">DataAvailabilityMgr</span>
-            <span class="tag own">BlockImporter</span>
-            <span class="tag own">CanonicalHead</span>
-          </div>
-        </div>
-        <div class="ref-card">
-          <h4>HTTP API &mdash; Pool Endpoints</h4>
-          <p>/eth/v1/beacon/pool/*</p>
-          <div class="tag-list">
-            <span class="tag own">OperationsManager</span>
-            <span class="tag own">CanonicalHead</span>
-          </div>
-        </div>
-        <div class="ref-card">
-          <h4>HTTP API &mdash; Validator Endpoints</h4>
-          <p>/eth/v1/validator/*</p>
-          <div class="tag-list">
-            <span class="tag own">ValidatorQueryService</span>
-            <span class="tag own">ExecutionManager</span>
-            <span class="tag own">CanonicalHead</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </details>
-
-
-</section>
-
-<!-- ════════════ WHAT WE LEARNED ════════════ -->
+<!-- ════════════ RESULTS ════════════ -->
 <section id="results">
-  <h2 class="fade-in">Results <span class="badge">Status</span></h2>
+  <h2 class="fade-in">Results <span class="badge">Proof</span></h2>
   <p class="lead fade-in">
     <code>BeaconChain&lt;T&gt;</code> went from 7,317 lines and 200+ methods to
     120 lines and zero methods. Logic lives in 7 components and 2 orchestrators,
     each unit-testable without the harness.
   </p>
 
-  <div class="compare fade-in">
-    <div class="compare-card after">
-      <h3>What worked</h3>
-      <ul class="bullet-list">
-        <li>
-          <strong>Seven components extracted; four cohesive.</strong>
-          <code>OperationsManager</code>, <code>AttestationManager</code>,
-          <code>SyncCommitteeManager</code>, and <code>ValidatorQueryService</code>
-          came out as self-contained units with clear ownership of their observed
-          sets and pools. <code>DataAvailabilityManager</code>,
-          <code>ExecutionManager</code>, <code>BlockImportState</code> extracted
-          too but are thinner wrappers.
-        </li>
-        <li>
-          <strong>~2,000 lines of new unit tests</strong> against those components,
-          written <em>without</em> <code>BeaconChainHarness</code>. This is the
-          concrete contributor-velocity win &mdash; tests that construct components
-          directly, pass in state, and assert results.
-        </li>
-        <li>
-          <strong>Scoped orchestrators extracted.</strong>
-          <code>BlockImporter&lt;T&gt;</code> and <code>BlockProducer&lt;T&gt;</code>
-          own their <code>Arc</code>s and use <code>&amp;self</code> methods, replacing
-          the previous <code>*Context</code> struct literal pattern.
-        </li>
-        <li>
-          <strong>Top-level file shrank from 7,317 to 120 lines.</strong>
-          <code>beacon_chain.rs</code> now contains only the struct definition,
-          the <code>BeaconChainTypes</code> trait, shared type aliases, and
-          error conversions. Everything else moved to owning modules.
-        </li>
-      </ul>
-    </div>
-
-    <div class="compare-card before">
-      <h3>What remains</h3>
-      <ul class="bullet-list">
-        <li>
-          <strong><code>store_migrator</code> on <code>BeaconChain&lt;T&gt;</code>.</strong>
-          Low priority &mdash; the only non-component field left. Could be
-          moved into the store layer.
-        </li>
-        <li>
-          <strong>Cross-module verification helpers</strong> still take
-          <code>&amp;BeaconChain&lt;T&gt;</code> &mdash; orchestrators use a
-          <code>Weak</code> back-reference to reach them. Rewriting those
-          signatures to take narrow deps would eliminate the back-reference.
-        </li>
-      </ul>
-    </div>
-  </div>
-
-  <h3 class="fade-in" style="margin-top:2.5rem; font-size:1.1rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-muted);">Key metrics</h3>
+  <h3 class="fade-in" style="margin-top:1rem; font-size:1.1rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-muted);">Key metrics</h3>
 
   <div class="fade-in" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(160px,1fr)); gap:1rem; margin:1.5rem 0 0;">
     <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card); text-align:center;">
@@ -970,10 +599,10 @@
       </div>
       <div style="font-size:0.8rem; color:var(--text-muted); margin-top:0.5rem;">
         4-node Lighthouse + Geth mesh on the final refactored code.
-        <strong>1,468 slots</strong>, <strong>389 blocks produced</strong>,
-        <strong>0 errors</strong> across all nodes.
-        Block import delay: avg <strong>81ms</strong> (range 27&ndash;94ms).
-        Finalising normally.
+        <strong>50+ epochs finalized</strong>,
+        <strong>0 errors</strong>,
+        block import delay avg <strong>81ms</strong>,
+        3 peers per node. Chain finalising normally throughout.
       </div>
     </div>
 
@@ -1002,11 +631,325 @@
   </div>
 </section>
 
+<!-- ════════════ STRUCTURE ════════════ -->
+<section id="deps">
+  <h2 class="fade-in">Structure <span class="badge">Overview</span></h2>
+  <p class="lead fade-in">
+    <code>BeaconChain&lt;T&gt;</code> keeps the name but has zero methods. Its 200+ methods now live in components and orchestrators. Callers access logic through typed component refs.
+  </p>
+
+  <div class="fade-in" style="margin:2rem 0; overflow-x:auto; padding-bottom:1rem;">
+    <svg viewBox="0 0 780 400" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Architecture overview" style="display:block; margin:0 auto; width:100%; max-width:780px; height:auto;">
+
+      <!-- Components -->
+      <text x="20" y="20" fill="#58a6ff" font-size="11" font-weight="600">COMPONENTS (own state + logic)</text>
+
+      <rect x="20" y="32" width="170" height="30" rx="5" fill="rgba(88,166,255,0.1)" stroke="#58a6ff" stroke-width="1"/>
+      <text x="105" y="52" text-anchor="middle" fill="#58a6ff" font-size="11" font-weight="600">OperationsManager</text>
+
+      <rect x="20" y="68" width="170" height="30" rx="5" fill="rgba(63,185,80,0.1)" stroke="#3fb950" stroke-width="1"/>
+      <text x="105" y="88" text-anchor="middle" fill="#3fb950" font-size="11" font-weight="600">AttestationManager</text>
+
+      <rect x="20" y="104" width="170" height="30" rx="5" fill="rgba(210,168,255,0.1)" stroke="#d2a8ff" stroke-width="1"/>
+      <text x="105" y="124" text-anchor="middle" fill="#d2a8ff" font-size="11" font-weight="600">SyncCommitteeMgr</text>
+
+      <rect x="20" y="140" width="170" height="30" rx="5" fill="rgba(240,136,62,0.1)" stroke="#f0883e" stroke-width="1"/>
+      <text x="105" y="160" text-anchor="middle" fill="#f0883e" font-size="11" font-weight="600">DataAvailabilityMgr</text>
+
+      <rect x="200" y="32" width="170" height="30" rx="5" fill="rgba(255,123,114,0.1)" stroke="#ff7b72" stroke-width="1"/>
+      <text x="285" y="52" text-anchor="middle" fill="#ff7b72" font-size="11" font-weight="600">CanonicalHead</text>
+
+      <rect x="200" y="68" width="170" height="30" rx="5" fill="rgba(126,231,135,0.1)" stroke="#7ee787" stroke-width="1"/>
+      <text x="285" y="88" text-anchor="middle" fill="#7ee787" font-size="11" font-weight="600">ExecutionManager</text>
+
+      <rect x="200" y="104" width="170" height="30" rx="5" fill="rgba(121,192,255,0.1)" stroke="#79c0ff" stroke-width="1"/>
+      <text x="285" y="124" text-anchor="middle" fill="#79c0ff" font-size="11" font-weight="600">ValidatorQuerySvc</text>
+
+      <!-- BlockImporter moved to ORCHESTRATORS section below -->
+
+      <!-- Orchestrators (compose components) -->
+      <text x="20" y="190" fill="#f0883e" font-size="11" font-weight="600">ORCHESTRATORS (compose components, &amp;self methods)</text>
+      <rect x="20" y="202" width="170" height="30" rx="5" fill="rgba(240,136,62,0.1)" stroke="#f0883e" stroke-width="1"/>
+      <text x="105" y="222" text-anchor="middle" fill="#f0883e" font-size="11" font-weight="600">BlockImporter&lt;T&gt;</text>
+
+      <rect x="200" y="202" width="170" height="30" rx="5" fill="rgba(240,136,62,0.1)" stroke="#f0883e" stroke-width="1"/>
+      <text x="285" y="222" text-anchor="middle" fill="#f0883e" font-size="11" font-weight="600">BlockProducer&lt;T&gt;</text>
+
+      <!-- Callers -->
+      <text x="450" y="20" fill="#8b949e" font-size="11" font-weight="600">CALLERS (hold refs, no logic)</text>
+      <rect x="450" y="32" width="210" height="30" rx="6" fill="#1c2129" stroke="#30363d" stroke-width="1"/>
+      <text x="555" y="52" text-anchor="middle" fill="#8b949e" font-size="11">HTTP API Context</text>
+      <rect x="450" y="68" width="210" height="30" rx="6" fill="#1c2129" stroke="#30363d" stroke-width="1"/>
+      <text x="555" y="88" text-anchor="middle" fill="#8b949e" font-size="11">NetworkBeaconProcessor</text>
+      <rect x="450" y="104" width="210" height="30" rx="6" fill="#1c2129" stroke="#30363d" stroke-width="1"/>
+      <text x="555" y="124" text-anchor="middle" fill="#8b949e" font-size="11">Sync Manager</text>
+
+      <!-- Arrows -->
+      <line x1="448" y1="47" x2="372" y2="47" stroke="#30363d" stroke-width="1" marker-end="url(#arrowBlue)" opacity="0.5"/>
+      <line x1="448" y1="83" x2="372" y2="83" stroke="#30363d" stroke-width="1" marker-end="url(#arrowBlue)" opacity="0.5"/>
+      <line x1="448" y1="119" x2="372" y2="119" stroke="#30363d" stroke-width="1" marker-end="url(#arrowBlue)" opacity="0.5"/>
+
+      <!-- Testing -->
+      <text x="20" y="260" fill="#3fb950" font-size="11" font-weight="600">TESTING</text>
+      <rect x="20" y="272" width="350" height="30" rx="5" fill="rgba(63,185,80,0.06)" stroke="rgba(63,185,80,0.25)" stroke-width="1"/>
+      <text x="195" y="292" text-anchor="middle" fill="#3fb950" font-size="10" font-weight="500">Unit tests &mdash; construct component, pass test state, assert</text>
+      <rect x="20" y="308" width="350" height="30" rx="5" fill="rgba(240,136,62,0.06)" stroke="rgba(240,136,62,0.25)" stroke-width="1"/>
+      <text x="195" y="328" text-anchor="middle" fill="#f0883e" font-size="10" font-weight="500">Acceptance tests &mdash; event-based via sync manager TestRig</text>
+      <rect x="20" y="344" width="350" height="30" rx="5" fill="rgba(121,192,255,0.06)" stroke="rgba(121,192,255,0.25)" stroke-width="1"/>
+      <text x="195" y="364" text-anchor="middle" fill="#79c0ff" font-size="10" font-weight="500">Integration tests &mdash; existing BeaconChainHarness (still works)</text>
+    </svg>
+  </div>
+</section>
+
+<!-- ════════════ DESIGN PRINCIPLES ════════════ -->
+<section id="principles">
+  <h2 class="fade-in">Design Principles <span class="badge">Constraints</span></h2>
+  <p class="lead fade-in">
+    Derived from specific problems in <code>BeaconChain&lt;T&gt;</code>. These guide design decisions.
+  </p>
+
+  <div class="principles fade-in">
+    <div class="principle">
+      <div class="principle-num">1</div>
+      <h3>Favour composition over god objects</h3>
+      <p>Workflows compose the specific capabilities they need &mdash; not whole components. Pass what you need, not what <em>has</em> what you need.</p>
+      <div class="why">Today <code>produce_block_on_state</code> accesses <code>self.*</code> for everything because the god object makes it easy. Tracing what it actually uses reveals 3 domain dependencies out of 40+ fields. See the <a href="#howitworks" style="color:var(--accent);">block production example</a> below.</div>
+    </div>
+
+    <div class="principle">
+      <div class="principle-num">2</div>
+      <h3>Separate business logic from infrastructure</h3>
+      <p>Components own verification logic and state. Infrastructure like chain state, current slot, and event dispatch is provided by the caller &mdash; as values, references, or callbacks.</p>
+      <div class="why">Today verification methods internally reach into <code>CanonicalHead</code> for head state and <code>SlotClock</code> for the current epoch. This couples every component to chain infrastructure and makes isolated testing impossible.</div>
+    </div>
+
+    <div class="principle">
+      <div class="principle-num">3</div>
+      <h3>Components are testable in isolation</h3>
+      <p>Construct a component, pass in test state, assert results &mdash; without <code>BeaconChainHarness</code>, store, or fork choice.</p>
+      <div class="why">Today you can't test verification logic without spinning up the full chain. Deterministic components that receive context as parameters can be tested directly, verified against specs, and safely modified.</div>
+    </div>
+
+    <div class="principle">
+      <div class="principle-num">4</div>
+      <h3>Fork choice write locks are concentrated</h3>
+      <p>Write locks are acquired only by block import, head recomputation, attestation application, and EL callbacks. Components like OperationsManager and SyncCommitteeManager never touch them.</p>
+      <div class="why">The lock ordering in <code>canonical_head.rs</code> is where deadlocks happen. Today any code holding <code>Arc&lt;BeaconChain&gt;</code> can reach the fork choice lock. This architecture enforces that boundary.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════ HOW IT WORKS ════════════ -->
+<section id="howitworks">
+  <h2 class="fade-in">How It Works <span class="badge">Details</span></h2>
+  <p class="lead fade-in">
+    Block production as a worked example, followed by the component reference.
+  </p>
+
+  <details class="fade-in" open>
+    <summary>What block production actually needs</summary>
+    <div class="detail-body">
+      <p style="margin-bottom:1rem;"><code>produce_block_on_state</code> looks like it needs the entire <code>BeaconChain</code>. It doesn't. Tracing what it actually <em>uses</em>:</p>
+
+      <div style="display:grid; grid-template-columns:auto 1fr; gap:0.5rem 1rem; font-size:0.85rem; margin-bottom:1.5rem;">
+        <strong style="color:var(--accent);">Domain</strong><span></span>
+        <code style="color:var(--accent6);">&amp;OperationPool</code>
+        <span style="color:var(--text-muted);">Pull attestations, exits, slashings, sync aggregate, BLS changes</span>
+        <code style="color:var(--accent6);">CanonicalHead</code>
+        <span style="color:var(--text-muted);">Head slot, finalized checkpoint, forkchoice params (read-only)</span>
+        <code style="color:var(--accent6);">ExecutionLayer</code>
+        <span style="color:var(--text-muted);">Get payload from EL, fee recipient, gas limit</span>
+
+        <strong style="color:var(--text-muted); margin-top:0.5rem;">Infrastructure</strong><span></span>
+        <code style="color:var(--text-muted);">&amp;ChainSpec</code>
+        <span style="color:var(--text-muted);">Spec constants (everything needs this)</span>
+        <code style="color:var(--text-muted);">BlockProductionConfig</code>
+        <span style="color:var(--text-muted);">~5 flags: paranoid mode, size limits, builder fallback</span>
+        <code style="color:var(--text-muted);">SlotClock</code>
+        <span style="color:var(--text-muted);">Current slot</span>
+        <code style="color:var(--text-muted);">TaskExecutor</code>
+        <span style="color:var(--text-muted);">Spawn blocking work</span>
+      </div>
+
+      <p><strong>3 domain dependencies</strong> vs 40+ fields on the god object. The infrastructure deps (spec, clock, executor) are just Rust requiring you to be explicit about what other languages grab from globals.</p>
+    </div>
+  </details>
+
+  <details class="fade-in">
+    <summary>BlockProducer&lt;T&gt; &mdash; constructor injection with &amp;self</summary>
+    <div class="detail-body">
+      <div class="code-block" style="margin:0 0 1rem 0;">
+        <div class="code-header">
+          <span class="dot" aria-hidden="true"></span><span class="dot" aria-hidden="true"></span><span class="dot" aria-hidden="true"></span>
+          <span>block_production/mod.rs &mdash; struct owns its Arcs, methods use &amp;self</span>
+        </div>
+<pre><span class="cm">/// Owns the subsystems required to produce beacon blocks.</span>
+<span class="cm">/// Constructed once by the builder; methods use &amp;self.</span>
+<span class="kw">pub struct</span> <span class="ty">BlockProducer</span>&lt;<span class="ty">T: BeaconChainTypes</span>&gt; {
+    spec: <span class="ty">Arc</span>&lt;<span class="ty">ChainSpec</span>&gt;,
+    store: <span class="ty">BeaconStore</span>&lt;<span class="ty">T</span>&gt;,
+    config: <span class="ty">Arc</span>&lt;<span class="ty">ChainConfig</span>&gt;,
+    op_pool: <span class="ty">Arc</span>&lt;<span class="ty">OperationPool</span>&lt;<span class="ty">T::EthSpec</span>&gt;&gt;,
+    canonical_head: <span class="ty">Arc</span>&lt;<span class="ty">CanonicalHead</span>&lt;<span class="ty">T</span>&gt;&gt;,
+    execution_manager: <span class="ty">Arc</span>&lt;<span class="ty">ExecutionManager</span>&lt;<span class="ty">T</span>&gt;&gt;,
+    attestation_manager: <span class="ty">Arc</span>&lt;<span class="ty">AttestationManager</span>&lt;<span class="ty">T::EthSpec</span>&gt;&gt;,
+    <span class="cm">// ... (other fields elided)</span>
+}
+
+<span class="kw">impl</span>&lt;<span class="ty">T: BeaconChainTypes</span>&gt; <span class="ty">BlockProducer</span>&lt;<span class="ty">T</span>&gt; {
+    <span class="kw">pub async fn</span> <span class="fn">produce_block_on_state</span>(
+        &amp;<span class="kw">self</span>,
+        state: <span class="ty">BeaconState</span>&lt;<span class="ty">T::EthSpec</span>&gt;,
+        produce_at_slot: <span class="ty">Slot</span>,
+        randao_reveal: <span class="ty">Signature</span>,
+        <span class="cm">// ...</span>
+    ) -&gt; <span class="ty">Result</span>&lt;<span class="ty">BeaconBlockResponseWrapper</span>&lt;<span class="ty">T::EthSpec</span>&gt;&gt; {
+        <span class="cm">// All deps accessed via self.* -- no god object needed</span>
+        <span class="kw">let</span> attestations = <span class="kw">self</span>.op_pool.<span class="fn">get_attestations</span>(&amp;state, &amp;<span class="kw">self</span>.spec)?;
+        <span class="kw">let</span> health = <span class="fn">is_healthy</span>(&amp;<span class="kw">self</span>.canonical_head, <span class="cm">/* ... */</span>)?;
+        <span class="cm">// ...</span>
+    }
+}</pre>
+      </div>
+    </div>
+  </details>
+
+  <details class="fade-in">
+    <summary>Components &mdash; what each one owns and holds</summary>
+    <div class="detail-body">
+      <p style="margin-bottom:1rem;">Each component owns its verification state and holds shared references.</p>
+      <div class="ref-grid">
+        <div class="ref-card">
+          <h4>OperationsManager</h4>
+          <p>Voluntary exits, slashings, BLS changes. Verification, dedup, pool insertion.</p>
+          <div class="tag-list">
+            <span class="tag own">observed_voluntary_exits</span>
+            <span class="tag own">observed_proposer_slashings</span>
+            <span class="tag own">observed_attester_slashings</span>
+            <span class="tag hld">spec</span>
+            <span class="tag hld">op_pool</span>
+          </div>
+        </div>
+        <div class="ref-card">
+          <h4>AttestationManager</h4>
+          <p>Attestation production, verification, aggregation, pool management.</p>
+          <div class="tag-list">
+            <span class="tag own">naive_aggregation_pool</span>
+            <span class="tag own">observed_attestations</span>
+            <span class="tag own">shuffling_cache</span>
+            <span class="tag hld">spec</span>
+            <span class="tag hld">op_pool</span>
+          </div>
+        </div>
+        <div class="ref-card">
+          <h4>SyncCommitteeManager</h4>
+          <p>Sync committee message/contribution verification, aggregation pool.</p>
+          <div class="tag-list">
+            <span class="tag own">naive_sync_aggregation_pool</span>
+            <span class="tag own">observed_sync_contributions</span>
+            <span class="tag hld">spec</span>
+            <span class="tag hld">op_pool</span>
+          </div>
+        </div>
+        <div class="ref-card">
+          <h4>DataAvailabilityManager</h4>
+          <p>Blob/data column processing, custody, DA boundary calculations.</p>
+          <div class="tag-list">
+            <span class="tag own">data_availability_checker</span>
+            <span class="tag own">observed_blob_sidecars</span>
+            <span class="tag own">kzg</span>
+            <span class="tag hld">spec</span>
+            <span class="tag hld">store</span>
+          </div>
+        </div>
+        <div class="ref-card">
+          <h4>ExecutionManager</h4>
+          <p>Execution layer integration, proposer preparation, forkchoice updates.</p>
+          <div class="tag-list">
+            <span class="tag own">beacon_proposer_cache</span>
+            <span class="tag hld">spec</span>
+            <span class="tag hld">execution_layer</span>
+          </div>
+        </div>
+        <div class="ref-card">
+          <h4>ValidatorQueryService</h4>
+          <p>Validator pubkey lookups, committee cache access.</p>
+          <div class="tag-list">
+            <span class="tag own">validator_pubkey_cache</span>
+            <span class="tag hld">spec</span>
+          </div>
+        </div>
+        <div class="ref-card">
+          <h4>BlockImporter&lt;T&gt;</h4>
+          <p>Orchestrator for block, blob, and data-column import. Owns import caches and observation tracking.</p>
+          <div class="tag-list">
+            <span class="tag own">observed_block_producers</span>
+            <span class="tag own">observed_slashable</span>
+            <span class="tag own">event_handler</span>
+            <span class="tag own">validator_monitor</span>
+            <span class="tag hld">canonical_head</span>
+            <span class="tag hld">attestation_manager</span>
+            <span class="tag hld">data_availability_manager</span>
+          </div>
+        </div>
+        <div class="ref-card">
+          <h4>BlockProducer&lt;T&gt;</h4>
+          <p>Orchestrator for block production: state loading, partial block assembly, execution payload integration.</p>
+          <div class="tag-list">
+            <span class="tag hld">op_pool</span>
+            <span class="tag hld">canonical_head</span>
+            <span class="tag hld">execution_manager</span>
+            <span class="tag hld">attestation_manager</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </details>
+
+  <details class="fade-in">
+    <summary>Dependency injection &mdash; what each caller receives</summary>
+    <div class="detail-body">
+      <p style="margin-bottom:1rem;">Callers hold refs to components but no logic of their own. Handler functions pull the specific refs they need.</p>
+      <div class="ref-grid">
+        <div class="ref-card">
+          <h4>NetworkBeaconProcessor</h4>
+          <p>Gossip handlers, sync</p>
+          <div class="tag-list">
+            <span class="tag own">OperationsManager</span>
+            <span class="tag own">AttestationManager</span>
+            <span class="tag own">SyncCommitteeManager</span>
+            <span class="tag own">DataAvailabilityMgr</span>
+            <span class="tag own">BlockImporter</span>
+            <span class="tag own">CanonicalHead</span>
+          </div>
+        </div>
+        <div class="ref-card">
+          <h4>HTTP API &mdash; Pool Endpoints</h4>
+          <p>/eth/v1/beacon/pool/*</p>
+          <div class="tag-list">
+            <span class="tag own">OperationsManager</span>
+            <span class="tag own">CanonicalHead</span>
+          </div>
+        </div>
+        <div class="ref-card">
+          <h4>HTTP API &mdash; Validator Endpoints</h4>
+          <p>/eth/v1/validator/*</p>
+          <div class="tag-list">
+            <span class="tag own">ValidatorQueryService</span>
+            <span class="tag own">ExecutionManager</span>
+            <span class="tag own">CanonicalHead</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </details>
+</section>
+
 <!-- ════════════ CHEAT SHEET ════════════ -->
 <section id="cheatsheet">
   <h2 class="fade-in">Quick Reference <span class="badge">Cheat Sheet</span></h2>
   <p class="lead fade-in">
-    Patterns and anti-patterns for developing in the modular architecture.
+    Patterns and anti-patterns for working in this architecture.
   </p>
 
   <div class="cheat fade-in">
