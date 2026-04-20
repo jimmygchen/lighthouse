@@ -272,6 +272,7 @@ pub async fn publish_block<T: BeaconChainTypes, B: IntoGossipVerifiedBlock<T>>(
                 NotifyExecutionLayer::Yes,
                 BlockImportSource::HttpApi,
                 publish_fn,
+                &chain,
             ))
             .await;
             post_block_import_logging_and_response(
@@ -323,6 +324,7 @@ pub async fn publish_block<T: BeaconChainTypes, B: IntoGossipVerifiedBlock<T>>(
                 NotifyExecutionLayer::Yes,
                 BlockImportSource::HttpApi,
                 publish_fn,
+                &chain,
             ))
             .await;
             post_block_import_logging_and_response(

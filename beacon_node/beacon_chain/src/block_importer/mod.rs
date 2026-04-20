@@ -2,10 +2,9 @@
 //!
 //! `BlockImporter<T>` owns the subsystems required to import blocks, blobs and data columns. It
 //! holds `Arc`-shared handles to every piece of state it accesses directly (store, spec, slot
-//! clock, canonical head, attestation manager, etc.). For cross-module verification helpers that
-//! still take `&BeaconChain<T>`, a `Weak<BeaconChain<T>>` back-reference is installed
-//! post-construction by the builder. The `Weak` avoids a reference cycle, allowing proper
-//! cleanup in tests.
+//! clock, canonical head, attestation manager, etc.). Methods that still need `&BeaconChain<T>`
+//! for cross-module verification (e.g. `block_verification.rs`) receive it as a parameter
+//! from the caller rather than storing a back-reference.
 
 #[cfg(test)]
 mod tests;
@@ -17,8 +16,7 @@ use crate::blob_verification::GossipVerifiedBlob;
 use crate::block_times_cache::BlockTimesCache;
 use crate::block_verification::{
     BlockError, ExecutionPendingBlock, GossipVerifiedBlock, IntoExecutionPendingBlock,
-    check_block_is_finalized_checkpoint_or_descendant,
-    signature_verify_chain_segment,
+    check_block_is_finalized_checkpoint_or_descendant, signature_verify_chain_segment,
 };
 use crate::block_verification_types::{
     AsBlock, AvailableExecutedBlock, BlockImportData, ExecutedBlock, RangeSyncBlock,
@@ -57,7 +55,7 @@ use parking_lot::{RwLock, RwLockWriteGuard};
 use slasher::Slasher;
 use slot_clock::SlotClock;
 use state_processing::ConsensusContext;
-use std::sync::{Arc, OnceLock, Weak};
+use std::sync::Arc;
 use std::time::Duration;
 use store::StoreOp;
 use task_executor::{RayonPoolType, ShutdownReason, TaskExecutor};
@@ -184,16 +182,13 @@ pub fn verify_weak_subjectivity_checkpoint<T: BeaconChainTypes>(
 /// canonical head, attestation manager, observed slashable cache, validator monitor,
 /// optional event handler, data availability manager, store, spec, and various caches.
 ///
-/// For cross-module verification helpers that still take `&BeaconChain<T>`
-/// (`signature_verify_chain_segment`, `GossipVerifiedBlock::new`,
-/// `IntoExecutionPendingBlock::into_execution_pending_block`,
-/// `check_block_is_finalized_checkpoint_or_descendant`,
-/// `handle_import_block_db_write_error`, `import_block_observe_attestations`,
-/// `import_block_update_validator_monitor`, `import_block_update_slasher`), a
-/// `Weak<BeaconChain<T>>` back-reference is installed by the builder post-construction.
-/// The `Weak` avoids a reference cycle, allowing proper cleanup in tests. Rewriting those
-/// helper signatures to take only the dependencies they need would let us drop the
-/// back-reference entirely.
+/// Cross-module verification helpers in `block_verification.rs` that still take
+/// `&BeaconChain<T>` (e.g. `signature_verify_chain_segment`, `GossipVerifiedBlock::new`,
+/// `IntoExecutionPendingBlock::into_execution_pending_block`) receive it as a
+/// parameter from the caller. Module-local helpers (`import_block_observe_attestations`,
+/// `import_block_update_validator_monitor`, `import_block_update_slasher`,
+/// `handle_import_block_db_write_error`) take `&BlockImporter<T>` directly.
+/// `BlockImporter` has no back-reference to `BeaconChain`.
 pub struct BlockImporter<T: BeaconChainTypes> {
     // Arc-held subsystems cloned at construction.
     pub(crate) spec: Arc<ChainSpec>,
@@ -202,9 +197,7 @@ pub struct BlockImporter<T: BeaconChainTypes> {
     pub(crate) data_availability_manager: Arc<DataAvailabilityManager<T>>,
     pub(crate) canonical_head: Arc<CanonicalHead<T>>,
     pub(crate) attestation_manager: Arc<AttestationManager<T::EthSpec>>,
-    // Held as direct Arc handles even when current access still goes through free helpers that
-    // take `&BeaconChain<T>`; retaining the Arcs here lets us migrate those helpers to
-    // per-component inputs without churning this struct again.
+    // Observer and monitor state.
     pub validator_monitor: Arc<RwLock<ValidatorMonitor<T::EthSpec>>>,
     pub observed_slashable: Arc<RwLock<ObservedSlashable<T::EthSpec>>>,
     pub event_handler: Option<Arc<ServerSentEventHandler<T::EthSpec>>>,
@@ -233,13 +226,11 @@ pub struct BlockImporter<T: BeaconChainTypes> {
     #[allow(dead_code)]
     pub(crate) execution_manager: Arc<crate::execution_manager::ExecutionManager<T>>,
     #[allow(dead_code)]
-    pub(crate) sync_committee_manager: Arc<crate::sync_committee_manager::SyncCommitteeManager<T::EthSpec>>,
+    pub(crate) sync_committee_manager:
+        Arc<crate::sync_committee_manager::SyncCommitteeManager<T::EthSpec>>,
     // Utilities.
     pub(crate) task_executor: TaskExecutor,
     pub shutdown_sender: Sender<ShutdownReason>,
-    // Weak back-reference to the parent `BeaconChain`, installed post-construction by the
-    // builder. Uses `Weak` to avoid a reference cycle that would prevent cleanup in tests.
-    pub(crate) chain: OnceLock<Weak<BeaconChain<T>>>,
 }
 
 impl<T: BeaconChainTypes> BlockImporter<T> {
@@ -274,7 +265,9 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
         genesis_validators_root: Hash256,
         validator_query: Arc<crate::validator_query_service::ValidatorQueryService<T>>,
         execution_manager: Arc<crate::execution_manager::ExecutionManager<T>>,
-        sync_committee_manager: Arc<crate::sync_committee_manager::SyncCommitteeManager<T::EthSpec>>,
+        sync_committee_manager: Arc<
+            crate::sync_committee_manager::SyncCommitteeManager<T::EthSpec>,
+        >,
         task_executor: TaskExecutor,
         shutdown_sender: Sender<ShutdownReason>,
     ) -> Self {
@@ -306,27 +299,7 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
             sync_committee_manager,
             task_executor,
             shutdown_sender,
-            chain: OnceLock::new(),
         }
-    }
-
-    /// Install the weak back-reference to the parent `BeaconChain`.
-    ///
-    /// Must be called once by the builder after `BeaconChain` has been wrapped in an `Arc`.
-    pub fn set_chain(&self, chain: &Arc<BeaconChain<T>>) {
-        let _ = self.chain.set(Arc::downgrade(chain));
-    }
-
-    /// Get the parent `BeaconChain` by upgrading the `Weak` back-reference.
-    ///
-    /// Only needed for cross-module helpers in `block_verification.rs` that still
-    /// take `&BeaconChain<T>`. Panics if the parent has been dropped or not installed.
-    pub(crate) fn chain(&self) -> Arc<BeaconChain<T>> {
-        self.chain
-            .get()
-            .expect("BlockImporter chain ref not installed; builder bug")
-            .upgrade()
-            .expect("BeaconChain dropped while BlockImporter still alive")
     }
 
     pub fn filter_chain_segment(
@@ -440,6 +413,7 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
         self: &Arc<Self>,
         chain_segment: Vec<RangeSyncBlock<T::EthSpec>>,
         notify_execution_layer: NotifyExecutionLayer,
+        chain: &Arc<BeaconChain<T>>,
     ) -> ChainSegmentResult {
         for block in chain_segment.iter() {
             if let Err(error) = self.check_invalid_block_roots(block.block_root()) {
@@ -486,7 +460,7 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
             let mut blocks = filtered_chain_segment.split_off(last_index);
             std::mem::swap(&mut blocks, &mut filtered_chain_segment);
 
-            let chain_clone = self.chain().clone();
+            let chain_clone = chain.clone();
             let signature_verification_future = crate::utils::spawn_blocking_handle(
                 &self.task_executor,
                 move || signature_verify_chain_segment(blocks, &chain_clone),
@@ -520,6 +494,7 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
                         notify_execution_layer,
                         BlockImportSource::RangeSync,
                         || Ok(()),
+                        chain,
                     )
                     .await
                 {
@@ -577,8 +552,9 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
     pub async fn verify_block_for_gossip(
         &self,
         block: Arc<SignedBeaconBlock<T::EthSpec>>,
+        chain: &Arc<BeaconChain<T>>,
     ) -> Result<GossipVerifiedBlock<T>, BlockError> {
-        let chain_clone = self.chain().clone();
+        let chain_clone = chain.clone();
         self.task_executor
             .clone()
             .spawn_blocking_handle(
@@ -910,6 +886,7 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
         notify_execution_layer: NotifyExecutionLayer,
         block_source: BlockImportSource,
         publish_fn: impl FnOnce() -> Result<(), BlockError>,
+        chain: &Arc<BeaconChain<T>>,
     ) -> Result<AvailabilityProcessingStatus, BlockError> {
         let block_slot = unverified_block.block().slot();
 
@@ -946,7 +923,7 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
         metrics::inc_counter(&metrics::BLOCK_PROCESSING_REQUESTS);
 
         // A small closure to group the verification and import errors.
-        let chain_clone = self.chain().clone();
+        let chain_clone = chain.clone();
         let importer_clone = self.clone();
         let import_block = async move {
             let execution_pending = unverified_block.into_execution_pending_block(
@@ -1313,7 +1290,6 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
         // being able to attest to it. DO NOT add any extra processing in this initial section
         // unless it must run before fork choice.
         // -----------------------------------------------------------------------------------------
-        let chain = self.chain().clone();
         let current_slot = self.slot_clock.now().ok_or(Error::UnableToReadSlot)?;
         let current_epoch = current_slot.epoch(T::EthSpec::slots_per_epoch());
         let block = signed_block.message();
@@ -1369,8 +1345,11 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
         let mut fork_choice = parking_lot::RwLockUpgradableReadGuard::upgrade(fork_choice_reader);
 
         // Do not import a block that doesn't descend from the finalized root.
-        let signed_block =
-            check_block_is_finalized_checkpoint_or_descendant(&chain, &fork_choice, signed_block)?;
+        let signed_block = check_block_is_finalized_checkpoint_or_descendant::<T, _>(
+            &self.store,
+            &fork_choice,
+            signed_block,
+        )?;
         let block = signed_block.message();
 
         // Register the new block with the fork choice service.
@@ -1504,21 +1483,21 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
         self.attestation_manager
             .import_block_update_shuffling_cache(block_root, &mut state);
         import_block_observe_attestations(
-            &chain,
+            self,
             block,
             &state,
             &mut consensus_context,
             current_epoch,
         );
         import_block_update_validator_monitor(
-            &chain,
+            self,
             block,
             &state,
             &mut consensus_context,
             current_slot,
             parent_block.slot(),
         );
-        import_block_update_slasher(&chain, block, &state, &mut consensus_context);
+        import_block_update_slasher(self, block, &state, &mut consensus_context);
 
         // Store the block and its state, and execute the confirmation batch for the intermediate
         // states, which will delete their temporary flags.
@@ -1552,7 +1531,7 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
                 error = ?e,
                 "Database write failed!"
             );
-            return Err(handle_import_block_db_write_error(&chain, fork_choice)
+            return Err(handle_import_block_db_write_error(self, fork_choice)
                 .err()
                 .unwrap_or(e.into()));
         }
@@ -1570,8 +1549,7 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
         // compute state proofs for light client updates before inserting the state into the
         // snapshot cache.
         if self.config.enable_light_client_server {
-            self
-                .light_client_server_cache
+            self.light_client_server_cache
                 .cache_state_data(
                     &self.spec, block, block_root,
                     // mutable reference on the state is needed to compute merkle proofs
@@ -1587,8 +1565,7 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
         metrics::inc_counter(&metrics::BLOCK_PROCESSING_SUCCESSES);
 
         // Inform the unknown block cache, in case it was waiting on this block.
-        self
-            .pre_finalization_block_cache
+        self.pre_finalization_block_cache
             .block_processed(block_root);
 
         import_block_update_metrics_and_events(
@@ -1712,8 +1689,7 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
             .start_slot(T::EthSpec::slots_per_epoch());
 
         if block.slot() <= finalized_slot {
-            self.pre_finalization_block_cache
-                .block_rejected(block_root);
+            self.pre_finalization_block_cache.block_rejected(block_root);
             return Err(BlockError::WouldRevertFinalizedSlot {
                 block_slot: block.slot(),
                 finalized_slot,
@@ -1736,15 +1712,13 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
 
 // --- Module-level private helpers ---
 //
-// These helpers either consume a `&BlockImporter<T>` (which provides `self.parent()` on demand
-// for reaching `BeaconChain` fields not yet held by the importer) or take the specific
-// components they need explicitly. Crucially they do NOT have a `chain: &BeaconChain<T>`
-// parameter — the importer is the sole entry point for block-import state.
+// These helpers consume `&BlockImporter<T>` and access its fields directly, without
+// requiring a `&BeaconChain<T>` parameter.
 
 /// Process a block for the validator monitor, including all its constituent messages.
 #[instrument(skip_all, level = "debug")]
 fn import_block_update_validator_monitor<T: BeaconChainTypes>(
-    components: &BeaconChain<T>,
+    importer: &BlockImporter<T>,
     block: BeaconBlockRef<T::EthSpec>,
     state: &BeaconState<T::EthSpec>,
     ctxt: &mut ConsensusContext<T::EthSpec>,
@@ -1761,17 +1735,13 @@ fn import_block_update_validator_monitor<T: BeaconChainTypes>(
     }
 
     // Allow the validator monitor to learn about a new valid state.
-    components
-        .block_importer
-        .validator_monitor
-        .write()
-        .process_valid_state(
-            current_slot.epoch(T::EthSpec::slots_per_epoch()),
-            state,
-            &components.spec,
-        );
+    importer.validator_monitor.write().process_valid_state(
+        current_slot.epoch(T::EthSpec::slots_per_epoch()),
+        state,
+        &importer.spec,
+    );
 
-    let validator_monitor = components.block_importer.validator_monitor.read();
+    let validator_monitor = importer.validator_monitor.read();
 
     // Sync aggregate.
     if let Ok(sync_aggregate) = block.body().sync_aggregate() {
@@ -1779,15 +1749,15 @@ fn import_block_update_validator_monitor<T: BeaconChainTypes>(
         let duty_epoch = block.epoch();
 
         let res = {
-            let head_state = &components.canonical_head.head_snapshot().beacon_state;
-            components.sync_committee_manager.sync_committee_at_epoch(
+            let head_state = &importer.canonical_head.head_snapshot().beacon_state;
+            importer.sync_committee_manager.sync_committee_at_epoch(
                 duty_epoch,
                 head_state,
                 |load_slot| {
                     crate::state_query::state_at_slot(
-                        &components.store,
-                        &components.canonical_head,
-                        &components.spec,
+                        &importer.store,
+                        &importer.canonical_head,
+                        &importer.spec,
                         load_slot,
                         crate::state_query::StateSkipConfig::WithoutStateRoots,
                     )
@@ -1837,7 +1807,7 @@ fn import_block_update_validator_monitor<T: BeaconChainTypes>(
         validator_monitor.register_attestation_in_block(
             indexed_attestation,
             parent_block_slot,
-            &components.spec,
+            &importer.spec,
         );
     }
 
@@ -1859,7 +1829,7 @@ fn import_block_update_validator_monitor<T: BeaconChainTypes>(
 /// This will stop us from propagating them on the gossip network.
 #[instrument(skip_all, level = "debug")]
 fn import_block_observe_attestations<T: BeaconChainTypes>(
-    components: &BeaconChain<T>,
+    importer: &BlockImporter<T>,
     block: BeaconBlockRef<T::EthSpec>,
     state: &BeaconState<T::EthSpec>,
     ctxt: &mut ConsensusContext<T::EthSpec>,
@@ -1874,7 +1844,7 @@ fn import_block_observe_attestations<T: BeaconChainTypes>(
     let _timer = metrics::start_timer(&metrics::BLOCK_PROCESSING_ATTESTATION_OBSERVATION);
 
     for a in block.body().attestations() {
-        match components
+        match importer
             .attestation_manager
             .observed_attestations
             .write()
@@ -1907,7 +1877,7 @@ fn import_block_observe_attestations<T: BeaconChainTypes>(
             }
         };
 
-        let mut observed_block_attesters = components
+        let mut observed_block_attesters = importer
             .attestation_manager
             .observed_block_attesters
             .write();
@@ -1930,12 +1900,12 @@ fn import_block_observe_attestations<T: BeaconChainTypes>(
 /// If a slasher is configured, provide the attestations from the block.
 #[instrument(skip_all, level = "debug")]
 fn import_block_update_slasher<T: BeaconChainTypes>(
-    components: &BeaconChain<T>,
+    importer: &BlockImporter<T>,
     block: BeaconBlockRef<T::EthSpec>,
     state: &BeaconState<T::EthSpec>,
     ctxt: &mut ConsensusContext<T::EthSpec>,
 ) {
-    if let Some(slasher) = components.block_importer.slasher.as_ref() {
+    if let Some(slasher) = importer.slasher.as_ref() {
         for attestation in block.body().attestations() {
             let indexed_attestation = match ctxt.get_indexed_attestation(state, attestation) {
                 Ok(indexed) => indexed,
@@ -2170,7 +2140,7 @@ fn verify_header_signature_inline<T: BeaconChainTypes>(
 }
 
 fn handle_import_block_db_write_error<T: BeaconChainTypes>(
-    components: &BeaconChain<T>,
+    importer: &BlockImporter<T>,
     // We don't actually need this value, however it's always present when we call this function
     // and it needs to be dropped to prevent a dead-lock. Requiring it to be passed here is
     // defensive programming.
@@ -2178,18 +2148,18 @@ fn handle_import_block_db_write_error<T: BeaconChainTypes>(
 ) -> Result<(), BlockError> {
     // Clear the early attester cache to prevent attestations which we would later be unable
     // to verify due to the failure.
-    components.attestation_manager.early_attester_cache.clear();
+    importer.attestation_manager.early_attester_cache.clear();
 
     // Since the write failed, try to revert the canonical head back to what was stored
     // in the database. This attempts to prevent inconsistency between the database and
     // fork choice.
-    if let Err(e) = components.canonical_head.restore_from_store(
+    if let Err(e) = importer.canonical_head.restore_from_store(
         fork_choice_write_lock,
         ResetPayloadStatuses::always_reset_conditionally(
-            components.config.always_reset_payload_statuses,
+            importer.config.always_reset_payload_statuses,
         ),
-        &components.store,
-        &components.spec,
+        &importer.store,
+        &importer.spec,
     ) {
         crit!(
             error = ?e,

@@ -3273,7 +3273,6 @@ async fn weak_subjectivity_sync_test(
         .expect("should build");
 
     let beacon_chain = Arc::new(beacon_chain);
-    beacon_chain.block_importer.set_chain(&beacon_chain);
     beacon_chain.block_producer.set_chain(&beacon_chain);
     let wss_block_root = wss_block.canonical_root();
     let store_wss_block = beacon_chain::get_block::<DiskHarnessType<E>>(
@@ -3332,6 +3331,7 @@ async fn weak_subjectivity_sync_test(
                 NotifyExecutionLayer::Yes,
                 BlockImportSource::Lookup,
                 || Ok(()),
+                &beacon_chain,
             )
             .await
             .unwrap();
@@ -3987,6 +3987,7 @@ async fn process_blocks_and_attestations_for_unaligned_checkpoint() {
             NotifyExecutionLayer::Yes,
             BlockImportSource::Lookup,
             || Ok(()),
+            &harness.chain,
         )
         .await
         .unwrap_err();
@@ -4003,6 +4004,7 @@ async fn process_blocks_and_attestations_for_unaligned_checkpoint() {
             NotifyExecutionLayer::Yes,
             BlockImportSource::Lookup,
             || Ok(()),
+            &harness.chain,
         )
         .await
         .unwrap();

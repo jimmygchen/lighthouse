@@ -661,8 +661,6 @@ where
 
         let chain = builder.build().expect("should build");
         let chain = Arc::new(chain);
-        // Install the strong back-reference from the block importer to the parent components.
-        chain.block_importer.set_chain(&chain);
         // Install the strong back-reference from the block producer to the parent components.
         chain.block_producer.set_chain(&chain);
 
@@ -1381,6 +1379,7 @@ where
                 NotifyExecutionLayer::No,
                 BlockImportSource::Lookup,
                 || Ok(()),
+                &self.chain,
             )
             .await
             .unwrap_or_else(|e| panic!("import failed at slot {}: {e:?}", slot));
@@ -2688,6 +2687,7 @@ where
                     NotifyExecutionLayer::Yes,
                     BlockImportSource::Lookup,
                     || Ok(()),
+                    &self.chain,
                 )
                 .await?
                 .try_into()
@@ -2702,6 +2702,7 @@ where
                     NotifyExecutionLayer::Yes,
                     BlockImportSource::RangeSync,
                     || Ok(()),
+                    &self.chain,
                 )
                 .await?
                 .try_into()
@@ -2737,6 +2738,7 @@ where
                     NotifyExecutionLayer::Yes,
                     BlockImportSource::RangeSync,
                     || Ok(()),
+                    &self.chain,
                 )
                 .await?
                 .try_into()
@@ -2750,6 +2752,7 @@ where
                     NotifyExecutionLayer::Yes,
                     BlockImportSource::Lookup,
                     || Ok(()),
+                    &self.chain,
                 )
                 .await?
                 .try_into()

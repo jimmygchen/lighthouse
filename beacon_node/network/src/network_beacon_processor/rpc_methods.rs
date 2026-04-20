@@ -80,8 +80,8 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                 hex::encode(remote.fork_digest())
             ))
         } else if *remote.head_slot()
-            > beacon_chain::state_query::current_slot(&self.chain.slot_clock)
-                .unwrap_or_else(|_| self.chain.slot_clock.genesis_slot())
+            > beacon_chain::state_query::current_slot(&self.slot_clock)
+                .unwrap_or_else(|_| self.slot_clock.genesis_slot())
                 + FUTURE_SLOT_TOLERANCE
         {
             // The remote's head is on a slot that is significantly ahead of what we consider the
@@ -101,20 +101,20 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         } else {
             // Remote finalized epoch is less than ours.
             let remote_finalized_slot = start_slot(*remote.finalized_epoch());
-            if remote_finalized_slot < self.chain.store.get_oldest_block_slot() {
+            if remote_finalized_slot < self.store.get_oldest_block_slot() {
                 // Peer's finalized checkpoint is older than anything in our DB. We are unlikely
                 // to be able to help them sync.
                 Some("Old finality out of range".to_string())
-            } else if remote_finalized_slot < self.chain.store.get_split_slot() {
+            } else if remote_finalized_slot < self.store.get_split_slot() {
                 // Peer's finalized slot is in range for a quick block root check in our freezer DB.
                 // If that block root check fails, reject them as they're on a different finalized
                 // chain.
                 if beacon_chain::state_query::block_root_at_slot(
-                    &self.chain.store,
-                    &self.chain.canonical_head,
-                    &self.chain.spec,
-                    &self.chain.slot_clock,
-                    self.chain.genesis_block_root,
+                    &self.store,
+                    &self.canonical_head,
+                    &self.spec,
+                    &self.slot_clock,
+                    self.genesis_block_root,
                     remote_finalized_slot,
                     WhenSlotSkipped::Prev,
                 )
@@ -399,7 +399,6 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         let mut send_blob_count = 0;
 
         let fulu_start_slot = self
-            .chain
             .spec
             .fulu_fork_epoch
             .map(|epoch| epoch.start_slot(T::EthSpec::slots_per_epoch()));
@@ -411,8 +410,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             .iter()
             .flat_map(|blob_id| {
                 let block_root = blob_id.block_root;
-                self.chain
-                    .data_availability_manager
+                self.data_availability_manager
                     .data_availability_checker()
                     .get_cached_block(&block_root)
                     .and_then(|status| match status {
@@ -421,8 +419,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                         BlockProcessStatus::Unknown => None,
                     })
                     .or_else(|| {
-                        self.chain
-                            .attestation_manager
+                        self.attestation_manager
                             .early_attester_cache
                             .get_block(block_root)
                     })
@@ -447,7 +444,6 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
 
             // First attempt to get the blobs from the RPC cache.
             if let Ok(Some(blob)) = self
-                .chain
                 .data_availability_manager
                 .data_availability_checker()
                 .get_blob(id)
@@ -461,15 +457,11 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             } else {
                 let blob_list_result = match blob_list_results.entry(root) {
                     Entry::Vacant(entry) => entry.insert(
-                        self.chain
-                            .attestation_manager
+                        self.attestation_manager
                             .early_attester_cache
                             .get_blobs(*root)
                             .map(Into::into)
-                            .map_or_else(
-                                || self.chain.data_availability_manager.get_blobs(root),
-                                Ok,
-                            ),
+                            .map_or_else(|| self.data_availability_manager.get_blobs(root), Ok),
                     ),
                     Entry::Occupied(entry) => entry.into_mut(),
                 };
@@ -558,7 +550,6 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         let mut send_data_column_count = 0;
         // Only attempt lookups for columns the node has advertised and is responsible for maintaining custody of.
         let available_columns = self
-            .chain
             .data_availability_manager
             .custody_columns_for_epoch(None);
 
@@ -660,15 +651,10 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         }
 
         let lc_updates = match self
-            .chain
             .block_importer
             .light_client_server_cache
-            .get_light_client_updates(
-                &self.chain.store,
-                req.start_period,
-                req.count,
-                &self.chain.spec,
-            ) {
+            .get_light_client_updates(&self.store, req.start_period, req.count, &self.spec)
+        {
             Ok(lc_updates) => lc_updates,
             Err(e) => {
                 error!(
@@ -773,7 +759,6 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             peer_id,
             inbound_request_id,
             match self
-                .chain
                 .block_importer
                 .light_client_server_cache
                 .get_latest_optimistic_update()
@@ -808,7 +793,6 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             peer_id,
             inbound_request_id,
             match self
-                .chain
                 .block_importer
                 .light_client_server_cache
                 .get_latest_finality_update()
@@ -889,8 +873,8 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             .map(|(root, _)| *root)
             .collect::<Vec<_>>();
 
-        let current_slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock)
-            .unwrap_or_else(|_| self.chain.slot_clock.genesis_slot());
+        let current_slot = beacon_chain::state_query::current_slot(&self.slot_clock)
+            .unwrap_or_else(|_| self.slot_clock.genesis_slot());
 
         let log_results = |peer_id, blocks_sent| {
             if blocks_sent < (req_count as usize) {
@@ -1002,7 +986,6 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
     ) -> Result<Vec<(Hash256, Slot)>, (RpcErrorResponse, &'static str)> {
         let start_time = std::time::Instant::now();
         let finalized_slot = self
-            .chain
             .canonical_head
             .cached_head()
             .finalized_checkpoint()
@@ -1013,8 +996,8 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             // If the entire requested range is after finalization, use fork_choice
             (
                 {
-                    let head_block_root = self.chain.canonical_head.cached_head().head_block_root();
-                    let fork_choice_read_lock = self.chain.canonical_head.fork_choice_read_lock();
+                    let head_block_root = self.canonical_head.cached_head().head_block_root();
+                    let fork_choice_read_lock = self.canonical_head.fork_choice_read_lock();
                     let block_roots_iter = fork_choice_read_lock
                         .proto_array()
                         .iter_block_roots(&head_block_root);
@@ -1052,8 +1035,8 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
 
             // Get roots from fork choice (after finalized slot)
             let roots_from_fork_choice = {
-                let head_block_root = self.chain.canonical_head.cached_head().head_block_root();
-                let fork_choice_read_lock = self.chain.canonical_head.fork_choice_read_lock();
+                let head_block_root = self.canonical_head.cached_head().head_block_root();
+                let fork_choice_read_lock = self.canonical_head.fork_choice_read_lock();
                 let block_roots_iter = fork_choice_read_lock
                     .proto_array()
                     .iter_block_roots(&head_block_root);
@@ -1105,8 +1088,8 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         count: u64,
     ) -> Result<Vec<(Hash256, Slot)>, (RpcErrorResponse, &'static str)> {
         let forwards_block_root_iter = match beacon_chain::state_query::forwards_iter_block_roots(
-            &self.chain.store,
-            &self.chain.canonical_head,
+            &self.store,
+            &self.canonical_head,
             Slot::from(start_slot),
         ) {
             Ok(iter) => iter,
@@ -1204,7 +1187,6 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
 
         let request_start_slot = Slot::from(req_start_slot);
         let fork_name = self
-            .chain
             .spec
             .fork_name_at_slot::<T::EthSpec>(request_start_slot);
 
@@ -1237,8 +1219,8 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             .map(|(root, _)| *root)
             .collect::<Vec<_>>();
 
-        let current_slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock)
-            .unwrap_or_else(|_| self.chain.slot_clock.genesis_slot());
+        let current_slot = beacon_chain::state_query::current_slot(&self.slot_clock)
+            .unwrap_or_else(|_| self.slot_clock.genesis_slot());
 
         let log_results = |peer_id, payloads_sent| {
             if payloads_sent < (req_count as usize) {
@@ -1383,10 +1365,10 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
 
         let request_start_slot = Slot::from(req.start_slot);
         let request_start_epoch = request_start_slot.epoch(T::EthSpec::slots_per_epoch());
-        let fork_name = self.chain.spec.fork_name_at_epoch(request_start_epoch);
+        let fork_name = self.spec.fork_name_at_epoch(request_start_epoch);
         // Should not send more than max request blob sidecars
-        if req.max_blobs_requested(request_start_epoch, &self.chain.spec)
-            > self.chain.spec.max_request_blob_sidecars(fork_name) as u64
+        if req.max_blobs_requested(request_start_epoch, &self.spec)
+            > self.spec.max_request_blob_sidecars(fork_name) as u64
         {
             return Err((
                 RpcErrorResponse::InvalidRequest,
@@ -1394,7 +1376,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             ));
         }
 
-        let effective_count = if let Some(fulu_epoch) = self.chain.spec.fulu_fork_epoch {
+        let effective_count = if let Some(fulu_epoch) = self.spec.fulu_fork_epoch {
             let fulu_start_slot = fulu_epoch.start_slot(T::EthSpec::slots_per_epoch());
             let request_end_slot = request_start_slot.saturating_add(req.count) - 1;
 
@@ -1411,20 +1393,16 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             req.count
         };
 
-        let data_availability_boundary_slot = match self
-            .chain
-            .data_availability_manager
-            .data_availability_boundary()
-        {
-            Some(boundary) => boundary.start_slot(T::EthSpec::slots_per_epoch()),
-            None => {
-                debug!("Deneb fork is disabled");
-                return Err((RpcErrorResponse::InvalidRequest, "Deneb fork is disabled"));
-            }
-        };
+        let data_availability_boundary_slot =
+            match self.data_availability_manager.data_availability_boundary() {
+                Some(boundary) => boundary.start_slot(T::EthSpec::slots_per_epoch()),
+                None => {
+                    debug!("Deneb fork is disabled");
+                    return Err((RpcErrorResponse::InvalidRequest, "Deneb fork is disabled"));
+                }
+            };
 
         let oldest_blob_slot = self
-            .chain
             .store
             .get_blob_info()
             .oldest_blob_slot
@@ -1453,8 +1431,8 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         let block_roots_and_slots =
             self.get_block_roots_for_slot_range(req.start_slot, effective_count, "BlobsByRange")?;
 
-        let current_slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock)
-            .unwrap_or_else(|_| self.chain.slot_clock.genesis_slot());
+        let current_slot = beacon_chain::state_query::current_slot(&self.slot_clock)
+            .unwrap_or_else(|_| self.slot_clock.genesis_slot());
 
         let log_results = |peer_id, req: BlobsByRangeRequest, blobs_sent| {
             debug!(
@@ -1470,7 +1448,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         let mut blobs_sent = 0;
 
         for (root, _) in block_roots_and_slots {
-            match self.chain.data_availability_manager.get_blobs(&root) {
+            match self.data_availability_manager.get_blobs(&root) {
                 Ok(blob_sidecar_list) => {
                     for blob_sidecar in blob_sidecar_list.iter() {
                         // Due to skip slots, blobs could be out of the range, we ensure they
@@ -1554,7 +1532,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         );
 
         // Should not send more than max request data columns
-        if req.max_requested::<T::EthSpec>() > self.chain.spec.max_request_data_column_sidecars {
+        if req.max_requested::<T::EthSpec>() > self.spec.max_request_data_column_sidecars {
             return Err((
                 RpcErrorResponse::InvalidRequest,
                 "Request exceeded `MAX_REQUEST_DATA_COLUMN_SIDECARS`",
@@ -1564,7 +1542,6 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         let request_start_slot = Slot::from(req.start_slot);
 
         let column_data_availability_boundary_slot = match self
-            .chain
             .data_availability_manager
             .column_data_availability_boundary()
         {
@@ -1576,7 +1553,6 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         };
 
         let earliest_custodied_data_column_slot = match self
-            .chain
             .data_availability_manager
             .earliest_custodied_data_column_epoch()
         {
@@ -1621,7 +1597,6 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         // Only attempt lookups for columns the node has advertised and is responsible for maintaining custody of.
         let request_start_epoch = request_start_slot.epoch(T::EthSpec::slots_per_epoch());
         let available_columns = self
-            .chain
             .data_availability_manager
             .custody_columns_for_epoch(Some(request_start_epoch));
 
@@ -1633,10 +1608,9 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             .collect::<Vec<_>>();
 
         for (root, slot) in block_roots_and_slots {
-            let fork_name = self.chain.spec.fork_name_at_slot::<T::EthSpec>(slot);
+            let fork_name = self.spec.fork_name_at_slot::<T::EthSpec>(slot);
             for index in &indices_to_retrieve {
                 match self
-                    .chain
                     .data_availability_manager
                     .get_data_column(&root, index, fork_name)
                 {
@@ -1674,8 +1648,8 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             }
         }
 
-        let current_slot = beacon_chain::state_query::current_slot(&self.chain.slot_clock)
-            .unwrap_or_else(|_| self.chain.slot_clock.genesis_slot());
+        let current_slot = beacon_chain::state_query::current_slot(&self.slot_clock)
+            .unwrap_or_else(|_| self.slot_clock.genesis_slot());
 
         debug!(
             %peer_id,
@@ -1742,11 +1716,10 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
     ) {
         let non_custody_indices = {
             let custody_columns = self
-                .chain
                 .data_availability_manager
                 .data_availability_checker()
                 .custody_context()
-                .custody_columns_for_epoch(epoch_opt, &self.chain.spec);
+                .custody_columns_for_epoch(epoch_opt, &self.spec);
             requested_indices
                 .iter()
                 .filter(|subnet_id| !custody_columns.contains(subnet_id))

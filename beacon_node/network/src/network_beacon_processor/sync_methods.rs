@@ -166,7 +166,6 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
 
         let signed_beacon_block = block.block_cloned();
         let result = self
-            .chain
             .block_importer
             .process_block(
                 block_root,
@@ -174,6 +173,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                 NotifyExecutionLayer::Yes,
                 BlockImportSource::Lookup,
                 || Ok(()),
+                &self.chain,
             )
             .await;
         register_process_result_metrics(&result, metrics::BlockSource::Rpc, "block");
@@ -205,8 +205,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                         "Failed to inform block import"
                     );
                 };
-                self.chain
-                    .block_importer
+                self.block_importer
                     .block_times_cache
                     .write()
                     .set_time_observed(*hash, slot, seen_timestamp, None, None);
@@ -293,19 +292,18 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             "RPC blobs received"
         );
 
-        if let Ok(current_slot) = beacon_chain::state_query::current_slot(&self.chain.slot_clock)
+        if let Ok(current_slot) = beacon_chain::state_query::current_slot(&self.slot_clock)
             && current_slot == slot
         {
             // Note: this metric is useful to gauge how long it takes to receive blobs requested
             // over rpc. Since we always send the request for block components at `get_unaggregated_attestation_due() / 2`
             // we can use that as a baseline to measure against.
-            let delay = get_slot_delay_ms(seen_timestamp, slot, &self.chain.slot_clock);
+            let delay = get_slot_delay_ms(seen_timestamp, slot, &self.slot_clock);
 
             metrics::observe_duration(&metrics::BEACON_BLOB_RPC_SLOT_START_DELAY_TIME, delay);
         }
 
         let result = self
-            .chain
             .block_importer
             .process_rpc_blobs(slot, block_root, blobs)
             .await;
@@ -365,10 +363,10 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             return;
         };
 
-        if let Ok(current_slot) = beacon_chain::state_query::current_slot(&self.chain.slot_clock)
+        if let Ok(current_slot) = beacon_chain::state_query::current_slot(&self.slot_clock)
             && current_slot == slot
         {
-            let delay = get_slot_delay_ms(seen_timestamp, slot, &self.chain.slot_clock);
+            let delay = get_slot_delay_ms(seen_timestamp, slot, &self.slot_clock);
             metrics::observe_duration(&metrics::BEACON_BLOB_RPC_SLOT_START_DELAY_TIME, delay);
         }
 
@@ -385,7 +383,6 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         );
 
         let result = self
-            .chain
             .block_importer
             .process_rpc_custody_columns(custody_columns)
             .await;
@@ -647,7 +644,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                 debug!(
                             batch_epoch = %epoch,
                             first_block_slot = start_slot,
-                            keep_execution_payload = !self.chain.store.get_config().prune_payloads,
+                            keep_execution_payload = !self.store.get_config().prune_payloads,
                             last_block_slot = end_slot,
                             processed_blocks = sent_blocks,
                             processed_blobs = n_blobs,
@@ -694,9 +691,8 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
     ) -> (usize, Result<(), ChainSegmentFailed>) {
         let blocks: Vec<_> = downloaded_blocks.cloned().collect();
         match self
-            .chain
             .block_importer
-            .process_chain_segment(blocks, notify_execution_layer)
+            .process_chain_segment(blocks, notify_execution_layer, &self.chain)
             .await
         {
             ChainSegmentResult::Successful { imported_blocks } => {
@@ -733,7 +729,6 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             .collect::<Vec<_>>();
 
         match self
-            .chain
             .data_availability_manager
             .data_availability_checker()
             .batch_verify_kzg_for_available_blocks(&available_blocks)

@@ -131,7 +131,13 @@ async fn observe_attestations_skips_old_epoch() {
     let mut ctxt = ConsensusContext::new(state.slot());
 
     // Should skip observation because block is too old relative to current_epoch.
-    import_block_observe_attestations(&harness.chain, block, state, &mut ctxt, far_future_epoch);
+    import_block_observe_attestations(
+        &harness.chain.block_importer,
+        block,
+        state,
+        &mut ctxt,
+        far_future_epoch,
+    );
     // No panic, and no attestation should be observed (the function returns early).
 }
 
@@ -156,7 +162,7 @@ async fn validator_monitor_skips_old_block() {
     let parent_block_slot = Slot::new(0);
 
     import_block_update_validator_monitor(
-        &harness.chain,
+        &harness.chain.block_importer,
         block,
         state,
         &mut ctxt,
@@ -470,12 +476,14 @@ async fn filter_chain_segment_skips_genesis_block() {
     // Construct a block at slot 0 (genesis). Use BeaconBlock::empty which produces slot 0.
     let spec = test_spec::<E>();
     let genesis_block = BeaconBlock::empty(&spec);
-    let signed_genesis =
-        SignedBeaconBlock::from_block(genesis_block, Signature::empty());
+    let signed_genesis = SignedBeaconBlock::from_block(genesis_block, Signature::empty());
     let range_block = wrap_in_range_sync_block(&harness, Arc::new(signed_genesis));
 
     // filter_chain_segment should skip the genesis block (GenesisBlock error => continue).
-    let result = harness.chain.block_importer.filter_chain_segment(vec![range_block]);
+    let result = harness
+        .chain
+        .block_importer
+        .filter_chain_segment(vec![range_block]);
     match result {
         Ok(filtered) => assert!(
             filtered.is_empty(),
@@ -506,7 +514,10 @@ async fn filter_chain_segment_rejects_future_block() {
 
     // The slot clock is only at slot ~2, but the block is at slot 1000 => FutureSlot.
     // filter_chain_segment hits the `_ => break` arm, returning Ok with empty filtered list.
-    let result = harness.chain.block_importer.filter_chain_segment(vec![range_block]);
+    let result = harness
+        .chain
+        .block_importer
+        .filter_chain_segment(vec![range_block]);
     match result {
         Ok(filtered) => assert!(
             filtered.is_empty(),
@@ -552,14 +563,19 @@ async fn filter_chain_segment_skips_finalized_slot_block() {
     let range_block = wrap_in_range_sync_block(&harness, Arc::new(signed_block));
 
     // filter_chain_segment should skip the block (WouldRevertFinalizedSlot => continue).
-    let result = harness.chain.block_importer.filter_chain_segment(vec![range_block]);
+    let result = harness
+        .chain
+        .block_importer
+        .filter_chain_segment(vec![range_block]);
     match result {
         Ok(filtered) => assert!(
             filtered.is_empty(),
             "block at finalized slot should be filtered out, but got {} blocks",
             filtered.len()
         ),
-        Err(_) => panic!("filter_chain_segment should not return an error for finalized slot block"),
+        Err(_) => {
+            panic!("filter_chain_segment should not return an error for finalized slot block")
+        }
     }
 }
 
@@ -577,7 +593,10 @@ async fn filter_chain_segment_skips_duplicate_block() {
     let head_block = harness.get_head_block();
 
     // filter_chain_segment should skip it (DuplicateFullyImported => continue).
-    let result = harness.chain.block_importer.filter_chain_segment(vec![head_block]);
+    let result = harness
+        .chain
+        .block_importer
+        .filter_chain_segment(vec![head_block]);
     match result {
         Ok(filtered) => assert!(
             filtered.is_empty(),
@@ -626,7 +645,10 @@ async fn filter_chain_segment_rejects_non_linear_parent_roots() {
     // block_a is at index 0, block_b is at index 1.
     // children[0] = (block_b.parent_root, block_b.slot) — block_b.parent_root != block_a.block_root
     // => NonLinearParentRoots
-    let result = harness.chain.block_importer.filter_chain_segment(vec![range_a, range_b]);
+    let result = harness
+        .chain
+        .block_importer
+        .filter_chain_segment(vec![range_a, range_b]);
     assert!(
         matches!(
             result,
@@ -668,7 +690,10 @@ async fn filter_chain_segment_rejects_non_linear_slots() {
     let range_b = wrap_in_range_sync_block(&harness, block_b);
 
     // Both at the same slot: child_slot <= block.slot() => NonLinearSlots
-    let result = harness.chain.block_importer.filter_chain_segment(vec![range_a, range_b]);
+    let result = harness
+        .chain
+        .block_importer
+        .filter_chain_segment(vec![range_a, range_b]);
     assert!(
         matches!(
             result,
@@ -693,7 +718,7 @@ async fn process_chain_segment_empty_returns_successful() {
     let result = harness
         .chain
         .block_importer
-        .process_chain_segment(vec![], NotifyExecutionLayer::Yes)
+        .process_chain_segment(vec![], NotifyExecutionLayer::Yes, &harness.chain)
         .await;
 
     match result {
@@ -704,7 +729,10 @@ async fn process_chain_segment_empty_returns_successful() {
             );
         }
         ChainSegmentResult::Failed { error, .. } => {
-            panic!("expected Successful for empty segment, got Failed: {:?}", error);
+            panic!(
+                "expected Successful for empty segment, got Failed: {:?}",
+                error
+            );
         }
     }
 }
@@ -818,7 +846,10 @@ async fn filter_chain_segment_rejects_max_slot_block() {
     let signed_block = SignedBeaconBlock::from_block(block, Signature::empty());
     let range_block = wrap_in_range_sync_block(&harness, Arc::new(signed_block));
 
-    let result = harness.chain.block_importer.filter_chain_segment(vec![range_block]);
+    let result = harness
+        .chain
+        .block_importer
+        .filter_chain_segment(vec![range_block]);
     match result {
         Ok(filtered) => assert!(
             filtered.is_empty(),
@@ -848,15 +879,16 @@ async fn filter_chain_segment_passes_valid_block() {
     let ((block, _blobs), _state) = harness.make_block(state, next_slot).await;
     let range_block = wrap_in_range_sync_block(&harness, block);
 
-    let result = harness.chain.block_importer.filter_chain_segment(vec![range_block]);
+    let result = harness
+        .chain
+        .block_importer
+        .filter_chain_segment(vec![range_block]);
     match result {
         Ok(filtered) => assert_eq!(
             filtered.len(),
             1,
             "valid unimported block should pass through filter"
         ),
-        Err(_seg) => panic!(
-            "filter_chain_segment should not error for valid block"
-        ),
+        Err(_seg) => panic!("filter_chain_segment should not error for valid block"),
     }
 }

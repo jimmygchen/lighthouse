@@ -97,12 +97,28 @@ impl<T: BeaconChainTypes> Router<T> {
         let network_beacon_processor = NetworkBeaconProcessor {
             beacon_processor_send,
             duplicate_cache: DuplicateCache::default(),
-            chain: beacon_chain.clone(),
             network_tx: network_send.clone(),
             sync_tx: sync_send.clone(),
             network_globals: network_globals.clone(),
             invalid_block_storage,
             executor: executor.clone(),
+            // Direct component references
+            spec: beacon_chain.spec.clone(),
+            slot_clock: beacon_chain.slot_clock.clone(),
+            canonical_head: beacon_chain.canonical_head.clone(),
+            config: beacon_chain.config.clone(),
+            store: beacon_chain.store.clone(),
+            block_importer: beacon_chain.block_importer.clone(),
+            block_producer: beacon_chain.block_producer.clone(),
+            attestation_manager: beacon_chain.attestation_manager.clone(),
+            operations: beacon_chain.operations.clone(),
+            sync_committee_manager: beacon_chain.sync_committee_manager.clone(),
+            validator_query: beacon_chain.validator_query.clone(),
+            data_availability_manager: beacon_chain.data_availability_manager.clone(),
+            genesis_validators_root: beacon_chain.genesis_validators_root,
+            genesis_block_root: beacon_chain.genesis_block_root,
+            // Transitional: kept for external functions requiring Arc<BeaconChain<T>>
+            chain: beacon_chain.clone(),
         };
         let network_beacon_processor = Arc::new(network_beacon_processor);
 

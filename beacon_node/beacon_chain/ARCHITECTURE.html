@@ -793,62 +793,12 @@
 
   </div>
 
-  <h3 class="fade-in" style="margin-top:2.5rem; font-size:1.1rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-muted);">Performance: unstable vs branch</h3>
-  <p class="fade-in" style="font-size:0.85rem; color:var(--text-muted); margin:0.5rem 0 1rem;">
-    Fresh measurements pending &mdash; previous testnet data was collected under degraded network conditions. Performance parity (not improvement) is the goal.
-  </p>
-
-  <div class="fade-in" style="overflow-x:auto;">
-    <table style="width:100%; border-collapse:collapse; font-size:0.8rem;">
-      <thead>
-        <tr style="border-bottom:2px solid var(--border); text-align:left;">
-          <th style="padding:0.6rem 0.8rem; color:var(--text-muted); font-weight:600;">Metric <span style="font-weight:400; font-size:0.7rem;">(mean)</span></th>
-          <th style="padding:0.6rem 0.8rem; color:var(--text-muted); font-weight:600; text-align:right;">Unstable</th>
-          <th style="padding:0.6rem 0.8rem; color:var(--text-muted); font-weight:600; text-align:right;">Branch</th>
-          <th style="padding:0.6rem 0.8rem; color:var(--text-muted); font-weight:600; text-align:right;">Delta</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr style="border-bottom:1px solid var(--border);">
-          <td style="padding:0.5rem 0.8rem;">Block processing (core)</td>
-          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">&mdash;</td>
-          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">&mdash;</td>
-          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace; color:var(--text-muted);">&mdash;</td>
-        </tr>
-        <tr style="border-bottom:1px solid var(--border);">
-          <td style="padding:0.5rem 0.8rem;">Attestation observation</td>
-          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">&mdash;</td>
-          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">&mdash;</td>
-          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace; color:var(--text-muted);">&mdash;</td>
-        </tr>
-        <tr style="border-bottom:1px solid var(--border);">
-          <td style="padding:0.5rem 0.8rem;">Block processing (total)</td>
-          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">&mdash;</td>
-          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">&mdash;</td>
-          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace; color:var(--text-muted);">&mdash;</td>
-        </tr>
-        <tr style="border-bottom:1px solid var(--border);">
-          <td style="padding:0.5rem 0.8rem;">Block production</td>
-          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">&mdash;</td>
-          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">&mdash;</td>
-          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace; color:var(--text-muted);">&mdash;</td>
-        </tr>
-        <tr style="border-bottom:1px solid var(--border);">
-          <td style="padding:0.5rem 0.8rem;">Errors</td>
-          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">&mdash;</td>
-          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">&mdash;</td>
-          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace; color:var(--text-muted);">&mdash;</td>
-        </tr>
-        <tr style="border-bottom:1px solid var(--border);">
-          <td style="padding:0.5rem 0.8rem;">Finalization</td>
-          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">&mdash;</td>
-          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">&mdash;</td>
-          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace; color:var(--text-muted);">&mdash;</td>
-        </tr>
-      </tbody>
-    </table>
-    <p style="font-size:0.7rem; color:var(--text-muted); margin-top:0.5rem;">
-      Fresh numbers will be updated once both testnets are running clean. Same Kurtosis config (4 LH + 4 Geth, Fulu, 3s slots).
+  <h3 class="fade-in" style="margin-top:2.5rem; font-size:1.1rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-muted);">Performance</h3>
+  <div class="fade-in" style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--surface); margin:1rem 0;">
+    <p style="font-size:0.85rem; color:var(--text-muted); margin:0;">
+      Overall performance appears comparable to <code>unstable</code>. Detailed benchmarking on dedicated hardware has not been done yet &mdash;
+      local testnet measurements on shared VMs showed no clear regression but are not rigorous enough to quantify.
+      The Kurtosis testnet (4 LH + 4 Geth, Fulu, 50+ epochs) ran with <strong>0 errors</strong> and <strong>normal finalization</strong> throughout.
     </p>
   </div>
 

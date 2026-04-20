@@ -289,7 +289,7 @@ impl TestRig {
             beacon_chain::state_query::current_epoch::<E, _>(&harness.chain.slot_clock).unwrap(),
         );
 
-        let chain = harness.chain.clone();
+        let _chain = harness.chain.clone();
 
         let (network_tx, network_rx) = mpsc::unbounded_channel();
 
@@ -333,15 +333,30 @@ impl TestRig {
         let (work_journal_tx, work_journal_rx) = mpsc::channel(16_364);
 
         let duplicate_cache = DuplicateCache::default();
+        let chain = &harness.chain;
         let network_beacon_processor = NetworkBeaconProcessor {
             beacon_processor_send: beacon_processor_tx.clone(),
             duplicate_cache: duplicate_cache.clone(),
-            chain: harness.chain.clone(),
             network_tx,
             sync_tx,
             network_globals: network_globals.clone(),
             invalid_block_storage: InvalidBlockStorage::Disabled,
             executor: executor.clone(),
+            spec: chain.spec.clone(),
+            slot_clock: chain.slot_clock.clone(),
+            canonical_head: chain.canonical_head.clone(),
+            config: chain.config.clone(),
+            store: chain.store.clone(),
+            block_importer: chain.block_importer.clone(),
+            block_producer: chain.block_producer.clone(),
+            attestation_manager: chain.attestation_manager.clone(),
+            operations: chain.operations.clone(),
+            sync_committee_manager: chain.sync_committee_manager.clone(),
+            validator_query: chain.validator_query.clone(),
+            data_availability_manager: chain.data_availability_manager.clone(),
+            genesis_validators_root: chain.genesis_validators_root,
+            genesis_block_root: chain.genesis_block_root,
+            chain: harness.chain.clone(),
         };
         let network_beacon_processor = Arc::new(network_beacon_processor);
 
@@ -395,7 +410,7 @@ impl TestRig {
         };
 
         Self {
-            chain,
+            chain: harness.chain.clone(),
             next_block: block,
             next_blobs: blob_sidecars,
             next_data_columns: data_columns,

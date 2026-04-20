@@ -85,6 +85,7 @@ async fn rpc_blobs_with_invalid_header_signature() {
             NotifyExecutionLayer::Yes,
             BlockImportSource::Lookup,
             || Ok(()),
+            &harness.chain,
         )
         .await
         .unwrap();

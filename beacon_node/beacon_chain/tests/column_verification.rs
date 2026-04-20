@@ -89,6 +89,7 @@ async fn rpc_columns_with_invalid_header_signature() {
             NotifyExecutionLayer::Yes,
             BlockImportSource::Lookup,
             || Ok(()),
+            &harness.chain,
         )
         .await
         .unwrap();
@@ -177,6 +178,7 @@ async fn verify_header_signature_fork_block_bug() {
             NotifyExecutionLayer::Yes,
             BlockImportSource::Lookup,
             || Ok(()),
+            &harness.chain,
         )
         .await
         .expect("Block should be processed");

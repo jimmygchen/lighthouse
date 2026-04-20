@@ -1,13 +1,21 @@
 use crate::sync::manager::BlockProcessType;
 use crate::{service::NetworkMessage, sync::manager::SyncMessage};
+use beacon_chain::attestation_manager::AttestationManager;
 use beacon_chain::blob_verification::{GossipBlobError, observe_gossip_blob};
 use beacon_chain::block_verification_types::LookupBlock;
 use beacon_chain::block_verification_types::RangeSyncBlock;
+use beacon_chain::data_availability_manager::DataAvailabilityManager;
 use beacon_chain::data_column_verification::{GossipDataColumnError, observe_gossip_data_column};
 use beacon_chain::fetch_blobs::{
     EngineGetBlobsOutput, FetchEngineBlobError, fetch_and_process_engine_blobs,
 };
-use beacon_chain::{AvailabilityProcessingStatus, BeaconChain, BeaconChainTypes, BlockError};
+use beacon_chain::operations_manager::OperationsManager;
+use beacon_chain::sync_committee_manager::SyncCommitteeManager;
+use beacon_chain::validator_query_service::ValidatorQueryService;
+use beacon_chain::{
+    AvailabilityProcessingStatus, BeaconChain, BeaconChainTypes, BeaconStore, BlockError,
+    BlockImporter, BlockProducer, CanonicalHead, ChainConfig,
+};
 use beacon_processor::{
     BeaconProcessorSend, DuplicateCache, GossipAggregatePackage, GossipAttestationPackage, Work,
     WorkEvent as BeaconWorkEvent,
@@ -57,12 +65,30 @@ pub enum InvalidBlockStorage {
 pub struct NetworkBeaconProcessor<T: BeaconChainTypes> {
     pub beacon_processor_send: BeaconProcessorSend<T::EthSpec>,
     pub duplicate_cache: DuplicateCache,
+    /// Transitional: retained for external functions that still require
+    /// `&Arc<BeaconChain<T>>` (e.g. `recompute_head_at_current_slot`,
+    /// `fetch_and_process_engine_blobs`, verification helpers).
     pub chain: Arc<BeaconChain<T>>,
     pub network_tx: mpsc::UnboundedSender<NetworkMessage<T::EthSpec>>,
     pub sync_tx: mpsc::UnboundedSender<SyncMessage<T::EthSpec>>,
     pub network_globals: Arc<NetworkGlobals<T::EthSpec>>,
     pub invalid_block_storage: InvalidBlockStorage,
     pub executor: TaskExecutor,
+    // ── Direct component references ──────────────────────────────────
+    pub spec: Arc<ChainSpec>,
+    pub slot_clock: T::SlotClock,
+    pub canonical_head: Arc<CanonicalHead<T>>,
+    pub config: ChainConfig,
+    pub store: BeaconStore<T>,
+    pub block_importer: Arc<BlockImporter<T>>,
+    pub block_producer: Arc<BlockProducer<T>>,
+    pub attestation_manager: Arc<AttestationManager<T::EthSpec>>,
+    pub operations: Arc<OperationsManager<T::EthSpec>>,
+    pub sync_committee_manager: Arc<SyncCommitteeManager<T::EthSpec>>,
+    pub validator_query: Arc<ValidatorQueryService<T>>,
+    pub data_availability_manager: Arc<DataAvailabilityManager<T>>,
+    pub genesis_validators_root: Hash256,
+    pub genesis_block_root: Hash256,
 }
 
 // Publish blobs in batches of exponentially increasing size.
@@ -898,12 +924,11 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         block_root: Hash256,
         publish_blobs: bool,
     ) {
-        if self.chain.config.disable_get_blobs {
+        if self.config.disable_get_blobs {
             return;
         }
         let epoch = block.slot().epoch(T::EthSpec::slots_per_epoch());
         let custody_columns = self
-            .chain
             .data_availability_manager
             .sampling_columns_for_epoch(epoch);
         let self_cloned = self.clone();
@@ -980,7 +1005,6 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
     #[instrument(level = "debug", skip_all, fields(?block_root))]
     async fn attempt_data_column_reconstruction(self: &Arc<Self>, block_root: Hash256) {
         let result = self
-            .chain
             .block_importer
             .reconstruct_data_columns(block_root)
             .await;
@@ -1057,7 +1081,8 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                 // on gossip from other nodes.
                 blobs.shuffle(&mut rand::rng());
 
-                let blob_publication_batch_interval = chain.config.blob_publication_batch_interval;
+                let blob_publication_batch_interval =
+                    self_clone.config.blob_publication_batch_interval;
                 let mut publish_count = 0usize;
                 let blob_count = blobs.len();
                 let mut blobs_iter = blobs.into_iter().peekable();
@@ -1122,13 +1147,14 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         self.executor.spawn(
             async move {
                 let chain = self_clone.chain.clone();
+                let spec = self_clone.spec.clone();
                 let publish_fn = |columns: DataColumnSidecarList<T::EthSpec>| {
                     self_clone.send_network_message(NetworkMessage::Publish {
                         messages: columns
                             .into_iter()
                             .map(|d| {
                                 let subnet =
-                                    DataColumnSubnetId::from_column_index(*d.index(), &chain.spec);
+                                    DataColumnSubnetId::from_column_index(*d.index(), &spec);
                                 PubsubMessage::DataColumnSidecar(Box::new((subnet, d)))
                             })
                             .collect(),
@@ -1140,8 +1166,9 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                 // on gossip from other nodes.
                 data_columns_to_publish.shuffle(&mut rand::rng());
 
-                let blob_publication_batch_interval = chain.config.blob_publication_batch_interval;
-                let blob_publication_batches = chain.config.blob_publication_batches;
+                let blob_publication_batch_interval =
+                    self_clone.config.blob_publication_batch_interval;
+                let blob_publication_batches = self_clone.config.blob_publication_batches;
                 let number_of_columns = T::EthSpec::number_of_columns();
                 let batch_size = number_of_columns / blob_publication_batches;
                 let mut publish_count = 0usize;
@@ -1221,12 +1248,26 @@ impl<E: EthSpec> NetworkBeaconProcessor<TestBeaconChainType<E>> {
         let network_beacon_processor = Self {
             beacon_processor_send: beacon_processor_tx,
             duplicate_cache: DuplicateCache::default(),
-            chain,
             network_tx,
             sync_tx,
             network_globals,
             invalid_block_storage: InvalidBlockStorage::Disabled,
             executor,
+            spec: chain.spec.clone(),
+            slot_clock: chain.slot_clock.clone(),
+            canonical_head: chain.canonical_head.clone(),
+            config: chain.config.clone(),
+            store: chain.store.clone(),
+            block_importer: chain.block_importer.clone(),
+            block_producer: chain.block_producer.clone(),
+            attestation_manager: chain.attestation_manager.clone(),
+            operations: chain.operations.clone(),
+            sync_committee_manager: chain.sync_committee_manager.clone(),
+            validator_query: chain.validator_query.clone(),
+            data_availability_manager: chain.data_availability_manager.clone(),
+            genesis_validators_root: chain.genesis_validators_root,
+            genesis_block_root: chain.genesis_block_root,
+            chain,
         };
 
         (network_beacon_processor, beacon_processor_rx)

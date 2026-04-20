@@ -717,6 +717,7 @@ async fn invalidates_all_descendants() {
             NotifyExecutionLayer::Yes,
             BlockImportSource::Lookup,
             || Ok(()),
+            &rig.harness.chain,
         )
         .await
         .unwrap()
@@ -831,6 +832,7 @@ async fn switches_heads() {
             NotifyExecutionLayer::Yes,
             BlockImportSource::Lookup,
             || Ok(()),
+            &rig.harness.chain,
         )
         .await
         .unwrap()
@@ -1114,7 +1116,7 @@ async fn invalid_parent() {
 
     // Ensure the block built atop an invalid payload is invalid for gossip.
     assert!(matches!(
-        rig.harness.chain.block_importer.verify_block_for_gossip(block.clone()).await,
+        rig.harness.chain.block_importer.verify_block_for_gossip(block.clone(), &rig.harness.chain).await,
         Err(BlockError::ParentExecutionPayloadInvalid { parent_root: invalid_root })
         if invalid_root == parent_root
     ));
@@ -1124,6 +1126,7 @@ async fn invalid_parent() {
     assert!(matches!(
         rig.harness.chain.block_importer.process_block(lookup_block.block_root(), lookup_block, NotifyExecutionLayer::Yes, BlockImportSource::Lookup,
             || Ok(()),
+            &rig.harness.chain,
         ).await,
         Err(BlockError::ParentExecutionPayloadInvalid { parent_root: invalid_root })
         if invalid_root == parent_root
@@ -1422,6 +1425,7 @@ async fn recover_from_invalid_head_by_importing_blocks() {
             NotifyExecutionLayer::Yes,
             BlockImportSource::Lookup,
             || Ok(()),
+            &rig.harness.chain,
         )
         .await
         .unwrap();

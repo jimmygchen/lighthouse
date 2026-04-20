@@ -64,7 +64,7 @@ use crate::validator_monitor::HISTORIC_EPOCHS as VALIDATOR_MONITOR_HISTORIC_EPOC
 use crate::validator_pubkey_cache::ValidatorPubkeyCache;
 use crate::{
     BeaconChain, BeaconChainError, BeaconChainTypes, beacon_chain::BeaconForkChoice,
-    canonical_head::ForkChoiceError, metrics,
+    beacon_chain::BeaconStore, canonical_head::ForkChoiceError, metrics,
 };
 use bls::{PublicKey, PublicKeyBytes};
 use educe::Educe;
@@ -878,8 +878,8 @@ impl<T: BeaconChainTypes> GossipVerifiedBlock<T> {
         // Do not process a block that doesn't descend from the finalized root.
         //
         // We check this *before* we load the parent so that we can return a more detailed error.
-        let block = check_block_is_finalized_checkpoint_or_descendant(
-            chain,
+        let block = check_block_is_finalized_checkpoint_or_descendant::<T, _>(
+            &chain.store,
             &fork_choice_read_lock,
             block,
         )?;
@@ -1772,7 +1772,7 @@ pub fn check_block_is_finalized_checkpoint_or_descendant<
     T: BeaconChainTypes,
     B: AsBlock<T::EthSpec>,
 >(
-    chain: &BeaconChain<T>,
+    store: &BeaconStore<T>,
     fork_choice: &BeaconForkChoice<T>,
     block: B,
 ) -> Result<B, BlockError> {
@@ -1784,7 +1784,7 @@ pub fn check_block_is_finalized_checkpoint_or_descendant<
         .finalized_checkpoint()
         .epoch
         .start_slot(T::EthSpec::slots_per_epoch());
-    let split = chain.store.get_split_info();
+    let split = store.get_split_info();
     let is_descendant_from_split_block = split.slot == 0
         || split.slot <= finalized_slot
         || fork_choice.is_descendant(split.block_root, block.parent_root());
@@ -1802,8 +1802,7 @@ pub fn check_block_is_finalized_checkpoint_or_descendant<
         //    pre-finalization or conflicting with finalization.
         // 2. The parent is unknown to us, we probably want to download it since it might actually
         //    descend from the finalized root.
-        if chain
-            .store
+        if store
             .block_exists(&block.parent_root())
             .map_err(|e| BlockError::BeaconChainError(Box::new(e.into())))?
         {

@@ -854,6 +854,7 @@ async fn run_skip_slot_test(skip_slots: u64) {
             NotifyExecutionLayer::Yes,
             BlockImportSource::Lookup,
             || Ok(()),
+            &harness_b.chain,
         )
         .await
         .unwrap();

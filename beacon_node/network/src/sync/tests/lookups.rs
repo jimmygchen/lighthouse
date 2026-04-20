@@ -261,13 +261,27 @@ impl TestRig {
         let beacon_processor = NetworkBeaconProcessor {
             beacon_processor_send: beacon_processor_tx,
             duplicate_cache: DuplicateCache::default(),
-            chain: chain.clone(),
             // TODO: What is this sender used for?
             network_tx: mpsc::unbounded_channel().0,
             sync_tx,
             network_globals: globals.clone(),
             invalid_block_storage: InvalidBlockStorage::Disabled,
             executor: harness.runtime.task_executor.clone(),
+            spec: chain.spec.clone(),
+            slot_clock: chain.slot_clock.clone(),
+            canonical_head: chain.canonical_head.clone(),
+            config: chain.config.clone(),
+            store: chain.store.clone(),
+            block_importer: chain.block_importer.clone(),
+            block_producer: chain.block_producer.clone(),
+            attestation_manager: chain.attestation_manager.clone(),
+            operations: chain.operations.clone(),
+            sync_committee_manager: chain.sync_committee_manager.clone(),
+            validator_query: chain.validator_query.clone(),
+            data_availability_manager: chain.data_availability_manager.clone(),
+            genesis_validators_root: chain.genesis_validators_root,
+            genesis_block_root: chain.genesis_block_root,
+            chain: chain.clone(),
         };
 
         let fork_name = chain.spec.fork_name_at_slot::<E>(
@@ -1177,6 +1191,7 @@ impl TestRig {
                     NotifyExecutionLayer::Yes,
                     BlockImportSource::Gossip,
                     || Ok(()),
+                    &self.harness.chain,
                 )
                 .await
                 .unwrap();
@@ -1201,6 +1216,7 @@ impl TestRig {
                 NotifyExecutionLayer::Yes,
                 BlockImportSource::RangeSync,
                 || Ok(()),
+                &self.harness.chain,
             )
             .await
             .unwrap();
@@ -1736,6 +1752,7 @@ impl TestRig {
                 NotifyExecutionLayer::Yes,
                 BlockImportSource::Lookup,
                 || Ok(()),
+                &self.harness.chain,
             )
             .await
             .expect("Error processing block")
