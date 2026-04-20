@@ -798,7 +798,7 @@
 
   <h3 class="fade-in" style="margin-top:2.5rem; font-size:1.1rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-muted);">Coverage: monolith vs components</h3>
   <p class="fade-in" style="font-size:0.85rem; color:var(--text-muted); margin:0.5rem 0 1rem;">
-    Same test suite, same <code>cargo llvm-cov</code>. One blob of coverage becomes per-component visibility.
+    Same test suite (ef_tests + fork_from_env, Fulu fork), same <code>cargo llvm-cov</code>. One blob of coverage becomes per-component visibility.
   </p>
 
   <div class="fade-in" style="overflow-x:auto;">
@@ -818,13 +818,13 @@
             <span style="color:var(--text-muted);"> &mdash; beacon_chain.rs</span>
           </td>
           <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">262/363</td>
-          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">3,190/4,246</td>
+          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">3,458/4,273</td>
           <td style="padding:0.5rem 0.8rem;">
             <div style="display:flex; align-items:center; gap:0.5rem;">
               <div style="flex:1; height:16px; background:var(--surface2); border-radius:4px; overflow:hidden;">
-                <div class="coverage-bar" data-width="75.1%" style="height:100%; background:var(--accent5); border-radius:4px;"></div>
+                <div class="coverage-bar" data-width="80.9%" style="height:100%; background:var(--accent2); border-radius:4px;"></div>
               </div>
-              <span style="font-family:monospace; font-weight:600; color:var(--accent5); min-width:3.5em;">75.1%</span>
+              <span style="font-family:monospace; font-weight:600; color:var(--accent2); min-width:3.5em;">80.9%</span>
             </div>
           </td>
         </tr>
@@ -897,39 +897,39 @@
         <tr style="border-bottom:1px solid var(--border);">
           <td style="padding:0.4rem 0.8rem; padding-left:1.5rem;"><span style="color:var(--accent);">CanonicalHead</span></td>
           <td style="padding:0.4rem 0.8rem; text-align:right; font-family:monospace;">73/79</td>
-          <td style="padding:0.4rem 0.8rem; text-align:right; font-family:monospace;">741/896</td>
+          <td style="padding:0.4rem 0.8rem; text-align:right; font-family:monospace;">749/896</td>
           <td style="padding:0.4rem 0.8rem;">
             <div style="display:flex; align-items:center; gap:0.5rem;">
               <div style="flex:1; height:12px; background:var(--surface2); border-radius:3px; overflow:hidden;">
-                <div class="coverage-bar" data-width="82.7%" style="height:100%; background:var(--accent2); border-radius:3px;"></div>
+                <div class="coverage-bar" data-width="83.6%" style="height:100%; background:var(--accent2); border-radius:3px;"></div>
               </div>
-              <span style="font-family:monospace; font-weight:600; color:var(--accent2); min-width:3.5em;">82.7%</span>
+              <span style="font-family:monospace; font-weight:600; color:var(--accent2); min-width:3.5em;">83.6%</span>
             </div>
           </td>
         </tr>
         <tr style="border-bottom:1px solid var(--border);">
           <td style="padding:0.4rem 0.8rem; padding-left:1.5rem;"><span style="color:var(--accent);">BlockImporter</span></td>
           <td style="padding:0.4rem 0.8rem; text-align:right; font-family:monospace;">69/97</td>
-          <td style="padding:0.4rem 0.8rem; text-align:right; font-family:monospace;">921/1,208</td>
+          <td style="padding:0.4rem 0.8rem; text-align:right; font-family:monospace;">1,006/1,208</td>
           <td style="padding:0.4rem 0.8rem;">
             <div style="display:flex; align-items:center; gap:0.5rem;">
               <div style="flex:1; height:12px; background:var(--surface2); border-radius:3px; overflow:hidden;">
-                <div class="coverage-bar" data-width="76.2%" style="height:100%; background:var(--accent4); border-radius:3px;"></div>
+                <div class="coverage-bar" data-width="83.3%" style="height:100%; background:var(--accent2); border-radius:3px;"></div>
               </div>
-              <span style="font-family:monospace; font-weight:600; color:var(--accent4); min-width:3.5em;">76.2%</span>
+              <span style="font-family:monospace; font-weight:600; color:var(--accent2); min-width:3.5em;">83.3%</span>
             </div>
           </td>
         </tr>
         <tr style="border-bottom:1px solid var(--border);">
           <td style="padding:0.4rem 0.8rem; padding-left:1.5rem;"><span style="color:var(--accent);">DataAvailabilityMgr</span></td>
           <td style="padding:0.4rem 0.8rem; text-align:right; font-family:monospace;">25/31</td>
-          <td style="padding:0.4rem 0.8rem; text-align:right; font-family:monospace;">206/261</td>
+          <td style="padding:0.4rem 0.8rem; text-align:right; font-family:monospace;">214/261</td>
           <td style="padding:0.4rem 0.8rem;">
             <div style="display:flex; align-items:center; gap:0.5rem;">
               <div style="flex:1; height:12px; background:var(--surface2); border-radius:3px; overflow:hidden;">
-                <div class="coverage-bar" data-width="78.9%" style="height:100%; background:var(--accent4); border-radius:3px;"></div>
+                <div class="coverage-bar" data-width="82.0%" style="height:100%; background:var(--accent2); border-radius:3px;"></div>
               </div>
-              <span style="font-family:monospace; font-weight:600; color:var(--accent4); min-width:3.5em;">78.9%</span>
+              <span style="font-family:monospace; font-weight:600; color:var(--accent2); min-width:3.5em;">82.0%</span>
             </div>
           </td>
         </tr>
