@@ -116,8 +116,8 @@ pub use beacon_fork_choice_store::{
     PersistedForkChoiceStoreV28,
 };
 pub use block_verification::{
-    BlockError, BlockVerificationContext, ExecutionPayloadError, ExecutionPendingBlock,
-    GossipVerifiedBlock, IntoExecutionPendingBlock, IntoGossipVerifiedBlock, InvalidSignature,
+    BlockError, ExecutionPayloadError, ExecutionPendingBlock, GossipVerifiedBlock,
+    IntoExecutionPendingBlock, IntoGossipVerifiedBlock, InvalidSignature,
     PayloadVerificationOutcome, PayloadVerificationStatus, build_blob_data_column_sidecars,
     get_block_root, signature_verify_chain_segment,
 };

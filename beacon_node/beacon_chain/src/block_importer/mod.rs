@@ -3,10 +3,9 @@
 //! `BlockImporter<T>` owns the subsystems required to import blocks, blobs and data columns. It
 //! holds `Arc`-shared handles to every piece of state it accesses directly (store, spec, slot
 //! clock, canonical head, attestation manager, etc.). Methods that need block verification
-//! construct a `BlockVerificationContext` from `self` rather than requiring the full
-//! `BeaconChain<T>`. The `chain` parameter is still needed for `process_block` and
-//! `process_chain_segment` due to `into_execution_pending_block` requiring `Arc<BeaconChain<T>>`
-//! for `PayloadNotifier`.
+//! pass `&BlockImporter<T>` directly rather than requiring the full `BeaconChain<T>`. The `chain`
+//! parameter is still needed for `process_block` and `process_chain_segment` due to
+//! `into_execution_pending_block` requiring `Arc<BeaconChain<T>>` for `PayloadNotifier`.
 
 #[cfg(test)]
 mod tests;
@@ -184,10 +183,10 @@ pub fn verify_weak_subjectivity_checkpoint<T: BeaconChainTypes>(
 /// canonical head, attestation manager, observed slashable cache, validator monitor,
 /// optional event handler, data availability manager, store, spec, and various caches.
 ///
-/// Cross-module verification helpers in `block_verification.rs` that accept a
-/// `BlockVerificationContext` (e.g. `signature_verify_chain_segment`,
-/// `GossipVerifiedBlock::new`) receive a context constructed from `self` rather than the
-/// full `BeaconChain<T>`. Methods that still need `&Arc<BeaconChain<T>>` for deeper
+/// Cross-module verification helpers in `block_verification.rs` (e.g.
+/// `signature_verify_chain_segment`, `GossipVerifiedBlock::new`) receive `&BlockImporter<T>`
+/// directly rather than the full `BeaconChain<T>`. Methods that still need
+/// `&Arc<BeaconChain<T>>` for deeper
 /// execution-layer interaction (e.g. `IntoExecutionPendingBlock::into_execution_pending_block`)
 /// continue to receive it as a parameter from the caller.
 ///
@@ -469,12 +468,7 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
             let importer_clone = self.clone();
             let signature_verification_future = crate::utils::spawn_blocking_handle(
                 &self.task_executor,
-                move || {
-                    let ctx = crate::block_verification::BlockVerificationContext::from(
-                        importer_clone.as_ref(),
-                    );
-                    signature_verify_chain_segment(blocks, &ctx)
-                },
+                move || signature_verify_chain_segment(blocks, &importer_clone),
                 "signature_verify_chain_segment",
             );
 
@@ -571,11 +565,8 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
                 move || {
                     let slot = block.slot();
                     let graffiti_string = block.message().body().graffiti().as_utf8_lossy();
-                    let ctx = crate::block_verification::BlockVerificationContext::from(
-                        importer_clone.as_ref(),
-                    );
 
-                    match GossipVerifiedBlock::new(block, &ctx) {
+                    match GossipVerifiedBlock::new(block, &importer_clone) {
                         Ok(verified) => {
                             let commitments_formatted = verified.block.commitments_formatted();
                             debug!(
