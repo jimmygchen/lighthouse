@@ -1107,7 +1107,7 @@ async fn block_gossip_verification() {
         let gossip_verified = harness
             .chain
             .block_importer
-            .verify_block_for_gossip(snapshot.beacon_block.clone(), &harness.chain)
+            .verify_block_for_gossip(snapshot.beacon_block.clone())
             .await
             .expect("should obtain gossip verified block");
 
@@ -1151,7 +1151,7 @@ async fn block_gossip_verification() {
     *block.slot_mut() = expected_block_slot;
     assert!(
         matches!(
-            unwrap_err(harness.chain.block_importer.verify_block_for_gossip(Arc::new(SignedBeaconBlock::from_block(block, signature)), &harness.chain).await),
+            unwrap_err(harness.chain.block_importer.verify_block_for_gossip(Arc::new(SignedBeaconBlock::from_block(block, signature))).await),
             BlockError::FutureSlot {
                 present_slot,
                 block_slot,
@@ -1185,7 +1185,7 @@ async fn block_gossip_verification() {
     *block.slot_mut() = expected_finalized_slot;
     assert!(
         matches!(
-            unwrap_err(harness.chain.block_importer.verify_block_for_gossip(Arc::new(SignedBeaconBlock::from_block(block, signature)), &harness.chain).await),
+            unwrap_err(harness.chain.block_importer.verify_block_for_gossip(Arc::new(SignedBeaconBlock::from_block(block, signature))).await),
             BlockError::WouldRevertFinalizedSlot {
                 block_slot,
                 finalized_slot,
@@ -1216,10 +1216,10 @@ async fn block_gossip_verification() {
                 harness
                     .chain
                     .block_importer
-                    .verify_block_for_gossip(
-                        Arc::new(SignedBeaconBlock::from_block(block, junk_signature(),)),
-                        &harness.chain
-                    )
+                    .verify_block_for_gossip(Arc::new(SignedBeaconBlock::from_block(
+                        block,
+                        junk_signature(),
+                    )),)
                     .await
             ),
             BlockError::InvalidSignature(InvalidSignature::ProposerSignature)
@@ -1244,7 +1244,7 @@ async fn block_gossip_verification() {
     *block.parent_root_mut() = parent_root;
     assert!(
         matches!(
-            unwrap_err(harness.chain.block_importer.verify_block_for_gossip(Arc::new(SignedBeaconBlock::from_block(block, signature)), &harness.chain).await),
+            unwrap_err(harness.chain.block_importer.verify_block_for_gossip(Arc::new(SignedBeaconBlock::from_block(block, signature))).await),
             BlockError::ParentUnknown {parent_root: p}
             if p == parent_root
         ),
@@ -1270,7 +1270,7 @@ async fn block_gossip_verification() {
     *block.parent_root_mut() = parent_root;
     assert!(
         matches!(
-            unwrap_err(harness.chain.block_importer.verify_block_for_gossip(Arc::new(SignedBeaconBlock::from_block(block, signature)), &harness.chain).await),
+            unwrap_err(harness.chain.block_importer.verify_block_for_gossip(Arc::new(SignedBeaconBlock::from_block(block, signature))).await),
             BlockError::NotFinalizedDescendant { block_parent_root }
             if block_parent_root == parent_root
         ),
@@ -1307,7 +1307,7 @@ async fn block_gossip_verification() {
     );
     assert!(
         matches!(
-            unwrap_err(harness.chain.block_importer.verify_block_for_gossip(Arc::new(block.clone()), &harness.chain).await),
+            unwrap_err(harness.chain.block_importer.verify_block_for_gossip(Arc::new(block.clone())).await),
             BlockError::IncorrectBlockProposer {
                 block,
                 local_shuffling,
@@ -1323,7 +1323,7 @@ async fn block_gossip_verification() {
                 harness
                     .chain
                     .block_importer
-                    .verify_block_for_gossip(Arc::new(block.clone()), &harness.chain)
+                    .verify_block_for_gossip(Arc::new(block.clone()))
                     .await
             ),
             BlockError::DuplicateImportStatusUnknown(_),
@@ -1336,7 +1336,7 @@ async fn block_gossip_verification() {
         harness
             .chain
             .block_importer
-            .verify_block_for_gossip(block, &harness.chain)
+            .verify_block_for_gossip(block)
             .await
             .is_ok(),
         "the valid block should be processed"
@@ -1357,7 +1357,7 @@ async fn block_gossip_verification() {
             harness
                 .chain
                 .block_importer
-                .verify_block_for_gossip(block.clone(), &harness.chain)
+                .verify_block_for_gossip(block.clone())
                 .await
                 .expect_err("should error when processing known block"),
             BlockError::DuplicateImportStatusUnknown(_)
@@ -1388,7 +1388,7 @@ async fn block_gossip_verification() {
             .unwrap();
         assert!(
             matches!(
-                unwrap_err(harness.chain.block_importer.verify_block_for_gossip(Arc::new(SignedBeaconBlock::from_block(block, signature)), &harness.chain).await),
+                unwrap_err(harness.chain.block_importer.verify_block_for_gossip(Arc::new(SignedBeaconBlock::from_block(block, signature))).await),
                 BlockError::InvalidBlobCount {
                     max_blobs_at_epoch,
                     block,
@@ -1476,7 +1476,7 @@ async fn verify_block_for_gossip_slashing_detection() {
     let verified_block = harness
         .chain
         .block_importer
-        .verify_block_for_gossip(block1, &harness.chain)
+        .verify_block_for_gossip(block1)
         .await
         .unwrap();
 
@@ -1507,7 +1507,7 @@ async fn verify_block_for_gossip_slashing_detection() {
         harness
             .chain
             .block_importer
-            .verify_block_for_gossip(block2, &harness.chain)
+            .verify_block_for_gossip(block2)
             .await,
     );
 
@@ -1536,7 +1536,7 @@ async fn verify_block_for_gossip_doppelganger_detection() {
     let verified_block = harness
         .chain
         .block_importer
-        .verify_block_for_gossip(block, &harness.chain)
+        .verify_block_for_gossip(block)
         .await
         .unwrap();
     harness
@@ -1701,7 +1701,7 @@ async fn add_base_block_to_altair_chain() {
         harness
             .chain
             .block_importer
-            .verify_block_for_gossip(Arc::new(base_block.clone()), &harness.chain)
+            .verify_block_for_gossip(Arc::new(base_block.clone()))
             .await
             .expect_err("should error when processing base block"),
         BlockError::InconsistentFork(InconsistentFork {
@@ -1863,7 +1863,7 @@ async fn add_altair_block_to_base_chain() {
         harness
             .chain
             .block_importer
-            .verify_block_for_gossip(Arc::new(altair_block.clone()), &harness.chain)
+            .verify_block_for_gossip(Arc::new(altair_block.clone()))
             .await
             .expect_err("should error when processing altair block"),
         BlockError::InconsistentFork(InconsistentFork {

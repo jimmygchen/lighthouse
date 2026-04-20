@@ -1,7 +1,7 @@
 use beacon_chain::custody_context::NodeCustodyType;
 use beacon_chain::test_utils::test_spec;
 use beacon_chain::{
-    GossipVerifiedBlock, IntoGossipVerifiedBlock, WhenSlotSkipped,
+    BlockVerificationContext, GossipVerifiedBlock, IntoGossipVerifiedBlock, WhenSlotSkipped,
     test_utils::{AttestationStrategy, BlockStrategy},
 };
 use eth2::types::{BroadcastValidation, PublishBlockRequest};
@@ -401,9 +401,13 @@ pub async fn consensus_partial_pass_only_consensus() {
     );
     assert_ne!(block_a.state_root(), block_b.state_root());
 
-    let gossip_block_b = block_b.into_gossip_verified_block(&tester.harness.chain);
+    let gossip_block_b = block_b.into_gossip_verified_block(&BlockVerificationContext::from(
+        tester.harness.chain.as_ref(),
+    ));
     assert!(gossip_block_b.is_ok());
-    let gossip_block_a = block_a.into_gossip_verified_block(&tester.harness.chain);
+    let gossip_block_a = block_a.into_gossip_verified_block(&BlockVerificationContext::from(
+        tester.harness.chain.as_ref(),
+    ));
     assert!(gossip_block_a.is_err());
 
     /* submit `block_b` which should induce equivocation */
@@ -720,10 +724,14 @@ pub async fn equivocation_consensus_late_equivocation() {
     );
     assert_ne!(block_a.state_root(), block_b.state_root());
 
-    let gossip_block_b = block_b.into_gossip_verified_block(&tester.harness.chain);
+    let gossip_block_b = block_b.into_gossip_verified_block(&BlockVerificationContext::from(
+        tester.harness.chain.as_ref(),
+    ));
     assert!(gossip_block_b.is_ok());
 
-    let gossip_block_a = block_a.into_gossip_verified_block(&tester.harness.chain);
+    let gossip_block_a = block_a.into_gossip_verified_block(&BlockVerificationContext::from(
+        tester.harness.chain.as_ref(),
+    ));
     assert!(gossip_block_a.is_err());
 
     let channel = tokio::sync::mpsc::unbounded_channel();
@@ -1514,9 +1522,10 @@ pub async fn blinded_equivocation_consensus_late_equivocation() {
             ProvenancedBlock::Builder(b, _, _) => b,
         };
 
-        let gossip_block_b = GossipVerifiedBlock::new(inner_block_b, &tester.harness.chain);
+        let ctx = BlockVerificationContext::from(tester.harness.chain.as_ref());
+        let gossip_block_b = GossipVerifiedBlock::new(inner_block_b, &ctx);
         assert!(gossip_block_b.is_ok());
-        let gossip_block_a = GossipVerifiedBlock::new(inner_block_a, &tester.harness.chain);
+        let gossip_block_a = GossipVerifiedBlock::new(inner_block_a, &ctx);
         assert!(gossip_block_a.is_err());
 
         let channel = tokio::sync::mpsc::unbounded_channel();
@@ -1623,7 +1632,9 @@ pub async fn block_seen_on_gossip_without_blobs_or_columns() {
     // Simulate the block being seen on gossip.
     block
         .clone()
-        .into_gossip_verified_block(&tester.harness.chain)
+        .into_gossip_verified_block(&BlockVerificationContext::from(
+            tester.harness.chain.as_ref(),
+        ))
         .unwrap();
 
     // It should not yet be added to fork choice because blobs have not been seen.
@@ -1704,7 +1715,9 @@ pub async fn block_seen_on_gossip_with_some_blobs_or_columns() {
     // Simulate the block being seen on gossip.
     block
         .clone()
-        .into_gossip_verified_block(&tester.harness.chain)
+        .into_gossip_verified_block(&BlockVerificationContext::from(
+            tester.harness.chain.as_ref(),
+        ))
         .unwrap();
 
     // Simulate some of the blobs being seen on gossip.

@@ -1116,7 +1116,7 @@ async fn invalid_parent() {
 
     // Ensure the block built atop an invalid payload is invalid for gossip.
     assert!(matches!(
-        rig.harness.chain.block_importer.verify_block_for_gossip(block.clone(), &rig.harness.chain).await,
+        rig.harness.chain.block_importer.verify_block_for_gossip(block.clone()).await,
         Err(BlockError::ParentExecutionPayloadInvalid { parent_root: invalid_root })
         if invalid_root == parent_root
     ));

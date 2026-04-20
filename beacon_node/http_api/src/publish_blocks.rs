@@ -152,7 +152,8 @@ pub async fn publish_block<T: BeaconChainTypes, B: IntoGossipVerifiedBlock<T>>(
         spawn_build_data_sidecar_task(chain.clone(), block.clone(), unverified_blobs)?;
 
     // Gossip verify the block and blobs/data columns separately.
-    let gossip_verified_block_result = unverified_block.into_gossip_verified_block(&chain);
+    let ctx = beacon_chain::BlockVerificationContext::from(chain.as_ref());
+    let gossip_verified_block_result = unverified_block.into_gossip_verified_block(&ctx);
 
     let should_publish_block = gossip_verified_block_result.is_ok();
     if BroadcastValidation::Gossip == validation_level && should_publish_block {

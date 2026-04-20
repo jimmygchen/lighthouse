@@ -2,9 +2,11 @@
 //!
 //! `BlockImporter<T>` owns the subsystems required to import blocks, blobs and data columns. It
 //! holds `Arc`-shared handles to every piece of state it accesses directly (store, spec, slot
-//! clock, canonical head, attestation manager, etc.). Methods that still need `&BeaconChain<T>`
-//! for cross-module verification (e.g. `block_verification.rs`) receive it as a parameter
-//! from the caller rather than storing a back-reference.
+//! clock, canonical head, attestation manager, etc.). Methods that need block verification
+//! construct a `BlockVerificationContext` from `self` rather than requiring the full
+//! `BeaconChain<T>`. The `chain` parameter is still needed for `process_block` and
+//! `process_chain_segment` due to `into_execution_pending_block` requiring `Arc<BeaconChain<T>>`
+//! for `PayloadNotifier`.
 
 #[cfg(test)]
 mod tests;
@@ -182,10 +184,14 @@ pub fn verify_weak_subjectivity_checkpoint<T: BeaconChainTypes>(
 /// canonical head, attestation manager, observed slashable cache, validator monitor,
 /// optional event handler, data availability manager, store, spec, and various caches.
 ///
-/// Cross-module verification helpers in `block_verification.rs` that still take
-/// `&BeaconChain<T>` (e.g. `signature_verify_chain_segment`, `GossipVerifiedBlock::new`,
-/// `IntoExecutionPendingBlock::into_execution_pending_block`) receive it as a
-/// parameter from the caller. Module-local helpers (`import_block_observe_attestations`,
+/// Cross-module verification helpers in `block_verification.rs` that accept a
+/// `BlockVerificationContext` (e.g. `signature_verify_chain_segment`,
+/// `GossipVerifiedBlock::new`) receive a context constructed from `self` rather than the
+/// full `BeaconChain<T>`. Methods that still need `&Arc<BeaconChain<T>>` for deeper
+/// execution-layer interaction (e.g. `IntoExecutionPendingBlock::into_execution_pending_block`)
+/// continue to receive it as a parameter from the caller.
+///
+/// Module-local helpers (`import_block_observe_attestations`,
 /// `import_block_update_validator_monitor`, `import_block_update_slasher`,
 /// `handle_import_block_db_write_error`) take `&BlockImporter<T>` directly.
 /// `BlockImporter` has no back-reference to `BeaconChain`.
@@ -460,10 +466,15 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
             let mut blocks = filtered_chain_segment.split_off(last_index);
             std::mem::swap(&mut blocks, &mut filtered_chain_segment);
 
-            let chain_clone = chain.clone();
+            let importer_clone = self.clone();
             let signature_verification_future = crate::utils::spawn_blocking_handle(
                 &self.task_executor,
-                move || signature_verify_chain_segment(blocks, &chain_clone),
+                move || {
+                    let ctx = crate::block_verification::BlockVerificationContext::from(
+                        importer_clone.as_ref(),
+                    );
+                    signature_verify_chain_segment(blocks, &ctx)
+                },
                 "signature_verify_chain_segment",
             );
 
@@ -550,19 +561,21 @@ impl<T: BeaconChainTypes> BlockImporter<T> {
     ///
     /// Returns an `Err` if the given block was invalid, or an error was encountered during
     pub async fn verify_block_for_gossip(
-        &self,
+        self: &Arc<Self>,
         block: Arc<SignedBeaconBlock<T::EthSpec>>,
-        chain: &Arc<BeaconChain<T>>,
     ) -> Result<GossipVerifiedBlock<T>, BlockError> {
-        let chain_clone = chain.clone();
+        let importer_clone = self.clone();
         self.task_executor
             .clone()
             .spawn_blocking_handle(
                 move || {
                     let slot = block.slot();
                     let graffiti_string = block.message().body().graffiti().as_utf8_lossy();
+                    let ctx = crate::block_verification::BlockVerificationContext::from(
+                        importer_clone.as_ref(),
+                    );
 
-                    match GossipVerifiedBlock::new(block, &chain_clone) {
+                    match GossipVerifiedBlock::new(block, &ctx) {
                         Ok(verified) => {
                             let commitments_formatted = verified.block.commitments_formatted();
                             debug!(

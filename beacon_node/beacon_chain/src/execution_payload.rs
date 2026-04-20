@@ -217,10 +217,10 @@ pub async fn notify_new_payload<T: BeaconChainTypes>(
 
 /// Validate the gossip block's execution_payload according to the checks described here:
 /// https://github.com/ethereum/consensus-specs/blob/dev/specs/merge/p2p-interface.md#beacon_block
-pub fn validate_execution_payload_for_gossip<T: BeaconChainTypes>(
+pub fn validate_execution_payload_for_gossip<E: EthSpec>(
     parent_block: &ProtoBlock,
-    block: BeaconBlockRef<'_, T::EthSpec>,
-    chain: &BeaconChain<T>,
+    block: BeaconBlockRef<'_, E>,
+    slot_clock: &impl SlotClock,
 ) -> Result<(), BlockError> {
     // Gloas blocks don't have an execution payload in the block body.
     // Bid-related validations are handled in gossip block verification.
@@ -249,8 +249,7 @@ pub fn validate_execution_payload_for_gossip<T: BeaconChainTypes>(
         };
 
         if parent_has_execution || !execution_payload.is_default_with_empty_roots() {
-            let expected_timestamp = chain
-                .slot_clock
+            let expected_timestamp = slot_clock
                 .start_of(block.slot())
                 .map(|d| d.as_secs())
                 .ok_or(BlockError::BeaconChainError(Box::new(
