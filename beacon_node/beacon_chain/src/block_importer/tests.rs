@@ -892,3 +892,764 @@ async fn filter_chain_segment_passes_valid_block() {
         Err(_seg) => panic!("filter_chain_segment should not error for valid block"),
     }
 }
+
+// =======================================================================
+// New tests — targeting uncovered code paths
+// =======================================================================
+
+// -----------------------------------------------------------------------
+// ChainSegmentResult::into_block_error
+// -----------------------------------------------------------------------
+
+#[test]
+fn into_block_error_returns_ok_for_successful() {
+    let result = ChainSegmentResult::Successful {
+        imported_blocks: vec![(Hash256::random(), Slot::new(1))],
+    };
+    assert!(
+        result.into_block_error().is_ok(),
+        "Successful variant should return Ok(())"
+    );
+}
+
+#[test]
+fn into_block_error_returns_err_for_failed() {
+    let result = ChainSegmentResult::Failed {
+        imported_blocks: vec![(Hash256::random(), Slot::new(1))],
+        error: BlockError::GenesisBlock,
+    };
+    let err = result
+        .into_block_error()
+        .expect_err("Failed variant should return Err");
+    assert!(
+        matches!(err, BlockError::GenesisBlock),
+        "expected GenesisBlock error"
+    );
+}
+
+// -----------------------------------------------------------------------
+// verify_weak_subjectivity_checkpoint: all branches
+// -----------------------------------------------------------------------
+
+#[tokio::test]
+async fn wss_same_epoch_matching_root_passes() {
+    let harness = build_harness();
+    harness.advance_slot();
+    harness.extend_slots(1).await;
+
+    let head = harness.chain.canonical_head.cached_head();
+    let state = &head.snapshot.beacon_state;
+    let block_root = head.head_block_root();
+    let finalized = state.finalized_checkpoint();
+
+    let wss = Checkpoint {
+        epoch: finalized.epoch,
+        root: finalized.root,
+    };
+
+    let result = verify_weak_subjectivity_checkpoint::<crate::test_utils::EphemeralHarnessType<E>>(
+        &harness.chain.store,
+        wss,
+        block_root,
+        state,
+    );
+    assert!(result.is_ok(), "matching WSS checkpoint should pass");
+}
+
+#[tokio::test]
+async fn wss_same_epoch_different_root_fails() {
+    let harness = build_harness();
+    harness.advance_slot();
+    harness.extend_slots(1).await;
+
+    let head = harness.chain.canonical_head.cached_head();
+    let state = &head.snapshot.beacon_state;
+    let block_root = head.head_block_root();
+    let finalized = state.finalized_checkpoint();
+
+    let wss = Checkpoint {
+        epoch: finalized.epoch,
+        root: Hash256::random(),
+    };
+
+    let result = verify_weak_subjectivity_checkpoint::<crate::test_utils::EphemeralHarnessType<E>>(
+        &harness.chain.store,
+        wss,
+        block_root,
+        state,
+    );
+    assert!(
+        matches!(
+            result,
+            Err(BeaconChainError::WeakSubjectivtyVerificationFailure)
+        ),
+        "WSS with same epoch but different root should fail"
+    );
+}
+
+#[tokio::test]
+async fn wss_future_epoch_passes() {
+    let harness = build_harness();
+    harness.advance_slot();
+    harness.extend_slots(1).await;
+
+    let head = harness.chain.canonical_head.cached_head();
+    let state = &head.snapshot.beacon_state;
+    let block_root = head.head_block_root();
+    let finalized = state.finalized_checkpoint();
+
+    let wss = Checkpoint {
+        epoch: finalized.epoch + 100,
+        root: Hash256::random(),
+    };
+
+    let result = verify_weak_subjectivity_checkpoint::<crate::test_utils::EphemeralHarnessType<E>>(
+        &harness.chain.store,
+        wss,
+        block_root,
+        state,
+    );
+    assert!(
+        result.is_ok(),
+        "WSS with future epoch should pass (no check performed)"
+    );
+}
+
+#[tokio::test]
+async fn wss_past_epoch_root_not_found_fails() {
+    let harness = build_harness();
+    harness.advance_slot();
+    harness.extend_slots(32).await;
+
+    let head = harness.chain.canonical_head.cached_head();
+    let mut state = head.snapshot.beacon_state.clone();
+    let block_root = head.head_block_root();
+
+    assert!(
+        state.finalized_checkpoint().epoch > Epoch::new(0),
+        "need finalized epoch > 0"
+    );
+
+    // Set finalized checkpoint to a high epoch so WSS epoch is less.
+    *state.finalized_checkpoint_mut() = Checkpoint {
+        epoch: Epoch::new(10_000),
+        root: Hash256::random(),
+    };
+
+    let wss = Checkpoint {
+        epoch: Epoch::new(9_999),
+        root: Hash256::random(),
+    };
+
+    let result = verify_weak_subjectivity_checkpoint::<crate::test_utils::EphemeralHarnessType<E>>(
+        &harness.chain.store,
+        wss,
+        block_root,
+        &state,
+    );
+    assert!(
+        matches!(
+            result,
+            Err(BeaconChainError::WeakSubjectivtyVerificationFailure)
+        ),
+        "WSS past epoch with root not found should fail"
+    );
+}
+
+#[tokio::test]
+async fn wss_past_epoch_matching_root_passes() {
+    let harness = build_harness();
+    harness.advance_slot();
+    harness.extend_slots(32).await;
+
+    let head = harness.chain.canonical_head.cached_head();
+    let state = head.snapshot.beacon_state.clone();
+    let block_root = head.head_block_root();
+
+    assert!(
+        state.finalized_checkpoint().epoch > Epoch::new(0),
+        "need finalized epoch > 0"
+    );
+
+    let epoch_0_slot = Slot::new(0);
+    let root_at_epoch_0 = crate::state_query::root_at_slot_from_state::<
+        crate::test_utils::EphemeralHarnessType<E>,
+    >(&harness.chain.store, epoch_0_slot, block_root, &state)
+    .expect("should read block root iterator")
+    .expect("should find root at slot 0");
+
+    let wss = Checkpoint {
+        epoch: Epoch::new(0),
+        root: root_at_epoch_0,
+    };
+
+    let result = verify_weak_subjectivity_checkpoint::<crate::test_utils::EphemeralHarnessType<E>>(
+        &harness.chain.store,
+        wss,
+        block_root,
+        &state,
+    );
+    assert!(
+        result.is_ok(),
+        "WSS past epoch with matching root should pass"
+    );
+}
+
+#[tokio::test]
+async fn wss_past_epoch_different_root_fails() {
+    let harness = build_harness();
+    harness.advance_slot();
+    harness.extend_slots(32).await;
+
+    let head = harness.chain.canonical_head.cached_head();
+    let state = head.snapshot.beacon_state.clone();
+    let block_root = head.head_block_root();
+
+    assert!(
+        state.finalized_checkpoint().epoch > Epoch::new(0),
+        "need finalized epoch > 0"
+    );
+
+    let wss = Checkpoint {
+        epoch: Epoch::new(0),
+        root: Hash256::random(),
+    };
+
+    let result = verify_weak_subjectivity_checkpoint::<crate::test_utils::EphemeralHarnessType<E>>(
+        &harness.chain.store,
+        wss,
+        block_root,
+        &state,
+    );
+    assert!(
+        matches!(
+            result,
+            Err(BeaconChainError::WeakSubjectivtyVerificationFailure)
+        ),
+        "WSS past epoch with wrong root should fail"
+    );
+}
+
+// -----------------------------------------------------------------------
+// filter_chain_segment: inconsistent fork
+// -----------------------------------------------------------------------
+
+#[tokio::test]
+async fn filter_chain_segment_rejects_inconsistent_fork() {
+    let harness = build_harness();
+    harness.advance_slot();
+    harness.extend_slots(2).await;
+
+    // Create a Phase0/Base block using the default spec (Phase0 at genesis).
+    // The harness uses test_spec (Bellatrix at genesis), so any Base block triggers a fork
+    // mismatch.
+    let default_spec = E::default_spec();
+    let mut base_block = BeaconBlock::empty(&default_spec);
+    *base_block.slot_mut() = Slot::new(5);
+    let signed_base = SignedBeaconBlock::from_block(base_block, Signature::empty());
+
+    for _ in 0..6 {
+        harness.advance_slot();
+    }
+
+    let range_block = wrap_in_range_sync_block(&harness, Arc::new(signed_base));
+
+    let result = harness
+        .chain
+        .block_importer
+        .filter_chain_segment(vec![range_block]);
+    assert!(
+        matches!(
+            result,
+            Err(ref seg) if matches!(
+                seg.as_ref(),
+                ChainSegmentResult::Failed { error: BlockError::InconsistentFork(_), .. }
+            )
+        ),
+        "expected InconsistentFork error"
+    );
+}
+
+// -----------------------------------------------------------------------
+// check_blob_header_signature_and_slashability
+// -----------------------------------------------------------------------
+
+#[tokio::test]
+async fn blob_header_check_passes_with_empty_blobs() {
+    let harness = build_harness();
+    harness.advance_slot();
+    harness.extend_slots(1).await;
+
+    let block_root = Hash256::random();
+    let empty: Vec<&BlobSidecar<E>> = vec![];
+
+    let result = check_blob_header_signature_and_slashability::<
+        crate::test_utils::EphemeralHarnessType<E>,
+    >(&harness.chain.block_importer, block_root, empty);
+    assert!(result.is_ok(), "empty blobs should pass");
+}
+
+#[tokio::test]
+async fn blob_header_check_rejects_invalid_signature() {
+    let harness = build_harness();
+    harness.advance_slot();
+    harness.extend_slots(1).await;
+
+    let head = harness.chain.canonical_head.cached_head();
+    let header = head.snapshot.beacon_block.message().block_header();
+    let block_root = Hash256::random();
+
+    let signed_header = SignedBeaconBlockHeader {
+        message: header,
+        signature: Signature::empty(),
+    };
+
+    let blob = BlobSidecar {
+        index: 0,
+        blob: Blob::<E>::default(),
+        kzg_commitment: KzgCommitment::empty_for_testing(),
+        kzg_proof: KzgProof::empty(),
+        signed_block_header: signed_header,
+        kzg_commitment_inclusion_proof: Default::default(),
+    };
+
+    let result = check_blob_header_signature_and_slashability::<
+        crate::test_utils::EphemeralHarnessType<E>,
+    >(&harness.chain.block_importer, block_root, [&blob]);
+    assert!(
+        matches!(result, Err(BlockError::InvalidSignature(_))),
+        "blob with invalid header signature should fail"
+    );
+}
+
+#[tokio::test]
+async fn blob_header_check_accepts_valid_signature() {
+    let harness = build_harness();
+    harness.advance_slot();
+    harness.extend_slots(1).await;
+
+    let head = harness.chain.canonical_head.cached_head();
+    let signed_block = &head.snapshot.beacon_block;
+    let block_root = head.head_block_root();
+
+    let signed_header = signed_block.signed_block_header();
+
+    let blob = BlobSidecar {
+        index: 0,
+        blob: Blob::<E>::default(),
+        kzg_commitment: KzgCommitment::empty_for_testing(),
+        kzg_proof: KzgProof::empty(),
+        signed_block_header: signed_header,
+        kzg_commitment_inclusion_proof: Default::default(),
+    };
+
+    let result = check_blob_header_signature_and_slashability::<
+        crate::test_utils::EphemeralHarnessType<E>,
+    >(&harness.chain.block_importer, block_root, [&blob]);
+    assert!(
+        result.is_ok(),
+        "blob with valid header signature should pass"
+    );
+}
+
+// -----------------------------------------------------------------------
+// check_data_column_sidecar_header_signature_and_slashability
+// -----------------------------------------------------------------------
+
+fn make_test_fulu_sidecar(header: SignedBeaconBlockHeader, index: u64) -> DataColumnSidecarFulu<E> {
+    DataColumnSidecarFulu {
+        index,
+        column: vec![].try_into().unwrap(),
+        kzg_commitments: vec![].try_into().unwrap(),
+        kzg_proofs: vec![].try_into().unwrap(),
+        signed_block_header: header,
+        kzg_commitments_inclusion_proof: vec![
+            Hash256::ZERO;
+            E::kzg_commitments_inclusion_proof_depth()
+        ]
+        .try_into()
+        .unwrap(),
+    }
+}
+
+#[tokio::test]
+async fn column_header_check_passes_with_empty_columns() {
+    let harness = build_harness();
+    harness.advance_slot();
+    harness.extend_slots(1).await;
+
+    let block_root = Hash256::random();
+    let empty: Vec<&DataColumnSidecarFulu<E>> = vec![];
+
+    let result = check_data_column_sidecar_header_signature_and_slashability::<
+        crate::test_utils::EphemeralHarnessType<E>,
+    >(&harness.chain.block_importer, block_root, empty);
+    assert!(result.is_ok(), "empty columns should pass");
+}
+
+#[tokio::test]
+async fn column_header_check_rejects_invalid_signature() {
+    let harness = build_harness();
+    harness.advance_slot();
+    harness.extend_slots(1).await;
+
+    let head = harness.chain.canonical_head.cached_head();
+    let header = head.snapshot.beacon_block.message().block_header();
+    let block_root = Hash256::random();
+
+    let signed_header = SignedBeaconBlockHeader {
+        message: header,
+        signature: Signature::empty(),
+    };
+
+    let sidecar = make_test_fulu_sidecar(signed_header, 0);
+
+    let result = check_data_column_sidecar_header_signature_and_slashability::<
+        crate::test_utils::EphemeralHarnessType<E>,
+    >(&harness.chain.block_importer, block_root, [&sidecar]);
+    assert!(
+        matches!(result, Err(BlockError::InvalidSignature(_))),
+        "column with invalid header signature should fail"
+    );
+}
+
+#[tokio::test]
+async fn column_header_check_accepts_valid_signature() {
+    let harness = build_harness();
+    harness.advance_slot();
+    harness.extend_slots(1).await;
+
+    let head = harness.chain.canonical_head.cached_head();
+    let signed_block = &head.snapshot.beacon_block;
+    let block_root = head.head_block_root();
+
+    let signed_header = signed_block.signed_block_header();
+    let sidecar = make_test_fulu_sidecar(signed_header, 0);
+
+    let result = check_data_column_sidecar_header_signature_and_slashability::<
+        crate::test_utils::EphemeralHarnessType<E>,
+    >(&harness.chain.block_importer, block_root, [&sidecar]);
+    assert!(
+        result.is_ok(),
+        "column with valid header signature should pass"
+    );
+}
+
+// -----------------------------------------------------------------------
+// process_engine_blobs: CustodyColumns variant duplicate check
+// -----------------------------------------------------------------------
+
+#[tokio::test]
+async fn process_engine_blobs_custody_columns_rejects_already_imported_block() {
+    let harness = build_harness();
+    harness.advance_slot();
+    harness.extend_slots(1).await;
+
+    let head = harness.chain.canonical_head.cached_head();
+    let block_root = head.head_block_root();
+    let slot = head.head_slot();
+
+    let engine_output = crate::fetch_blobs::EngineGetBlobsOutput::CustodyColumns(vec![]);
+
+    let result = harness
+        .chain
+        .block_importer
+        .process_engine_blobs(slot, block_root, engine_output)
+        .await;
+
+    assert!(
+        matches!(result, Err(BlockError::DuplicateFullyImported(root)) if root == block_root),
+        "expected DuplicateFullyImported for engine CustodyColumns"
+    );
+}
+
+// -----------------------------------------------------------------------
+// process_rpc_custody_columns: empty list
+// -----------------------------------------------------------------------
+
+#[tokio::test]
+async fn process_rpc_custody_columns_rejects_empty_list() {
+    let harness = build_harness();
+    harness.advance_slot();
+    harness.extend_slots(1).await;
+
+    let result = harness
+        .chain
+        .block_importer
+        .process_rpc_custody_columns(vec![])
+        .await;
+
+    assert!(
+        matches!(result, Err(BlockError::InternalError(ref msg)) if msg.contains("same block")),
+        "expected InternalError for empty columns"
+    );
+}
+
+// -----------------------------------------------------------------------
+// import_block_update_metrics_and_events: recent block path
+// -----------------------------------------------------------------------
+
+#[tokio::test]
+async fn metrics_processes_recent_block() {
+    let harness = build_harness();
+    harness.advance_slot();
+    harness.extend_slots(1).await;
+
+    let head = harness.chain.canonical_head.cached_head();
+    let block_root = head.head_block_root();
+    let block = head.snapshot.beacon_block.message();
+    let current_slot = block.slot() + 1;
+
+    import_block_update_metrics_and_events(
+        &harness.chain.block_importer,
+        block,
+        block_root,
+        Duration::from_secs(1),
+        PayloadVerificationStatus::Verified,
+        current_slot,
+    );
+
+    let cache = harness.chain.block_importer.block_times_cache.read();
+    assert!(
+        cache.cache.contains_key(&block_root),
+        "block_times_cache should contain an entry for the block"
+    );
+}
+
+#[tokio::test]
+async fn metrics_handles_optimistic_block() {
+    let harness = build_harness();
+    harness.advance_slot();
+    harness.extend_slots(1).await;
+
+    let head = harness.chain.canonical_head.cached_head();
+    let block_root = head.head_block_root();
+    let block = head.snapshot.beacon_block.message();
+    let current_slot = block.slot() + 1;
+
+    import_block_update_metrics_and_events(
+        &harness.chain.block_importer,
+        block,
+        block_root,
+        Duration::from_secs(1),
+        PayloadVerificationStatus::Optimistic,
+        current_slot,
+    );
+}
+
+// -----------------------------------------------------------------------
+// import_block_observe_attestations: current epoch path
+// -----------------------------------------------------------------------
+
+#[tokio::test]
+async fn observe_attestations_processes_current_epoch() {
+    let harness = build_harness();
+    harness.advance_slot();
+    harness.extend_slots(1).await;
+
+    let head = harness.chain.canonical_head.cached_head();
+    let block = head.snapshot.beacon_block.message();
+    let state = &head.snapshot.beacon_state;
+    let current_epoch = state.current_epoch();
+    let mut ctxt = ConsensusContext::new(state.slot());
+
+    import_block_observe_attestations(
+        &harness.chain.block_importer,
+        block,
+        state,
+        &mut ctxt,
+        current_epoch,
+    );
+}
+
+// -----------------------------------------------------------------------
+// import_block_update_validator_monitor: current epoch path
+// -----------------------------------------------------------------------
+
+#[tokio::test]
+async fn validator_monitor_processes_current_block() {
+    let harness = build_harness();
+    harness.advance_slot();
+    harness.extend_slots(1).await;
+
+    let head = harness.chain.canonical_head.cached_head();
+    let block = head.snapshot.beacon_block.message();
+    let state = &head.snapshot.beacon_state;
+    let mut ctxt = ConsensusContext::new(state.slot());
+
+    import_block_update_validator_monitor(
+        &harness.chain.block_importer,
+        block,
+        state,
+        &mut ctxt,
+        block.slot(),
+        Slot::new(0),
+    );
+}
+
+// -----------------------------------------------------------------------
+// import_block_update_slasher: no slasher configured
+// -----------------------------------------------------------------------
+
+#[tokio::test]
+async fn slasher_noop_without_slasher_configured() {
+    let harness = build_harness();
+    harness.advance_slot();
+    harness.extend_slots(1).await;
+
+    let head = harness.chain.canonical_head.cached_head();
+    let block = head.snapshot.beacon_block.message();
+    let state = &head.snapshot.beacon_state;
+    let mut ctxt = ConsensusContext::new(state.slot());
+
+    assert!(harness.chain.block_importer.slasher.is_none());
+    import_block_update_slasher(&harness.chain.block_importer, block, state, &mut ctxt);
+}
+
+// -----------------------------------------------------------------------
+// emit_sse events: no subscribers
+// -----------------------------------------------------------------------
+
+#[tokio::test]
+async fn emit_sse_blob_events_noop_without_subscribers() {
+    let harness = build_harness();
+    harness.advance_slot();
+    harness.extend_slots(1).await;
+
+    let block_root = Hash256::random();
+    let blobs: Vec<&BlobSidecar<E>> = vec![];
+    emit_sse_blob_sidecar_events(&harness.chain.block_importer, &block_root, blobs.into_iter());
+}
+
+#[tokio::test]
+async fn emit_sse_data_column_events_noop_without_subscribers() {
+    let harness = build_harness();
+    harness.advance_slot();
+    harness.extend_slots(1).await;
+
+    let block_root = Hash256::random();
+    let columns: Vec<&DataColumnSidecar<E>> = vec![];
+    emit_sse_data_column_sidecar_events(
+        &harness.chain.block_importer,
+        &block_root,
+        columns.into_iter(),
+    );
+}
+
+// -----------------------------------------------------------------------
+// check_block_relevancy: direct tests for each error path
+// -----------------------------------------------------------------------
+
+#[tokio::test]
+async fn check_block_relevancy_rejects_future_slot() {
+    let harness = build_harness();
+    harness.advance_slot();
+    harness.extend_slots(1).await;
+
+    let head = harness.chain.canonical_head.cached_head();
+    let state = head.snapshot.beacon_state.clone();
+    let far_future_slot = Slot::new(1000);
+    let ((block, _blobs), _state) = harness.make_block(state, far_future_slot).await;
+    let block_root = block.canonical_root();
+
+    let result = harness
+        .chain
+        .block_importer
+        .check_block_relevancy(&block, block_root);
+    assert!(
+        matches!(result, Err(BlockError::FutureSlot { .. })),
+        "expected FutureSlot"
+    );
+}
+
+#[tokio::test]
+async fn check_block_relevancy_rejects_genesis_slot() {
+    let harness = build_harness();
+    harness.advance_slot();
+
+    let spec = test_spec::<E>();
+    let block = BeaconBlock::empty(&spec);
+    let signed = SignedBeaconBlock::from_block(block, Signature::empty());
+    let block_root = signed.canonical_root();
+
+    let result = harness
+        .chain
+        .block_importer
+        .check_block_relevancy(&signed, block_root);
+    assert!(
+        matches!(result, Err(BlockError::GenesisBlock)),
+        "expected GenesisBlock"
+    );
+}
+
+#[tokio::test]
+async fn check_block_relevancy_rejects_finalized_slot() {
+    let harness = build_harness();
+    harness.advance_slot();
+    harness.extend_slots(32).await;
+
+    assert!(
+        harness
+            .chain
+            .canonical_head
+            .cached_head()
+            .finalized_checkpoint()
+            .epoch
+            > Epoch::new(0)
+    );
+
+    let spec = test_spec::<E>();
+    let mut block = BeaconBlock::empty(&spec);
+    *block.slot_mut() = Slot::new(1);
+    let signed = SignedBeaconBlock::from_block(block, Signature::empty());
+    let block_root = signed.canonical_root();
+
+    let result = harness
+        .chain
+        .block_importer
+        .check_block_relevancy(&signed, block_root);
+    assert!(
+        matches!(result, Err(BlockError::WouldRevertFinalizedSlot { .. })),
+        "expected WouldRevertFinalizedSlot"
+    );
+}
+
+#[tokio::test]
+async fn check_block_relevancy_rejects_duplicate() {
+    let harness = build_harness();
+    harness.advance_slot();
+    harness.extend_slots(2).await;
+
+    let head = harness.chain.canonical_head.cached_head();
+    let head_block = &head.snapshot.beacon_block;
+    let block_root = head.head_block_root();
+
+    let result = harness
+        .chain
+        .block_importer
+        .check_block_relevancy(head_block.as_ref(), block_root);
+    assert!(
+        matches!(result, Err(BlockError::DuplicateFullyImported(_))),
+        "expected DuplicateFullyImported"
+    );
+}
+
+#[tokio::test]
+async fn check_block_relevancy_accepts_valid_block() {
+    let harness = build_harness();
+    harness.advance_slot();
+    harness.extend_slots(2).await;
+
+    let head = harness.chain.canonical_head.cached_head();
+    let state = head.snapshot.beacon_state.clone();
+    let next_slot = head.head_slot() + 1;
+    harness.advance_slot();
+    let ((block, _blobs), _state) = harness.make_block(state, next_slot).await;
+    let block_root = block.canonical_root();
+
+    let result = harness
+        .chain
+        .block_importer
+        .check_block_relevancy(&block, block_root);
+    assert!(result.is_ok(), "valid unimported block should be relevant");
+}
