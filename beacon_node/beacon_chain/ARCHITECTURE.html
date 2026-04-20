@@ -539,7 +539,7 @@
   </p>
   <p style="font-size:0.6rem; color:var(--text-muted); opacity:0.6; max-width:500px; margin-top:-1.5rem; line-height:1.4;">
     *The top-level <a href="https://github.com/jimmygchen/lighthouse/blob/modularize-beacon-chain/beacon_node/beacon_chain/src/beacon_chain.rs" style="color:var(--accent); text-decoration:underline;"><code style="font-size:inherit;">BeaconChain&lt;T&gt;</code></a> struct went from 7,317 to 125 lines.
-    Total crate line count increased by ~4,900 lines (51.8k &rarr; 56.7k) &mdash; the god object's logic now lives in focused, independently testable components.
+    Total crate line count increased by ~5,800 lines (51.8k &rarr; 57.6k) &mdash; the god object's logic now lives in focused, independently testable components.
     No methods were harmed in the making of this refactor. Several were rehomed.
   </p>
   <div class="scroll-hint" aria-hidden="true">&#8595;</div>
@@ -735,7 +735,7 @@
       <div style="font-size:0.65rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">Fields</div>
       <div style="font-size:1.8rem; font-weight:800; margin-top:0.2rem;">
         <span style="color:var(--accent5); font-size:1rem; text-decoration:line-through;">40+</span>
-        <span class="metric-counter" data-target="21" style="color:var(--accent2);">0</span>
+        <span class="metric-counter" data-target="20" style="color:var(--accent2);">0</span>
       </div>
       <div style="font-size:0.7rem; color:var(--text-muted);">9 component Arcs &middot; 5 infra &middot; 5 genesis &middot; 1 kzg &middot; 1 migrator</div>
     </div>
@@ -754,7 +754,7 @@
     </div>
     <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card); text-align:center;">
       <div style="font-size:0.65rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">New tests</div>
-      <div style="font-size:1.8rem; font-weight:800; color:var(--accent2); margin-top:0.2rem;">+161</div>
+      <div style="font-size:1.8rem; font-weight:800; color:var(--accent2); margin-top:0.2rem;">+145</div>
       <div style="font-size:0.7rem; color:var(--text-muted);">component tests &middot; most harness-free</div>
     </div>
   </div>
@@ -768,7 +768,7 @@
         <strong style="font-size:0.9rem;">CI</strong>
       </div>
       <div style="font-size:0.8rem; color:var(--text-muted); margin-top:0.5rem;">
-        All existing tests pass. +161 new component tests enable targeted testing that wasn't possible with the monolith.
+        All existing tests pass. +145 new component tests enable targeted testing that wasn't possible with the monolith.
       </div>
     </div>
 
@@ -1064,7 +1064,7 @@
       <div class="code-block" style="margin:0 0 1rem 0;">
         <div class="code-header">
           <span class="dot" aria-hidden="true"></span><span class="dot" aria-hidden="true"></span><span class="dot" aria-hidden="true"></span>
-          <span>block_production/mod.rs &mdash; struct owns its Arcs, methods use &amp;Arc&lt;Self&gt;</span>
+          <span>block_production/mod.rs (simplified) &mdash; struct owns its Arcs, methods use &amp;Arc&lt;Self&gt;</span>
         </div>
 <pre><span class="cm">/// Owns the subsystems required to produce beacon blocks.</span>
 <span class="cm">/// Constructed once by the builder; methods use &amp;Arc&lt;Self&gt;.</span>
@@ -1076,7 +1076,7 @@
     canonical_head: <span class="ty">Arc</span>&lt;<span class="ty">CanonicalHead</span>&lt;<span class="ty">T</span>&gt;&gt;,
     execution_manager: <span class="ty">Arc</span>&lt;<span class="ty">ExecutionManager</span>&lt;<span class="ty">T</span>&gt;&gt;,
     attestation_manager: <span class="ty">Arc</span>&lt;<span class="ty">AttestationManager</span>&lt;<span class="ty">T::EthSpec</span>&gt;&gt;,
-    <span class="cm">// ... (21 fields total &mdash; key domain deps shown)</span>
+    <span class="cm">// ... (20 fields total &mdash; key domain deps shown)</span>
 }
 
 <span class="kw">impl</span>&lt;<span class="ty">T: BeaconChainTypes</span>&gt; <span class="ty">BlockProducer</span>&lt;<span class="ty">T</span>&gt; {
@@ -1109,6 +1109,7 @@
             <span class="tag own">observed_voluntary_exits</span>
             <span class="tag own">observed_proposer_slashings</span>
             <span class="tag own">observed_attester_slashings</span>
+            <span class="tag own">observed_bls_to_execution_changes</span>
             <span class="tag hld">spec</span>
             <span class="tag hld">op_pool</span>
           </div>
@@ -1119,9 +1120,11 @@
           <div class="tag-list">
             <span class="tag own">naive_aggregation_pool</span>
             <span class="tag own">observed_attestations</span>
+            <span class="tag own">observed_aggregators</span>
+            <span class="tag own">early_attester_cache</span>
             <span class="tag own">shuffling_cache</span>
             <span class="tag hld">spec</span>
-            <span class="tag hld">op_pool</span>
+            <span class="tag hld">genesis_block_root</span>
           </div>
         </div>
         <div class="ref-card">
@@ -1130,6 +1133,8 @@
           <div class="tag-list">
             <span class="tag own">naive_sync_aggregation_pool</span>
             <span class="tag own">observed_sync_contributions</span>
+            <span class="tag own">observed_sync_contributors</span>
+            <span class="tag own">observed_sync_aggregators</span>
             <span class="tag hld">spec</span>
             <span class="tag hld">op_pool</span>
           </div>
@@ -1158,7 +1163,17 @@
           <p>Validator pubkey lookups, committee cache access.</p>
           <div class="tag-list">
             <span class="tag own">validator_pubkey_cache</span>
-            <span class="tag hld">spec</span>
+          </div>
+        </div>
+        <div class="ref-card">
+          <h4>CanonicalHead</h4>
+          <p>Fork choice, cached head block/state, head recomputation lock, fork choice persistence.</p>
+          <div class="tag-list">
+            <span class="tag own">fork_choice</span>
+            <span class="tag own">cached_head</span>
+            <span class="tag own">recompute_head_lock</span>
+            <span class="tag own">fork_choice_signal_tx</span>
+            <span class="tag hld">store</span>
           </div>
         </div>
         <div class="ref-card">
