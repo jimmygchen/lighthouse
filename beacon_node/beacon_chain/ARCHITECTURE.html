@@ -994,7 +994,7 @@
       <div class="principle-num">1</div>
       <h3>Favour composition over god objects</h3>
       <p>Pass what you need, not what <em>has</em> what you need.</p>
-      <div class="why"><code>produce_block_on_state</code> uses 3 domain deps out of 40+ fields. See the <a href="#howitworks" style="color:var(--accent);">block production example</a>.</div>
+      <div class="why"><code>produce_block_on_state</code> uses 4 domain deps out of 40+ fields. See the <a href="#howitworks" style="color:var(--accent);">block production example</a>.</div>
     </div>
 
     <div class="principle">
@@ -1040,6 +1040,8 @@
         <span style="color:var(--text-muted);">Head slot, finalized checkpoint, forkchoice params (read-only)</span>
         <code style="color:var(--accent6);">ExecutionLayer</code>
         <span style="color:var(--text-muted);">Get payload from EL, fee recipient, gas limit</span>
+        <code style="color:var(--accent6);">AttestationManager</code>
+        <span style="color:var(--text-muted);">Early attester cache, attestation packing</span>
 
         <strong style="color:var(--text-muted); margin-top:0.5rem;">Infrastructure</strong><span></span>
         <code style="color:var(--text-muted);">&amp;ChainSpec</code>
@@ -1052,20 +1054,20 @@
         <span style="color:var(--text-muted);">Spawn blocking work</span>
       </div>
 
-      <p><strong>3 domain deps</strong> vs 40+ fields. Infrastructure deps (spec, clock, executor) are Rust making implicit globals explicit.</p>
+      <p><strong>4 domain deps</strong> vs 40+ fields. Infrastructure deps (spec, clock, executor) are Rust making implicit globals explicit.</p>
     </div>
   </details>
 
   <details class="fade-in">
-    <summary>BlockProducer&lt;T&gt; &mdash; constructor injection with &amp;self</summary>
+    <summary>BlockProducer&lt;T&gt; &mdash; constructor injection with &amp;Arc&lt;Self&gt;</summary>
     <div class="detail-body">
       <div class="code-block" style="margin:0 0 1rem 0;">
         <div class="code-header">
           <span class="dot" aria-hidden="true"></span><span class="dot" aria-hidden="true"></span><span class="dot" aria-hidden="true"></span>
-          <span>block_production/mod.rs &mdash; struct owns its Arcs, methods use &amp;self</span>
+          <span>block_production/mod.rs &mdash; struct owns its Arcs, methods use &amp;Arc&lt;Self&gt;</span>
         </div>
 <pre><span class="cm">/// Owns the subsystems required to produce beacon blocks.</span>
-<span class="cm">/// Constructed once by the builder; methods use &amp;self.</span>
+<span class="cm">/// Constructed once by the builder; methods use &amp;Arc&lt;Self&gt;.</span>
 <span class="kw">pub struct</span> <span class="ty">BlockProducer</span>&lt;<span class="ty">T: BeaconChainTypes</span>&gt; {
     spec: <span class="ty">Arc</span>&lt;<span class="ty">ChainSpec</span>&gt;,
     store: <span class="ty">BeaconStore</span>&lt;<span class="ty">T</span>&gt;,
@@ -1074,12 +1076,12 @@
     canonical_head: <span class="ty">Arc</span>&lt;<span class="ty">CanonicalHead</span>&lt;<span class="ty">T</span>&gt;&gt;,
     execution_manager: <span class="ty">Arc</span>&lt;<span class="ty">ExecutionManager</span>&lt;<span class="ty">T</span>&gt;&gt;,
     attestation_manager: <span class="ty">Arc</span>&lt;<span class="ty">AttestationManager</span>&lt;<span class="ty">T::EthSpec</span>&gt;&gt;,
-    <span class="cm">// ... (20 fields total &mdash; key domain deps shown)</span>
+    <span class="cm">// ... (21 fields total &mdash; key domain deps shown)</span>
 }
 
 <span class="kw">impl</span>&lt;<span class="ty">T: BeaconChainTypes</span>&gt; <span class="ty">BlockProducer</span>&lt;<span class="ty">T</span>&gt; {
     <span class="kw">pub async fn</span> <span class="fn">produce_block_on_state</span>(
-        &amp;<span class="kw">self</span>,
+        <span class="kw">self</span>: &amp;<span class="ty">Arc</span>&lt;<span class="ty">Self</span>&gt;,
         state: <span class="ty">BeaconState</span>&lt;<span class="ty">T::EthSpec</span>&gt;,
         produce_at_slot: <span class="ty">Slot</span>,
         randao_reveal: <span class="ty">Signature</span>,
@@ -1165,11 +1167,16 @@
           <div class="tag-list">
             <span class="tag own">observed_block_producers</span>
             <span class="tag own">observed_slashable</span>
+            <span class="tag own">observed_blob_sidecars</span>
+            <span class="tag own">observed_column_sidecars</span>
             <span class="tag own">event_handler</span>
             <span class="tag own">validator_monitor</span>
             <span class="tag hld">canonical_head</span>
             <span class="tag hld">attestation_manager</span>
             <span class="tag hld">data_availability_manager</span>
+            <span class="tag hld">validator_query</span>
+            <span class="tag hld">execution_manager</span>
+            <span class="tag hld">sync_committee_manager</span>
           </div>
         </div>
         <div class="ref-card">
@@ -1189,7 +1196,7 @@
   <details class="fade-in">
     <summary>Dependency injection &mdash; target caller architecture</summary>
     <div class="detail-body">
-      <p style="margin-bottom:0.5rem;"><strong style="color:var(--accent4);">Target state.</strong> Today, callers still hold <code>Arc&lt;BeaconChain&lt;T&gt;&gt;</code> and access components through it. The component boundaries exist at the type level &mdash; callers can be migrated incrementally to hold direct refs.</p>
+      <p style="margin-bottom:0.5rem;"><strong style="color:var(--accent4);">Target state.</strong> <code>NetworkBeaconProcessor</code> has been migrated to hold direct component refs. HTTP API and sync still hold <code>Arc&lt;BeaconChain&lt;T&gt;&gt;</code> &mdash; migration is incremental.</p>
       <p style="margin-bottom:1rem; font-size:0.8rem; color:var(--text-muted);">The following shows what each caller actually needs, not what it currently holds.</p>
       <div class="ref-grid">
         <div class="ref-card">
