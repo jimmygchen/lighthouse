@@ -977,11 +977,7 @@
 
   <h3 class="fade-in" style="margin-top:2.5rem; font-size:1.1rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-muted);">Known Limitations</h3>
   <div class="fade-in" style="font-size:0.85rem; color:var(--text-muted); margin:1rem 0;">
-    <ul style="list-style:disc; padding-left:1.5rem; display:grid; gap:0.5rem;">
-      <li><strong style="color:var(--text);">BlockImporter:</strong> <code>process_block</code> and <code>process_chain_segment</code> still take <code>&amp;Arc&lt;BeaconChain&lt;T&gt;&gt;</code> as a parameter because <code>PayloadNotifier</code> stores it for async execution layer callbacks. No back-reference field &mdash; the chain is passed by the caller.</li>
-      <li><strong style="color:var(--text);">BlockProducer:</strong> 1 <code>Weak&lt;BeaconChain&lt;T&gt;&gt;</code> back-reference remains for <code>get_execution_payload</code>.</li>
-      <li><strong style="color:var(--text);">Caller migration in progress:</strong> <code>NetworkBeaconProcessor</code> holds direct component refs for most accesses but retains <code>Arc&lt;BeaconChain&lt;T&gt;&gt;</code> for ~25 external function calls. HTTP API and sync are next.</li>
-    </ul>
+    <p><code>NetworkBeaconProcessor</code> holds direct component refs for most accesses but retains <code>Arc&lt;BeaconChain&lt;T&gt;&gt;</code> for ~25 external function calls. HTTP API and sync callers are next.</p>
   </div>
 
 </section>
