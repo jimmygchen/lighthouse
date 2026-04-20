@@ -157,8 +157,7 @@ Attestation production, verification, aggregation, pool management.
 
 Blob and data column processing, custody, DA boundary calculations.
 
-**Owns:** `data_availability_checker`, `observed_blob_sidecars`,
-`observed_column_sidecars`, `kzg`, `rng`
+**Owns:** `data_availability_checker`, `rng`
 
 **Holds:** `spec`, `store`, `task_executor`
 
@@ -189,6 +188,7 @@ orchestrators that own their `Arc` refs and use `&self` methods:
 
 - **`BlockImporter<T>`** — block, blob, and data-column import.
   Owns `observed_block_producers`, `observed_slashable`,
+  `observed_blob_sidecars`, `observed_column_sidecars`,
   `event_handler`, `validator_monitor`. Holds `Arc` refs to
   `canonical_head`, `attestation_manager`, `data_availability_manager`,
   etc.
@@ -386,11 +386,16 @@ struct Context<T: BeaconChainTypes> {
 No single caller holds all components. Each holds only the refs its
 handler functions need.
 
+**Note:** This is the target architecture. Currently, callers
+(`NetworkBeaconProcessor`, HTTP API, sync manager) still hold
+`Arc<BeaconChain<T>>` and access components through it. Migrating
+callers to hold individual component `Arc`s directly is future work.
+
 ## Results
 
 Seven components extracted plus two scoped orchestrators
-(`BlockImporter<T>`, `BlockProducer<T>`). ~2,900 lines of new unit
-tests (104 tests), full CI green, and a local testnet that produces
+(`BlockImporter<T>`, `BlockProducer<T>`). ~3,300 lines of new unit
+tests (116 tests), full CI green, and a local testnet that produces
 blocks and finalises. The top-level type (`BeaconChain<T>`) shrank
 from 7,317 to 125 lines and lost its 200+ methods.
 
@@ -405,7 +410,7 @@ from 7,317 to 125 lines and lost its 200+ methods.
   `BlockImporter<T>` and `BlockProducer<T>` own their `Arc` refs and
   use `&self` methods, replacing the previous `*Context` struct literal
   pattern.
-- **~2,900 lines of new unit tests** (104 tests across 7 component
+- **~3,300 lines of new unit tests** (116 tests across 7 component
   test files). Six component test files construct components directly
   without `BeaconChainHarness`; `BlockImporter` tests use the harness
   for integration-level coverage.
@@ -418,20 +423,25 @@ from 7,317 to 125 lines and lost its 200+ methods.
 - **`store_migrator`** on `BeaconChain<T>` — the only non-component field
   left. Could be moved into the store layer.
 - **`chain()` back-references** — orchestrators hold a `Weak<BeaconChain<T>>`
-  and expose `chain()` to upgrade it. 5 call sites remain (4 in
-  `BlockImporter`, 1 in `BlockProducer`), all used to pass
-  `Arc<BeaconChain<T>>` into cross-module verification helpers
-  (`block_verification`, `blob_verification`, etc.) that still take
-  `&BeaconChain<T>`. Rewriting those signatures to accept narrow deps
-  would eliminate the back-reference entirely.
+  and expose `chain()` to upgrade it. 5 call sites remain:
+  - `BlockImporter` (4 calls) — passes `Arc<BeaconChain<T>>` into
+    `block_verification`, `blob_verification`, and
+    `data_column_verification` helpers that still take
+    `&BeaconChain<T>`.
+  - `BlockProducer` (1 call) — passes `Arc<BeaconChain<T>>` into
+    `execution_layer.get_payload()` which takes `&BeaconChain<T>` for
+    fork-choice state access.
+  Rewriting those verification/execution signatures to accept narrow
+  deps would eliminate the back-reference entirely.
 
 ### Key metrics
 
 - **Top-level file:** 7,317 → 125 lines (struct + trait + aliases only)
-- **Top-level fields:** 40+ → 22 (9 component Arcs, 5 infra, 5 genesis, 2 shared Arcs, 1 migrator)
+- **Top-level fields:** 40+ → 21 (9 component Arcs, 5 infra, 5 genesis, 1 kzg, 1 migrator)
 - **Top-level methods:** 200+ → 0
-- **Components + orchestrators:** 7 + 2 (`BlockImporter`, `BlockProducer`)
-- **New unit tests:** ~2,900 lines (104 tests across 7 component test files)
+- **Components + orchestrators:** 7 + 2 (`BlockImporter`, `BlockProducer`).
+  `state_query` also exists as a utility module but is not a component.
+- **New unit tests:** ~3,300 lines (116 tests across 7 component test files)
 
 ### Verification
 

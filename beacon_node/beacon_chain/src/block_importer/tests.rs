@@ -436,3 +436,427 @@ async fn process_rpc_custody_columns_rejects_unknown_parent() {
         result
     );
 }
+
+// -----------------------------------------------------------------------
+// Helper: wrap a SignedBeaconBlock into a RangeSyncBlock (no-data variant)
+// -----------------------------------------------------------------------
+
+fn wrap_in_range_sync_block(
+    harness: &BeaconChainHarness<crate::test_utils::EphemeralHarnessType<E>>,
+    block: Arc<SignedBeaconBlock<E>>,
+) -> RangeSyncBlock<E> {
+    use crate::block_verification_types::AvailableBlockData;
+    RangeSyncBlock::new(
+        block,
+        AvailableBlockData::NoData,
+        harness
+            .chain
+            .data_availability_manager
+            .data_availability_checker(),
+        harness.chain.spec.clone(),
+    )
+    .expect("should create RangeSyncBlock with NoData")
+}
+
+// -----------------------------------------------------------------------
+// check_block_relevancy via filter_chain_segment: genesis block (slot 0)
+// -----------------------------------------------------------------------
+
+#[tokio::test]
+async fn filter_chain_segment_skips_genesis_block() {
+    let harness = build_harness();
+    harness.advance_slot();
+
+    // Construct a block at slot 0 (genesis). Use BeaconBlock::empty which produces slot 0.
+    let spec = test_spec::<E>();
+    let genesis_block = BeaconBlock::empty(&spec);
+    let signed_genesis =
+        SignedBeaconBlock::from_block(genesis_block, Signature::empty());
+    let range_block = wrap_in_range_sync_block(&harness, Arc::new(signed_genesis));
+
+    // filter_chain_segment should skip the genesis block (GenesisBlock error => continue).
+    let result = harness.chain.block_importer.filter_chain_segment(vec![range_block]);
+    match result {
+        Ok(filtered) => assert!(
+            filtered.is_empty(),
+            "genesis block should be filtered out, but got {} blocks",
+            filtered.len()
+        ),
+        Err(_) => panic!("filter_chain_segment should not return an error for genesis block"),
+    }
+}
+
+// -----------------------------------------------------------------------
+// check_block_relevancy via filter_chain_segment: future block
+// -----------------------------------------------------------------------
+
+#[tokio::test]
+async fn filter_chain_segment_rejects_future_block() {
+    let harness = build_harness();
+    harness.advance_slot();
+    harness.extend_slots(1).await;
+
+    let head = harness.chain.canonical_head.cached_head();
+    let state = head.snapshot.beacon_state.clone();
+
+    // Advance state well past the current clock slot.
+    let far_future_slot = Slot::new(1000);
+    let ((block, _blobs), _state) = harness.make_block(state, far_future_slot).await;
+    let range_block = wrap_in_range_sync_block(&harness, block);
+
+    // The slot clock is only at slot ~2, but the block is at slot 1000 => FutureSlot.
+    // filter_chain_segment hits the `_ => break` arm, returning Ok with empty filtered list.
+    let result = harness.chain.block_importer.filter_chain_segment(vec![range_block]);
+    match result {
+        Ok(filtered) => assert!(
+            filtered.is_empty(),
+            "future block should be filtered out (break), but got {} blocks",
+            filtered.len()
+        ),
+        Err(_) => panic!("filter_chain_segment should not return an error for a future block"),
+    }
+}
+
+// -----------------------------------------------------------------------
+// check_block_relevancy via filter_chain_segment: finalized slot
+// -----------------------------------------------------------------------
+
+#[tokio::test]
+async fn filter_chain_segment_skips_finalized_slot_block() {
+    let harness = build_harness();
+    harness.advance_slot();
+
+    // Advance the chain far enough to finalize some epochs.
+    // With MinimalEthSpec (8 slots/epoch), we need at least 4 epochs (32 slots) with full
+    // attestations to finalize past genesis (finality requires 2 justified epochs).
+    harness.extend_slots(32).await;
+
+    let finalized_epoch = harness
+        .chain
+        .canonical_head
+        .cached_head()
+        .finalized_checkpoint()
+        .epoch;
+    assert!(
+        finalized_epoch > Epoch::new(0),
+        "chain should have finalized past genesis, finalized_epoch={}",
+        finalized_epoch
+    );
+
+    // Build a block at a slot that is finalized.
+    // We use slot 1 which should be within the finalized range.
+    let spec = test_spec::<E>();
+    let mut block = BeaconBlock::empty(&spec);
+    *block.slot_mut() = Slot::new(1);
+    let signed_block = SignedBeaconBlock::from_block(block, Signature::empty());
+    let range_block = wrap_in_range_sync_block(&harness, Arc::new(signed_block));
+
+    // filter_chain_segment should skip the block (WouldRevertFinalizedSlot => continue).
+    let result = harness.chain.block_importer.filter_chain_segment(vec![range_block]);
+    match result {
+        Ok(filtered) => assert!(
+            filtered.is_empty(),
+            "block at finalized slot should be filtered out, but got {} blocks",
+            filtered.len()
+        ),
+        Err(_) => panic!("filter_chain_segment should not return an error for finalized slot block"),
+    }
+}
+
+// -----------------------------------------------------------------------
+// check_block_relevancy via filter_chain_segment: duplicate block
+// -----------------------------------------------------------------------
+
+#[tokio::test]
+async fn filter_chain_segment_skips_duplicate_block() {
+    let harness = build_harness();
+    harness.advance_slot();
+    harness.extend_slots(2).await;
+
+    // Get the head block which is already imported into fork choice.
+    let head_block = harness.get_head_block();
+
+    // filter_chain_segment should skip it (DuplicateFullyImported => continue).
+    let result = harness.chain.block_importer.filter_chain_segment(vec![head_block]);
+    match result {
+        Ok(filtered) => assert!(
+            filtered.is_empty(),
+            "duplicate block should be filtered out, but got {} blocks",
+            filtered.len()
+        ),
+        Err(_) => panic!("filter_chain_segment should not return an error for duplicate block"),
+    }
+}
+
+// -----------------------------------------------------------------------
+// filter_chain_segment: non-linear parent roots
+// -----------------------------------------------------------------------
+
+#[tokio::test]
+async fn filter_chain_segment_rejects_non_linear_parent_roots() {
+    let harness = build_harness();
+    harness.advance_slot();
+    harness.extend_slots(2).await;
+
+    let head = harness.chain.canonical_head.cached_head();
+    let head_slot = head.head_slot();
+
+    // Build two synthetic blocks at consecutive slots where the second block's parent_root
+    // does NOT match the first block's block_root (i.e., non-linear parent chain).
+    let spec = test_spec::<E>();
+
+    let mut block_a = BeaconBlock::empty(&spec);
+    *block_a.slot_mut() = head_slot + 1;
+    *block_a.parent_root_mut() = head.head_block_root();
+    let signed_a = Arc::new(SignedBeaconBlock::from_block(block_a, Signature::empty()));
+
+    let mut block_b = BeaconBlock::empty(&spec);
+    *block_b.slot_mut() = head_slot + 2;
+    // Set parent_root to a random value that won't match block_a's root.
+    *block_b.parent_root_mut() = Hash256::random();
+    let signed_b = Arc::new(SignedBeaconBlock::from_block(block_b, Signature::empty()));
+
+    let range_a = wrap_in_range_sync_block(&harness, signed_a);
+    let range_b = wrap_in_range_sync_block(&harness, signed_b);
+
+    // Advance slot clock so these blocks are not rejected as FutureSlot.
+    harness.advance_slot();
+    harness.advance_slot();
+
+    // block_a is at index 0, block_b is at index 1.
+    // children[0] = (block_b.parent_root, block_b.slot) — block_b.parent_root != block_a.block_root
+    // => NonLinearParentRoots
+    let result = harness.chain.block_importer.filter_chain_segment(vec![range_a, range_b]);
+    assert!(
+        matches!(
+            result,
+            Err(ref seg) if matches!(
+                seg.as_ref(),
+                ChainSegmentResult::Failed { error: BlockError::NonLinearParentRoots, .. }
+            )
+        ),
+        "expected NonLinearParentRoots error from filter_chain_segment"
+    );
+}
+
+// -----------------------------------------------------------------------
+// filter_chain_segment: non-linear slots
+// -----------------------------------------------------------------------
+
+#[tokio::test]
+async fn filter_chain_segment_rejects_non_linear_slots() {
+    let harness = build_harness();
+    harness.advance_slot();
+    harness.extend_slots(4).await;
+
+    let head = harness.chain.canonical_head.cached_head();
+    let state = head.snapshot.beacon_state.clone();
+
+    // Make two blocks at the same slot. The second block has the first as parent.
+    let next_slot = head.head_slot() + 1;
+    let ((block_a, _), _) = harness.make_block(state.clone(), next_slot).await;
+    let block_a_root = block_a.canonical_root();
+
+    // Make another block also at next_slot but with block_a's root as parent root.
+    let ((block_b, _), _) = harness
+        .make_block_with_modifier(state, next_slot, |b| {
+            *b.parent_root_mut() = block_a_root;
+        })
+        .await;
+
+    let range_a = wrap_in_range_sync_block(&harness, block_a);
+    let range_b = wrap_in_range_sync_block(&harness, block_b);
+
+    // Both at the same slot: child_slot <= block.slot() => NonLinearSlots
+    let result = harness.chain.block_importer.filter_chain_segment(vec![range_a, range_b]);
+    assert!(
+        matches!(
+            result,
+            Err(ref seg) if matches!(
+                seg.as_ref(),
+                ChainSegmentResult::Failed { error: BlockError::NonLinearSlots, .. }
+            )
+        ),
+        "expected NonLinearSlots error from filter_chain_segment"
+    );
+}
+
+// -----------------------------------------------------------------------
+// process_chain_segment: empty segment returns Successful with no blocks
+// -----------------------------------------------------------------------
+
+#[tokio::test]
+async fn process_chain_segment_empty_returns_successful() {
+    let harness = build_harness();
+    harness.advance_slot();
+
+    let result = harness
+        .chain
+        .block_importer
+        .process_chain_segment(vec![], NotifyExecutionLayer::Yes)
+        .await;
+
+    match result {
+        ChainSegmentResult::Successful { imported_blocks } => {
+            assert!(
+                imported_blocks.is_empty(),
+                "empty segment should import zero blocks"
+            );
+        }
+        ChainSegmentResult::Failed { error, .. } => {
+            panic!("expected Successful for empty segment, got Failed: {:?}", error);
+        }
+    }
+}
+
+// -----------------------------------------------------------------------
+// verify_header_signature_inline: unknown validator index
+// -----------------------------------------------------------------------
+
+#[tokio::test]
+async fn verify_header_signature_rejects_unknown_validator() {
+    let harness = build_harness();
+    harness.advance_slot();
+    harness.extend_slots(1).await;
+
+    let head = harness.chain.canonical_head.cached_head();
+    let mut header = head.snapshot.beacon_block.message().block_header();
+
+    // Set proposer_index to a value beyond the known validator set.
+    header.proposer_index = 999_999;
+
+    let signed_header = SignedBeaconBlockHeader {
+        message: header,
+        signature: Signature::empty(),
+    };
+
+    let result = verify_header_signature_inline::<crate::test_utils::EphemeralHarnessType<E>>(
+        &harness.chain.block_importer,
+        &signed_header,
+    );
+
+    assert!(
+        matches!(result, Err(BlockError::UnknownValidator(999_999))),
+        "expected UnknownValidator(999999), got {:?}",
+        result
+    );
+}
+
+// -----------------------------------------------------------------------
+// verify_header_signature_inline: invalid signature
+// -----------------------------------------------------------------------
+
+#[tokio::test]
+async fn verify_header_signature_rejects_invalid_signature() {
+    let harness = build_harness();
+    harness.advance_slot();
+    harness.extend_slots(1).await;
+
+    let head = harness.chain.canonical_head.cached_head();
+    let header = head.snapshot.beacon_block.message().block_header();
+
+    // Use a valid proposer_index but an empty (invalid) signature.
+    let signed_header = SignedBeaconBlockHeader {
+        message: header,
+        signature: Signature::empty(),
+    };
+
+    let result = verify_header_signature_inline::<crate::test_utils::EphemeralHarnessType<E>>(
+        &harness.chain.block_importer,
+        &signed_header,
+    );
+
+    assert!(
+        matches!(result, Err(BlockError::InvalidSignature(_))),
+        "expected InvalidSignature, got {:?}",
+        result
+    );
+}
+
+// -----------------------------------------------------------------------
+// verify_header_signature_inline: valid signature
+// -----------------------------------------------------------------------
+
+#[tokio::test]
+async fn verify_header_signature_accepts_valid_signature() {
+    let harness = build_harness();
+    harness.advance_slot();
+    harness.extend_slots(1).await;
+
+    let head = harness.chain.canonical_head.cached_head();
+    let signed_block = &head.snapshot.beacon_block;
+
+    // Extract the actual signed block header (with valid signature from the real proposer).
+    let signed_header = signed_block.signed_block_header();
+
+    let result = verify_header_signature_inline::<crate::test_utils::EphemeralHarnessType<E>>(
+        &harness.chain.block_importer,
+        &signed_header,
+    );
+
+    assert!(
+        result.is_ok(),
+        "expected valid header signature to pass, got {:?}",
+        result
+    );
+}
+
+// -----------------------------------------------------------------------
+// check_block_relevancy via filter_chain_segment: block at max slot
+// -----------------------------------------------------------------------
+
+#[tokio::test]
+async fn filter_chain_segment_rejects_max_slot_block() {
+    let harness = build_harness();
+    harness.advance_slot();
+
+    // Construct a block at MAXIMUM_BLOCK_SLOT_NUMBER (2^32). This should be rejected
+    // by check_block_relevancy and hit the `_ => break` arm in filter_chain_segment.
+    let spec = test_spec::<E>();
+    let mut block = BeaconBlock::empty(&spec);
+    *block.slot_mut() = Slot::new(MAXIMUM_BLOCK_SLOT_NUMBER);
+    let signed_block = SignedBeaconBlock::from_block(block, Signature::empty());
+    let range_block = wrap_in_range_sync_block(&harness, Arc::new(signed_block));
+
+    let result = harness.chain.block_importer.filter_chain_segment(vec![range_block]);
+    match result {
+        Ok(filtered) => assert!(
+            filtered.is_empty(),
+            "block at max slot should be filtered out (break), but got {} blocks",
+            filtered.len()
+        ),
+        Err(_) => panic!("filter_chain_segment should not error for max slot block"),
+    }
+}
+
+// -----------------------------------------------------------------------
+// filter_chain_segment: valid block passes through
+// -----------------------------------------------------------------------
+
+#[tokio::test]
+async fn filter_chain_segment_passes_valid_block() {
+    let harness = build_harness();
+    harness.advance_slot();
+    harness.extend_slots(2).await;
+
+    let head = harness.chain.canonical_head.cached_head();
+    let state = head.snapshot.beacon_state.clone();
+
+    // Make a new block that is valid and not yet imported.
+    let next_slot = head.head_slot() + 1;
+    harness.advance_slot();
+    let ((block, _blobs), _state) = harness.make_block(state, next_slot).await;
+    let range_block = wrap_in_range_sync_block(&harness, block);
+
+    let result = harness.chain.block_importer.filter_chain_segment(vec![range_block]);
+    match result {
+        Ok(filtered) => assert_eq!(
+            filtered.len(),
+            1,
+            "valid unimported block should pass through filter"
+        ),
+        Err(_seg) => panic!(
+            "filter_chain_segment should not error for valid block"
+        ),
+    }
+}

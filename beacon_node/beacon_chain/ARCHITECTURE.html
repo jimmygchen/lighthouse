@@ -537,9 +537,9 @@
     From 200+ methods to zero. 7,317 lines to 125.<br>
     Our tiniest BeaconChain, ever.<span style="font-size:0.6em; vertical-align:super; opacity:0.6;">*</span>
   </p>
-  <p style="font-size:0.55rem; color:var(--text-muted); opacity:0.5; max-width:500px; margin-top:-1.5rem; line-height:1.4;">
+  <p style="font-size:0.6rem; color:var(--text-muted); opacity:0.6; max-width:500px; margin-top:-1.5rem; line-height:1.4;">
     *The top-level <code style="font-size:inherit;">BeaconChain&lt;T&gt;</code> struct went from 7,317 to 125 lines.
-    Total crate line count increased &mdash; the god object's logic now lives in focused, independently testable components.
+    Total crate line count increased by ~4,900 lines (51.8k &rarr; 56.7k) &mdash; the god object's logic now lives in focused, independently testable components.
     No methods were harmed in the making of this refactor. Several were rehomed.
   </p>
   <div class="scroll-hint" aria-hidden="true">&#8595;</div>
@@ -625,13 +625,13 @@
     <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card);">
       <strong style="color:var(--accent);">Unit-testable without the harness</strong>
       <p style="font-size:0.8rem; color:var(--text-muted); margin:0.5rem 0 0;">
-        Construct a component directly. No harness, no store, no fork choice. Fast tests that validate before integration.
+        Most components: construct directly, no harness, no store, no fork choice. Fast tests that validate before integration. Orchestrators still use the harness.
       </p>
     </div>
     <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card);">
       <strong style="color:var(--accent);">Faster review</strong>
       <p style="font-size:0.8rem; color:var(--text-muted); margin:0.5rem 0 0;">
-        Review <code>AttestationManager</code> against its interface and tests. Not 7,000 lines.
+        Smaller components mean finding things is faster and scope is clearer. Once spec-aligned test cases are human-approved, implementation details can be validated by tests rather than line-by-line review.
       </p>
     </div>
     <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card);">
@@ -642,9 +642,6 @@
     </div>
   </div>
 
-  <div class="callout fade-in">
-    A god object is a ceiling. Modular components are a foundation.
-  </div>
 </section>
 
 <!-- ════════════ STRUCTURE ════════════ -->
@@ -692,7 +689,7 @@
       <text x="285" y="222" text-anchor="middle" fill="#f0883e" font-size="11" font-weight="600">BlockProducer&lt;T&gt;</text>
 
       <!-- Callers -->
-      <text x="450" y="20" fill="#8b949e" font-size="11" font-weight="600">CALLERS (hold refs, no logic)</text>
+      <text x="450" y="20" fill="#8b949e" font-size="11" font-weight="600">CALLERS (target: hold refs, no logic)</text>
       <rect x="450" y="32" width="210" height="30" rx="6" fill="#1c2129" stroke="#30363d" stroke-width="1"/>
       <text x="555" y="52" text-anchor="middle" fill="#8b949e" font-size="11">HTTP API Context</text>
       <rect x="450" y="68" width="210" height="30" rx="6" fill="#1c2129" stroke="#30363d" stroke-width="1"/>
@@ -708,7 +705,7 @@
       <!-- Testing -->
       <text x="20" y="260" fill="#3fb950" font-size="11" font-weight="600">TESTING</text>
       <rect x="20" y="272" width="350" height="30" rx="5" fill="rgba(63,185,80,0.06)" stroke="rgba(63,185,80,0.25)" stroke-width="1"/>
-      <text x="195" y="292" text-anchor="middle" fill="#3fb950" font-size="10" font-weight="500">Unit tests &mdash; construct component, pass test state, assert</text>
+      <text x="195" y="292" text-anchor="middle" fill="#3fb950" font-size="10" font-weight="500">Unit tests &mdash; construct component, pass test state, assert (most components)</text>
       <rect x="20" y="308" width="350" height="30" rx="5" fill="rgba(240,136,62,0.06)" stroke="rgba(240,136,62,0.25)" stroke-width="1"/>
       <text x="195" y="328" text-anchor="middle" fill="#f0883e" font-size="10" font-weight="500">Acceptance tests &mdash; event-based via sync manager TestRig</text>
       <rect x="20" y="344" width="350" height="30" rx="5" fill="rgba(121,192,255,0.06)" stroke="rgba(121,192,255,0.25)" stroke-width="1"/>
@@ -739,9 +736,9 @@
       <div style="font-size:0.65rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">Fields</div>
       <div style="font-size:1.8rem; font-weight:800; margin-top:0.2rem;">
         <span style="color:var(--accent5); font-size:1rem; text-decoration:line-through;">40+</span>
-        <span class="metric-counter" data-target="22" style="color:var(--accent2);">0</span>
+        <span class="metric-counter" data-target="21" style="color:var(--accent2);">0</span>
       </div>
-      <div style="font-size:0.7rem; color:var(--text-muted);">9 component Arcs &middot; 5 infra &middot; 5 genesis &middot; 2 shared Arcs &middot; 1 migrator</div>
+      <div style="font-size:0.7rem; color:var(--text-muted);">9 component Arcs &middot; 5 infra &middot; 5 genesis &middot; 1 kzg &middot; 1 migrator</div>
     </div>
     <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card); text-align:center;">
       <div style="font-size:0.65rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">Methods</div>
@@ -757,9 +754,9 @@
       <div style="font-size:0.7rem; color:var(--text-muted);">+ orchestrators</div>
     </div>
     <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card); text-align:center;">
-      <div style="font-size:0.65rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">New unit tests</div>
-      <div style="font-size:1.8rem; font-weight:800; color:var(--accent2); margin-top:0.2rem;">~2,900</div>
-      <div style="font-size:0.7rem; color:var(--text-muted);">lines &middot; 104 tests</div>
+      <div style="font-size:0.65rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">Component tests</div>
+      <div style="font-size:1.8rem; font-weight:800; color:var(--accent2); margin-top:0.2rem;">~5,300</div>
+      <div style="font-size:0.7rem; color:var(--text-muted);">lines &middot; 161 tests across 11 component test files</div>
     </div>
     <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card); text-align:center;">
       <div style="font-size:0.65rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">Fulu tests</div>
@@ -777,9 +774,7 @@
         <strong style="font-size:0.9rem;">CI</strong>
       </div>
       <div style="font-size:0.8rem; color:var(--text-muted); margin-top:0.5rem;">
-        <code>cargo check --workspace --tests</code> green &middot;
-        <code>make lint</code> clean &middot;
-        <code>cargo fmt</code> applied.
+        Full existing test suite passes with broader coverage. Modular components unlock targeted testing that wasn't possible before.
       </div>
     </div>
 
@@ -792,25 +787,15 @@
         4-node Lighthouse + Geth mesh on the final refactored code.
         <strong>50+ epochs finalized</strong>,
         <strong>0 errors</strong>,
-        block import delay avg <strong>81ms</strong>,
-        3 peers per node. Chain finalising normally throughout.
+        block import delay avg <strong>81ms</strong>.
       </div>
     </div>
 
-    <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card);">
-      <div style="display:flex; align-items:baseline; gap:0.5rem;">
-        <span style="width:0.6em; height:0.6em; border-radius:50%; background:var(--accent2); display:inline-block;"></span>
-        <strong style="font-size:0.9rem;">Fulu test suite</strong>
-      </div>
-      <div style="font-size:0.8rem; color:var(--text-muted); margin-top:0.5rem;">
-        <strong>425 / 425 passed</strong> (release mode). Matches CI gate.
-      </div>
-    </div>
   </div>
 
   <h3 class="fade-in" style="margin-top:2.5rem; font-size:1.1rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-muted);">Performance: unstable vs branch</h3>
   <p class="fade-in" style="font-size:0.85rem; color:var(--text-muted); margin:0.5rem 0 1rem;">
-    4 LH + 4 Geth, Fulu, 3s slots. Prometheus metrics.
+    Fresh measurements pending &mdash; previous testnet data was collected under degraded network conditions. Performance parity (not improvement) is the goal.
   </p>
 
   <div class="fade-in" style="overflow-x:auto;">
@@ -826,50 +811,44 @@
       <tbody>
         <tr style="border-bottom:1px solid var(--border);">
           <td style="padding:0.5rem 0.8rem;">Block processing (core)</td>
-          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">1.66ms</td>
-          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">2.12ms</td>
-          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace; color:var(--text-muted);">+0.46ms</td>
+          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">&mdash;</td>
+          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">&mdash;</td>
+          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace; color:var(--text-muted);">&mdash;</td>
         </tr>
         <tr style="border-bottom:1px solid var(--border);">
           <td style="padding:0.5rem 0.8rem;">Attestation observation</td>
-          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">0.03ms</td>
-          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">0.03ms</td>
-          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace; color:var(--accent2);">same</td>
+          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">&mdash;</td>
+          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">&mdash;</td>
+          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace; color:var(--text-muted);">&mdash;</td>
         </tr>
         <tr style="border-bottom:1px solid var(--border);">
-          <td style="padding:0.5rem 0.8rem;">Committee building</td>
-          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">0.02ms</td>
-          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">0.02ms</td>
-          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace; color:var(--accent2);">same</td>
+          <td style="padding:0.5rem 0.8rem;">Block processing (total)</td>
+          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">&mdash;</td>
+          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">&mdash;</td>
+          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace; color:var(--text-muted);">&mdash;</td>
         </tr>
         <tr style="border-bottom:1px solid var(--border);">
-          <td style="padding:0.5rem 0.8rem;">Block import delay (end-to-end)</td>
-          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">84.8ms</td>
-          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">80.7ms</td>
-          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace; color:var(--accent2);">-4.1ms</td>
-        </tr>
-        <tr style="border-bottom:1px solid var(--border);">
-          <td style="padding:0.5rem 0.8rem;">Block production (end-to-end)</td>
-          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">64.2ms</td>
-          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">61.9ms</td>
-          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace; color:var(--accent2);">-2.3ms</td>
+          <td style="padding:0.5rem 0.8rem;">Block production</td>
+          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">&mdash;</td>
+          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">&mdash;</td>
+          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace; color:var(--text-muted);">&mdash;</td>
         </tr>
         <tr style="border-bottom:1px solid var(--border);">
           <td style="padding:0.5rem 0.8rem;">Errors</td>
-          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">0</td>
-          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">0</td>
-          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace; color:var(--accent2);">same</td>
+          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">&mdash;</td>
+          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">&mdash;</td>
+          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace; color:var(--text-muted);">&mdash;</td>
         </tr>
         <tr style="border-bottom:1px solid var(--border);">
           <td style="padding:0.5rem 0.8rem;">Finalization</td>
-          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">normal</td>
-          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">normal</td>
-          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace; color:var(--accent2);">same</td>
+          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">&mdash;</td>
+          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace;">&mdash;</td>
+          <td style="padding:0.5rem 0.8rem; text-align:right; font-family:monospace; color:var(--text-muted);">&mdash;</td>
         </tr>
       </tbody>
     </table>
     <p style="font-size:0.7rem; color:var(--text-muted); margin-top:0.5rem;">
-      +0.46ms on block processing core is within noise for 128 validators. Everything else is equivalent or faster.
+      Fresh numbers will be updated once both testnets are running clean. Same Kurtosis config (4 LH + 4 Geth, Fulu, 3s slots).
     </p>
   </div>
 
@@ -1011,7 +990,7 @@
           </td>
         </tr>
         <tr style="border-bottom:1px solid var(--border);">
-          <td style="padding:0.4rem 0.8rem; padding-left:1.5rem;"><span style="color:var(--accent);">StateQuery</span></td>
+          <td style="padding:0.4rem 0.8rem; padding-left:1.5rem;"><span style="color:var(--accent);">StateQuery</span> <span style="font-size:0.65rem; color:var(--text-muted);">(utility module, not a component)</span></td>
           <td style="padding:0.4rem 0.8rem; text-align:right; font-family:monospace;">58/62</td>
           <td style="padding:0.4rem 0.8rem; text-align:right; font-family:monospace;">588/629</td>
           <td style="padding:0.4rem 0.8rem;">
@@ -1051,6 +1030,26 @@
       </span>
     </div>
   </div>
+
+  <h3 class="fade-in" style="margin-top:2.5rem; font-size:1.1rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-muted);">Known Limitations</h3>
+  <div class="fade-in" style="font-size:0.85rem; color:var(--text-muted); margin:1rem 0;">
+    <ul style="list-style:disc; padding-left:1.5rem; display:grid; gap:0.5rem;">
+      <li><strong style="color:var(--text);">Back-references to <code>BeaconChain</code>:</strong> BlockImporter has 4 <code>chain()</code> calls and BlockProducer has 1. These are <code>Weak&lt;BeaconChain&lt;T&gt;&gt;</code> back-references to the parent, required because cross-module verification helpers in <code>block_verification.rs</code> still take <code>&amp;BeaconChain&lt;T&gt;</code>. Plan: narrow those helper signatures to take specific deps, then remove the back-references entirely.</li>
+      <li><strong style="color:var(--text);">Callers not yet migrated:</strong> <code>NetworkBeaconProcessor</code>, HTTP API, and sync still hold <code>Arc&lt;BeaconChain&lt;T&gt;&gt;</code>. Component boundaries are enforced at the type level; caller migration is incremental and independent.</li>
+      <li><strong style="color:var(--text);">StateQuery is a utility module:</strong> Free functions, not a component struct. Included in coverage for completeness but not counted in the "7 + 2" component tally.</li>
+    </ul>
+  </div>
+
+  <h3 class="fade-in" style="margin-top:2rem; font-size:1.1rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-muted);">Trade-offs</h3>
+  <div class="fade-in" style="font-size:0.85rem; color:var(--text-muted); margin:1rem 0;">
+    <ul style="list-style:disc; padding-left:1.5rem; display:grid; gap:0.4rem;">
+      <li>More files to navigate &mdash; one god object becomes 9+ module directories.</li>
+      <li>Larger diffs for cross-cutting changes that touch multiple components.</li>
+      <li>Migration cost for in-flight PRs that touch <code>beacon_chain.rs</code>.</li>
+      <li><code>chain()</code> escape hatch means the boundary is advisory until back-refs are eliminated.</li>
+      <li>More <code>Arc</code> indirection per method call.</li>
+    </ul>
+  </div>
 </section>
 
 <!-- ════════════ DESIGN PRINCIPLES ════════════ -->
@@ -1078,8 +1077,8 @@
     <div class="principle">
       <div class="principle-num">3</div>
       <h3>Components are testable in isolation</h3>
-      <p>Construct, pass state, assert. No harness, no store, no fork choice.</p>
-      <div class="why">Today you spin up the full chain just to test verification logic. Deterministic components with parameterized context fix that.</div>
+      <p>Construct, pass state, assert. Most components need no harness, no store, no fork choice. Orchestrators (BlockImporter, BlockProducer) still use the harness for integration-level validation due to cross-component dependencies.</p>
+      <div class="why">Today you spin up the full chain just to test verification logic. Deterministic components with parameterized context fix that for 5 of 7 components.</div>
     </div>
 
     <div class="principle">
@@ -1145,7 +1144,7 @@
     canonical_head: <span class="ty">Arc</span>&lt;<span class="ty">CanonicalHead</span>&lt;<span class="ty">T</span>&gt;&gt;,
     execution_manager: <span class="ty">Arc</span>&lt;<span class="ty">ExecutionManager</span>&lt;<span class="ty">T</span>&gt;&gt;,
     attestation_manager: <span class="ty">Arc</span>&lt;<span class="ty">AttestationManager</span>&lt;<span class="ty">T::EthSpec</span>&gt;&gt;,
-    <span class="cm">// ... (other fields elided)</span>
+    <span class="cm">// ... (20 fields total &mdash; key domain deps shown)</span>
 }
 
 <span class="kw">impl</span>&lt;<span class="ty">T: BeaconChainTypes</span>&gt; <span class="ty">BlockProducer</span>&lt;<span class="ty">T</span>&gt; {
@@ -1208,7 +1207,6 @@
           <p>Blob/data column processing, custody, DA boundary calculations.</p>
           <div class="tag-list">
             <span class="tag own">data_availability_checker</span>
-            <span class="tag own">observed_blob_sidecars</span>
             <span class="tag own">kzg</span>
             <span class="tag hld">spec</span>
             <span class="tag hld">store</span>
@@ -1259,9 +1257,10 @@
   </details>
 
   <details class="fade-in">
-    <summary>Dependency injection &mdash; what each caller receives</summary>
+    <summary>Dependency injection &mdash; target caller architecture</summary>
     <div class="detail-body">
-      <p style="margin-bottom:1rem;">Callers hold refs, no logic. Handlers pull only what they need.</p>
+      <p style="margin-bottom:0.5rem;"><strong style="color:var(--accent4);">Target state.</strong> Today, callers still hold <code>Arc&lt;BeaconChain&lt;T&gt;&gt;</code> and access components through it. The component boundaries exist at the type level &mdash; callers can be migrated incrementally to hold direct refs.</p>
+      <p style="margin-bottom:1rem; font-size:0.8rem; color:var(--text-muted);">The following shows what each caller actually needs, not what it currently holds.</p>
       <div class="ref-grid">
         <div class="ref-card">
           <h4>NetworkBeaconProcessor</h4>
@@ -1301,7 +1300,7 @@
 <section id="cheatsheet">
   <h2 class="fade-in">Quick Reference <span class="badge">Cheat Sheet</span></h2>
   <p class="lead fade-in">
-    Do this. Not that.
+    Preferences for working with the modular architecture.
   </p>
 
   <div class="cheat fade-in">
@@ -1330,11 +1329,12 @@
     <div class="cheat-card">
       <h3>Testing a Component</h3>
       <div class="do-dont">
-        <div class="do-item">Construct the component directly</div>
+        <div class="do-item">Construct the component directly (works for most components)</div>
         <div class="do-item">Create test state and pass it as parameters</div>
         <div class="do-item">Write a scenario spec first for alignment</div>
-        <div class="dont-item">Use the full harness for unit-level tests</div>
-        <div class="dont-item">Set up store, fork choice, or networking</div>
+        <div class="do-item">Use the harness for orchestrators (BlockImporter, BlockProducer)</div>
+        <div class="dont-item">Use the full harness for unit-level component tests</div>
+        <div class="dont-item">Set up store, fork choice, or networking for leaf components</div>
       </div>
     </div>
 
