@@ -538,7 +538,7 @@
     Our tiniest BeaconChain, ever.<span style="font-size:0.6em; vertical-align:super; opacity:0.6;">*</span>
   </p>
   <p style="font-size:0.6rem; color:var(--text-muted); opacity:0.6; max-width:500px; margin-top:-1.5rem; line-height:1.4;">
-    *The top-level <code style="font-size:inherit;">BeaconChain&lt;T&gt;</code> struct went from 7,317 to 125 lines.
+    *The top-level <a href="https://github.com/jimmygchen/lighthouse/blob/modularize-beacon-chain/beacon_node/beacon_chain/src/beacon_chain.rs" style="color:var(--accent); text-decoration:underline;"><code style="font-size:inherit;">BeaconChain&lt;T&gt;</code></a> struct went from 7,317 to 125 lines.
     Total crate line count increased by ~4,900 lines (51.8k &rarr; 56.7k) &mdash; the god object's logic now lives in focused, independently testable components.
     No methods were harmed in the making of this refactor. Several were rehomed.
   </p>
@@ -554,7 +554,6 @@
     <li><a href="#results">Results</a></li>
     <li><a href="#principles">Design Principles</a></li>
     <li><a href="#howitworks">How It Works</a></li>
-    <li><a href="#cheatsheet">Quick Reference</a></li>
   </ul>
 </nav>
 
@@ -754,14 +753,9 @@
       <div style="font-size:0.7rem; color:var(--text-muted);">+ orchestrators</div>
     </div>
     <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card); text-align:center;">
-      <div style="font-size:0.65rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">Component tests</div>
-      <div style="font-size:1.8rem; font-weight:800; color:var(--accent2); margin-top:0.2rem;">~5,300</div>
-      <div style="font-size:0.7rem; color:var(--text-muted);">lines &middot; 161 tests across 11 component test files</div>
-    </div>
-    <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card); text-align:center;">
-      <div style="font-size:0.65rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">Fulu tests</div>
-      <div style="font-size:1.8rem; font-weight:800; color:var(--accent2); margin-top:0.2rem;">425/425</div>
-      <div style="font-size:0.7rem; color:var(--text-muted);">release mode</div>
+      <div style="font-size:0.65rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">New tests</div>
+      <div style="font-size:1.8rem; font-weight:800; color:var(--accent2); margin-top:0.2rem;">+161</div>
+      <div style="font-size:0.7rem; color:var(--text-muted);">component tests &middot; most harness-free</div>
     </div>
   </div>
 
@@ -774,32 +768,32 @@
         <strong style="font-size:0.9rem;">CI</strong>
       </div>
       <div style="font-size:0.8rem; color:var(--text-muted); margin-top:0.5rem;">
-        Full existing test suite passes with broader coverage. Modular components unlock targeted testing that wasn't possible before.
+        All existing tests pass. +161 new component tests enable targeted testing that wasn't possible with the monolith.
       </div>
     </div>
 
     <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card);">
       <div style="display:flex; align-items:baseline; gap:0.5rem;">
         <span style="width:0.6em; height:0.6em; border-radius:50%; background:var(--accent2); display:inline-block;"></span>
-        <strong style="font-size:0.9rem;">Kurtosis local testnet</strong>
+        <strong style="font-size:0.9rem;">Stability</strong>
       </div>
       <div style="font-size:0.8rem; color:var(--text-muted); margin-top:0.5rem;">
-        4-node Lighthouse + Geth mesh on the final refactored code.
+        4-node Lighthouse + Geth Kurtosis testnet.
         <strong>50+ epochs finalized</strong>,
-        <strong>0 errors</strong>,
-        block import delay avg <strong>81ms</strong>.
+        <strong>0 errors</strong>, chain healthy throughout.
       </div>
     </div>
 
-  </div>
+    <div style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--bg-card);">
+      <div style="display:flex; align-items:baseline; gap:0.5rem;">
+        <span style="width:0.6em; height:0.6em; border-radius:50%; background:var(--accent2); display:inline-block;"></span>
+        <strong style="font-size:0.9rem;">Performance</strong>
+      </div>
+      <div style="font-size:0.8rem; color:var(--text-muted); margin-top:0.5rem;">
+        Comparable to <code>unstable</code>. Detailed benchmarking on dedicated hardware pending &mdash; local testnet measurements show no clear regression.
+      </div>
+    </div>
 
-  <h3 class="fade-in" style="margin-top:2.5rem; font-size:1.1rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-muted);">Performance</h3>
-  <div class="fade-in" style="border:1px solid var(--border); border-radius:10px; padding:1.25rem; background:var(--surface); margin:1rem 0;">
-    <p style="font-size:0.85rem; color:var(--text-muted); margin:0;">
-      Overall performance appears comparable to <code>unstable</code>. Detailed benchmarking on dedicated hardware has not been done yet &mdash;
-      local testnet measurements on shared VMs showed no clear regression but are not rigorous enough to quantify.
-      The Kurtosis testnet (4 LH + 4 Geth, Fulu, 50+ epochs) ran with <strong>0 errors</strong> and <strong>normal finalization</strong> throughout.
-    </p>
   </div>
 
   <h3 class="fade-in" style="margin-top:2.5rem; font-size:1.1rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-muted);">Coverage: monolith vs components</h3>
@@ -920,9 +914,9 @@
           <td style="padding:0.4rem 0.8rem;">
             <div style="display:flex; align-items:center; gap:0.5rem;">
               <div style="flex:1; height:12px; background:var(--surface2); border-radius:3px; overflow:hidden;">
-                <div class="coverage-bar" data-width="70.1%" style="height:100%; background:var(--accent4); border-radius:3px;"></div>
+                <div class="coverage-bar" data-width="72.5%" style="height:100%; background:var(--accent4); border-radius:3px;"></div>
               </div>
-              <span style="font-family:monospace; font-weight:600; color:var(--accent4); min-width:3.5em;">70.1%</span>
+              <span style="font-family:monospace; font-weight:600; color:var(--accent4); min-width:3.5em;">72.5%</span>
             </div>
           </td>
         </tr>
@@ -990,16 +984,6 @@
     </ul>
   </div>
 
-  <h3 class="fade-in" style="margin-top:2rem; font-size:1.1rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-muted);">Trade-offs</h3>
-  <div class="fade-in" style="font-size:0.85rem; color:var(--text-muted); margin:1rem 0;">
-    <ul style="list-style:disc; padding-left:1.5rem; display:grid; gap:0.4rem;">
-      <li>More files to navigate &mdash; one god object becomes 9+ module directories.</li>
-      <li>Larger diffs for cross-cutting changes that touch multiple components.</li>
-      <li>Migration cost for in-flight PRs that touch <code>beacon_chain.rs</code>.</li>
-      <li><code>chain()</code> escape hatch means the boundary is advisory until back-refs are eliminated.</li>
-      <li>More <code>Arc</code> indirection per method call.</li>
-    </ul>
-  </div>
 </section>
 
 <!-- ════════════ DESIGN PRINCIPLES ════════════ -->
@@ -1244,61 +1228,6 @@
       </div>
     </div>
   </details>
-</section>
-
-<!-- ════════════ CHEAT SHEET ════════════ -->
-<section id="cheatsheet">
-  <h2 class="fade-in">Quick Reference <span class="badge">Cheat Sheet</span></h2>
-  <p class="lead fade-in">
-    Preferences for working with the modular architecture.
-  </p>
-
-  <div class="cheat fade-in">
-    <div class="cheat-card">
-      <h3>Adding a New Verification</h3>
-      <div class="do-dont">
-        <div class="do-item">Add method to the relevant component with state as params</div>
-        <div class="do-item">Have the caller fetch state and pass it in</div>
-        <div class="do-item">Return result; let caller handle side effects</div>
-        <div class="dont-item">Fetch state internally from the component</div>
-        <div class="dont-item">Emit events or log metrics from inside the component</div>
-      </div>
-    </div>
-
-    <div class="cheat-card">
-      <h3>Adding a New Component</h3>
-      <div class="do-dont">
-        <div class="do-item">Minimize generic parameters &mdash; only what you actually need</div>
-        <div class="do-item">Register in the Builder, wire refs to callers</div>
-        <div class="do-item">Write unit tests with constructed state</div>
-        <div class="dont-item">Add type parameters "just in case"</div>
-        <div class="dont-item">Hold references to shared mutable state</div>
-      </div>
-    </div>
-
-    <div class="cheat-card">
-      <h3>Testing a Component</h3>
-      <div class="do-dont">
-        <div class="do-item">Construct the component directly (works for most components)</div>
-        <div class="do-item">Create test state and pass it as parameters</div>
-        <div class="do-item">Write a scenario spec first for alignment</div>
-        <div class="do-item">Use the harness for orchestrators (BlockImporter, BlockProducer)</div>
-        <div class="dont-item">Use the full harness for unit-level component tests</div>
-        <div class="dont-item">Set up store, fork choice, or networking for leaf components</div>
-      </div>
-    </div>
-
-    <div class="cheat-card">
-      <h3>Cross-Component Coordination</h3>
-      <div class="do-dont">
-        <div class="do-item">Keep dependencies one-directional</div>
-        <div class="do-item">Coordinate via orchestrators (<code>BlockImporter</code>, <code>BlockProducer</code>)</div>
-        <div class="do-item">Follow documented lock ordering</div>
-        <div class="dont-item">Create circular dependencies between components</div>
-        <div class="dont-item">Acquire write locks from within a component</div>
-      </div>
-    </div>
-  </div>
 </section>
 
 <footer>
