@@ -978,9 +978,9 @@
   <h3 class="fade-in" style="margin-top:2.5rem; font-size:1.1rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-muted);">Known Limitations</h3>
   <div class="fade-in" style="font-size:0.85rem; color:var(--text-muted); margin:1rem 0;">
     <ul style="list-style:disc; padding-left:1.5rem; display:grid; gap:0.5rem;">
-      <li><strong style="color:var(--text);">Back-references to <code>BeaconChain</code>:</strong> BlockImporter has 4 <code>chain()</code> calls and BlockProducer has 1. These are <code>Weak&lt;BeaconChain&lt;T&gt;&gt;</code> back-references to the parent, required because cross-module verification helpers in <code>block_verification.rs</code> still take <code>&amp;BeaconChain&lt;T&gt;</code>. Plan: narrow those helper signatures to take specific deps, then remove the back-references entirely.</li>
-      <li><strong style="color:var(--text);">Callers not yet migrated:</strong> <code>NetworkBeaconProcessor</code>, HTTP API, and sync still hold <code>Arc&lt;BeaconChain&lt;T&gt;&gt;</code>. Component boundaries are enforced at the type level; caller migration is incremental and independent.</li>
-      <li><strong style="color:var(--text);">StateQuery is a utility module:</strong> Free functions, not a component struct. Included in coverage for completeness but not counted in the "7 + 2" component tally.</li>
+      <li><strong style="color:var(--text);">BlockImporter:</strong> <code>process_block</code> and <code>process_chain_segment</code> still take <code>&amp;Arc&lt;BeaconChain&lt;T&gt;&gt;</code> as a parameter because <code>PayloadNotifier</code> stores it for async execution layer callbacks. No back-reference field &mdash; the chain is passed by the caller.</li>
+      <li><strong style="color:var(--text);">BlockProducer:</strong> 1 <code>Weak&lt;BeaconChain&lt;T&gt;&gt;</code> back-reference remains for <code>get_execution_payload</code>.</li>
+      <li><strong style="color:var(--text);">Caller migration in progress:</strong> <code>NetworkBeaconProcessor</code> holds direct component refs for most accesses but retains <code>Arc&lt;BeaconChain&lt;T&gt;&gt;</code> for ~25 external function calls. HTTP API and sync are next.</li>
     </ul>
   </div>
 
