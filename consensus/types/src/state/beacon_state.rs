@@ -18,7 +18,7 @@ use std::collections::BTreeMap;
 use superstruct::superstruct;
 use swap_or_not_shuffle::compute_shuffled_index;
 use test_random_derive::TestRandom;
-use tracing::instrument;
+use tracing::{error, instrument};
 use tree_hash::TreeHash;
 use tree_hash_derive::TreeHash;
 use typenum::Unsigned;
@@ -3361,7 +3361,14 @@ impl<E: EthSpec> BeaconState<E> {
         Ok(map_fork_name!(
             fork_at_slot,
             Self,
-            <_>::from_ssz_bytes(bytes)?
+            <_>::from_ssz_bytes(bytes).inspect_err(|e| {
+                error!(
+                    %slot,
+                    %fork_at_slot,
+                    ?e,
+                    "BeaconState decoding failed"
+                );
+            })?
         ))
     }
 
