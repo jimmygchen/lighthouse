@@ -1798,16 +1798,15 @@ async fn aggregated_attestation_verification_use_head_state_fork() {
 #[ignore]
 #[tokio::test]
 async fn gloas_unaggregated_attestation_same_slot_index_must_be_zero() {
-    let harness = get_harness(VALIDATOR_COUNT);
-
     // Skip this test if not running with gloas fork
-    if !harness
-        .spec
+    if !test_spec::<E>()
         .fork_name_at_epoch(Epoch::new(0))
         .gloas_enabled()
     {
         return;
     }
+
+    let harness = get_harness(VALIDATOR_COUNT);
 
     // Extend the chain out a few epochs so we have some chain depth to play with.
     harness
@@ -1875,16 +1874,15 @@ async fn gloas_unaggregated_attestation_same_slot_index_must_be_zero() {
 #[ignore]
 #[tokio::test]
 async fn gloas_aggregated_attestation_same_slot_index_must_be_zero() {
-    let harness = get_harness(VALIDATOR_COUNT);
-
     // Skip this test if not running with gloas fork
-    if !harness
-        .spec
+    if !test_spec::<E>()
         .fork_name_at_epoch(Epoch::new(0))
         .gloas_enabled()
     {
         return;
     }
+
+    let harness = get_harness(VALIDATOR_COUNT);
 
     // Extend the chain out a few epochs so we have some chain depth to play with.
     harness

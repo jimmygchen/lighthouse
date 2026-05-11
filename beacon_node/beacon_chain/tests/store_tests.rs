@@ -5337,6 +5337,10 @@ async fn test_custody_column_filtering_supernode() {
 async fn test_missing_columns_after_cgc_change() {
     let spec = test_spec::<E>();
 
+    if !spec.fork_name_at_slot::<E>(Slot::new(0)).fulu_enabled() {
+        return;
+    }
+
     let num_validators = 8;
 
     let num_epochs_before_increase = 4;
@@ -5347,12 +5351,6 @@ async fn test_missing_columns_after_cgc_change() {
         .fresh_ephemeral_store()
         .mock_execution_layer()
         .build();
-
-    let state = harness.chain.head_beacon_state_cloned();
-
-    if !state.fork_name_unchecked().fulu_enabled() {
-        return;
-    }
 
     let custody_context = harness.chain.data_availability_checker.custody_context();
 
@@ -5407,6 +5405,10 @@ async fn test_missing_columns_after_cgc_change() {
 async fn test_safely_backfill_data_column_custody_info() {
     let spec = test_spec::<E>();
 
+    if !spec.fork_name_at_slot::<E>(Slot::new(0)).fulu_enabled() {
+        return;
+    }
+
     let num_validators = 8;
 
     let start_epochs = 4;
@@ -5417,12 +5419,6 @@ async fn test_safely_backfill_data_column_custody_info() {
         .fresh_ephemeral_store()
         .mock_execution_layer()
         .build();
-
-    let state = harness.chain.head_beacon_state_cloned();
-
-    if !state.fork_name_unchecked().fulu_enabled() {
-        return;
-    }
 
     let custody_context = harness.chain.data_availability_checker.custody_context();
 
