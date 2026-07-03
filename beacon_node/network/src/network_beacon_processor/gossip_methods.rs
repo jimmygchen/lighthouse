@@ -210,6 +210,14 @@ impl<E: EthSpec> FailedAtt<E> {
     }
 }
 
+fn clone_message_acceptance(acceptance: &MessageAcceptance) -> MessageAcceptance {
+    match acceptance {
+        MessageAcceptance::Accept => MessageAcceptance::Accept,
+        MessageAcceptance::Reject => MessageAcceptance::Reject,
+        MessageAcceptance::Ignore => MessageAcceptance::Ignore,
+    }
+}
+
 impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
     /* Auxiliary functions */
 
@@ -264,6 +272,8 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
     /// - Attempt to add it to the naive aggregation pool.
     ///
     /// Raises a log if there are errors.
+    ///
+    /// Returns `None` only when an unknown-head attestation is queued for reprocessing.
     #[allow(clippy::too_many_arguments)]
     pub fn process_gossip_attestation(
         self: Arc<Self>,
@@ -274,7 +284,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         should_import: bool,
         reprocess_allowance: ReprocessAllowance,
         seen_timestamp: Duration,
-    ) {
+    ) -> Option<MessageAcceptance> {
         let result = match self
             .chain
             .verify_unaggregated_attestation_for_gossip(&attestation, Some(subnet_id))
@@ -298,7 +308,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             reprocess_allowance,
             should_import,
             seen_timestamp,
-        );
+        )
     }
 
     pub fn process_gossip_attestation_batch(
@@ -374,6 +384,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
 
     // Clippy warning is is ignored since the arguments are all of a different type (i.e., they
     // cant' be mixed-up) and creating a struct would result in more complexity.
+    /// Returns `None` only when an unknown-head attestation is queued for reprocessing.
     #[allow(clippy::too_many_arguments)]
     fn process_gossip_attestation_result(
         self: &Arc<Self>,
@@ -384,7 +395,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         reprocess_allowance: ReprocessAllowance,
         should_import: bool,
         seen_timestamp: Duration,
-    ) {
+    ) -> Option<MessageAcceptance> {
         match result {
             Ok(verified_attestation) => {
                 let indexed_attestation = &verified_attestation.indexed_attestation;
@@ -401,14 +412,14 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                     );
 
                 // If the attestation is still timely, propagate it.
-                self.propagate_attestation_if_timely(
+                let acceptance = self.propagate_attestation_if_timely(
                     verified_attestation.attestation(),
                     message_id,
                     peer_id,
                 );
 
                 if !should_import {
-                    return;
+                    return Some(acceptance);
                 }
 
                 metrics::inc_counter(
@@ -454,9 +465,11 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                 metrics::inc_counter(
                     &metrics::BEACON_PROCESSOR_UNAGGREGATED_ATTESTATION_IMPORTED_TOTAL,
                 );
+
+                Some(acceptance)
             }
-            Err(RejectedUnaggregate { attestation, error }) => {
-                self.handle_attestation_verification_failure(
+            Err(RejectedUnaggregate { attestation, error }) => self
+                .handle_attestation_verification_failure(
                     peer_id,
                     message_id,
                     FailedAtt::Unaggregate {
@@ -468,8 +481,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                     reprocess_allowance,
                     error,
                     seen_timestamp,
-                );
-            }
+                ),
         }
     }
 
@@ -480,6 +492,8 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
     /// - Attempt to add it to the block inclusion pool.
     ///
     /// Raises a log if there are errors.
+    ///
+    /// Returns `None` only when an unknown-head aggregate is queued for reprocessing.
     pub fn process_gossip_aggregate(
         self: Arc<Self>,
         message_id: MessageId,
@@ -487,7 +501,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         aggregate: Box<SignedAggregateAndProof<T::EthSpec>>,
         reprocess_allowance: ReprocessAllowance,
         seen_timestamp: Duration,
-    ) {
+    ) -> Option<MessageAcceptance> {
         let beacon_block_root = aggregate.message().aggregate().data().beacon_block_root;
 
         let result = match self
@@ -511,7 +525,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             peer_id,
             reprocess_allowance,
             seen_timestamp,
-        );
+        )
     }
 
     pub fn process_gossip_aggregate_batch(
@@ -577,6 +591,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         }
     }
 
+    /// Returns `None` only when an unknown-head aggregate is queued for reprocessing.
     fn process_gossip_aggregate_result(
         self: &Arc<Self>,
         result: Result<VerifiedAggregate<T>, RejectedAggregate<T::EthSpec>>,
@@ -585,14 +600,14 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         peer_id: PeerId,
         reprocess_allowance: ReprocessAllowance,
         seen_timestamp: Duration,
-    ) {
+    ) -> Option<MessageAcceptance> {
         match result {
             Ok(verified_aggregate) => {
                 let aggregate = &verified_aggregate.signed_aggregate;
                 let indexed_attestation = &verified_aggregate.indexed_attestation;
 
                 // If the attestation is still timely, propagate it.
-                self.propagate_attestation_if_timely(
+                let acceptance = self.propagate_attestation_if_timely(
                     verified_aggregate.attestation(),
                     message_id,
                     peer_id,
@@ -650,6 +665,8 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                 metrics::inc_counter(
                     &metrics::BEACON_PROCESSOR_AGGREGATED_ATTESTATION_IMPORTED_TOTAL,
                 );
+
+                Some(acceptance)
             }
             Err(RejectedAggregate {
                 signed_aggregate,
@@ -666,7 +683,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                     reprocess_allowance,
                     error,
                     seen_timestamp,
-                );
+                )
             }
         }
     }
@@ -1938,43 +1955,64 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         message_id: MessageId,
         peer_id: PeerId,
         voluntary_exit: SignedVoluntaryExit,
-    ) {
+    ) -> MessageAcceptance {
         let validator_index = voluntary_exit.message.validator_index;
 
-        let exit = match self.chain.verify_voluntary_exit_for_gossip(voluntary_exit) {
-            Ok(ObservationOutcome::New(exit)) => exit,
-            Ok(ObservationOutcome::AlreadyKnown) => {
-                self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Ignore);
-                debug!(
-                    validator_index,
-                    peer = %peer_id,
-                    "Dropping exit for already exiting validator"
-                );
-                return;
-            }
-            Err(e) => {
-                debug!(
-                    validator_index,
-                    %peer_id,
-                    error = ?e,
-                    "Dropping invalid exit"
-                );
-                // These errors occur due to a fault in the beacon chain. It is not necessarily
-                // the fault on the peer.
-                self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Ignore);
-                // We still penalize a peer slightly to prevent overuse of invalids.
-                self.gossip_penalize_peer(
-                    peer_id,
-                    PeerAction::HighToleranceError,
-                    "invalid_gossip_exit",
-                );
-                return;
-            }
+        let (validation_result, exit_opt) =
+            match self.chain.verify_voluntary_exit_for_gossip(voluntary_exit) {
+                Ok(ObservationOutcome::New(exit)) => (MessageAcceptance::Accept, Some(exit)),
+                Ok(ObservationOutcome::AlreadyKnown) => {
+                    debug!(
+                        validator_index,
+                        peer = %peer_id,
+                        "Dropping exit for already exiting validator"
+                    );
+                    (MessageAcceptance::Ignore, None)
+                }
+                Err(BeaconChainError::ExitValidationError(e)) => {
+                    debug!(
+                        validator_index,
+                        %peer_id,
+                        error = ?e,
+                        "Dropping invalid exit"
+                    );
+                    self.gossip_penalize_peer(
+                        peer_id,
+                        PeerAction::HighToleranceError,
+                        "invalid_gossip_exit",
+                    );
+                    (MessageAcceptance::Reject, None)
+                }
+                Err(e) => {
+                    debug!(
+                        validator_index,
+                        %peer_id,
+                        error = ?e,
+                        "Dropping invalid exit"
+                    );
+                    // These errors occur due to a fault in the beacon chain. It is not necessarily
+                    // the fault on the peer.
+                    // We still penalize a peer slightly to prevent overuse of invalids.
+                    self.gossip_penalize_peer(
+                        peer_id,
+                        PeerAction::HighToleranceError,
+                        "invalid_gossip_exit",
+                    );
+                    (MessageAcceptance::Ignore, None)
+                }
+            };
+
+        self.propagate_validation_result(
+            message_id,
+            peer_id,
+            clone_message_acceptance(&validation_result),
+        );
+
+        let Some(exit) = exit_opt else {
+            return validation_result;
         };
 
         metrics::inc_counter(&metrics::BEACON_PROCESSOR_EXIT_VERIFIED_TOTAL);
-
-        self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Accept);
 
         // Register the exit with any monitored validators.
         self.chain
@@ -1987,6 +2025,8 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         debug!("Successfully imported voluntary exit");
 
         metrics::inc_counter(&metrics::BEACON_PROCESSOR_EXIT_IMPORTED_TOTAL);
+
+        validation_result
     }
 
     pub fn process_gossip_proposer_slashing(
@@ -2121,7 +2161,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         message_id: MessageId,
         peer_id: PeerId,
         bls_to_execution_change: SignedBlsToExecutionChange,
-    ) {
+    ) -> MessageAcceptance {
         let validator_index = bls_to_execution_change.message.validator_index;
         let address = bls_to_execution_change.message.to_execution_address;
 
@@ -2131,13 +2171,18 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         {
             Ok(ObservationOutcome::New(change)) => change,
             Ok(ObservationOutcome::AlreadyKnown) => {
-                self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Ignore);
+                let message_acceptance = MessageAcceptance::Ignore;
+                self.propagate_validation_result(
+                    message_id,
+                    peer_id,
+                    clone_message_acceptance(&message_acceptance),
+                );
                 debug!(
                     validator_index,
                     peer = %peer_id,
                     "Dropping BLS to execution change"
                 );
-                return;
+                return message_acceptance;
             }
             Err(e) => {
                 debug!(
@@ -2147,32 +2192,35 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                     "Dropping invalid BLS to execution change"
                 );
                 // We ignore pre-capella messages without penalizing peers.
-                if matches!(e, BeaconChainError::BlsToExecutionPriorToCapella) {
-                    self.propagate_validation_result(
-                        message_id,
-                        peer_id,
-                        MessageAcceptance::Ignore,
-                    );
-                } else {
-                    // We penalize the peer slightly to prevent overuse of invalids.
-                    self.propagate_validation_result(
-                        message_id,
-                        peer_id,
-                        MessageAcceptance::Reject,
-                    );
-                    self.gossip_penalize_peer(
-                        peer_id,
-                        PeerAction::HighToleranceError,
-                        "invalid_bls_to_execution_change",
-                    );
-                }
-                return;
+                let message_acceptance =
+                    if matches!(e, BeaconChainError::BlsToExecutionPriorToCapella) {
+                        MessageAcceptance::Ignore
+                    } else {
+                        // We penalize the peer slightly to prevent overuse of invalids.
+                        self.gossip_penalize_peer(
+                            peer_id,
+                            PeerAction::HighToleranceError,
+                            "invalid_bls_to_execution_change",
+                        );
+                        MessageAcceptance::Reject
+                    };
+                self.propagate_validation_result(
+                    message_id,
+                    peer_id,
+                    clone_message_acceptance(&message_acceptance),
+                );
+                return message_acceptance;
             }
         };
 
         metrics::inc_counter(&metrics::BEACON_PROCESSOR_BLS_TO_EXECUTION_CHANGE_VERIFIED_TOTAL);
 
-        self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Accept);
+        let message_acceptance = MessageAcceptance::Accept;
+        self.propagate_validation_result(
+            message_id,
+            peer_id,
+            clone_message_acceptance(&message_acceptance),
+        );
 
         // Address change messages from gossip are only processed *after* the
         // Capella fork epoch.
@@ -2188,6 +2236,8 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         );
 
         metrics::inc_counter(&metrics::BEACON_PROCESSOR_BLS_TO_EXECUTION_CHANGE_IMPORTED_TOTAL);
+
+        message_acceptance
     }
 
     /// Process the sync committee signature received from the gossip network and:
@@ -2203,7 +2253,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         sync_signature: SyncCommitteeMessage,
         subnet_id: SyncSubnetId,
         seen_timestamp: Duration,
-    ) {
+    ) -> MessageAcceptance {
         let message_slot = sync_signature.slot;
         let sync_signature = match self
             .chain
@@ -2211,7 +2261,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         {
             Ok(sync_signature) => sync_signature,
             Err(e) => {
-                self.handle_sync_committee_message_failure(
+                return self.handle_sync_committee_message_failure(
                     peer_id,
                     message_id,
                     "sync_signature",
@@ -2219,12 +2269,12 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                     message_slot,
                     seen_timestamp,
                 );
-                return;
             }
         };
 
         // If the message is still timely, propagate it.
-        self.propagate_sync_message_if_timely(message_slot, message_id, peer_id);
+        let message_acceptance =
+            self.propagate_sync_message_if_timely(message_slot, message_id, peer_id);
 
         // Register the sync signature with any monitored validators.
         self.chain
@@ -2251,6 +2301,8 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         }
 
         metrics::inc_counter(&metrics::BEACON_PROCESSOR_SYNC_MESSAGE_IMPORTED_TOTAL);
+
+        message_acceptance
     }
 
     /// Process the sync committee contribution received from the gossip network and:
@@ -2265,7 +2317,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         peer_id: PeerId,
         sync_contribution: SignedContributionAndProof<T::EthSpec>,
         seen_timestamp: Duration,
-    ) {
+    ) -> MessageAcceptance {
         let contribution_slot = sync_contribution.message.contribution.slot;
         let sync_contribution = match self
             .chain
@@ -2274,7 +2326,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             Ok(sync_contribution) => sync_contribution,
             Err(e) => {
                 // Report the failure to gossipsub
-                self.handle_sync_committee_message_failure(
+                return self.handle_sync_committee_message_failure(
                     peer_id,
                     message_id,
                     "sync_contribution",
@@ -2282,12 +2334,12 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                     contribution_slot,
                     seen_timestamp,
                 );
-                return;
             }
         };
 
         // If the message is still timely, propagate it.
-        self.propagate_sync_message_if_timely(contribution_slot, message_id, peer_id);
+        let message_acceptance =
+            self.propagate_sync_message_if_timely(contribution_slot, message_id, peer_id);
 
         self.chain
             .validator_monitor
@@ -2312,6 +2364,8 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             )
         }
         metrics::inc_counter(&metrics::BEACON_PROCESSOR_SYNC_CONTRIBUTION_IMPORTED_TOTAL);
+
+        message_acceptance
     }
 
     pub fn process_gossip_finality_update(
@@ -2498,6 +2552,8 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
 
     /// Handle an error whilst verifying an `Attestation` or `SignedAggregateAndProof` from the
     /// network.
+    ///
+    /// Returns `None` only when an unknown-head message is queued for reprocessing.
     fn handle_attestation_verification_failure(
         self: &Arc<Self>,
         peer_id: PeerId,
@@ -2506,10 +2562,11 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         reprocess_allowance: ReprocessAllowance,
         error: AttnError,
         seen_timestamp: Duration,
-    ) {
+    ) -> Option<MessageAcceptance> {
         let beacon_block_root = failed_att.beacon_block_root();
         let attestation_type = failed_att.kind();
         metrics::register_attestation_error(&error);
+        let message_acceptance;
         match &error {
             AttnError::FutureSlot { .. } => {
                 /*
@@ -2534,7 +2591,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                 );
 
                 // Do not propagate these messages.
-                self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Ignore);
+                message_acceptance = MessageAcceptance::Ignore;
             }
             AttnError::PastSlot { .. } => {
                 // Produce a slot clock frozen at the time we received the message from the
@@ -2557,7 +2614,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                     );
                 }
 
-                self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Ignore);
+                message_acceptance = MessageAcceptance::Ignore;
             }
             AttnError::InvalidSelectionProof { .. } | AttnError::InvalidSignature => {
                 /*
@@ -2565,7 +2622,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                  *
                  * The peer has published an invalid consensus message.
                  */
-                self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Reject);
+                message_acceptance = MessageAcceptance::Reject;
                 self.gossip_penalize_peer(
                     peer_id,
                     PeerAction::LowToleranceError,
@@ -2579,7 +2636,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                  * This is forbidden by the p2p spec. Reject the message.
                  *
                  */
-                self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Reject);
+                message_acceptance = MessageAcceptance::Reject;
                 self.gossip_penalize_peer(
                     peer_id,
                     PeerAction::LowToleranceError,
@@ -2600,7 +2657,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                  *
                  * The peer has published an invalid consensus message.
                  */
-                self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Reject);
+                message_acceptance = MessageAcceptance::Reject;
                 self.gossip_penalize_peer(
                     peer_id,
                     PeerAction::LowToleranceError,
@@ -2621,7 +2678,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                  *
                  * The peer has published an invalid consensus message.
                  */
-                self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Reject);
+                message_acceptance = MessageAcceptance::Reject;
                 self.gossip_penalize_peer(
                     peer_id,
                     PeerAction::LowToleranceError,
@@ -2634,7 +2691,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                  * not in the claimed committee. There is no reason a non-faulty validator would
                  * send this message.
                  */
-                self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Reject);
+                message_acceptance = MessageAcceptance::Reject;
                 self.gossip_penalize_peer(
                     peer_id,
                     PeerAction::LowToleranceError,
@@ -2654,8 +2711,13 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                     ?attestation_type,
                     "Attestation already known"
                 );
-                self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Ignore);
-                return;
+                let message_acceptance = MessageAcceptance::Ignore;
+                self.propagate_validation_result(
+                    message_id,
+                    peer_id,
+                    clone_message_acceptance(&message_acceptance),
+                );
+                return Some(message_acceptance);
             }
             AttnError::AggregatorAlreadyKnown(_) => {
                 /*
@@ -2671,9 +2733,14 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                     "Aggregator already known"
                 );
                 // This is an allowed behaviour.
-                self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Ignore);
+                let message_acceptance = MessageAcceptance::Ignore;
+                self.propagate_validation_result(
+                    message_id,
+                    peer_id,
+                    clone_message_acceptance(&message_acceptance),
+                );
 
-                return;
+                return Some(message_acceptance);
             }
             AttnError::PriorAttestationKnown {
                 validator_index,
@@ -2693,9 +2760,14 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                     "Prior attestation known"
                 );
 
-                self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Ignore);
+                let message_acceptance = MessageAcceptance::Ignore;
+                self.propagate_validation_result(
+                    message_id,
+                    peer_id,
+                    clone_message_acceptance(&message_acceptance),
+                );
 
-                return;
+                return Some(message_acceptance);
             }
             AttnError::ValidatorIndexTooHigh(_) => {
                 /*
@@ -2710,7 +2782,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                     ?attestation_type,
                     "Validation Index too high"
                 );
-                self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Reject);
+                message_acceptance = MessageAcceptance::Reject;
                 self.gossip_penalize_peer(
                     peer_id,
                     PeerAction::LowToleranceError,
@@ -2730,7 +2802,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                     committee_index = index,
                     "Committee index non zero"
                 );
-                self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Reject);
+                message_acceptance = MessageAcceptance::Reject;
                 self.gossip_penalize_peer(
                     peer_id,
                     PeerAction::LowToleranceError,
@@ -2749,7 +2821,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                     ?attestation_type,
                     "Committee index invalid"
                 );
-                self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Reject);
+                message_acceptance = MessageAcceptance::Reject;
                 self.gossip_penalize_peer(
                     peer_id,
                     PeerAction::LowToleranceError,
@@ -2787,7 +2859,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                                         attestation,
                                         reprocess_allowance.next_requeue(),
                                         seen_timestamp,
-                                    )
+                                    );
                                 }),
                             })
                         }
@@ -2812,7 +2884,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                                         should_import,
                                         reprocess_allowance.next_requeue(),
                                         seen_timestamp,
-                                    )
+                                    );
                                 }),
                             })
                         }
@@ -2828,19 +2900,20 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                     {
                         error!("Failed to send attestation for re-processing")
                     }
+                    return None;
                 } else {
                     // We shouldn't make any further attempts to process this attestation.
                     //
                     // Don't downscore the peer since it's not clear if we requested this head
                     // block from them or not.
+                    let message_acceptance = MessageAcceptance::Ignore;
                     self.propagate_validation_result(
                         message_id,
                         peer_id,
-                        MessageAcceptance::Ignore,
+                        clone_message_acceptance(&message_acceptance),
                     );
+                    return Some(message_acceptance);
                 }
-
-                return;
             }
             AttnError::UnknownPayloadEnvelope { beacon_block_root } => {
                 trace!(
@@ -2942,7 +3015,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                  *
                  * The peer has published an invalid consensus message.
                  */
-                self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Reject);
+                message_acceptance = MessageAcceptance::Reject;
                 self.gossip_penalize_peer(
                     peer_id,
                     PeerAction::LowToleranceError,
@@ -2956,7 +3029,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                  *
                  * The peer has published an invalid consensus message.
                  */
-                self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Reject);
+                message_acceptance = MessageAcceptance::Reject;
                 self.gossip_penalize_peer(
                     peer_id,
                     PeerAction::LowToleranceError,
@@ -2969,7 +3042,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                  *
                  * The peer has published an invalid consensus message.
                  */
-                self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Reject);
+                message_acceptance = MessageAcceptance::Reject;
                 self.gossip_penalize_peer(
                     peer_id,
                     PeerAction::LowToleranceError,
@@ -2982,7 +3055,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                  *
                  * The peer has published an invalid consensus message.
                  */
-                self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Reject);
+                message_acceptance = MessageAcceptance::Reject;
                 self.gossip_penalize_peer(
                     peer_id,
                     PeerAction::LowToleranceError,
@@ -2995,7 +3068,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                  *
                  * The peer has published an invalid consensus message.
                  */
-                self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Reject);
+                message_acceptance = MessageAcceptance::Reject;
                 self.gossip_penalize_peer(
                     peer_id,
                     PeerAction::LowToleranceError,
@@ -3011,7 +3084,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                     ?received,
                     "Received attestation on incorrect subnet"
                 );
-                self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Reject);
+                message_acceptance = MessageAcceptance::Reject;
                 self.gossip_penalize_peer(
                     peer_id,
                     PeerAction::LowToleranceError,
@@ -3024,7 +3097,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                  *
                  * The peer has published an invalid consensus message.
                  */
-                self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Reject);
+                message_acceptance = MessageAcceptance::Reject;
                 self.gossip_penalize_peer(
                     peer_id,
                     PeerAction::LowToleranceError,
@@ -3037,7 +3110,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                  *
                  * The peer has published an invalid consensus message.
                  */
-                self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Reject);
+                message_acceptance = MessageAcceptance::Reject;
                 self.gossip_penalize_peer(
                     peer_id,
                     PeerAction::LowToleranceError,
@@ -3050,7 +3123,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                  *
                  * The peer has published an invalid consensus message.
                  */
-                self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Reject);
+                message_acceptance = MessageAcceptance::Reject;
                 self.gossip_penalize_peer(
                     peer_id,
                     PeerAction::LowToleranceError,
@@ -3073,7 +3146,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                 );
                 // In this case we wish to penalize gossipsub peers that do this to avoid future
                 // attestations that have too many skip slots.
-                self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Reject);
+                message_acceptance = MessageAcceptance::Reject;
                 self.gossip_penalize_peer(
                     peer_id,
                     PeerAction::MidToleranceError,
@@ -3087,7 +3160,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                     "Ignored attestation to finalized block"
                 );
 
-                self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Ignore);
+                message_acceptance = MessageAcceptance::Ignore;
 
                 // The peer that sent us this could be a lagger, or a spammer, or this failure could
                 // be due to us processing attestations extremely slowly. Don't be too harsh.
@@ -3103,11 +3176,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                         HotColdDBError::FinalizedStateNotInHotDatabase { .. },
                     )) => {
                         debug!(%peer_id, "Attestation for finalized state");
-                        self.propagate_validation_result(
-                            message_id,
-                            peer_id,
-                            MessageAcceptance::Ignore,
-                        );
+                        message_acceptance = MessageAcceptance::Ignore;
                     }
                     BeaconChainError::MaxCommitteePromises(e) => {
                         debug!(
@@ -3119,11 +3188,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                             %peer_id,
                             "Dropping attestation"
                         );
-                        self.propagate_validation_result(
-                            message_id,
-                            peer_id,
-                            MessageAcceptance::Ignore,
-                        );
+                        message_acceptance = MessageAcceptance::Ignore;
                     }
                     BeaconChainError::AttestationValidationError(e) => {
                         // Failures from `get_attesting_indices` end up here.
@@ -3134,11 +3199,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                             error = ?e,
                             "Rejecting attestation that failed validation"
                         );
-                        self.propagate_validation_result(
-                            message_id,
-                            peer_id,
-                            MessageAcceptance::Reject,
-                        );
+                        message_acceptance = MessageAcceptance::Reject;
                         self.gossip_penalize_peer(
                             peer_id,
                             PeerAction::MidToleranceError,
@@ -3161,11 +3222,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                             error = ?e,
                             "Unable to validate attestation"
                         );
-                        self.propagate_validation_result(
-                            message_id,
-                            peer_id,
-                            MessageAcceptance::Ignore,
-                        );
+                        message_acceptance = MessageAcceptance::Ignore;
                     }
                 }
             }
@@ -3176,7 +3233,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                     ?attestation_type,
                     "Rejecting attestation due to a critical SSZ types error"
                 );
-                self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Reject);
+                message_acceptance = MessageAcceptance::Reject;
                 self.gossip_penalize_peer(
                     peer_id,
                     PeerAction::MidToleranceError,
@@ -3192,6 +3249,13 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             ?attestation_type,
             "Invalid attestation from network"
         );
+
+        self.propagate_validation_result(
+            message_id,
+            peer_id,
+            clone_message_acceptance(&message_acceptance),
+        );
+        Some(message_acceptance)
     }
 
     /// Handle an error whilst verifying a `SyncCommitteeMessage` or `SignedContributionAndProof` from the
@@ -3204,10 +3268,10 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         error: SyncCommitteeError,
         sync_committee_message_slot: Slot,
         seen_timestamp: Duration,
-    ) {
+    ) -> MessageAcceptance {
         metrics::register_sync_committee_error(&error);
 
-        match &error {
+        let message_acceptance = match &error {
             SyncCommitteeError::FutureSlot { .. } => {
                 /*
                  * This error can be triggered by a mismatch between our slot and the peer.
@@ -3230,7 +3294,13 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                 );
 
                 // Do not propagate these messages.
-                self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Ignore);
+                let message_acceptance = MessageAcceptance::Ignore;
+                self.propagate_validation_result(
+                    message_id,
+                    peer_id,
+                    clone_message_acceptance(&message_acceptance),
+                );
+                message_acceptance
             }
             SyncCommitteeError::PastSlot { .. } => {
                 /*
@@ -3278,7 +3348,13 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                     );
                 }
 
-                self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Ignore);
+                let message_acceptance = MessageAcceptance::Ignore;
+                self.propagate_validation_result(
+                    message_id,
+                    peer_id,
+                    clone_message_acceptance(&message_acceptance),
+                );
+                message_acceptance
             }
             SyncCommitteeError::EmptyAggregationBitfield => {
                 /*
@@ -3287,12 +3363,18 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                  * This is forbidden by the p2p spec. Reject the message.
                  *
                  */
-                self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Reject);
+                let message_acceptance = MessageAcceptance::Reject;
+                self.propagate_validation_result(
+                    message_id,
+                    peer_id,
+                    clone_message_acceptance(&message_acceptance),
+                );
                 self.gossip_penalize_peer(
                     peer_id,
                     PeerAction::LowToleranceError,
                     "sync_empty_agg_bitfield",
                 );
+                message_acceptance
             }
             SyncCommitteeError::InvalidSelectionProof { .. }
             | SyncCommitteeError::InvalidSignature => {
@@ -3301,12 +3383,18 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                  *
                  * The peer has published an invalid consensus message.
                  */
-                self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Reject);
+                let message_acceptance = MessageAcceptance::Reject;
+                self.propagate_validation_result(
+                    message_id,
+                    peer_id,
+                    clone_message_acceptance(&message_acceptance),
+                );
                 self.gossip_penalize_peer(
                     peer_id,
                     PeerAction::LowToleranceError,
                     "sync_invalid_proof_or_sig",
                 );
+                message_acceptance
             }
             SyncCommitteeError::AggregatorNotInCommittee { .. }
             | SyncCommitteeError::AggregatorPubkeyUnknown(_) => {
@@ -3316,12 +3404,18 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                 *
                 * The peer has published an invalid consensus message.
                 */
-                self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Reject);
+                let message_acceptance = MessageAcceptance::Reject;
+                self.propagate_validation_result(
+                    message_id,
+                    peer_id,
+                    clone_message_acceptance(&message_acceptance),
+                );
                 self.gossip_penalize_peer(
                     peer_id,
                     PeerAction::LowToleranceError,
                     "sync_bad_aggregator",
                 );
+                message_acceptance
             }
             SyncCommitteeError::SyncContributionSupersetKnown(_)
             | SyncCommitteeError::AggregatorAlreadyKnown(_) => {
@@ -3336,8 +3430,13 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                     ?message_type,
                     "Sync committee message is already known"
                 );
-                self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Ignore);
-                return;
+                let message_acceptance = MessageAcceptance::Ignore;
+                self.propagate_validation_result(
+                    message_id,
+                    peer_id,
+                    clone_message_acceptance(&message_acceptance),
+                );
+                return message_acceptance;
             }
             SyncCommitteeError::UnknownValidatorIndex(_) => {
                 /*
@@ -3351,12 +3450,18 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                     ?message_type,
                     "Validation Index too high"
                 );
-                self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Reject);
+                let message_acceptance = MessageAcceptance::Reject;
+                self.propagate_validation_result(
+                    message_id,
+                    peer_id,
+                    clone_message_acceptance(&message_acceptance),
+                );
                 self.gossip_penalize_peer(
                     peer_id,
                     PeerAction::LowToleranceError,
                     "sync_unknown_validator",
                 );
+                message_acceptance
             }
             SyncCommitteeError::UnknownValidatorPubkey(_) => {
                 debug!(
@@ -3364,12 +3469,18 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                     ?message_type,
                     "Validator pubkey is unknown"
                 );
-                self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Reject);
+                let message_acceptance = MessageAcceptance::Reject;
+                self.propagate_validation_result(
+                    message_id,
+                    peer_id,
+                    clone_message_acceptance(&message_acceptance),
+                );
                 self.gossip_penalize_peer(
                     peer_id,
                     PeerAction::LowToleranceError,
                     "sync_unknown_validator_pubkey",
                 );
+                message_acceptance
             }
             SyncCommitteeError::InvalidSubnetId { received, expected } => {
                 /*
@@ -3380,12 +3491,18 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                     ?received,
                     "Received sync committee message on incorrect subnet"
                 );
-                self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Reject);
+                let message_acceptance = MessageAcceptance::Reject;
+                self.propagate_validation_result(
+                    message_id,
+                    peer_id,
+                    clone_message_acceptance(&message_acceptance),
+                );
                 self.gossip_penalize_peer(
                     peer_id,
                     PeerAction::LowToleranceError,
                     "sync_invalid_subnet_id",
                 );
+                message_acceptance
             }
             SyncCommitteeError::Invalid(_) => {
                 /*
@@ -3393,12 +3510,18 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                  *
                  * The peer has published an invalid consensus message.
                  */
-                self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Reject);
+                let message_acceptance = MessageAcceptance::Reject;
+                self.propagate_validation_result(
+                    message_id,
+                    peer_id,
+                    clone_message_acceptance(&message_acceptance),
+                );
                 self.gossip_penalize_peer(
                     peer_id,
                     PeerAction::LowToleranceError,
                     "sync_invalid_state_processing",
                 );
+                message_acceptance
             }
             SyncCommitteeError::PriorSyncCommitteeMessageKnown { .. } => {
                 /*
@@ -3414,9 +3537,13 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
 
                 // Do not penalize the peer.
 
-                self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Ignore);
-
-                return;
+                let message_acceptance = MessageAcceptance::Ignore;
+                self.propagate_validation_result(
+                    message_id,
+                    peer_id,
+                    clone_message_acceptance(&message_acceptance),
+                );
+                return message_acceptance;
             }
             SyncCommitteeError::PriorSyncContributionMessageKnown { .. } => {
                 /*
@@ -3437,9 +3564,13 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                     "sync_prior_known",
                 );
 
-                self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Ignore);
-
-                return;
+                let message_acceptance = MessageAcceptance::Ignore;
+                self.propagate_validation_result(
+                    message_id,
+                    peer_id,
+                    clone_message_acceptance(&message_acceptance),
+                );
+                return message_acceptance;
             }
             SyncCommitteeError::BeaconChainError(e) => {
                 /*
@@ -3454,7 +3585,13 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                     error = ?e,
                     "Unable to validate sync committee message"
                 );
-                self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Ignore);
+                let message_acceptance = MessageAcceptance::Ignore;
+                self.propagate_validation_result(
+                    message_id,
+                    peer_id,
+                    clone_message_acceptance(&message_acceptance),
+                );
+                message_acceptance
             }
             SyncCommitteeError::BeaconStateError(e) => {
                 /*
@@ -3469,13 +3606,19 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                     error = ?e,
                     "Unable to validate sync committee message"
                 );
-                self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Ignore);
+                let message_acceptance = MessageAcceptance::Ignore;
+                self.propagate_validation_result(
+                    message_id,
+                    peer_id,
+                    clone_message_acceptance(&message_acceptance),
+                );
                 // Penalize the peer slightly
                 self.gossip_penalize_peer(
                     peer_id,
                     PeerAction::HighToleranceError,
                     "sync_beacon_state_error",
                 );
+                message_acceptance
             }
             SyncCommitteeError::ContributionError(e) => {
                 error!(
@@ -3483,13 +3626,19 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                     error = ?e,
                     "Error while processing sync contribution"
                 );
-                self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Ignore);
+                let message_acceptance = MessageAcceptance::Ignore;
+                self.propagate_validation_result(
+                    message_id,
+                    peer_id,
+                    clone_message_acceptance(&message_acceptance),
+                );
                 // Penalize the peer slightly
                 self.gossip_penalize_peer(
                     peer_id,
                     PeerAction::HighToleranceError,
                     "sync_contribution_error",
                 );
+                message_acceptance
             }
             SyncCommitteeError::SyncCommitteeError(e) => {
                 error!(
@@ -3497,13 +3646,19 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                     error = ?e,
                     "Error while processing sync committee message"
                 );
-                self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Ignore);
+                let message_acceptance = MessageAcceptance::Ignore;
+                self.propagate_validation_result(
+                    message_id,
+                    peer_id,
+                    clone_message_acceptance(&message_acceptance),
+                );
                 // Penalize the peer slightly
                 self.gossip_penalize_peer(
                     peer_id,
                     PeerAction::HighToleranceError,
                     "sync_committee_error",
                 );
+                message_acceptance
             }
             SyncCommitteeError::ArithError(e) => {
                 /*
@@ -3514,44 +3669,68 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                     error = ?e,
                     "Arithematic error while processing sync committee message"
                 );
-                self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Ignore);
+                let message_acceptance = MessageAcceptance::Ignore;
+                self.propagate_validation_result(
+                    message_id,
+                    peer_id,
+                    clone_message_acceptance(&message_acceptance),
+                );
                 self.gossip_penalize_peer(
                     peer_id,
                     PeerAction::LowToleranceError,
                     "sync_arith_error",
                 );
+                message_acceptance
             }
             SyncCommitteeError::InvalidSubcommittee { .. } => {
                 /*
                 The subcommittee index is higher than `SYNC_COMMITTEE_SUBNET_COUNT`. This would imply
                 an invalid message.
                 */
-                self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Reject);
+                let message_acceptance = MessageAcceptance::Reject;
+                self.propagate_validation_result(
+                    message_id,
+                    peer_id,
+                    clone_message_acceptance(&message_acceptance),
+                );
                 self.gossip_penalize_peer(
                     peer_id,
                     PeerAction::LowToleranceError,
                     "sync_invalid_subcommittee",
                 );
+                message_acceptance
             }
-        }
+        };
         debug!(
             reason = ?error,
             %peer_id,
             ?message_type,
             "Invalid sync committee message from network"
         );
+        message_acceptance
     }
 
     /// Propagate (accept) if `is_timely == true`, otherwise ignore.
-    fn propagate_if_timely(&self, is_timely: bool, message_id: MessageId, peer_id: PeerId) {
-        if is_timely {
+    fn propagate_if_timely(
+        &self,
+        is_timely: bool,
+        message_id: MessageId,
+        peer_id: PeerId,
+    ) -> MessageAcceptance {
+        let message_acceptance = if is_timely {
             // The message is still relevant, propagate.
-            self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Accept);
+            MessageAcceptance::Accept
         } else {
             // The message is not relevant, ignore. It might be that this message became irrelevant
             // during the time it took to process it, or it was received invalid.
-            self.propagate_validation_result(message_id, peer_id, MessageAcceptance::Ignore);
-        }
+            MessageAcceptance::Ignore
+        };
+        self.propagate_validation_result(
+            message_id,
+            peer_id,
+            clone_message_acceptance(&message_acceptance),
+        );
+        message_acceptance
     }
 
     /// If an attestation (agg. or unagg.) is still valid with respect to the current time (i.e.,
@@ -3561,7 +3740,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         attestation: AttestationRef<T::EthSpec>,
         message_id: MessageId,
         peer_id: PeerId,
-    ) {
+    ) -> MessageAcceptance {
         let is_timely = attestation_verification::verify_propagation_slot_range::<_, T::EthSpec>(
             &self.chain.slot_clock,
             attestation.data(),
@@ -3586,7 +3765,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             .now()
             .is_some_and(|current_slot| envelope_slot == current_slot);
 
-        self.propagate_if_timely(is_timely, message_id, peer_id)
+        self.propagate_if_timely(is_timely, message_id, peer_id);
     }
 
     /// If a sync committee signature or sync committee contribution is still valid with respect to
@@ -3596,7 +3775,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         sync_message_slot: Slot,
         message_id: MessageId,
         peer_id: PeerId,
-    ) {
+    ) -> MessageAcceptance {
         let is_timely = self
             .chain
             .slot_clock

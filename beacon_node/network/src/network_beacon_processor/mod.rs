@@ -101,7 +101,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                 package.should_import,
                 ReprocessAllowance::BlockAndPayload,
                 package.seen_timestamp,
-            )
+            );
         };
 
         // Define a closure for processing batches of attestations.
@@ -145,7 +145,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                 package.aggregate,
                 ReprocessAllowance::BlockAndPayload,
                 package.seen_timestamp,
-            )
+            );
         };
 
         // Define a closure for processing batches of attestations.
@@ -277,7 +277,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                 sync_signature,
                 subnet_id,
                 seen_timestamp,
-            )
+            );
         };
 
         self.try_send(BeaconWorkEvent {
@@ -301,7 +301,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                 peer_id,
                 sync_contribution,
                 seen_timestamp,
-            )
+            );
         };
 
         self.try_send(BeaconWorkEvent {
@@ -318,8 +318,9 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
         voluntary_exit: Box<SignedVoluntaryExit>,
     ) -> Result<(), Error<T::EthSpec>> {
         let processor = self.clone();
-        let process_fn =
-            move || processor.process_gossip_voluntary_exit(message_id, peer_id, *voluntary_exit);
+        let process_fn = move || {
+            processor.process_gossip_voluntary_exit(message_id, peer_id, *voluntary_exit);
+        };
 
         self.try_send(BeaconWorkEvent {
             drop_during_sync: false,
@@ -425,7 +426,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                 message_id,
                 peer_id,
                 *bls_to_execution_change,
-            )
+            );
         };
 
         self.try_send(BeaconWorkEvent {
