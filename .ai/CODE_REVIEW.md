@@ -277,6 +277,8 @@ Group related state and behavior together. If two fields are always set together
 
 - [ ] No panics: No `.unwrap()`, `.expect()`, unchecked array indexing
 - [ ] Consensus safe: If touching consensus crate, all arithmetic is safe
+- [ ] Regression-safe: Existing behavior that should not change is covered or explicitly checked
+- [ ] Interface sound: New or changed interfaces avoid unclear booleans/options and invalid states
 - [ ] Errors logged: Not silently swallowed
 - [ ] Clear naming: Variable names are unambiguous
 - [ ] TODOs linked: All TODOs have GitHub issue links

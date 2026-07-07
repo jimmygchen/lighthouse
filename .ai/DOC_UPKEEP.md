@@ -27,6 +27,31 @@ Ask first only when:
 - `CLAUDE.md`: only always-on rules and routing. Keep it short because it is
   loaded for every task.
 
+## Prefer Automation for Mechanical Rules
+
+Do not solve every recurring problem with prose. If a rule is objective and
+cheap to check, prefer enforcing it with existing tooling or a small script.
+
+Good candidates for automation:
+
+- Disallowed functions, methods, or unsafe patterns. Prefer clippy config or a
+  focused CI check.
+- Required formatting, dependency sorting, generated files, or lockfile updates.
+- Markdown or documentation structure that can be checked mechanically.
+- Repeated `rg`-style stale-reference checks after removing a feature, flag, or
+  type.
+- Required command coverage for a touched subsystem when the mapping is stable.
+
+Keep these as docs instead:
+
+- Judgment calls about interface shape, abstraction, or ownership.
+- Test quality expectations that require understanding behavior.
+- Review heuristics and examples of subtle regressions.
+- Domain decisions whose correctness depends on protocol context.
+
+When adding automation, document the command in `.ai/DEVELOPMENT.md` or the
+relevant focused guide, and make sure the final response reports whether it ran.
+
 ## Lesson Format
 
 ```markdown

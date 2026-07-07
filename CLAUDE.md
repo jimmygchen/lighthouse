@@ -34,7 +34,9 @@ Read the relevant guide for your task:
 |------|-----------------|
 | **Code review** | `.ai/CODE_REVIEW.md` |
 | **Creating issues/PRs** | `.ai/ISSUES.md` |
+| **Changing behavior or shared code paths** | `.ai/CHANGE_SAFETY.md` |
 | **Development patterns** | `.ai/DEVELOPMENT.md` |
+| **Designing interfaces or APIs** | `.ai/INTERFACE_DESIGN.md` |
 | **Writing or modifying tests** | `.ai/TESTING.md` |
 | **Updating AI docs** | `.ai/DOC_UPKEEP.md` |
 

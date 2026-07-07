@@ -71,6 +71,9 @@ Lighthouse is a modular Ethereum consensus client with two main components:
 
 ## Code Quality Standards
 
+Before changing shared behavior, read `.ai/CHANGE_SAFETY.md`. Before adding or
+changing interfaces, read `.ai/INTERFACE_DESIGN.md`.
+
 ### Panic Avoidance (Critical)
 
 **Panics should be avoided at all costs.**
