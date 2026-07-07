@@ -164,12 +164,15 @@ Avoid using the rayon global thread pool - it causes CPU oversubscription when b
 
 ## Testing Patterns
 
+Read `.ai/TESTING.md` before writing or modifying tests. Quick reference:
+
 - **Unit tests**: Single component edge cases
 - **Integration tests**: Use [`BeaconChainHarness`](beacon_node/beacon_chain/src/test_utils.rs) for end-to-end workflows
 - **Sync components**: Use [`TestRig`](beacon_node/network/src/sync/tests/mod.rs) pattern with event-based testing
 - **Mocking**: `mockall` for unit tests, `mockito` for HTTP APIs
 - **Adapter pattern**: For testing `BeaconChain` dependent components, create adapter structs. See [`fetch_blobs/tests.rs`](beacon_node/beacon_chain/src/fetch_blobs/tests.rs)
 - **Local testnet**: See `scripts/local_testnet/README.md`
+- **Doc upkeep**: If test work reveals a reusable lesson, update `.ai/TESTING.md` in the same change
 
 ## Build Notes
 
