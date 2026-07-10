@@ -929,16 +929,16 @@ async fn gossip_data_column_verification_tokio_latency_experiment() {
     });
     canary_ready_rx.await.expect("canary should start");
 
+    let workload_start = Instant::now();
     for column_index in 0..num_data_columns {
         rig.enqueue_gossip_data_columns(column_index);
     }
 
     let expected_events = vec![WorkType::GossipDataColumnSidecar; num_data_columns];
-    let ((), delays) = tokio::join!(
-        rig.assert_event_journal_contains_ordered(&expected_events),
-        canary
-    );
-    let mut delays = delays.expect("canary should complete");
+    rig.assert_event_journal_contains_ordered(&expected_events)
+        .await;
+    let workload_duration = workload_start.elapsed();
+    let mut delays = canary.await.expect("canary should complete");
     delays.sort_unstable();
 
     let percentile = |numerator: usize| {
@@ -946,7 +946,7 @@ async fn gossip_data_column_verification_tokio_latency_experiment() {
         delays[index].as_micros()
     };
     println!(
-        "TOKIO_CANARY columns={num_data_columns} samples={} p50_us={} p95_us={} p99_us={} max_us={}",
+        "TOKIO_CANARY columns={num_data_columns} samples={} p50_us={} p95_us={} p99_us={} max_us={} workload_us={}",
         delays.len(),
         percentile(50),
         percentile(95),
@@ -955,6 +955,7 @@ async fn gossip_data_column_verification_tokio_latency_experiment() {
             .last()
             .expect("delays should not be empty")
             .as_micros(),
+        workload_duration.as_micros(),
     );
 }
 

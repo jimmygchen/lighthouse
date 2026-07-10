@@ -21,6 +21,24 @@ pub enum ShutdownReason {
     Failure(&'static str),
 }
 
+#[cfg(test)]
+mod tests {
+    use super::test_utils::TestRuntime;
+
+    #[tokio::test]
+    async fn global_rayon_panic_is_propagated_to_awaiting_task() {
+        let runtime = TestRuntime::default();
+        let executor = runtime.task_executor.clone();
+        let join_handle = tokio::spawn(async move {
+            executor
+                .spawn_blocking_with_global_rayon_async(|| -> () { panic!("test panic") })
+                .await
+        });
+
+        assert!(join_handle.await.expect_err("task should panic").is_panic());
+    }
+}
+
 impl ShutdownReason {
     pub fn message(&self) -> &'static str {
         match self {
@@ -274,11 +292,14 @@ impl TaskExecutor {
 
         rayon::spawn(move || {
             let _guard = span.enter();
-            let result = task();
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(task));
             let _ = tx.send(result);
         });
 
-        rx.await
+        match rx.await? {
+            Ok(result) => Ok(result),
+            Err(panic) => std::panic::resume_unwind(panic),
+        }
     }
 
     /// Spawn a future on the tokio runtime wrapped in an `async-channel::Receiver` returning an optional
