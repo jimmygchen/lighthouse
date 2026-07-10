@@ -40,7 +40,7 @@ use ssz_types::RuntimeVariableList;
 use std::collections::HashSet;
 use std::iter::Iterator;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 use types::data::BlobIdentifier;
 use types::{
@@ -882,6 +882,80 @@ fn junk_peer_id() -> PeerId {
 
 fn junk_message_id() -> MessageId {
     MessageId::new(&[])
+}
+
+/// Diagnostic experiment for comparing Tokio responsiveness with gossip data-column verification
+/// running inline versus on a blocking thread pool.
+///
+/// This test deliberately has no timing assertion because scheduler latency depends on the host.
+/// Run it repeatedly with `--ignored --nocapture` and compare the reported distributions.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[ignore = "manual scheduler-latency experiment"]
+async fn gossip_data_column_verification_tokio_latency_experiment() {
+    const CANARY_PERIOD: Duration = Duration::from_millis(1);
+    const CANARY_SAMPLES: usize = 200;
+
+    let beacon_processor_config = BeaconProcessorConfig {
+        max_workers: 2,
+        ..Default::default()
+    };
+    let mut rig = TestRig::new_parametric(
+        SMALL_CHAIN,
+        beacon_processor_config,
+        NodeCustodyType::Fullnode,
+        test_spec::<E>(),
+    )
+    .await;
+
+    let num_data_columns = rig.next_data_columns.as_ref().map_or(0, Vec::len);
+    assert!(
+        num_data_columns >= 2,
+        "experiment requires at least two columns"
+    );
+
+    let (canary_ready_tx, canary_ready_rx) = tokio::sync::oneshot::channel();
+    let canary = tokio::spawn(async move {
+        let mut delays = Vec::with_capacity(CANARY_SAMPLES);
+        let mut expected_wakeup = Instant::now() + CANARY_PERIOD;
+        let _ = canary_ready_tx.send(());
+
+        for _ in 0..CANARY_SAMPLES {
+            tokio::time::sleep_until(expected_wakeup.into()).await;
+            delays.push(Instant::now().saturating_duration_since(expected_wakeup));
+            expected_wakeup += CANARY_PERIOD;
+        }
+
+        delays
+    });
+    canary_ready_rx.await.expect("canary should start");
+
+    for column_index in 0..num_data_columns {
+        rig.enqueue_gossip_data_columns(column_index);
+    }
+
+    let expected_events = vec![WorkType::GossipDataColumnSidecar; num_data_columns];
+    let ((), delays) = tokio::join!(
+        rig.assert_event_journal_contains_ordered(&expected_events),
+        canary
+    );
+    let mut delays = delays.expect("canary should complete");
+    delays.sort_unstable();
+
+    let percentile = |numerator: usize| {
+        let index = (delays.len() - 1) * numerator / 100;
+        delays[index].as_micros()
+    };
+    println!(
+        "TOKIO_CANARY columns={num_data_columns} samples={} p50_us={} p95_us={} p99_us={} max_us={}",
+        delays.len(),
+        percentile(50),
+        percentile(95),
+        percentile(99),
+        delays
+            .last()
+            .expect("delays should not be empty")
+            .as_micros(),
+    );
 }
 
 // Test that column reconstruction is delayed for columns that arrive
