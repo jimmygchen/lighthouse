@@ -446,6 +446,24 @@ impl From<u8> for NetworkLoad {
     }
 }
 
+fn gossip_message_id(
+    domain: [u8; 4],
+    topic: &[u8],
+    data: &[u8],
+    altair_enabled: bool,
+) -> gossipsub::MessageId {
+    let mut hasher = Sha256::new();
+    hasher.update(domain);
+    if altair_enabled {
+        hasher.update(topic.len().to_le_bytes());
+        hasher.update(topic);
+    }
+    hasher.update(data);
+
+    let digest = hasher.finalize();
+    gossipsub::MessageId::from(&digest[..20])
+}
+
 /// Return a Lighthouse specific `GossipsubConfig` where the `message_id_fn` depends on the current fork.
 pub fn gossipsub_config(
     network_load: u8,
@@ -455,36 +473,13 @@ pub fn gossipsub_config(
     slots_per_epoch: u64,
     idontwant_message_size_threshold: usize,
 ) -> gossipsub::Config {
-    fn prefix(
-        prefix: [u8; 4],
-        message: &gossipsub::Message,
-        fork_context: Arc<ForkContext>,
-    ) -> Vec<u8> {
-        let topic_bytes = message.topic.as_str().as_bytes();
-
-        if fork_context.current_fork_name().altair_enabled() {
-            let topic_len_bytes = topic_bytes.len().to_le_bytes();
-            let mut vec = Vec::with_capacity(
-                prefix.len() + topic_len_bytes.len() + topic_bytes.len() + message.data.len(),
-            );
-            vec.extend_from_slice(&prefix);
-            vec.extend_from_slice(&topic_len_bytes);
-            vec.extend_from_slice(topic_bytes);
-            vec.extend_from_slice(&message.data);
-            vec
-        } else {
-            let mut vec = Vec::with_capacity(prefix.len() + message.data.len());
-            vec.extend_from_slice(&prefix);
-            vec.extend_from_slice(&message.data);
-            vec
-        }
-    }
     let message_domain_valid_snappy = gossipsub_config_params.message_domain_valid_snappy;
-    let gossip_message_id = move |message: &gossipsub::Message| {
-        gossipsub::MessageId::from(
-            &Sha256::digest(
-                prefix(message_domain_valid_snappy, message, fork_context.clone()).as_slice(),
-            )[..20],
+    let message_id_fn = move |message: &gossipsub::Message| {
+        gossip_message_id(
+            message_domain_valid_snappy,
+            message.topic.as_str().as_bytes(),
+            &message.data,
+            fork_context.current_fork_name().altair_enabled(),
         )
     };
 
@@ -515,7 +510,7 @@ pub fn gossipsub_config(
         .validate_messages() // require validation before propagation
         .validation_mode(gossipsub::ValidationMode::Anonymous)
         .duplicate_cache_time(duplicate_cache_time)
-        .message_id_fn(gossip_message_id)
+        .message_id_fn(message_id_fn)
         .allow_self_origin(true)
         .idontwant_message_size_threshold(idontwant_message_size_threshold)
         .build()
@@ -602,4 +597,89 @@ pub const fn is_global_ipv6(addr: &Ipv6Addr) -> bool {
             || is_documentation(addr)
             || is_unique_local(addr)
             || is_unicast_link_local(addr))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const MESSAGE_DOMAIN: [u8; 4] = [1, 0, 0, 0];
+
+    fn allocating_gossip_message_id(
+        domain: [u8; 4],
+        topic: &[u8],
+        data: &[u8],
+        altair_enabled: bool,
+    ) -> gossipsub::MessageId {
+        let preimage = if altair_enabled {
+            let topic_len_bytes = topic.len().to_le_bytes();
+            let mut preimage =
+                Vec::with_capacity(domain.len() + topic_len_bytes.len() + topic.len() + data.len());
+            preimage.extend_from_slice(&domain);
+            preimage.extend_from_slice(&topic_len_bytes);
+            preimage.extend_from_slice(topic);
+            preimage.extend_from_slice(data);
+            preimage
+        } else {
+            let mut preimage = Vec::with_capacity(domain.len() + data.len());
+            preimage.extend_from_slice(&domain);
+            preimage.extend_from_slice(data);
+            preimage
+        };
+
+        gossipsub::MessageId::from(&Sha256::digest(preimage).as_slice()[..20])
+    }
+
+    fn assert_message_id_matches_allocating_reference(
+        topic: &[u8],
+        data: &[u8],
+        altair_enabled: bool,
+    ) {
+        let expected = allocating_gossip_message_id(MESSAGE_DOMAIN, topic, data, altair_enabled);
+        let actual = gossip_message_id(MESSAGE_DOMAIN, topic, data, altair_enabled);
+
+        assert_eq!(actual.0, expected.0);
+    }
+
+    #[test]
+    fn message_id_matches_allocating_reference() {
+        let attestation_like_data = (0..256).map(|i| i as u8).collect::<Vec<_>>();
+        let block_like_data = (0usize..128 * 1024)
+            .map(|i| (i.wrapping_mul(31) % 251) as u8)
+            .collect::<Vec<_>>();
+        let data_column_like_data = (0usize..4 * 1024 * 1024)
+            .map(|i| (i.wrapping_mul(17) % 253) as u8)
+            .collect::<Vec<_>>();
+
+        // Pre-Altair excludes the topic from the preimage, including non-empty topics.
+        assert_message_id_matches_allocating_reference(b"", b"", false);
+        assert_message_id_matches_allocating_reference(
+            b"/eth2/00000000/beacon_attestation_1/ssz_snappy",
+            &attestation_like_data,
+            false,
+        );
+        assert_message_id_matches_allocating_reference(b"ignored-topic", &block_like_data, false);
+
+        // Altair and later include the native-width, little-endian topic length and topic bytes.
+        assert_message_id_matches_allocating_reference(b"", b"", true);
+        assert_message_id_matches_allocating_reference(b"", &attestation_like_data, true);
+        assert_message_id_matches_allocating_reference(
+            b"/eth2/01020304/beacon_block/ssz_snappy",
+            &block_like_data,
+            true,
+        );
+        assert_message_id_matches_allocating_reference(
+            b"/eth2/01020304/data_column_sidecar_127/ssz_snappy",
+            &data_column_like_data,
+            true,
+        );
+
+        // The byte-slice helper also verifies byte equivalence for inputs that cannot be
+        // represented by gossipsub's UTF-8 topic type.
+        assert_message_id_matches_allocating_reference(
+            b"\xff\x00\x80topic",
+            b"\x00\xfe\xff\x80data",
+            true,
+        );
+    }
 }
