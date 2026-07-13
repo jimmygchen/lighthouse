@@ -19,5 +19,8 @@ mod shuffle_list;
 
 pub use compute_shuffled_index::compute_shuffled_index;
 pub use shuffle_list::shuffle_list;
+// Exposed for differential benchmarks and integration testing during this experiment.
+#[doc(hidden)]
+pub use shuffle_list::shuffle_list_branchless;
 
 type Hash256 = fixed_bytes::Hash256;

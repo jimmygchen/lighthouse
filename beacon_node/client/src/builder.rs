@@ -151,7 +151,7 @@ where
 
     /// Initializes the `BeaconChainBuilder`. The `build_beacon_chain` method will need to be
     /// called later in order to actually instantiate the `BeaconChain`.
-    #[instrument(skip_all)]
+    #[instrument(name = "lh_beacon_chain_builder", parent = None, level = "info", skip_all)]
     pub async fn beacon_chain_builder(
         mut self,
         client_genesis: ClientGenesis,

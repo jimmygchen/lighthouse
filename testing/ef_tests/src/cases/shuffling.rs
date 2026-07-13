@@ -3,7 +3,7 @@ use crate::case_result::compare_result;
 use crate::decode::yaml_decode_file;
 use serde::Deserialize;
 use std::marker::PhantomData;
-use swap_or_not_shuffle::{compute_shuffled_index, shuffle_list};
+use swap_or_not_shuffle::{compute_shuffled_index, shuffle_list, shuffle_list_branchless};
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Shuffling<E> {
@@ -40,6 +40,12 @@ impl<E: EthSpec> Case for Shuffling<E> {
             // Test "shuffle_list"
             let input: Vec<usize> = (0..self.count).collect();
             let shuffling = shuffle_list(input, spec.shuffle_round_count, &seed, false).unwrap();
+            compare_result::<_, Error>(&Ok(shuffling), &Some(self.mapping.clone()))?;
+
+            // Test the experimental branchless whole-list implementation.
+            let input: Vec<usize> = (0..self.count).collect();
+            let shuffling =
+                shuffle_list_branchless(input, spec.shuffle_round_count, &seed, false).unwrap();
             compare_result::<_, Error>(&Ok(shuffling), &Some(self.mapping.clone()))?;
         }
 

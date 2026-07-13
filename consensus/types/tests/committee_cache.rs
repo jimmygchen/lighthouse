@@ -5,7 +5,7 @@ use beacon_chain::test_utils::{BeaconChainHarness, EphemeralHarnessType};
 use bls::Keypair;
 use fixed_bytes::FixedBytesExtended;
 use milhouse::Vector;
-use swap_or_not_shuffle::shuffle_list;
+use swap_or_not_shuffle::{shuffle_list, shuffle_list_branchless};
 use types::*;
 
 use crate::test_utils::generate_deterministic_keypairs;
@@ -112,13 +112,37 @@ async fn shuffles_for_the_right_epoch() {
     assert!((previous_seed != current_seed) && (current_seed != next_seed));
 
     let shuffling_with_seed = |seed: Hash256| {
-        shuffle_list(
-            (0..num_validators).collect(),
-            spec.shuffle_round_count,
-            &seed[..],
-            false,
-        )
-        .unwrap()
+        let input: Vec<_> = (0..num_validators).collect();
+        let reference =
+            shuffle_list(input.clone(), spec.shuffle_round_count, &seed[..], false).unwrap();
+        let branchless =
+            shuffle_list_branchless(input, spec.shuffle_round_count, &seed[..], false).unwrap();
+
+        assert_eq!(reference, branchless);
+        reference
+    };
+
+    let assert_cache_apis_consistent = |cache: &CommitteeCache| {
+        let flattened_committees: Vec<_> = cache
+            .get_all_beacon_committees()
+            .unwrap()
+            .into_iter()
+            .flat_map(|committee| committee.committee)
+            .copied()
+            .collect();
+        assert_eq!(flattened_committees, cache.shuffling());
+
+        for validator_index in 0..num_validators {
+            let duty = cache
+                .get_attestation_duties(validator_index)
+                .unwrap()
+                .unwrap();
+            let committee = cache.get_beacon_committee(duty.slot, duty.index).unwrap();
+            assert_eq!(
+                committee.committee.get(duty.committee_position),
+                Some(&validator_index)
+            );
+        }
     };
 
     let assert_shuffling_positions_accurate = |cache: &CommitteeCache| {
@@ -139,6 +163,7 @@ async fn shuffles_for_the_right_epoch() {
             .unwrap_or_else(|_| panic!("failed at epoch {}", e));
         assert_eq!(cache.shuffling(), shuffling_with_seed(seed));
         assert_shuffling_positions_accurate(&cache);
+        assert_cache_apis_consistent(&cache);
     }
 
     // We should *not* be able to build a committee cache for the epoch after the next epoch.

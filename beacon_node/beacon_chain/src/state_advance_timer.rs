@@ -254,9 +254,16 @@ async fn state_advance_timer<T: BeaconChainTypes>(
 /// slot then placed in the `state_cache` to be used for block verification.
 ///
 /// See the module-level documentation for rationale.
-#[instrument(skip_all)]
+#[instrument(
+    name = "lh_state_advance",
+    parent = None,
+    level = "info",
+    skip_all,
+    fields(current_slot = tracing::field::Empty, head_slot = tracing::field::Empty)
+)]
 fn advance_head<T: BeaconChainTypes>(beacon_chain: &Arc<BeaconChain<T>>) -> Result<(), Error> {
     let current_slot = beacon_chain.slot()?;
+    tracing::Span::current().record("current_slot", tracing::field::display(current_slot));
 
     // These brackets ensure that the `head_slot` value is dropped before we run fork choice and
     // potentially invalidate it.
@@ -264,6 +271,7 @@ fn advance_head<T: BeaconChainTypes>(beacon_chain: &Arc<BeaconChain<T>>) -> Resu
     // Fork-choice is not run *before* this function to avoid unnecessary calls whilst syncing.
     {
         let head_slot = beacon_chain.best_slot();
+        tracing::Span::current().record("head_slot", tracing::field::display(head_slot));
 
         // Don't run this when syncing or if lagging too far behind.
         if head_slot + MAX_ADVANCE_DISTANCE < current_slot {

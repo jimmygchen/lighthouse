@@ -5,7 +5,8 @@ use safe_arith::{ArithError, SafeArith};
 use serde::{Deserialize, Serialize};
 use ssz::{Decode, DecodeError, Encode, four_byte_option_impl};
 use ssz_derive::{Decode, Encode};
-use swap_or_not_shuffle::shuffle_list;
+use swap_or_not_shuffle::shuffle_list_branchless;
+use tracing::{field::Empty, info_span};
 
 use crate::{
     attestation::{AttestationDuty, BeaconCommittee, CommitteeIndex},
@@ -122,6 +123,17 @@ impl CommitteeCache {
         epoch: Epoch,
         spec: &ChainSpec,
     ) -> Result<Arc<CommitteeCache>, BeaconStateError> {
+        let cache_span = info_span!(
+            "committee_cache_build",
+            epoch = %epoch,
+            validator_registry_count = state.validators().len(),
+            active_validator_count = Empty,
+            shuffle_rounds = spec.shuffle_round_count,
+            direction = "reverse",
+            implementation = "branchless",
+        );
+        let _cache_guard = cache_span.enter();
+
         // May cause divide-by-zero errors.
         if E::slots_per_epoch() == 0 {
             return Err(BeaconStateError::ZeroSlotsPerEpoch);
@@ -132,7 +144,9 @@ impl CommitteeCache {
             return Err(BeaconStateError::TooManyValidators);
         }
 
-        let active_validator_indices = get_active_validator_indices(state.validators(), epoch);
+        let active_validator_indices = info_span!("get_active_validator_indices")
+            .in_scope(|| get_active_validator_indices(state.validators(), epoch));
+        cache_span.record("active_validator_count", active_validator_indices.len());
 
         if active_validator_indices.is_empty() {
             return Err(BeaconStateError::InsufficientValidators);
@@ -144,14 +158,18 @@ impl CommitteeCache {
 
         let seed = state.get_seed(epoch, Domain::BeaconAttester, spec)?;
 
-        let shuffling = shuffle_list(
-            active_validator_indices,
-            spec.shuffle_round_count,
-            &seed[..],
-            false,
-        )
-        .ok_or(BeaconStateError::UnableToShuffle)?;
+        let shuffling = info_span!("swap_or_not_shuffle")
+            .in_scope(|| {
+                shuffle_list_branchless(
+                    active_validator_indices,
+                    spec.shuffle_round_count,
+                    &seed[..],
+                    false,
+                )
+            })
+            .ok_or(BeaconStateError::UnableToShuffle)?;
 
+        let _positions_guard = info_span!("committee_cache_positions").entered();
         let mut shuffling_positions = vec![<_>::default(); state.validators().len()];
         for (i, &v) in shuffling.iter().enumerate() {
             *shuffling_positions
