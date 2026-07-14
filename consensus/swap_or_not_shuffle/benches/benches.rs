@@ -1,4 +1,4 @@
-use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
+use criterion::{BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use std::hint::black_box;
 use swap_or_not_shuffle::{compute_shuffled_index, shuffle_list as fast_shuffle};
 
@@ -34,18 +34,28 @@ fn shuffles(c: &mut Criterion) {
         );
     }
 
-    let mut group = c.benchmark_group("fast");
+    let mut group = c.benchmark_group("whole_list_shuffle");
     group.sample_size(10);
-    for size in [512, 16_384, 4_000_000] {
-        group.bench_with_input(
-            BenchmarkId::new("whole list shuffle", format!("{size} elements")),
-            &size,
-            move |b, &n| {
-                let seed = vec![42; 32];
-                let list: Vec<usize> = (0..n).collect();
-                b.iter(|| black_box(fast_shuffle(list.clone(), SHUFFLE_ROUND_COUNT, &seed, true)))
-            },
-        );
+    for size in [512, 16_384, 1_000_000, 4_000_000] {
+        group.throughput(Throughput::Elements(size as u64));
+
+        for (direction, forwards) in [("forward", true), ("reverse", false)] {
+            let seed = [42; 32];
+            let template: Vec<usize> = (0..size).collect();
+            let batch_size = if size <= 16_384 {
+                BatchSize::LargeInput
+            } else {
+                BatchSize::PerIteration
+            };
+
+            group.bench_with_input(BenchmarkId::new(direction, size), &size, move |b, _| {
+                b.iter_batched(
+                    || template.clone(),
+                    |input| black_box(fast_shuffle(input, SHUFFLE_ROUND_COUNT, &seed, forwards)),
+                    batch_size,
+                )
+            });
+        }
     }
     group.finish();
 }

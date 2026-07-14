@@ -49,6 +49,19 @@ impl Buf {
     }
 }
 
+/// Swap `input[i]` and `input[j]` when `bit` is one, leaving them unchanged when it is zero.
+#[inline(always)]
+fn masked_swap(input: &mut [usize], i: usize, j: usize, bit: u8) {
+    debug_assert!(bit <= 1);
+
+    let mask = 0usize.wrapping_sub(bit as usize);
+    let left = input[i];
+    let right = input[j];
+    let delta = (left ^ right) & mask;
+    input[i] = left ^ delta;
+    input[j] = right ^ delta;
+}
+
 /// Shuffles an entire list in-place.
 ///
 /// Note: this is equivalent to the `compute_shuffled_index` function, except it shuffles an entire
@@ -116,9 +129,7 @@ pub fn shuffle_list(
             }
             let bit_v = (byte_v >> (j & 0x07)) & 0x01;
 
-            if bit_v == 1 {
-                input.swap(i, j);
-            }
+            masked_swap(&mut input, i, j, bit_v);
         }
 
         let mirror = (pivot + list_size + 1) >> 1;
@@ -141,9 +152,7 @@ pub fn shuffle_list(
             }
             let bit_v = (byte_v >> (j & 0x07)) & 0x01;
 
-            if bit_v == 1 {
-                input.swap(i, j);
-            }
+            masked_swap(&mut input, i, j, bit_v);
         }
 
         if forwards {
@@ -166,6 +175,104 @@ pub fn shuffle_list(
 mod tests {
     use super::*;
 
+    const TEST_SIZES: [usize; 23] = [
+        1, 2, 3, 4, 5, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65, 255, 256, 257, 511, 512, 513,
+    ];
+    const TEST_ROUNDS: [u8; 4] = [1, 2, 17, 90];
+
+    fn test_seeds() -> [[u8; 32]; 3] {
+        [[0; 32], [42; 32], std::array::from_fn(|index| index as u8)]
+    }
+
+    /// The original conditional-swap implementation, retained as a test oracle.
+    fn shuffle_list_reference(
+        mut input: Vec<usize>,
+        rounds: u8,
+        seed: &[u8],
+        forwards: bool,
+    ) -> Option<Vec<usize>> {
+        let list_size = input.len();
+
+        if input.is_empty()
+            || list_size > usize::MAX / 2
+            || list_size > 2_usize.pow(24)
+            || rounds == 0
+        {
+            return None;
+        }
+
+        let mut buf = Buf::new(seed);
+        let mut round = if forwards { 0 } else { rounds - 1 };
+
+        loop {
+            buf.set_round(round);
+
+            let pivot = (buf.raw_pivot() % list_size as u64) as usize;
+            let mirror = (pivot + 1) >> 1;
+
+            buf.mix_in_position(pivot >> 8);
+            let mut source = buf.hash();
+            let mut byte = source[(pivot & 0xff) >> 3];
+
+            for i in 0..mirror {
+                let j = pivot - i;
+
+                if j & 0xff == 0xff {
+                    buf.mix_in_position(j >> 8);
+                    source = buf.hash();
+                }
+
+                if j & 0x07 == 0x07 {
+                    byte = source[(j & 0xff) >> 3];
+                }
+                let bit = (byte >> (j & 0x07)) & 0x01;
+
+                if bit == 1 {
+                    input.swap(i, j);
+                }
+            }
+
+            let mirror = (pivot + list_size + 1) >> 1;
+            let end = list_size - 1;
+
+            buf.mix_in_position(end >> 8);
+            let mut source = buf.hash();
+            let mut byte = source[(end & 0xff) >> 3];
+
+            for (loop_iter, i) in ((pivot + 1)..mirror).enumerate() {
+                let j = end - loop_iter;
+
+                if j & 0xff == 0xff {
+                    buf.mix_in_position(j >> 8);
+                    source = buf.hash();
+                }
+
+                if j & 0x07 == 0x07 {
+                    byte = source[(j & 0xff) >> 3];
+                }
+                let bit = (byte >> (j & 0x07)) & 0x01;
+
+                if bit == 1 {
+                    input.swap(i, j);
+                }
+            }
+
+            if forwards {
+                round += 1;
+                if round == rounds {
+                    break;
+                }
+            } else {
+                if round == 0 {
+                    break;
+                }
+                round -= 1;
+            }
+        }
+
+        Some(input)
+    }
+
     #[test]
     fn returns_none_for_zero_length_list() {
         assert_eq!(None, shuffle_list(vec![], 90, &[42, 42], true));
@@ -177,5 +284,112 @@ mod tests {
         assert!(TOTAL_SIZE > SEED_SIZE);
         assert!(TOTAL_SIZE > PIVOT_VIEW_SIZE);
         assert!(mem::size_of::<usize>() >= POSITION_WINDOW_SIZE);
+    }
+
+    #[test]
+    fn matches_conditional_reference() {
+        for size in TEST_SIZES {
+            let input: Vec<_> = (0..size).map(|value| value.wrapping_mul(17)).collect();
+
+            for rounds in TEST_ROUNDS {
+                for seed in test_seeds() {
+                    for forwards in [true, false] {
+                        assert_eq!(
+                            shuffle_list(input.clone(), rounds, &seed, forwards),
+                            shuffle_list_reference(input.clone(), rounds, &seed, forwards),
+                            "size={size}, rounds={rounds}, seed={seed:?}, forwards={forwards}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn matches_conditional_reference_for_deterministic_random_cases() {
+        for case in 0_u64..32 {
+            let size = ((case.wrapping_mul(7_919) % 8_192).wrapping_add(1)) as usize;
+            let rounds = ((case.wrapping_mul(17) % 90).wrapping_add(1)) as u8;
+            let seed: [u8; 32] = std::array::from_fn(|index| {
+                (case as u8)
+                    .wrapping_mul(31)
+                    .wrapping_add((index as u8).wrapping_mul(17))
+            });
+            let input: Vec<_> = (0..size)
+                .map(|value| value.wrapping_mul(7_919) ^ (value / 7))
+                .collect();
+
+            for forwards in [true, false] {
+                assert_eq!(
+                    shuffle_list(input.clone(), rounds, &seed, forwards),
+                    shuffle_list_reference(input.clone(), rounds, &seed, forwards),
+                    "case={case}, size={size}, rounds={rounds}, forwards={forwards}"
+                );
+            }
+        }
+
+        let size = 65_537;
+        let seed = [0xa5; 32];
+        let input: Vec<_> = (0..size).collect();
+        for forwards in [true, false] {
+            assert_eq!(
+                shuffle_list(input.clone(), 90, &seed, forwards),
+                shuffle_list_reference(input.clone(), 90, &seed, forwards),
+                "large deterministic case, forwards={forwards}"
+            );
+        }
+    }
+
+    #[test]
+    fn reverse_matches_compute_shuffled_index() {
+        for size in [
+            1, 2, 3, 7, 8, 15, 16, 31, 32, 255, 256, 257, 1_023, 1_024, 1_025,
+        ] {
+            for rounds in [1, 17, 90] {
+                for seed in test_seeds() {
+                    let expected: Option<Vec<_>> = (0..size)
+                        .map(|index| crate::compute_shuffled_index(index, size, &seed, rounds))
+                        .collect();
+
+                    assert_eq!(
+                        shuffle_list((0..size).collect(), rounds, &seed, false),
+                        expected,
+                        "size={size}, rounds={rounds}, seed={seed:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn forward_then_reverse_restores_input() {
+        for size in TEST_SIZES {
+            let input: Vec<_> = (0..size).map(|value| value % 11).collect();
+
+            for rounds in TEST_ROUNDS {
+                for seed in test_seeds() {
+                    let restored = shuffle_list(input.clone(), rounds, &seed, true)
+                        .and_then(|shuffled| shuffle_list(shuffled, rounds, &seed, false));
+
+                    assert_eq!(
+                        restored,
+                        Some(input.clone()),
+                        "size={size}, rounds={rounds}, seed={seed:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn invalid_inputs_match_conditional_reference() {
+        assert_eq!(
+            shuffle_list(vec![], 90, &[42, 42], true),
+            shuffle_list_reference(vec![], 90, &[42, 42], true)
+        );
+        assert_eq!(
+            shuffle_list(vec![0], 0, &[42, 42], false),
+            shuffle_list_reference(vec![0], 0, &[42, 42], false)
+        );
     }
 }

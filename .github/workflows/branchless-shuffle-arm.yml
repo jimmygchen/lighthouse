@@ -1,0 +1,87 @@
+name: branchless-shuffle-arm-benchmark
+
+on:
+  push:
+    branches:
+      - perf-branchless-shuffle-arm-bench
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  BASE_SHA: e2bdcf0fe6514d52c6e1f15eafed0f5cb2af6a03
+  CARGO_INCREMENTAL: 0
+  RUSTFLAGS: "-C debuginfo=0"
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: branchless-shuffle-arm
+          cache-targets: true
+
+      - name: Record environment
+        run: |
+          set -euxo pipefail
+          uname -a
+          lscpu
+          rustc -Vv
+          cargo -V
+
+      - name: Test candidate
+        run: cargo test -p swap_or_not_shuffle
+
+      - name: Preserve candidate benchmark
+        run: cp consensus/swap_or_not_shuffle/benches/benches.rs "${RUNNER_TEMP}/benches.rs"
+
+      - name: Benchmark reference
+        run: |
+          set -euxo pipefail
+          git switch --detach "${BASE_SHA}"
+          cp "${RUNNER_TEMP}/benches.rs" consensus/swap_or_not_shuffle/benches/benches.rs
+          cargo bench -p swap_or_not_shuffle --bench benches --no-run
+          taskset -c 2 cargo bench -p swap_or_not_shuffle --bench benches -- \
+            --save-baseline reference whole_list_shuffle \
+            2>&1 | tee "${RUNNER_TEMP}/reference.log"
+
+      - name: Benchmark candidate
+        run: |
+          set -euxo pipefail
+          git reset --hard
+          git switch --detach "${GITHUB_SHA}"
+          cargo bench -p swap_or_not_shuffle --bench benches --no-run
+          taskset -c 2 cargo bench -p swap_or_not_shuffle --bench benches -- \
+            --baseline reference whole_list_shuffle \
+            2>&1 | tee "${RUNNER_TEMP}/candidate.log"
+
+      - name: Collect results
+        if: always()
+        run: |
+          mkdir -p "${RUNNER_TEMP}/branchless-shuffle-arm-results"
+          cp "${RUNNER_TEMP}"/*.log "${RUNNER_TEMP}/branchless-shuffle-arm-results/" 2>/dev/null || true
+          cp -R target/criterion "${RUNNER_TEMP}/branchless-shuffle-arm-results/" 2>/dev/null || true
+          uname -a > "${RUNNER_TEMP}/branchless-shuffle-arm-results/uname.txt"
+          lscpu > "${RUNNER_TEMP}/branchless-shuffle-arm-results/lscpu.txt"
+          rustc -Vv > "${RUNNER_TEMP}/branchless-shuffle-arm-results/rustc.txt"
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: branchless-shuffle-arm-results
+          path: ${{ runner.temp }}/branchless-shuffle-arm-results
+          if-no-files-found: error
