@@ -1,6 +1,6 @@
 use crate::{
     block::{BLOB_KZG_COMMITMENTS_INDEX, SignedBeaconBlock, SignedBeaconBlockHeader},
-    core::{EthSpec, Hash256, Slot},
+    core::{EthSpec, Hash256, ListRef, Slot},
     data::{Cell, ColumnIndex, DataColumnSidecar, DataColumnSidecarFulu},
     execution::AbstractExecPayload,
     kzg_ext::KzgCommitments,
@@ -11,13 +11,30 @@ use kzg::KzgProof;
 use merkle_proof::verify_merkle_proof;
 use ssz::BitList;
 use ssz_derive::{Decode, Encode};
-use ssz_types::{FixedVector, ListEncodedOption, VariableList};
+use ssz_types::{FixedVector, ListEncodedOption, ProgressiveVariableList, VariableList};
 use std::fmt::Display;
+use superstruct::superstruct;
 use tree_hash::TreeHash;
 use tree_hash_derive::TreeHash;
 
 pub type CellBitmap<E> = BitList<<E as EthSpec>::MaxBlobCommitmentsPerBlock>;
 
+#[superstruct(
+    variants(Fulu, Gloas),
+    variant_attributes(
+        derive(Debug, Clone, Encode, Decode, TreeHash, Educe),
+        educe(PartialEq, Eq, Hash(bound = "E: EthSpec")),
+        cfg_attr(
+            feature = "arbitrary",
+            derive(arbitrary::Arbitrary),
+            arbitrary(bound = "E: EthSpec")
+        ),
+    ),
+    ref_attributes(
+        derive(Debug, PartialEq, TreeHash),
+        tree_hash(enum_behaviour = "transparent")
+    )
+)]
 #[cfg_attr(
     feature = "arbitrary",
     derive(arbitrary::Arbitrary),
@@ -25,22 +42,40 @@ pub type CellBitmap<E> = BitList<<E as EthSpec>::MaxBlobCommitmentsPerBlock>;
 )]
 #[derive(Debug, Clone, Encode, Decode, TreeHash, Educe)]
 #[educe(PartialEq, Eq, Hash(bound = "E: EthSpec"))]
+#[tree_hash(enum_behaviour = "transparent")]
+#[ssz(enum_behaviour = "transparent")]
 pub struct PartialDataColumnSidecar<E: EthSpec> {
     pub cells_present_bitmap: CellBitmap<E>,
+    #[superstruct(only(Fulu), partial_getter(rename = "column_fulu"))]
     pub column: VariableList<Cell<E>, E::MaxBlobCommitmentsPerBlock>,
+    // [Modified in Gloas:EIP7688]
+    #[superstruct(only(Gloas), partial_getter(rename = "column_gloas"))]
+    pub column: ProgressiveVariableList<Cell<E>>,
+    #[superstruct(only(Fulu), partial_getter(rename = "kzg_proofs_fulu"))]
     pub kzg_proofs: VariableList<KzgProof, E::MaxBlobCommitmentsPerBlock>,
+    // [Modified in Gloas:EIP7688]
+    #[superstruct(only(Gloas), partial_getter(rename = "kzg_proofs_gloas"))]
+    pub kzg_proofs: ProgressiveVariableList<KzgProof>,
+    #[superstruct(only(Fulu))]
     pub header: ListEncodedOption<PartialDataColumnHeader<E>>,
 }
 
 /// Equivalent to `PartialDataColumnSidecar`, but containing references to the cells. This is done
 /// so that we can get a part of a sidecar without expensively cloning all the contents.
+#[superstruct(
+    variants(Fulu, Gloas),
+    variant_attributes(derive(Debug, Clone, Encode),),
+    ref_attributes(derive(Debug),)
+)]
 #[derive(Debug, Clone, Encode)]
-pub struct PartialDataColumnSidecarRef<'a, E: EthSpec> {
+#[ssz(enum_behaviour = "transparent")]
+pub struct PartialDataColumnView<'a, E: EthSpec> {
     pub cells_present_bitmap: CellBitmap<E>,
     // It is fine to use `Vec` here as we never decode directly into this type, and only create
     // this from the `PartialDataColumnSidecar` type above. This avoids a few ugly `expect` calls.
     pub column: Vec<&'a Cell<E>>,
     pub kzg_proofs: Vec<&'a KzgProof>,
+    #[superstruct(only(Fulu))]
     pub header: ListEncodedOption<&'a PartialDataColumnHeader<E>>,
 }
 
@@ -52,44 +87,57 @@ pub enum PartialDataColumnSidecarError {
     ConflictingData,
 }
 
-impl<E: EthSpec> PartialDataColumnSidecar<E> {
-    pub fn is_complete(&self) -> bool {
-        self.cells_present_bitmap.num_set_bits() == self.cells_present_bitmap.len()
+impl<'a, E: EthSpec> PartialDataColumnSidecarRef<'a, E> {
+    /// Unified view over the `column` field across forks (EIP-7688).
+    pub fn column(&self) -> ListRef<'a, Cell<E>, E::MaxBlobCommitmentsPerBlock> {
+        match self {
+            Self::Fulu(sidecar) => ListRef::Basic(&sidecar.column),
+            Self::Gloas(sidecar) => ListRef::Progressive(&sidecar.column),
+        }
     }
 
-    pub fn get(&self, idx: usize) -> Option<(&Cell<E>, &KzgProof)> {
-        if !self.cells_present_bitmap.get(idx).unwrap_or(false) {
+    /// Unified view over the `kzg_proofs` field across forks (EIP-7688).
+    pub fn kzg_proofs(&self) -> ListRef<'a, KzgProof, E::MaxBlobCommitmentsPerBlock> {
+        match self {
+            Self::Fulu(sidecar) => ListRef::Basic(&sidecar.kzg_proofs),
+            Self::Gloas(sidecar) => ListRef::Progressive(&sidecar.kzg_proofs),
+        }
+    }
+
+    pub fn is_complete(&self) -> bool {
+        self.cells_present_bitmap().num_set_bits() == self.cells_present_bitmap().len()
+    }
+
+    pub fn get(&self, idx: usize) -> Option<(&'a Cell<E>, &'a KzgProof)> {
+        if !self.cells_present_bitmap().get(idx).unwrap_or(false) {
             return None;
         }
         let storage_idx = self
-            .cells_present_bitmap
+            .cells_present_bitmap()
             .iter()
             .take(idx)
             .filter(|b| *b)
             .count();
-        self.column
+        self.column()
             .get(storage_idx)
-            .zip(self.kzg_proofs.get(storage_idx))
+            .zip(self.kzg_proofs().get(storage_idx))
     }
 
     /// Creates a reference to this sidecar containing only the blob indices for which the passed
     /// closure returns `true` and is present in `self`. Will return `None` if there is no overlap.
-    pub fn try_filter<F, Err>(
-        &self,
-        filter: F,
-    ) -> Result<Option<PartialDataColumnSidecarRef<'_, E>>, Err>
+    pub fn try_filter<F, Err>(&self, filter: F) -> Result<Option<PartialDataColumnView<'a, E>>, Err>
     where
         F: Fn(usize, &Cell<E>, &KzgProof) -> Result<bool, Err>,
         Err: From<PartialDataColumnSidecarError>,
     {
         let len = self.verify_len()?;
 
-        let mut new_bitmap = self.cells_present_bitmap.clone();
+        let mut new_bitmap = self.cells_present_bitmap().clone();
         let mut new_column = Vec::with_capacity(len);
         let mut new_proofs = Vec::with_capacity(len);
-        let mut iter = self.column.iter().zip(self.kzg_proofs.iter());
+        let mut iter = self.column().iter().zip(self.kzg_proofs().iter());
 
-        for (blob_idx, present) in self.cells_present_bitmap.iter().enumerate() {
+        for (blob_idx, present) in self.cells_present_bitmap().iter().enumerate() {
             if present {
                 let (cell, proof) = iter
                     .next()
@@ -111,20 +159,54 @@ impl<E: EthSpec> PartialDataColumnSidecar<E> {
             return Ok(None);
         }
 
-        Ok(Some(PartialDataColumnSidecarRef {
-            cells_present_bitmap: new_bitmap,
-            column: new_column,
-            kzg_proofs: new_proofs,
-            header: self.header.as_ref().into(),
+        Ok(Some(if let Ok(header) = self.header() {
+            PartialDataColumnViewFulu {
+                cells_present_bitmap: new_bitmap,
+                column: new_column,
+                kzg_proofs: new_proofs,
+                header: header.as_ref().into(),
+            }
+            .into()
+        } else {
+            PartialDataColumnViewGloas {
+                cells_present_bitmap: new_bitmap,
+                column: new_column,
+                kzg_proofs: new_proofs,
+            }
+            .into()
         }))
     }
 
     pub fn verify_len(&self) -> Result<usize, PartialDataColumnSidecarError> {
-        let len = self.cells_present_bitmap.num_set_bits();
-        if len != self.kzg_proofs.len() || len != self.column.len() {
+        let len = self.cells_present_bitmap().num_set_bits();
+        if len != self.kzg_proofs().len() || len != self.column().len() {
             return Err(PartialDataColumnSidecarError::InternallyInconsistent);
         }
         Ok(len)
+    }
+}
+
+impl<E: EthSpec> PartialDataColumnSidecar<E> {
+    /// Unified view over the `column` field across forks (EIP-7688).
+    pub fn column(&self) -> ListRef<'_, Cell<E>, E::MaxBlobCommitmentsPerBlock> {
+        self.to_ref().column()
+    }
+
+    /// Unified view over the `kzg_proofs` field across forks (EIP-7688).
+    pub fn kzg_proofs(&self) -> ListRef<'_, KzgProof, E::MaxBlobCommitmentsPerBlock> {
+        self.to_ref().kzg_proofs()
+    }
+
+    pub fn is_complete(&self) -> bool {
+        self.to_ref().is_complete()
+    }
+
+    pub fn get(&self, idx: usize) -> Option<(&Cell<E>, &KzgProof)> {
+        self.to_ref().get(idx)
+    }
+
+    pub fn verify_len(&self) -> Result<usize, PartialDataColumnSidecarError> {
+        self.to_ref().verify_len()
     }
 }
 
@@ -192,24 +274,49 @@ impl<E: EthSpec> Display for PartialDataColumnPartsMetadata<E> {
     }
 }
 
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+pub struct PartialDataColumnGroupId {
+    pub slot: Slot,
+    pub beacon_block_root: Hash256,
+}
+
+#[superstruct(
+    variants(Fulu, Gloas),
+    variant_attributes(derive(Debug, Clone, PartialEq)),
+    ref_attributes(derive(Debug))
+)]
 #[derive(Debug, Clone, PartialEq)]
 pub struct PartialDataColumn<E: EthSpec> {
     pub block_root: Hash256,
+    #[superstruct(only(Gloas))]
+    pub slot: Slot,
     pub index: ColumnIndex,
-    pub sidecar: PartialDataColumnSidecar<E>,
+    #[superstruct(only(Fulu), partial_getter(rename = "sidecar_fulu"))]
+    pub sidecar: PartialDataColumnSidecarFulu<E>,
+    #[superstruct(only(Gloas), partial_getter(rename = "sidecar_gloas"))]
+    pub sidecar: PartialDataColumnSidecarGloas<E>,
 }
 
 impl<E: EthSpec> PartialDataColumn<E> {
-    /// Equivalent to a call to `clone` followed by `try_into_full`, but returns early if conversion
-    /// is not possible.
+    pub fn sidecar(&self) -> PartialDataColumnSidecarRef<'_, E> {
+        self.to_ref().sidecar()
+    }
+}
+
+impl<E: EthSpec> PartialDataColumnFulu<E> {
+    fn is_complete(&self) -> bool {
+        PartialDataColumnSidecarRef::Fulu(&self.sidecar).is_complete()
+    }
+
+    /// Equivalent to a call to `clone` followed by [`Self::try_into_full`], but returns early if
+    /// conversion is not possible.
     pub fn try_clone_full(
         &self,
         header: &PartialDataColumnHeader<E>,
     ) -> Option<DataColumnSidecar<E>> {
-        if !self.sidecar.is_complete() {
+        if !self.is_complete() {
             return None;
         }
-
         Some(DataColumnSidecar::Fulu(DataColumnSidecarFulu {
             index: self.index,
             column: self.sidecar.column.clone(),
@@ -224,10 +331,9 @@ impl<E: EthSpec> PartialDataColumn<E> {
         self,
         header: &PartialDataColumnHeader<E>,
     ) -> Option<DataColumnSidecar<E>> {
-        if !self.sidecar.is_complete() {
+        if !self.is_complete() {
             return None;
         }
-
         Some(DataColumnSidecar::Fulu(DataColumnSidecarFulu {
             index: self.index,
             column: self.sidecar.column,
@@ -236,6 +342,15 @@ impl<E: EthSpec> PartialDataColumn<E> {
             signed_block_header: header.signed_block_header.clone(),
             kzg_commitments_inclusion_proof: header.kzg_commitments_inclusion_proof.clone(),
         }))
+    }
+}
+
+impl<'a, E: EthSpec> PartialDataColumnRef<'a, E> {
+    pub fn sidecar(&self) -> PartialDataColumnSidecarRef<'a, E> {
+        match self {
+            PartialDataColumnRef::Fulu(f) => PartialDataColumnSidecarRef::Fulu(&f.sidecar),
+            PartialDataColumnRef::Gloas(g) => PartialDataColumnSidecarRef::Gloas(&g.sidecar),
+        }
     }
 }
 
@@ -279,12 +394,13 @@ mod tests {
             .try_into()
             .unwrap();
 
-        PartialDataColumnSidecar {
+        PartialDataColumnSidecarFulu {
             cells_present_bitmap: bitmap,
             column,
             kzg_proofs: proofs,
             header: None.into(),
         }
+        .into()
     }
 
     fn make_sidecar(total_blobs: usize, present_indices: &[usize]) -> PartialDataColumnSidecar<E> {
@@ -319,14 +435,15 @@ mod tests {
     fn filter_keeps_matching_cells() {
         let sidecar = make_sidecar(6, &[0, 2, 4]);
         let filtered = sidecar
+            .to_ref()
             .try_filter::<_, PartialDataColumnSidecarError>(|idx, _, _| Ok(idx == 0 || idx == 4))
             .unwrap()
             .unwrap();
-        assert_eq!(filtered.column.len(), 2);
-        assert_eq!(filtered.kzg_proofs.len(), 2);
-        assert!(filtered.cells_present_bitmap.get(0).unwrap());
-        assert!(!filtered.cells_present_bitmap.get(2).unwrap());
-        assert!(filtered.cells_present_bitmap.get(4).unwrap());
+        assert_eq!(filtered.column().len(), 2);
+        assert_eq!(filtered.kzg_proofs().len(), 2);
+        assert!(filtered.cells_present_bitmap().get(0).unwrap());
+        assert!(!filtered.cells_present_bitmap().get(2).unwrap());
+        assert!(filtered.cells_present_bitmap().get(4).unwrap());
     }
 
     #[test]
@@ -334,6 +451,7 @@ mod tests {
         let sidecar = make_sidecar(6, &[0, 2, 4]);
         assert!(
             sidecar
+                .to_ref()
                 .try_filter::<_, PartialDataColumnSidecarError>(
                     |idx, _, _| Ok(idx == 1 || idx == 3)
                 )
@@ -346,12 +464,16 @@ mod tests {
     fn filter_preserves_all_when_all_match() {
         let sidecar = make_sidecar(6, &[0, 2, 4]);
         let filtered = sidecar
+            .to_ref()
             .try_filter::<_, PartialDataColumnSidecarError>(|_, _, _| Ok(true))
             .unwrap()
             .unwrap();
-        assert_eq!(filtered.column.len(), 3);
-        assert_eq!(filtered.kzg_proofs.len(), 3);
-        assert_eq!(filtered.cells_present_bitmap, sidecar.cells_present_bitmap);
+        assert_eq!(filtered.column().len(), 3);
+        assert_eq!(filtered.kzg_proofs().len(), 3);
+        assert_eq!(
+            filtered.cells_present_bitmap(),
+            sidecar.cells_present_bitmap()
+        );
 
         // Also, check that the encoded version matches
         assert_eq!(filtered.as_ssz_bytes(), sidecar.as_ssz_bytes());
@@ -371,16 +493,23 @@ mod tests {
         assert!(!sidecar.is_complete());
     }
 
-    // -- try_clone_full tests (on PartialDataColumn) --
+    // -- try_clone_full tests (on PartialDataColumnFulu) --
+
+    fn into_fulu(sidecar: PartialDataColumnSidecar<E>) -> PartialDataColumnSidecarFulu<E> {
+        match sidecar {
+            PartialDataColumnSidecar::Fulu(s) => s,
+            PartialDataColumnSidecar::Gloas(_) => panic!("expected Fulu sidecar"),
+        }
+    }
 
     #[test]
     fn try_clone_full_succeeds_when_complete() {
         let sidecar = make_sidecar(3, &[0, 1, 2]);
         let header = make_header(3);
-        let partial = PartialDataColumn {
+        let partial = PartialDataColumnFulu {
             block_root: Hash256::zero(),
             index: 5,
-            sidecar,
+            sidecar: into_fulu(sidecar),
         };
         let full = partial.try_clone_full(&header).unwrap();
         assert_eq!(*full.index(), 5);
@@ -391,10 +520,10 @@ mod tests {
     fn try_clone_full_returns_none_when_incomplete() {
         let sidecar = make_sidecar(4, &[0, 2]);
         let header = make_header(4);
-        let partial = PartialDataColumn {
+        let partial = PartialDataColumnFulu {
             block_root: Hash256::zero(),
             index: 0,
-            sidecar,
+            sidecar: into_fulu(sidecar),
         };
         assert!(partial.try_clone_full(&header).is_none());
     }
