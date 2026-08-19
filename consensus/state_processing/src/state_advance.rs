@@ -32,7 +32,6 @@ pub fn complete_state_advance<E: EthSpec>(
     state: &mut BeaconState<E>,
     mut state_root_opt: Option<Hash256>,
     target_slot: Slot,
-    builder_onboarding_cache: Option<&OnboardBuildersCache>,
     spec: &ChainSpec,
 ) -> Result<(), Error> {
     check_target_slot(state.slot(), target_slot)?;
@@ -45,7 +44,7 @@ pub fn complete_state_advance<E: EthSpec>(
         per_slot_processing(
             state,
             state_root_opt,
-            GloasVerificationContext::from_cache(builder_onboarding_cache),
+            GloasVerificationContext::FullVerification,
             spec,
         )
         .map_err(Error::PerSlotProcessing)?;

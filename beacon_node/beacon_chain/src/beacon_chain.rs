@@ -1516,9 +1516,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
                     match per_slot_processing(
                         &mut state,
                         skip_state_root,
-                        GloasVerificationContext::from_cache(
-                            self.builder_onboarding_cache.as_deref(),
-                        ),
+                        GloasVerificationContext::FullVerification,
                         &self.spec,
                     ) {
                         Ok(_) => (),
@@ -5712,13 +5710,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         let slot_timer = metrics::start_timer(&metrics::BLOCK_PRODUCTION_SLOT_PROCESS_TIMES);
 
         // Ensure the state has performed a complete transition into the required slot.
-        complete_state_advance(
-            &mut state,
-            state_root_opt,
-            produce_at_slot,
-            self.builder_onboarding_cache.as_deref(),
-            &self.spec,
-        )?;
+        complete_state_advance(&mut state, state_root_opt, produce_at_slot, &self.spec)?;
 
         drop(slot_timer);
 
