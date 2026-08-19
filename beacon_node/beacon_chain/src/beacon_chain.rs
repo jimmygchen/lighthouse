@@ -6777,6 +6777,11 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             input_params
         };
 
+        // Notify custody for the EL's sparse blobpool. Only relevant for Gloas, as
+        let custody_columns = self
+            .custody_context
+            .custody_columns_for_epoch(Some(current_slot.epoch(T::EthSpec::slots_per_epoch())));
+
         // Take the global lock for updating the execution engine fork choice.
         //
         // Whilst holding this lock we must:
@@ -6818,6 +6823,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
                 current_slot,
                 head_block_root,
                 head_payload_status,
+                custody_columns,
             )
             .await
             .map_err(Error::ExecutionForkChoiceUpdateFailed);

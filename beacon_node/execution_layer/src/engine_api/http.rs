@@ -20,6 +20,8 @@ use std::time::{Duration, Instant};
 
 pub use deposit_log::{DepositLog, Log};
 pub use reqwest::Client;
+use tracing::error;
+use types::ColumnIndex;
 
 const STATIC_ID: u32 = 1;
 pub const JSONRPC_VERSION: &str = "2.0";
@@ -68,6 +70,7 @@ pub const ENGINE_GET_CLIENT_VERSION_TIMEOUT: Duration = Duration::from_secs(1);
 
 pub const ENGINE_GET_BLOBS_V2: &str = "engine_getBlobsV2";
 pub const ENGINE_GET_BLOBS_V3: &str = "engine_getBlobsV3";
+pub const ENGINE_GET_BLOBS_V4: &str = "engine_getBlobsV4";
 pub const ENGINE_GET_BLOBS_TIMEOUT: Duration = Duration::from_secs(1);
 
 /// This error is returned during a `chainId` call by Geth.
@@ -97,6 +100,7 @@ pub static LIGHTHOUSE_CAPABILITIES: &[&str] = &[
     ENGINE_GET_CLIENT_VERSION_V1,
     ENGINE_GET_BLOBS_V2,
     ENGINE_GET_BLOBS_V3,
+    ENGINE_GET_BLOBS_V4,
 ];
 
 /// We opt to initialize the JsonClientVersionV1 rather than the ClientVersionV1
@@ -755,6 +759,21 @@ impl HttpJsonRpc {
         .await
     }
 
+    pub async fn get_blobs_v4<E: EthSpec>(
+        &self,
+        versioned_hashes: Vec<Hash256>,
+        indices_bitarray: CustodyColumnsBitArray,
+    ) -> Result<Vec<Option<BlobCellsAndProofsV1<E>>>, Error> {
+        let params = json!([versioned_hashes, indices_bitarray]);
+
+        self.rpc_request(
+            ENGINE_GET_BLOBS_V4,
+            params,
+            ENGINE_GET_BLOBS_TIMEOUT * self.execution_timeout_multiplier,
+        )
+        .await
+    }
+
     pub async fn get_block_by_number(
         &self,
         query: BlockByNumberQuery<'_>,
@@ -1165,10 +1184,20 @@ impl HttpJsonRpc {
         &self,
         forkchoice_state: ForkchoiceState,
         payload_attributes: Option<PayloadAttributes>,
+        custody_columns: Option<&[ColumnIndex]>,
     ) -> Result<ForkchoiceUpdatedResponse, Error> {
+        let custody_columns = custody_columns
+            .map(CustodyColumnsBitArray::try_from)
+            .transpose()
+            .unwrap_or_else(|err| {
+                error!(?err, "Failed to convert custody columns for fcuV4");
+                None
+            });
+
         let params = json!([
             JsonForkchoiceStateV1::from(forkchoice_state),
-            payload_attributes.map(JsonPayloadAttributes::from)
+            payload_attributes.map(JsonPayloadAttributes::from),
+            custody_columns
         ]);
 
         let response: JsonForkchoiceUpdatedV1Response = self
@@ -1268,6 +1297,7 @@ impl HttpJsonRpc {
             get_client_version_v1: capabilities.contains(ENGINE_GET_CLIENT_VERSION_V1),
             get_blobs_v2: capabilities.contains(ENGINE_GET_BLOBS_V2),
             get_blobs_v3: capabilities.contains(ENGINE_GET_BLOBS_V3),
+            get_blobs_v4: capabilities.contains(ENGINE_GET_BLOBS_V4),
         })
     }
 
@@ -1486,6 +1516,7 @@ impl HttpJsonRpc {
         &self,
         forkchoice_state: ForkchoiceState,
         maybe_payload_attributes: Option<PayloadAttributes>,
+        custody_columns: Option<&[ColumnIndex]>,
     ) -> Result<ForkchoiceUpdatedResponse, Error> {
         let engine_capabilities = self.get_engine_capabilities(None).await?;
         if let Some(payload_attributes) = maybe_payload_attributes.as_ref() {
@@ -1513,8 +1544,12 @@ impl HttpJsonRpc {
                 }
                 PayloadAttributes::V4(_) => {
                     if engine_capabilities.forkchoice_updated_v4 {
-                        self.forkchoice_updated_v4(forkchoice_state, maybe_payload_attributes)
-                            .await
+                        self.forkchoice_updated_v4(
+                            forkchoice_state,
+                            maybe_payload_attributes,
+                            custody_columns,
+                        )
+                        .await
                     } else {
                         Err(Error::RequiredMethodUnsupported(
                             "engine_forkchoiceUpdatedV4",
@@ -1523,7 +1558,7 @@ impl HttpJsonRpc {
                 }
             }
         } else if engine_capabilities.forkchoice_updated_v4 {
-            self.forkchoice_updated_v4(forkchoice_state, maybe_payload_attributes)
+            self.forkchoice_updated_v4(forkchoice_state, maybe_payload_attributes, custody_columns)
                 .await
         } else if engine_capabilities.forkchoice_updated_v3 {
             self.forkchoice_updated_v3(forkchoice_state, maybe_payload_attributes)

@@ -213,12 +213,11 @@ impl<T: BeaconChainTypes> DataAvailabilityChecker<T> {
         if let Some(assembler) = &self.partial_assembler {
             match assembler.get_partial(&block_root, column_index) {
                 Some(AssemblyColumn::Incomplete(cached_partial)) => {
-                    let cached_partial = cached_partial.sidecar().as_sparse();
                     return data_column.try_filter_to_partial_view(|idx, cell, proof| {
-                        match cached_partial.get(idx).and_then(|c| c.as_ref()) {
+                        match cached_partial.sidecar().get(idx) {
                             None => Ok(true),
                             Some((cached_cell, cached_proof)) => {
-                                if cell == *cached_cell && proof == *cached_proof {
+                                if cell == cached_cell && proof == cached_proof {
                                     Ok(false)
                                 } else {
                                     Err(MissingCellsError::MismatchesCachedColumn)
@@ -270,18 +269,15 @@ impl<T: BeaconChainTypes> DataAvailabilityChecker<T> {
         if let Some(assembler) = &self.partial_assembler {
             match assembler.get_partial(&block_root, column_index) {
                 Some(AssemblyColumn::Incomplete(cached_partial)) => {
-                    let cached_partial = cached_partial.sidecar().as_sparse();
                     return partial_data_column
                         .sidecar()
-                        .try_filter(|idx, cell, proof| {
-                            match cached_partial.get(idx).and_then(|c| c.as_ref()) {
-                                None => Ok(true),
-                                Some((cached_cell, cached_proof)) => {
-                                    if cell == *cached_cell && proof == *cached_proof {
-                                        Ok(false)
-                                    } else {
-                                        Err(MissingCellsError::MismatchesCachedColumn)
-                                    }
+                        .try_filter(|idx, cell, proof| match cached_partial.sidecar().get(idx) {
+                            None => Ok(true),
+                            Some((cached_cell, cached_proof)) => {
+                                if cell == cached_cell && proof == cached_proof {
+                                    Ok(false)
+                                } else {
+                                    Err(MissingCellsError::MismatchesCachedColumn)
                                 }
                             }
                         });

@@ -32,15 +32,17 @@ mod pending_column;
 mod pending_components;
 
 use crate::data_column_verification::{
-    GossipVerifiedDataColumn, KzgVerifiedCustodyDataColumn,
-    KzgVerifiedCustodyPartialDataColumnGloas, KzgVerifiedDataColumn,
+    GossipVerifiedDataColumn, KzgVerifiedCustodyDataColumn, KzgVerifiedCustodyPartialDataColumn,
+    KzgVerifiedCustodyPartialDataColumnGloas, KzgVerifiedDataColumn, KzgVerifiedPartialDataColumn,
 };
 use crate::metrics::{
     KZG_DATA_COLUMN_RECONSTRUCTION_ATTEMPTS, KZG_DATA_COLUMN_RECONSTRUCTION_FAILURES,
 };
 use crate::observed_data_sidecars::ObservationStrategy;
-use crate::partial_data_column_assembler::PartialMergeResult;
-use pending_components::{PendingComponents, ReconstructColumnsDecision};
+use crate::partial_data_column_assembler::{PartialMergeResult, UpdatedPartials};
+use pending_components::{
+    PartialColumnsMergeOutcome, PendingComponents, ReconstructColumnsDecision,
+};
 use types::{SignedExecutionPayloadBid, SignedExecutionPayloadEnvelope};
 
 /// The LRU Cache stores `PendingComponents`, which store the block root, the execution payload bid, and its associated column data.
@@ -50,10 +52,6 @@ use types::{SignedExecutionPayloadBid, SignedExecutionPayloadEnvelope};
 /// `PendingComponents` are now never removed from the cache manually and are only removed via LRU
 /// eviction to prevent race conditions (#7961), so we expect this cache to be full all the time.
 const AVAILABILITY_CACHE_CAPACITY: usize = 32;
-
-/// What `update_pending_components` returns: the value that the update closure computed, next to
-/// a read guard on the entry it updated.
-type UpdatedComponents<'a, E, R> = (R, MappedRwLockReadGuard<'a, PendingComponents<E>>);
 
 /// This type is returned after adding a bid / column to the `DataAvailabilityChecker`.
 ///
@@ -248,7 +246,7 @@ impl<T: BeaconChainTypes> PendingPayloadCache<T> {
             .get_bid(&beacon_block_root)
             .ok_or(AvailabilityCheckError::MissingBid(beacon_block_root))?;
 
-        let (_, pending_components) =
+        let pending_components =
             self.update_pending_components(beacon_block_root, &bid, |pending_components| {
                 pending_components.insert_executed_payload_envelope(executed_envelope);
             })?;
@@ -339,13 +337,45 @@ impl<T: BeaconChainTypes> PendingPayloadCache<T> {
             .get_bid(&block_root)
             .ok_or(AvailabilityCheckError::MissingBid(block_root))?;
 
-        let (outcome, pending_components) =
+        let mut outcome = PartialColumnsMergeOutcome::default();
+        let pending_components =
             self.update_pending_components(block_root, &bid, |pending_components| {
-                pending_components.merge_partial_data_columns(kzg_verified_partial_data_columns)
+                outcome = pending_components
+                    .merge_partial_data_columns(kzg_verified_partial_data_columns);
             })?;
 
-        let partial_merge_result =
-            pending_components.to_partial_merge_result(outcome, self.disable_get_blobs);
+        let slot = bid.message.slot;
+        let full_columns = outcome
+            .newly_complete
+            .into_iter()
+            .filter_map(|col_idx| {
+                let col = pending_components.verified_data_columns.get(&col_idx)?;
+                col.to_full_sidecar(col_idx, slot, block_root)
+            })
+            .map(|data| {
+                KzgVerifiedCustodyDataColumn::from_asserted_custody(
+                    KzgVerifiedDataColumn::from_execution_verified(data),
+                )
+            })
+            .collect();
+
+        let updated_partials = outcome
+            .updated
+            .into_iter()
+            .filter_map(|col_idx| {
+                pending_components
+                    .verified_data_columns
+                    .get(&col_idx)?
+                    .to_partial(col_idx, slot, block_root)
+            })
+            .collect();
+
+        let partial_merge_result = PartialMergeResult {
+            added_cells: outcome.added_cells,
+            local_fetch_settled: pending_components.has_local_blobs || self.disable_get_blobs,
+            full_columns,
+            updated_partials: UpdatedPartials::Gloas(updated_partials),
+        };
 
         let availability = self.check_availability(block_root, pending_components)?;
 
@@ -361,14 +391,24 @@ impl<T: BeaconChainTypes> PendingPayloadCache<T> {
         block_root: Hash256,
         bid: &Arc<SignedExecutionPayloadBid<T::EthSpec>>,
     ) -> Vec<KzgVerifiedCustodyPartialDataColumnGloas<T::EthSpec>> {
-        let Ok((_, pending_components)) =
+        let Ok(pending_components) =
             self.update_pending_components(block_root, bid, |components| {
-                components.local_fetch_settled = true;
+                components.has_local_blobs = true;
             })
         else {
             return Vec::new();
         };
-        pending_components.get_cached_partial_data_columns()
+        let partials = pending_components.get_cached_partial_data_columns();
+        partials
+            .into_iter()
+            .filter_map(|partial| {
+                let column = PartialDataColumn::Gloas(partial);
+                KzgVerifiedCustodyPartialDataColumn::from_asserted_custody(
+                    KzgVerifiedPartialDataColumn::from_execution_verified(column),
+                )
+                .into_gloas()
+            })
+            .collect()
     }
 
     /// Returns true if the given column is fully populated in the cache.
@@ -393,7 +433,7 @@ impl<T: BeaconChainTypes> PendingPayloadCache<T> {
             .get_bid(&block_root)
             .ok_or(AvailabilityCheckError::MissingBid(block_root))?;
 
-        let (_, pending_components) =
+        let pending_components =
             self.update_pending_components(block_root, &bid, |pending_components| {
                 pending_components.merge_data_columns(kzg_verified_data_columns)
             })?;
@@ -519,35 +559,34 @@ impl<T: BeaconChainTypes> PendingPayloadCache<T> {
         }
     }
 
-    /// Applies `update_fn` to the entry for `block_root` under the write lock, then downgrades to
-    /// a read guard. Returns whatever `update_fn` computed, next to that guard.
-    fn update_pending_components<R, F>(
+    /// Gets or creates `PendingComponents` and applies the `update_fn` while holding the write lock.
+    ///
+    /// Once the update is complete, the write lock is downgraded and a read guard with a
+    /// reference of the updated `PendingComponents` is returned.
+    fn update_pending_components<F>(
         &self,
         block_root: Hash256,
         bid: &Arc<SignedExecutionPayloadBid<T::EthSpec>>,
         update_fn: F,
-    ) -> Result<UpdatedComponents<'_, T::EthSpec, R>, AvailabilityCheckError>
+    ) -> Result<MappedRwLockReadGuard<'_, PendingComponents<T::EthSpec>>, AvailabilityCheckError>
     where
-        F: FnOnce(&mut PendingComponents<T::EthSpec>) -> R,
+        F: FnOnce(&mut PendingComponents<T::EthSpec>),
     {
         let mut write_lock = self.availability_cache.write();
 
-        let outcome = {
+        {
             let pending_components = write_lock
                 .entry(block_root)
                 .or_insert_with(|| PendingComponents::new(block_root, bid.clone()));
             update_fn(pending_components)
-        };
+        }
 
-        let pending_components =
-            RwLockReadGuard::try_map(RwLockWriteGuard::downgrade(write_lock), |cache| {
-                cache.peek(&block_root)
-            })
-            .map_err(|_| {
-                AvailabilityCheckError::Unexpected("pending components should exist".to_string())
-            })?;
-
-        Ok((outcome, pending_components))
+        RwLockReadGuard::try_map(RwLockWriteGuard::downgrade(write_lock), |cache| {
+            cache.peek(&block_root)
+        })
+        .map_err(|_| {
+            AvailabilityCheckError::Unexpected("pending components should exist".to_string())
+        })
     }
 
     fn peek_pending_components<R, F: FnOnce(Option<&PendingComponents<T::EthSpec>>) -> R>(
@@ -925,7 +964,7 @@ mod data_availability_checker_tests {
             present.iter().map(|_| Cell::<E>::default()).collect();
         let kzg_proofs: ProgressiveVariableList<_> =
             present.iter().map(|_| KzgProof::empty()).collect();
-        KzgVerifiedCustodyPartialDataColumnGloas::from_cached(Arc::new(PartialDataColumnGloas {
+        let partial = PartialDataColumn::Gloas(PartialDataColumnGloas {
             block_root,
             slot,
             index,
@@ -934,7 +973,12 @@ mod data_availability_checker_tests {
                 column,
                 kzg_proofs,
             },
-        }))
+        });
+        KzgVerifiedCustodyPartialDataColumn::from_asserted_custody(
+            KzgVerifiedPartialDataColumn::from_execution_verified(partial),
+        )
+        .into_gloas()
+        .expect("partial is Gloas")
     }
 
     /// Two partial arrivals for the same column complete it: the first (one cell of two expected) is
@@ -955,14 +999,6 @@ mod data_availability_checker_tests {
         assert!(result.full_columns.is_empty(), "column not yet complete");
         assert!(!s.cache.is_column_complete(&s.block_root, 0));
 
-        // Re-merging blob 0 while the column is still incomplete adds nothing.
-        let duplicate = gloas_partial(s.block_root, slot, 0, 2, &[0]);
-        let (_availability, result) = s
-            .cache
-            .merge_partial_data_columns(s.block_root, &[duplicate])
-            .expect("merge");
-        assert_eq!(result.added_cells, 0);
-
         // Second arrival: column 0 gains blob 1's cell — now complete.
         let second = gloas_partial(s.block_root, slot, 0, 2, &[1]);
         let (_availability, result) = s
@@ -973,5 +1009,27 @@ mod data_availability_checker_tests {
         assert_eq!(result.full_columns.len(), 1, "column 0 becomes complete");
         assert_eq!(result.full_columns[0].index(), 0);
         assert!(s.cache.is_column_complete(&s.block_root, 0));
+    }
+
+    /// Re-merging a cell that is already present is a no-op: it adds no cells and completes nothing.
+    #[tokio::test]
+    async fn merge_partial_columns_dedups_repeated_cells() {
+        let s = setup_with(NodeCustodyType::Fullnode, NumBlobs::Number(2));
+        let slot = s.cache.get_bid(&s.block_root).expect("bid").message.slot;
+
+        let first = gloas_partial(s.block_root, slot, 0, 2, &[0]);
+        let (_availability, result) = s
+            .cache
+            .merge_partial_data_columns(s.block_root, &[first])
+            .expect("merge");
+        assert_eq!(result.added_cells, 1);
+
+        let duplicate = gloas_partial(s.block_root, slot, 0, 2, &[0]);
+        let (_availability, result) = s
+            .cache
+            .merge_partial_data_columns(s.block_root, &[duplicate])
+            .expect("merge");
+        assert_eq!(result.added_cells, 0, "duplicate cell is not re-inserted");
+        assert!(result.full_columns.is_empty());
     }
 }

@@ -311,7 +311,7 @@ pub enum GossipPartialDataColumnError {
     /// ## Peer scoring
     /// The column sidecar is invalid and the peer is faulty
     InconsistentPresentCount {
-        bitmap_num_set: usize,
+        bitmap_popcount: usize,
         cells_len: usize,
         proofs_len: usize,
     },
@@ -1006,15 +1006,6 @@ impl<E: EthSpec> KzgVerifiedCustodyPartialDataColumnFulu<E> {
 }
 
 impl<E: EthSpec> KzgVerifiedCustodyPartialDataColumnGloas<E> {
-    /// Re-wrap a partial column from the cache. Its cells were verified on the way in, and
-    /// `PendingColumn` keeps no timestamps, so this stamps the current time.
-    pub(crate) fn from_cached(data: Arc<PartialDataColumnGloas<E>>) -> Self {
-        Self {
-            data,
-            latest_cell_timestamp: timestamp_now(),
-        }
-    }
-
     pub fn into_inner(self) -> Arc<PartialDataColumnGloas<E>> {
         self.data
     }
@@ -1078,9 +1069,6 @@ pub fn verify_kzg_for_data_column_with_commitments<E: EthSpec>(
 
 /// Complete kzg verification for a `VerifiablePartialDataColumn`. Only the cells we are still
 /// missing are verified (others are already cached).
-///
-/// The returned column holds every cell of the input. The skipped cells match cached cells that
-/// an earlier call verified, so the whole column is verified.
 ///
 /// Returns an error if the kzg verification check fails.
 #[instrument(skip_all, level = "debug")]
@@ -1393,14 +1381,6 @@ fn validate_partial_data_column_sidecar_for_gossip_gloas<T: BeaconChainTypes>(
     let block_root = column.block_root;
     let slot = column.slot;
 
-    // While these checks are not required by the spec since we cross-check with the bid, we retain
-    // them to avoid potentially expensive bid lookups.
-    if let Err(e) = verify_sidecar_not_from_future_slot(chain, slot)
-        .and_then(|()| verify_slot_greater_than_latest_finalized_slot(chain, slot))
-    {
-        return PartialColumnVerificationResult::Err(e.into());
-    }
-
     // The bid carries the commitments. It is gossip-verified and inserted into the pending
     // payload cache on its own path - we don't cache anything from this code path.
     let bid = match load_gloas_payload_bid(block_root, chain) {
@@ -1453,12 +1433,12 @@ fn validate_partial_data_column_common<T: BeaconChainTypes>(
     seen_timestamp: Duration,
 ) -> Result<KzgVerifiedPartialDataColumn<T::EthSpec>, GossipPartialDataColumnError> {
     // The number of cells and proofs must match the population count of the bitmap.
-    let bitmap_num_set = column.sidecar().cells_present_bitmap().num_set_bits();
+    let bitmap_popcount = column.sidecar().cells_present_bitmap().num_set_bits();
     let cells_len = column.sidecar().column().len();
     let proofs_len = column.sidecar().kzg_proofs().len();
-    if bitmap_num_set != cells_len || bitmap_num_set != proofs_len {
+    if bitmap_popcount != cells_len || bitmap_popcount != proofs_len {
         return Err(GossipPartialDataColumnError::InconsistentPresentCount {
-            bitmap_num_set,
+            bitmap_popcount,
             cells_len,
             proofs_len,
         });
@@ -2366,9 +2346,10 @@ mod test {
             .fresh_ephemeral_store()
             .mock_execution_layer()
             .build();
-        harness.extend_to_slot(Slot::new(2)).await;
 
+        gloas_partial_unknown_block_root_returns_error(&harness).await;
         gloas_partial_slot_mismatch_returns_error(&harness).await;
+        gloas_partial_empty_message_returns_error(&harness).await;
     }
 
     /// Build a Gloas partial column carrying `present_cells` cells. Cell contents are irrelevant for
@@ -2413,6 +2394,29 @@ mod test {
             .insert_bid(block_root, Arc::new(bid));
     }
 
+    async fn gloas_partial_unknown_block_root_returns_error(
+        harness: &BeaconChainHarness<EphemeralHarnessType<E>>,
+    ) {
+        // No bid is registered for this block root, so the column cannot be verified yet.
+        let column = gloas_partial_column(Hash256::repeat_byte(0xb1), Slot::new(1), 1);
+        let result = validate_partial_data_column_sidecar_for_gossip(
+            Box::new(column),
+            &harness.chain,
+            UNIX_EPOCH.elapsed().unwrap(),
+        );
+        assert!(
+            matches!(
+                result,
+                PartialColumnVerificationResult::Err(
+                    GossipPartialDataColumnError::GossipDataColumnError(
+                        GossipDataColumnError::BlockRootUnknown { .. }
+                    )
+                )
+            ),
+            "Expected BlockRootUnknown"
+        );
+    }
+
     async fn gloas_partial_slot_mismatch_returns_error(
         harness: &BeaconChainHarness<EphemeralHarnessType<E>>,
     ) {
@@ -2433,6 +2437,27 @@ mod test {
                 )
             ),
             "Expected IncorrectSlot"
+        );
+    }
+
+    async fn gloas_partial_empty_message_returns_error(
+        harness: &BeaconChainHarness<EphemeralHarnessType<E>>,
+    ) {
+        let block_root = Hash256::repeat_byte(0xb3);
+        insert_gloas_bid(harness, block_root, Slot::new(1));
+        // Bid is known and the slots agree, but the column carries no cells.
+        let column = gloas_partial_column(block_root, Slot::new(1), 0);
+        let result = validate_partial_data_column_sidecar_for_gossip(
+            Box::new(column),
+            &harness.chain,
+            UNIX_EPOCH.elapsed().unwrap(),
+        );
+        assert!(
+            matches!(
+                result,
+                PartialColumnVerificationResult::Err(GossipPartialDataColumnError::EmptyMessage)
+            ),
+            "Expected EmptyMessage"
         );
     }
 

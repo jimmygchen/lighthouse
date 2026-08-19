@@ -80,7 +80,7 @@ pub enum PubsubPartialMessage<E: EthSpec> {
     },
     /// A partial data column sidecar from the Gloas fork.
     DataColumnGloas {
-        column: Arc<PartialDataColumnGloas<E>>,
+        column: Box<PartialDataColumnGloas<E>>,
         request_cells: CellBitmap<E>,
     },
 }
@@ -721,7 +721,7 @@ mod tests {
             },
         };
         let outgoing = OutgoingPartialColumnGloas::new(
-            Arc::new(column.clone()),
+            Box::new(column.clone()),
             column.sidecar.cells_present_bitmap.clone(),
         );
 

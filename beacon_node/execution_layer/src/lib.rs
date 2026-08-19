@@ -4,7 +4,9 @@
 //! This crate only provides useful functionality for "The Merge", it does not provide any of the
 //! deposit-contract functionality that the `beacon_node/eth1` crate already provides.
 
-use crate::json_structures::{BlobAndProofV2, BlobAndProofV3};
+use crate::json_structures::{
+    BlobAndProofV2, BlobAndProofV3, BlobCellsAndProofsV1, CustodyColumnsBitArray,
+};
 use crate::payload_cache::PayloadCache;
 use arc_swap::ArcSwapOption;
 use auth::{Auth, JwtKey, strip_prefix};
@@ -51,9 +53,9 @@ use types::{
     ExecutionRequestsElectra, ExecutionRequestsGloas, KzgProofs, SignedBlindedBeaconBlock,
 };
 use types::{
-    BeaconStateError, BlindedPayload, ChainSpec, Epoch, ExecPayload, ExecutionPayloadBellatrix,
-    ExecutionPayloadCapella, ExecutionPayloadElectra, ExecutionPayloadFulu, ExecutionPayloadGloas,
-    FullPayload, ProposerPreparationData, Slot,
+    BeaconStateError, BlindedPayload, ChainSpec, ColumnIndex, Epoch, ExecPayload,
+    ExecutionPayloadBellatrix, ExecutionPayloadCapella, ExecutionPayloadElectra,
+    ExecutionPayloadFulu, ExecutionPayloadGloas, FullPayload, ProposerPreparationData, Slot,
 };
 
 mod block_hash;
@@ -1361,6 +1363,7 @@ impl<E: EthSpec> ExecutionLayer<E> {
                         .notify_forkchoice_updated(
                             fork_choice_state,
                             Some(payload_attributes.clone()),
+                            None,
                         )
                         .await?;
 
@@ -1540,6 +1543,7 @@ impl<E: EthSpec> ExecutionLayer<E> {
     }
 
     /// Maps to the `engine_consensusValidated` JSON-RPC call.
+    #[allow(clippy::too_many_arguments)]
     pub async fn notify_forkchoice_updated(
         &self,
         head_block_hash: ExecutionBlockHash,
@@ -1548,6 +1552,7 @@ impl<E: EthSpec> ExecutionLayer<E> {
         current_slot: Slot,
         head_block_root: Hash256,
         head_payload_status: fork_choice::PayloadStatus,
+        custody_columns: &[ColumnIndex],
     ) -> Result<PayloadStatus, Error> {
         let _timer = metrics::start_timer_vec(
             &metrics::EXECUTION_LAYER_REQUEST_TIMES,
@@ -1597,7 +1602,11 @@ impl<E: EthSpec> ExecutionLayer<E> {
             .engine()
             .request(|engine| async move {
                 engine
-                    .notify_forkchoice_updated(forkchoice_state, payload_attributes)
+                    .notify_forkchoice_updated(
+                        forkchoice_state,
+                        payload_attributes,
+                        Some(custody_columns),
+                    )
                     .await
             })
             .await;
@@ -1768,6 +1777,26 @@ impl<E: EthSpec> ExecutionLayer<E> {
         if capabilities.get_blobs_v3 {
             self.engine()
                 .request(|engine| async move { engine.api.get_blobs_v3(query).await })
+                .await
+                .map_err(Box::new)
+                .map_err(Error::EngineError)
+        } else {
+            Err(Error::GetBlobsNotSupported)
+        }
+    }
+
+    pub async fn get_blobs_v4(
+        &self,
+        query: Vec<Hash256>,
+        custody_columns: CustodyColumnsBitArray,
+    ) -> Result<Vec<Option<BlobCellsAndProofsV1<E>>>, Error> {
+        let capabilities = self.get_engine_capabilities(None).await?;
+
+        if capabilities.get_blobs_v4 {
+            self.engine()
+                .request(
+                    |engine| async move { engine.api.get_blobs_v4(query, custody_columns).await },
+                )
                 .await
                 .map_err(Box::new)
                 .map_err(Error::EngineError)

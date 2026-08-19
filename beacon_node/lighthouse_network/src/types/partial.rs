@@ -231,39 +231,36 @@ fn action_from_present_metadata<E: EthSpec>(
         .is_subset(partial_column.sidecar().cells_present_bitmap());
     let want = peer_metadata.requests.difference(&peer_metadata.available);
 
-    let filtered = match partial_column
+    let send = partial_column
         .sidecar()
-        .try_filter::<_, PartialDataColumnSidecarError>(|idx, _, _| {
-            Ok(want.get(idx).unwrap_or(false))
-        }) {
-        Ok(filtered) => filtered,
-        Err(err) => {
+        .try_filter(|idx, _, _| Ok(want.get(idx).expect("Bound checked above")))
+        .map_err(|err: PartialDataColumnSidecarError| {
             error!(?err, "Unexpected error filtering sidecar");
-            return Err(PartialError::InvalidFormat);
-        }
-    };
+            PartialError::InvalidFormat
+        })?
+        .map(|sidecar| {
+            trace!(
+                peer=%peer_id,
+                group_id=%partial_column.block_root(),
+                column_index=partial_column.index(),
+                metadata=%peer_metadata,
+                sending=%sidecar.cells_present_bitmap(),
+                "Partial send: Sending"
+            );
+            (
+                sidecar.as_ssz_bytes(),
+                Box::new(MaybeKnownMetadata::<E>::from(
+                    PartialDataColumnPartsMetadata {
+                        available: peer_metadata
+                            .available
+                            .union(sidecar.cells_present_bitmap()),
+                        requests: peer_metadata.requests.union(sidecar.cells_present_bitmap()),
+                    },
+                )) as Box<dyn Metadata + 'static>,
+            )
+        });
 
-    let send = if let Some(sidecar) = filtered {
-        trace!(
-            peer=%peer_id,
-            group_id=%partial_column.block_root(),
-            column_index=partial_column.index(),
-            metadata=%peer_metadata,
-            sending=%sidecar.cells_present_bitmap(),
-            "Partial send: Sending"
-        );
-        Some((
-            sidecar.as_ssz_bytes(),
-            Box::new(MaybeKnownMetadata::<E>::from(
-                PartialDataColumnPartsMetadata {
-                    available: peer_metadata
-                        .available
-                        .union(sidecar.cells_present_bitmap()),
-                    requests: peer_metadata.requests.union(sidecar.cells_present_bitmap()),
-                },
-            )) as Box<dyn Metadata + 'static>,
-        ))
-    } else {
+    if send.is_none() {
         trace!(
             peer=%peer_id,
             group_id=%partial_column.block_root(),
@@ -271,21 +268,20 @@ fn action_from_present_metadata<E: EthSpec>(
             metadata=%peer_metadata,
             "Partial send: Nothing to send"
         );
-        None
-    };
+    }
 
     Ok(PartialAction { need, send })
 }
 
 #[derive(Debug, Clone)]
 pub struct OutgoingPartialColumnGloas<E: EthSpec> {
-    partial_column: Arc<PartialDataColumnGloas<E>>,
+    partial_column: Box<PartialDataColumnGloas<E>>,
     group_id: Vec<u8>,
     metadata: MaybeKnownMetadata<E>,
 }
 
 impl<E: EthSpec> OutgoingPartialColumnGloas<E> {
-    pub fn new(partial_column: Arc<PartialDataColumnGloas<E>>, requests: CellBitmap<E>) -> Self {
+    pub fn new(partial_column: Box<PartialDataColumnGloas<E>>, requests: CellBitmap<E>) -> Self {
         // For consistency, we always set the request bit for available cells. The spec allows both,
         // but it is nicer to ensure that a bit once set does not disappear in future messages.
         // `requests` is always derived from this column's `cells_present_bitmap`, so the two share
@@ -329,9 +325,13 @@ impl<E: EthSpec> Partial for OutgoingPartialColumnGloas<E> {
         metadata: Option<&[u8]>,
     ) -> Result<PartialAction, PartialError> {
         match metadata {
-            // A Gloas group has no header to push, so a peer with no metadata gets nothing
-            // here. It bootstraps itself from the request-all placeholders that
-            // `publish_partial_data_columns` sends.
+            // Unlike Fulu, a Gloas group has no inline header to seed a fresh peer with: the
+            // group id carries the slot, and the commitments arrive via the bid on the block's
+            // own gossip path. So there is nothing to push here when the peer has no metadata
+            // yet. Our own request bitmap is still advertised because the gossipsub layer always
+            // attaches `metadata()` on publish, and a node holding nothing bootstraps into an
+            // in-flight group by publishing empty placeholder partials (request-all) for its
+            // custody columns from `fetch_engine_blobs_and_publish`.
             None | Some([]) => Ok(PartialAction {
                 need: false,
                 send: None,
@@ -428,13 +428,13 @@ mod tests {
         slot: Slot,
         total_blobs: usize,
         present_indices: &[usize],
-    ) -> Arc<PartialDataColumnGloas<E>> {
+    ) -> Box<PartialDataColumnGloas<E>> {
         let mut bitmap = CellBitmap::<E>::with_capacity(total_blobs).unwrap();
         for &idx in present_indices {
             bitmap.set(idx, true).unwrap();
         }
 
-        Arc::new(PartialDataColumnGloas {
+        Box::new(PartialDataColumnGloas {
             block_root,
             slot,
             index: 0,
@@ -650,5 +650,62 @@ mod tests {
             .unwrap();
         assert!(!action_empty.need);
         assert!(action_empty.send.is_none());
+    }
+
+    #[test]
+    fn gloas_metadata_filters_cells_to_send() {
+        let root = Hash256::repeat_byte(2);
+        // We have cells [0, 2, 3]
+        let partial = make_partial_column_gloas(root, Slot::new(7), 4, &[0, 2, 3]);
+        let requests = make_all_one_bitmap(4);
+        let outgoing = OutgoingPartialColumnGloas::new(partial, requests);
+
+        let peer = random_peer_id();
+
+        // Peer has [0, 1], wants [0, 1, 2, 3]
+        let mut peer_available = CellBitmap::<E>::with_capacity(4).unwrap();
+        peer_available.set(0, true).unwrap();
+        peer_available.set(1, true).unwrap();
+        let mut peer_request = CellBitmap::<E>::with_capacity(4).unwrap();
+        for i in 0..4 {
+            peer_request.set(i, true).unwrap();
+        }
+        let peer_meta = PartialDataColumnPartsMetadata::<E> {
+            available: peer_available,
+            requests: peer_request,
+        };
+        let encoded = peer_meta.as_ssz_bytes();
+
+        let action = outgoing
+            .partial_action_from_metadata(peer, Some(&encoded))
+            .unwrap();
+        assert!(action.send.is_some());
+    }
+
+    #[test]
+    fn gloas_metadata_sets_need_when_peer_has_unknown_cells() {
+        let root = Hash256::repeat_byte(2);
+        // We have cells [0]
+        let partial = make_partial_column_gloas(root, Slot::new(7), 4, &[0]);
+        let requests = make_all_one_bitmap(4);
+        let outgoing = OutgoingPartialColumnGloas::new(partial, requests);
+
+        let peer = random_peer_id();
+
+        // Peer has [0, 1, 2] — cells [1, 2] are unknown to us
+        let mut peer_available = CellBitmap::<E>::with_capacity(4).unwrap();
+        peer_available.set(0, true).unwrap();
+        peer_available.set(1, true).unwrap();
+        peer_available.set(2, true).unwrap();
+        let peer_meta = PartialDataColumnPartsMetadata::<E> {
+            available: peer_available.clone(),
+            requests: peer_available,
+        };
+        let encoded = peer_meta.as_ssz_bytes();
+
+        let action = outgoing
+            .partial_action_from_metadata(peer, Some(&encoded))
+            .unwrap();
+        assert!(action.need);
     }
 }

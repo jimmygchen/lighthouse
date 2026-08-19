@@ -1002,22 +1002,18 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
             return;
         }
 
-        if !self.chain.config.enable_partial_columns {
+        let Some(assembler) = self.chain.data_availability_checker.partial_assembler() else {
+            // Partials are disabled.
             return;
-        }
+        };
         let epoch = header_or_bid.slot().epoch(T::EthSpec::slots_per_epoch());
         let custody_columns = self.chain.custody_context.sampling_columns_for_epoch(epoch);
 
         let mut present_indices: HashSet<ColumnIndex> = HashSet::new();
         let mut messages: Vec<PubsubPartialMessage<T::EthSpec>> = match &header_or_bid {
             PartialHeaderOrBid::PartialHeader(header) => {
-                self.chain
-                    .data_availability_checker
-                    .partial_assembler()
-                    .map(|assembler| {
-                        assembler.get_columns_and_mark_as_local_fetched(block_root, header)
-                    })
-                    .unwrap_or_default()
+                assembler
+                    .get_columns_and_mark_as_local_fetched(block_root, header)
                     .into_iter()
                     .filter_map(|column| {
                         let column = match column {
@@ -1030,7 +1026,6 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                                         crit!("Found gloas column in Fulu partial assembler");
                                         return None;
                                     }
-                                    // Unreachable: DataColumn and CellBitmap share a bound.
                                     Err(err) => {
                                         crit!(?err, "Failed to convert full column to partial");
                                         return None;
@@ -1056,11 +1051,11 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                 .into_iter()
                 .map(|partial| {
                     present_indices.insert(partial.index());
-                    let column = partial.into_inner();
+                    let column = Arc::unwrap_or_clone(partial.into_inner());
                     let mut request_cells = column.sidecar.cells_present_bitmap.clone_zeroed();
                     request_cells.not_inplace();
                     PubsubPartialMessage::DataColumnGloas {
-                        column,
+                        column: Box::new(column),
                         request_cells,
                     }
                 })
@@ -1103,7 +1098,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                     header: header.clone(),
                 },
                 PartialHeaderOrBid::Bid(_) => PubsubPartialMessage::DataColumnGloas {
-                    column: Arc::new(PartialDataColumnGloas {
+                    column: Box::new(PartialDataColumnGloas {
                         block_root,
                         slot: header_or_bid.slot(),
                         index: *col_idx,

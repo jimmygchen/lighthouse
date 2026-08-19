@@ -975,7 +975,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                 Ok(PartialDataColumn::Gloas(gloas)) => {
                     let request_cells = gloas.sidecar.cells_present_bitmap.clone();
                     Some(PubsubPartialMessage::DataColumnGloas {
-                        column: Arc::new(gloas),
+                        column: Box::new(gloas),
                         request_cells,
                     })
                 }
@@ -1415,7 +1415,7 @@ impl<T: BeaconChainTypes> NetworkBeaconProcessor<T> {
                                     let request_cells =
                                         request_cells(&column.sidecar.cells_present_bitmap);
                                     PubsubPartialMessage::DataColumnGloas {
-                                        column: Arc::new(column),
+                                        column: Box::new(column),
                                         request_cells,
                                     }
                                 })
