@@ -47,6 +47,7 @@ use crate::block_production::bid_selection::{self, BidCandidate, BidSource, Exec
 use crate::payload_bid_verification::PayloadBidError;
 use crate::payload_bid_verification::direct_verified_bid::verify_direct_bid;
 use crate::payload_bid_verification::gossip_verified_bid::verify_bid_state_conditions;
+use crate::payload_bid_verification::payload_bid_cache::BidParent;
 use crate::pending_payload_envelopes::PendingEnvelopeData;
 use crate::{
     BeaconChain, BeaconChainError, BeaconChainTypes, BlockProductionError,
@@ -1019,11 +1020,14 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
             }
         }
 
-        if let Some(gossip_bid) = self.gossip_verified_payload_bid_cache.get_highest_bid(
-            ctx.slot,
-            ctx.parent_hash,
-            ctx.parent_root,
-        ) {
+        let bid_parent = BidParent {
+            parent_block_hash: ctx.parent_hash,
+            parent_block_root: ctx.parent_root,
+        };
+        if let Some(gossip_bid) = self
+            .gossip_verified_payload_bid_cache
+            .get_highest_bid(ctx.slot, bid_parent)
+        {
             // The gossip bid was validated against the head state at gossip time; its builder's
             // eligibility or coverage can go stale before production. Re-check against the production
             // state and drop it if it would now fail `per_block_processing`, so a stale gossip bid

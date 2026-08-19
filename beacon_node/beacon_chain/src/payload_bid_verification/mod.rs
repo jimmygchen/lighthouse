@@ -23,8 +23,8 @@ mod tests;
 pub enum PayloadBidError {
     /// The bid's parent block root is unknown.
     ParentBlockRootUnknown { parent_block_root: Hash256 },
-    /// The bid's parent block root is known but not on the canonical chain.
-    ParentBlockRootNotCanonical { parent_block_root: Hash256 },
+    /// The bid does not build on the head block or on the head block's parent.
+    BidNotCompatibleWithHead { parent_block_root: Hash256 },
     /// The bid's parent block hash does not match the parent selected for the block being produced.
     InvalidParentBlockHash {
         bid: ExecutionBlockHash,
