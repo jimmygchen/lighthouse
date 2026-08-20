@@ -1307,6 +1307,7 @@ impl<T: BeaconChainTypes> BeaconChain<T> {
         Ok(head_state)
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn run_fcr(
         fcr: &mut FastConfirmationRule,
         fork_choice: &BeaconForkChoice<T>,
