@@ -4,12 +4,16 @@ use ssz_derive::{Decode, Encode};
 use ssz_types::VariableList;
 use tree_hash_derive::TreeHash;
 
-/// The resolved builder config the validator client sends on a block-production request, per
+/// The builder config the validator client sends on a block-production request, per
 /// [beacon-APIs #630](https://github.com/ethereum/beacon-APIs/pull/630).
 ///
-/// `builders` are the direct bid requests, each fully resolved. The top-level `min_bid` and
-/// `builder_boost_factor` govern any bid that matches no entry — in practice, a bid received over
-/// p2p.
+/// `builders` are the direct bid requests. Every field of every entry carries a concrete value on
+/// the wire: any defaulting the validator client offers in its own configuration (such as
+/// per-builder overrides inheriting file-level defaults, or auth data defaulting to the builder's
+/// URL) is applied client-side before this type is built, and the entry's request auth is already
+/// signed. In particular, the top-level `min_bid` and `builder_boost_factor` are *not* defaults
+/// for the entries: they govern only a bid that matches no entry — in practice, a bid received
+/// over p2p.
 ///
 /// SSZ container (field order per the spec — SSZ and tree-hash depend on it):
 /// ```text

@@ -16,9 +16,9 @@ use bytes::Bytes;
 use context_deserialize::ContextDeserialize;
 use eth2::types::{
     Accept, BeaconCommitteeSubscription, BuilderConfig, BuilderPreferenceEntry, EndpointVersion,
-    Failure, GenericResponse, StandardLivenessResponseData, StateId as CoreStateId,
-    ValidatorAggregateAttestationQuery, ValidatorAttestationDataQuery, ValidatorBlocksQuery,
-    ValidatorIndexData, ValidatorStatus,
+    Failure, GenericResponse, MAX_SUBMITTED_BUILDER_PREFERENCES, StandardLivenessResponseData,
+    StateId as CoreStateId, ValidatorAggregateAttestationQuery, ValidatorAttestationDataQuery,
+    ValidatorBlocksQuery, ValidatorIndexData, ValidatorStatus,
 };
 use eth2::{CONSENSUS_VERSION_HEADER, CONTENT_TYPE_HEADER, SSZ_CONTENT_TYPE_HEADER};
 use lighthouse_network::PubsubMessage;
@@ -887,6 +887,15 @@ pub fn post_validator_builder_preferences<T: BeaconChainTypes>(
                             warp_utils::reject::custom_deserialize_error(format!("{e:?}"))
                         })?
                     };
+                    // The submission list is bounded (SSZ `List[BuilderPreferencesEntry, 4096]`,
+                    // JSON `maxItems: 4096`, per beacon-APIs #630); a longer body is invalid.
+                    if entries.len() > MAX_SUBMITTED_BUILDER_PREFERENCES {
+                        return Err(warp_utils::reject::custom_bad_request(format!(
+                            "too many builder preference entries: {} exceeds the limit of {}",
+                            entries.len(),
+                            MAX_SUBMITTED_BUILDER_PREFERENCES
+                        )));
+                    }
                     // A zero-length `url` or auth `data` makes the body itself invalid (beacon-APIs
                     // #630) — a 400, unlike per-entry submission failures, which are isolated.
                     for entry in &entries {

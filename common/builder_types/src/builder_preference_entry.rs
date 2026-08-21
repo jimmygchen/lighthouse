@@ -2,7 +2,23 @@ use crate::{BuilderEntry, BuilderUrl, SignedRequestAuth};
 use bls::PublicKeyBytes;
 use serde::{Deserialize, Serialize};
 use ssz_derive::{Decode, Encode};
+use ssz_types::typenum;
 use tree_hash_derive::TreeHash;
+
+/// `MAX_BUILDER_ENTRIES * (MIN_SEED_LOOKAHEAD + 1) * SLOTS_PER_EPOCH` (with mainnet
+/// `SLOTS_PER_EPOCH`), the bound on the entry list of a single `submitBuilderPreferences`
+/// beacon-API submission, per beacon-APIs #630. A fixed wire constant, not preset-derived.
+pub type MaxSubmittedBuilderPreferences = typenum::U4096;
+
+/// [`MaxSubmittedBuilderPreferences`] as a `usize` (derived, so the two cannot drift), for runtime
+/// bounds checks.
+pub const MAX_SUBMITTED_BUILDER_PREFERENCES: usize =
+    <MaxSubmittedBuilderPreferences as typenum::Unsigned>::USIZE;
+
+/// The bounded entry list of a single `submitBuilderPreferences` beacon-API submission
+/// (SSZ `List[BuilderPreferencesEntry, 4096]`, per beacon-APIs #630).
+pub type SubmittedBuilderPreferences =
+    ssz_types::VariableList<BuilderPreferenceEntry, MaxSubmittedBuilderPreferences>;
 
 /// A per-builder preference a validator asks the beacon node to submit ahead of the bid request,
 /// one entry per `submitBuilderPreferences` builder-API call the beacon node will make.

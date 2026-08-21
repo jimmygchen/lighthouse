@@ -4985,7 +4985,7 @@ impl ApiTester {
 
         let mut url = self
             .client
-            .get_validator_blocks_v4_path(
+            .post_validator_blocks_v4_path(
                 slot,
                 &randao_reveal,
                 None,
@@ -5032,7 +5032,7 @@ impl ApiTester {
 
         let url = self
             .client
-            .get_validator_blocks_v4_path(
+            .post_validator_blocks_v4_path(
                 slot,
                 &randao_reveal,
                 None,
@@ -5075,7 +5075,7 @@ impl ApiTester {
 
         let url = self
             .client
-            .get_validator_blocks_v4_path(
+            .post_validator_blocks_v4_path(
                 slot,
                 &randao_reveal,
                 None,
@@ -9406,7 +9406,7 @@ impl ApiTester {
         self
     }
 
-    async fn get_validator_blocks_v4_path_graffiti_policy(self) -> Self {
+    async fn post_validator_blocks_v4_path_graffiti_policy(self) -> Self {
         let slot = self.chain.slot().unwrap();
         let epoch = self.chain.epoch().unwrap();
         let (_, randao_reveal) = self.get_test_randao(slot, epoch).await;
@@ -9414,7 +9414,7 @@ impl ApiTester {
         // When GraffitiPolicy is None
         let no_graffiti_policy_path = self
             .client
-            .get_validator_blocks_v4_path(
+            .post_validator_blocks_v4_path(
                 slot,
                 &randao_reveal,
                 graffiti.as_ref(),
@@ -9428,7 +9428,7 @@ impl ApiTester {
         // Default case where GraffitiPolicy is AppendClientVersions
         let default_path = self
             .client
-            .get_validator_blocks_v4_path(
+            .post_validator_blocks_v4_path(
                 slot,
                 &randao_reveal,
                 graffiti.as_ref(),
@@ -9452,7 +9452,7 @@ impl ApiTester {
 
         let preserve_path = self
             .client
-            .get_validator_blocks_v4_path(
+            .post_validator_blocks_v4_path(
                 slot,
                 &randao_reveal,
                 graffiti.as_ref(),
@@ -11072,7 +11072,7 @@ async fn get_validator_blocks_http_api_path() {
         .await
         .get_validator_blocks_v3_path_graffiti_policy()
         .await
-        .get_validator_blocks_v4_path_graffiti_policy()
+        .post_validator_blocks_v4_path_graffiti_policy()
         .await;
 }
 

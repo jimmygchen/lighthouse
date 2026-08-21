@@ -43,7 +43,10 @@ mod signed_request_auth;
 
 pub use builder_config::BuilderConfig;
 pub use builder_entry::{BuilderEntry, BuilderPubkeys, MaxBuilderPubkeys};
-pub use builder_preference_entry::BuilderPreferenceEntry;
+pub use builder_preference_entry::{
+    BuilderPreferenceEntry, MAX_SUBMITTED_BUILDER_PREFERENCES, MaxSubmittedBuilderPreferences,
+    SubmittedBuilderPreferences,
+};
 pub use builder_preferences::BuilderPreferences;
 pub use builder_preferences_request::BuilderPreferencesRequest;
 pub use builder_url::{

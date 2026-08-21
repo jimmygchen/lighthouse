@@ -4,7 +4,9 @@ use beacon_node_fallback::BeaconNodeFallback;
 use bls::PublicKeyBytes;
 use builder_store::BuilderStore;
 use builder_types::{BuilderEntry, BuilderUrl, RequestAuthData};
-use eth2::types::BuilderPreferenceEntry;
+use eth2::types::{
+    BuilderPreferenceEntry, MAX_SUBMITTED_BUILDER_PREFERENCES, SubmittedBuilderPreferences,
+};
 use slot_clock::SlotClock;
 use std::collections::{BTreeMap, HashSet};
 use std::sync::Arc;
@@ -254,43 +256,53 @@ impl<S: ValidatorStore + 'static, T: SlotClock + 'static> BuilderPreferencesServ
         if pending_entries.is_empty() {
             return;
         }
-        let entries_ref = pending_entries.as_slice();
 
-        // Try SSZ first, falling back to JSON. `first_success` is okay here because later we'll be
-        // resending the auths when we publish the beacon block.
-        let ssz_result = self
-            .inner
-            .beacon_nodes
-            .first_success(|beacon_node| async move {
-                beacon_node
-                    .post_validator_builder_preferences_ssz(entries_ref, current_fork)
-                    .await
-            })
-            .await;
+        // One submission carries at most `MAX_SUBMITTED_BUILDER_PREFERENCES` entries (beacon-APIs
+        // #630), so submit in bounded chunks. Each chunk is best-effort: a failed chunk is logged
+        // and does not stop the rest.
+        for chunk in pending_entries.chunks(MAX_SUBMITTED_BUILDER_PREFERENCES) {
+            let Ok(entries) = SubmittedBuilderPreferences::new(chunk.to_vec()) else {
+                // Unreachable: `chunks()` bounds each chunk by the list limit.
+                continue;
+            };
+            let entries_ref = &entries;
 
-        let result = match ssz_result {
-            Ok(()) => Ok(()),
-            Err(ssz_err) => {
-                debug!(error = %ssz_err, "SSZ builder preferences publish failed, falling back to JSON");
-                self.inner
-                    .beacon_nodes
-                    .first_success(|beacon_node| async move {
-                        beacon_node
-                            .post_validator_builder_preferences(entries_ref, current_fork)
-                            .await
-                    })
-                    .await
-            }
-        };
+            // Try SSZ first, falling back to JSON. `first_success` is okay here because later
+            // we'll be resending the auths when we publish the beacon block.
+            let ssz_result = self
+                .inner
+                .beacon_nodes
+                .first_success(|beacon_node| async move {
+                    beacon_node
+                        .post_validator_builder_preferences_ssz(entries_ref, current_fork)
+                        .await
+                })
+                .await;
 
-        match result {
-            Ok(()) => {
-                for entry in pending_entries {
-                    let pubkey = entry.proposer_pubkey;
-                    published_preferences.mark_sent(pubkey, entry);
+            let result = match ssz_result {
+                Ok(()) => Ok(()),
+                Err(ssz_err) => {
+                    debug!(error = %ssz_err, "SSZ builder preferences publish failed, falling back to JSON");
+                    self.inner
+                        .beacon_nodes
+                        .first_success(|beacon_node| async move {
+                            beacon_node
+                                .post_validator_builder_preferences(entries_ref, current_fork)
+                                .await
+                        })
+                        .await
                 }
+            };
+
+            match result {
+                Ok(()) => {
+                    for entry in entries.iter().cloned() {
+                        let pubkey = entry.proposer_pubkey;
+                        published_preferences.mark_sent(pubkey, entry);
+                    }
+                }
+                Err(e) => error!(error = %e, "Failed to publish builder preferences"),
             }
-            Err(e) => error!(error = %e, "Failed to publish builder preferences"),
         }
     }
 }

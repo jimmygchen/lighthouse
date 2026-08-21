@@ -2236,7 +2236,7 @@ impl BeaconNodeHttpClient {
     /// cover several proposers. `fork_name` is sent as the required `Eth-Consensus-Version` header.
     pub async fn post_validator_builder_preferences(
         &self,
-        entries: &[BuilderPreferenceEntry],
+        entries: &SubmittedBuilderPreferences,
         fork_name: ForkName,
     ) -> Result<(), Error> {
         let mut path = self.eth_path(V1)?;
@@ -2260,7 +2260,7 @@ impl BeaconNodeHttpClient {
     /// `POST validator/builder_preferences` (SSZ)
     pub async fn post_validator_builder_preferences_ssz(
         &self,
-        entries: &[BuilderPreferenceEntry],
+        entries: &SubmittedBuilderPreferences,
         fork_name: ForkName,
     ) -> Result<(), Error> {
         let mut path = self.eth_path(V1)?;
@@ -2270,7 +2270,7 @@ impl BeaconNodeHttpClient {
             .push("validator")
             .push("builder_preferences");
 
-        let ssz_body = entries.to_vec().as_ssz_bytes();
+        let ssz_body = entries.as_ssz_bytes();
         self.post_generic_with_consensus_version_and_ssz_body(path, ssz_body, None, fork_name)
             .await?;
 
@@ -2817,7 +2817,7 @@ impl BeaconNodeHttpClient {
 
     /// returns the `POST v4/validator/blocks/{slot}` URL path
     #[allow(clippy::too_many_arguments)]
-    pub async fn get_validator_blocks_v4_path(
+    pub async fn post_validator_blocks_v4_path(
         &self,
         slot: Slot,
         randao_reveal: &SignatureBytes,
@@ -2907,7 +2907,7 @@ impl BeaconNodeHttpClient {
         fork_name: ForkName,
     ) -> Result<(ProduceBlockV4Response<E>, ProduceBlockV4Metadata), Error> {
         let path = self
-            .get_validator_blocks_v4_path(
+            .post_validator_blocks_v4_path(
                 slot,
                 randao_reveal,
                 graffiti,
@@ -2997,7 +2997,7 @@ impl BeaconNodeHttpClient {
         fork_name: ForkName,
     ) -> Result<(ProduceBlockV4Response<E>, ProduceBlockV4Metadata), Error> {
         let path = self
-            .get_validator_blocks_v4_path(
+            .post_validator_blocks_v4_path(
                 slot,
                 randao_reveal,
                 graffiti,

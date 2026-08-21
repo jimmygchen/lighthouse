@@ -18,6 +18,13 @@ pub type MaxBuilderEntries = typenum::U64;
 /// [`MaxBuilderEntries`] as a `usize` (derived, so the two cannot drift), for runtime bounds checks.
 pub const MAX_BUILDER_ENTRIES: usize = <MaxBuilderEntries as typenum::Unsigned>::USIZE;
 
+// `to_default_auth_data` is infallible only while every possible URL fits within the auth `data`
+// bound; enforce that at compile time so growing `MaxBuilderUrlSize` past `MaxDataSize` cannot
+// silently turn the default into (wire-invalid) zero-length auth data.
+const _: () = assert!(
+    <MaxBuilderUrlSize as typenum::Unsigned>::USIZE
+        <= <crate::MaxDataSize as typenum::Unsigned>::USIZE
+);
 /// A builder URL as it travels on the beacon-API wire.
 ///
 /// Held as the UTF-8 bytes of the URL so it can serialize two ways, matching the `ByteList` /
@@ -146,5 +153,25 @@ mod tests {
 
         let decoded: BuilderUrl = serde_json::from_str(&json).unwrap();
         assert_eq!(decoded, url);
+    }
+
+    #[test]
+    fn default_auth_data_cannot_fail_even_at_max_url_size() {
+        use ssz_types::typenum::Unsigned;
+
+        // The `MaxBuilderUrlSize <= MaxDataSize` invariant is asserted at compile time at module
+        // level; exercise the largest possible URL to confirm the default is the URL bytes and
+        // never the empty fallback.
+        let scheme = "https://";
+        let url_string = format!(
+            "{scheme}{}",
+            "a".repeat(MaxBuilderUrlSize::USIZE - scheme.len())
+        );
+        let url = BuilderUrl::from_str(&url_string).unwrap();
+        assert_eq!(url.as_bytes().len(), MaxBuilderUrlSize::USIZE);
+
+        let data = url.to_default_auth_data();
+        assert!(!data.is_empty(), "default auth data fell back to empty");
+        assert_eq!(&*data, url.as_bytes());
     }
 }

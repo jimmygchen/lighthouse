@@ -399,6 +399,96 @@ mod tests {
             .expect("preferences should be accepted");
     }
 
+    /// The bid request must carry the spec-required headers: `Eth-Consensus-Version` (fork of the
+    /// auth body), `Date-Milliseconds` + `X-Timeout-Ms` (timing), a JSON `Content-Type` for the
+    /// auth body, and an `Accept` preferring SSZ for the response.
+    #[tokio::test]
+    async fn bid_request_sends_expected_headers() {
+        let mut server = Server::new_async().await;
+        let mock = server
+            .mock(
+                "POST",
+                Matcher::Regex(r"^/eth/v1/builder/execution_payload_bid/.+$".to_string()),
+            )
+            .match_header("accept", PREFERENCE_ACCEPT_VALUE)
+            .match_header(CONSENSUS_VERSION_HEADER, "gloas")
+            .match_header(CONTENT_TYPE_HEADER, JSON_CONTENT_TYPE_HEADER)
+            .match_header(
+                X_TIMEOUT_MS.as_str(),
+                DEFAULT_GET_EXECUTION_PAYLOAD_BID_TIMEOUT_MILLIS
+                    .to_string()
+                    .as_str(),
+            )
+            .match_header(
+                DATE_MILLISECONDS.as_str(),
+                Matcher::Regex(r"^\d+$".to_string()),
+            )
+            .match_header("user-agent", DEFAULT_USER_AGENT)
+            .with_status(204)
+            .create();
+
+        assert!(request_bid(&server).await.is_none());
+        mock.assert_async().await;
+    }
+
+    /// With SSZ responses disabled, the bid request's `Accept` asks for JSON only.
+    #[tokio::test]
+    async fn bid_request_accepts_json_only_when_ssz_disabled() {
+        let mut server = Server::new_async().await;
+        let mock = server
+            .mock(
+                "POST",
+                Matcher::Regex(r"^/eth/v1/builder/execution_payload_bid/.+$".to_string()),
+            )
+            .match_header("accept", JSON_ACCEPT_VALUE)
+            .with_status(204)
+            .create();
+
+        BuilderHttpClient::new(None, true)
+            .unwrap()
+            .get_execution_payload_bid::<E>(
+                &builder_url(&server),
+                Slot::new(1),
+                ExecutionBlockHash::repeat_byte(1),
+                Hash256::repeat_byte(2),
+                &PublicKeyBytes::empty(),
+                &signed_request_auth(),
+                ForkName::Gloas,
+            )
+            .await
+            .expect("bid request should succeed");
+        mock.assert_async().await;
+    }
+
+    /// The preferences submission must carry `Eth-Consensus-Version` (the body is fork-versioned)
+    /// and a JSON `Content-Type`.
+    #[tokio::test]
+    async fn submit_builder_preferences_sends_expected_headers() {
+        let mut server = Server::new_async().await;
+        let mock = server
+            .mock(
+                "POST",
+                Matcher::Regex(r"^/eth/v1/builder/builder_preferences/.+$".to_string()),
+            )
+            .match_header(CONSENSUS_VERSION_HEADER, "gloas")
+            .match_header(CONTENT_TYPE_HEADER, JSON_CONTENT_TYPE_HEADER)
+            .with_status(202)
+            .create();
+
+        let mut u = types::test_utils::test_unstructured();
+        let preferences = BuilderPreferencesRequest::arbitrary(&mut u).unwrap();
+        client_for()
+            .submit_builder_preferences(
+                &builder_url(&server),
+                &PublicKeyBytes::empty(),
+                &preferences,
+                ForkName::Gloas,
+            )
+            .await
+            .expect("preferences should be accepted");
+        mock.assert_async().await;
+    }
+
     #[tokio::test]
     async fn get_execution_payload_bid_no_content() {
         let mut server = Server::new_async().await;

@@ -7,15 +7,10 @@ pub mod builder_http_client;
 pub mod builders;
 pub mod error;
 pub mod pre_gloas_builder_http_client;
-
 pub use builder_http_client::BuilderHttpClient;
 pub use builders::{BidRequestContext, Builders, DirectBid, SubmissionFailure};
 pub use error::{Error, ok_or_error, success_or_error};
 pub use pre_gloas_builder_http_client::PreGloasBuilderHttpClient;
-
-/// Default timeout for builder requests without a more specific timeout.
-pub const DEFAULT_TIMEOUT_MILLIS: u64 = 15000;
-
 /// Default user agent for HTTP requests.
 pub const DEFAULT_USER_AGENT: &str = lighthouse_version::VERSION;
 

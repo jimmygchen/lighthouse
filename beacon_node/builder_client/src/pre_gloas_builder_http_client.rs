@@ -1,6 +1,6 @@
 use crate::{
-    DEFAULT_TIMEOUT_MILLIS, DEFAULT_USER_AGENT, JSON_ACCEPT_VALUE, PREFERENCE_ACCEPT_VALUE,
-    content_type_from_header, fork_name_from_header,
+    DEFAULT_USER_AGENT, JSON_ACCEPT_VALUE, PREFERENCE_ACCEPT_VALUE, content_type_from_header,
+    fork_name_from_header,
 };
 use bls::PublicKeyBytes;
 // The pre-Gloas builder client keeps the beacon-node API client's error type, unlike the Gloas
@@ -27,6 +27,9 @@ use ssz::Encode;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
+
+/// Default timeout for builder requests without a more specific timeout.
+pub const DEFAULT_TIMEOUT_MILLIS: u64 = 15000;
 
 /// This timeout is in accordance with v0.2.0 of the [builder specs](https://github.com/flashbots/mev-boost/pull/20).
 pub const DEFAULT_GET_HEADER_TIMEOUT_MILLIS: u64 = 1000;
