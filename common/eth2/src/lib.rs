@@ -2819,6 +2819,86 @@ impl BeaconNodeHttpClient {
         opt_response.ok_or(Error::StatusCode(StatusCode::NOT_FOUND))
     }
 
+    /// Parses a `produceBlockV4`-shaped JSON response body: the full block-and-envelope bundle
+    /// when `metadata` says the execution payload was included, otherwise a bare block. Shared by
+    /// `produceBlockV4` and its `with_bid` counterpart (beacon-APIs #627).
+    async fn parse_produce_block_v4_json<E: EthSpec>(
+        response: Response,
+        metadata: &ProduceBlockV4Metadata,
+    ) -> Result<ProduceBlockV4Response<E>, Error> {
+        Ok(if metadata.execution_payload_included {
+            ProduceBlockV4Response::BlockAndEnvelope(
+                response
+                    .json::<ForkVersionedResponse<BlockAndEnvelope<E>, ProduceBlockV4Metadata>>()
+                    .await?
+                    .data,
+            )
+        } else {
+            ProduceBlockV4Response::BlockOnly(
+                response
+                    .json::<ForkVersionedResponse<BeaconBlock<E>, ProduceBlockV4Metadata>>()
+                    .await?
+                    .data,
+            )
+        })
+    }
+
+    /// Parses a `produceBlockV4`-shaped SSZ response body. See [`Self::parse_produce_block_v4_json`]
+    /// for the JSON equivalent.
+    fn parse_produce_block_v4_ssz<E: EthSpec>(
+        response_bytes: &[u8],
+        metadata: &ProduceBlockV4Metadata,
+    ) -> Result<ProduceBlockV4Response<E>, Error> {
+        Ok(if metadata.execution_payload_included {
+            ProduceBlockV4Response::BlockAndEnvelope(
+                BlockAndEnvelope::from_ssz_bytes_for_fork(
+                    response_bytes,
+                    metadata.consensus_version,
+                )
+                .map_err(Error::InvalidSsz)?,
+            )
+        } else {
+            ProduceBlockV4Response::BlockOnly(
+                BeaconBlock::from_ssz_bytes_for_fork(response_bytes, metadata.consensus_version)
+                    .map_err(Error::InvalidSsz)?,
+            )
+        })
+    }
+
+    /// Appends the `randao_reveal`/`graffiti`/`skip_randao_verification` query parameters shared by
+    /// `POST v4/validator/blocks/{slot}` and its `with_bid` counterpart.
+    fn append_randao_and_graffiti_query(
+        path: &mut Url,
+        randao_reveal: &SignatureBytes,
+        graffiti: Option<&Graffiti>,
+        skip_randao_verification: SkipRandaoVerification,
+    ) {
+        path.query_pairs_mut()
+            .append_pair("randao_reveal", &randao_reveal.to_string());
+
+        if let Some(graffiti) = graffiti {
+            path.query_pairs_mut()
+                .append_pair("graffiti", &graffiti.to_string());
+        }
+
+        if skip_randao_verification == SkipRandaoVerification::Yes {
+            path.query_pairs_mut()
+                .append_pair("skip_randao_verification", "");
+        }
+    }
+
+    /// Appends the `graffiti_policy` query parameter shared by `POST v4/validator/blocks/{slot}`
+    /// and its `with_bid` counterpart.
+    fn append_graffiti_policy_query(path: &mut Url, graffiti_policy: Option<GraffitiPolicy>) {
+        // Only append the HTTP URL request if the graffiti_policy is PreserveUserGraffiti
+        // If AppendClientVersions (default), then we do not modify the HTTP URL request
+        // so that the default case is compliant to the spec
+        if let Some(GraffitiPolicy::PreserveUserGraffiti) = graffiti_policy {
+            path.query_pairs_mut()
+                .append_pair("graffiti_policy", "PreserveUserGraffiti");
+        }
+    }
+
     /// returns the `POST v4/validator/blocks/{slot}` URL path
     #[allow(clippy::too_many_arguments)]
     pub async fn post_validator_blocks_v4_path(
@@ -2838,29 +2918,17 @@ impl BeaconNodeHttpClient {
             .push("blocks")
             .push(&slot.to_string());
 
-        path.query_pairs_mut()
-            .append_pair("randao_reveal", &randao_reveal.to_string());
-
-        if let Some(graffiti) = graffiti {
-            path.query_pairs_mut()
-                .append_pair("graffiti", &graffiti.to_string());
-        }
-
-        if skip_randao_verification == SkipRandaoVerification::Yes {
-            path.query_pairs_mut()
-                .append_pair("skip_randao_verification", "");
-        }
+        Self::append_randao_and_graffiti_query(
+            &mut path,
+            randao_reveal,
+            graffiti,
+            skip_randao_verification,
+        );
 
         path.query_pairs_mut()
             .append_pair("include_payload", &include_payload.to_string());
 
-        // Only append the HTTP URL request if the graffiti_policy is PreserveUserGraffiti
-        // If AppendClientVersions (default), then we do not modify the HTTP URL request
-        // so that the default case is compliant to the spec
-        if let Some(GraffitiPolicy::PreserveUserGraffiti) = graffiti_policy {
-            path.query_pairs_mut()
-                .append_pair("graffiti_policy", "PreserveUserGraffiti");
-        }
+        Self::append_graffiti_policy_query(&mut path, graffiti_policy);
 
         Ok(path)
     }
@@ -2931,27 +2999,8 @@ impl BeaconNodeHttpClient {
                 |response, headers| async move {
                     let metadata = ProduceBlockV4Metadata::try_from(&headers)
                         .map_err(Error::InvalidHeaders)?;
-                    let block_response = if metadata.execution_payload_included {
-                        ProduceBlockV4Response::BlockAndEnvelope(
-                            response
-                                .json::<ForkVersionedResponse<
-                                    BlockAndEnvelope<E>,
-                                    ProduceBlockV4Metadata,
-                                >>()
-                                .await?
-                                .data,
-                        )
-                    } else {
-                        ProduceBlockV4Response::BlockOnly(
-                            response
-                                .json::<ForkVersionedResponse<
-                                    BeaconBlock<E>,
-                                    ProduceBlockV4Metadata,
-                                >>()
-                                .await?
-                                .data,
-                        )
-                    };
+                    let block_response =
+                        Self::parse_produce_block_v4_json(response, &metadata).await?;
                     Ok((block_response, metadata))
                 },
             )
@@ -3026,24 +3075,151 @@ impl BeaconNodeHttpClient {
                     let metadata = ProduceBlockV4Metadata::try_from(&headers)
                         .map_err(Error::InvalidHeaders)?;
                     let response_bytes = response.bytes().await?;
-                    let block_response = if metadata.execution_payload_included {
-                        ProduceBlockV4Response::BlockAndEnvelope(
-                            BlockAndEnvelope::from_ssz_bytes_for_fork(
-                                &response_bytes,
-                                metadata.consensus_version,
-                            )
-                            .map_err(Error::InvalidSsz)?,
-                        )
-                    } else {
-                        ProduceBlockV4Response::BlockOnly(
-                            BeaconBlock::from_ssz_bytes_for_fork(
-                                &response_bytes,
-                                metadata.consensus_version,
-                            )
-                            .map_err(Error::InvalidSsz)?,
-                        )
-                    };
+                    let block_response =
+                        Self::parse_produce_block_v4_ssz(&response_bytes, &metadata)?;
+                    Ok((block_response, metadata))
+                },
+            )
+            .await?;
 
+        opt_response.ok_or(Error::StatusCode(StatusCode::NOT_FOUND))
+    }
+
+    /// returns the `POST v4/validator/blocks/{slot}/with_bid` URL path
+    ///
+    /// beacon-APIs#627: supplies a pre-selected execution payload bid for block production,
+    /// rather than having the beacon node select one from its own candidates.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn post_validator_blocks_v4_with_bid_path(
+        &self,
+        slot: Slot,
+        randao_reveal: &SignatureBytes,
+        graffiti: Option<&Graffiti>,
+        skip_randao_verification: SkipRandaoVerification,
+        builder_boost_factor: u64,
+        include_payload: bool,
+        graffiti_policy: Option<GraffitiPolicy>,
+    ) -> Result<Url, Error> {
+        let mut path = self.eth_path(V4)?;
+
+        path.path_segments_mut()
+            .map_err(|()| Error::InvalidUrl(self.server.clone()))?
+            .push("validator")
+            .push("blocks")
+            .push(&slot.to_string())
+            .push("with_bid");
+
+        Self::append_randao_and_graffiti_query(
+            &mut path,
+            randao_reveal,
+            graffiti,
+            skip_randao_verification,
+        );
+
+        path.query_pairs_mut()
+            .append_pair("builder_boost_factor", &builder_boost_factor.to_string())
+            .append_pair("include_payload", &include_payload.to_string());
+
+        Self::append_graffiti_policy_query(&mut path, graffiti_policy);
+
+        Ok(path)
+    }
+
+    /// `POST v4/validator/blocks/{slot}/with_bid`
+    ///
+    /// `fork_name` is sent as the required `Eth-Consensus-Version` request header (beacon-APIs
+    /// #630): the active consensus version the request belongs to.
+    ///
+    /// `bid` is supplied as the JSON request body. See
+    /// [`Self::post_validator_blocks_v4_modular`] for the response semantics.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn post_validator_blocks_v4_with_bid<E: EthSpec>(
+        &self,
+        slot: Slot,
+        randao_reveal: &SignatureBytes,
+        graffiti: Option<&Graffiti>,
+        builder_boost_factor: u64,
+        include_payload: bool,
+        bid: &SignedExecutionPayloadBid<E>,
+        graffiti_policy: Option<GraffitiPolicy>,
+        fork_name: ForkName,
+    ) -> Result<(ProduceBlockV4Response<E>, ProduceBlockV4Metadata), Error> {
+        let path = self
+            .post_validator_blocks_v4_with_bid_path(
+                slot,
+                randao_reveal,
+                graffiti,
+                SkipRandaoVerification::No,
+                builder_boost_factor,
+                include_payload,
+                graffiti_policy,
+            )
+            .await?;
+
+        let opt_result = self
+            .post_response_with_response_headers(
+                path,
+                Accept::Json,
+                fork_name,
+                self.timeouts.get_validator_block,
+                |request| request.json(bid),
+                |response, headers| async move {
+                    let metadata = ProduceBlockV4Metadata::try_from(&headers)
+                        .map_err(Error::InvalidHeaders)?;
+                    let block_response =
+                        Self::parse_produce_block_v4_json(response, &metadata).await?;
+                    Ok((block_response, metadata))
+                },
+            )
+            .await?;
+
+        opt_result.ok_or(Error::StatusCode(StatusCode::NOT_FOUND))
+    }
+
+    /// `POST v4/validator/blocks/{slot}/with_bid` in ssz format
+    ///
+    /// See [`Self::post_validator_blocks_v4_with_bid`] for the request and response semantics.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn post_validator_blocks_v4_with_bid_ssz<E: EthSpec>(
+        &self,
+        slot: Slot,
+        randao_reveal: &SignatureBytes,
+        graffiti: Option<&Graffiti>,
+        builder_boost_factor: u64,
+        include_payload: bool,
+        bid: &SignedExecutionPayloadBid<E>,
+        graffiti_policy: Option<GraffitiPolicy>,
+        fork_name: ForkName,
+    ) -> Result<(ProduceBlockV4Response<E>, ProduceBlockV4Metadata), Error> {
+        let path = self
+            .post_validator_blocks_v4_with_bid_path(
+                slot,
+                randao_reveal,
+                graffiti,
+                SkipRandaoVerification::No,
+                builder_boost_factor,
+                include_payload,
+                graffiti_policy,
+            )
+            .await?;
+
+        let opt_response = self
+            .post_response_with_response_headers(
+                path,
+                Accept::Ssz,
+                fork_name,
+                self.timeouts.get_validator_block,
+                |request| {
+                    request
+                        .header("Content-Type", "application/octet-stream")
+                        .body(bid.as_ssz_bytes())
+                },
+                |response, headers| async move {
+                    let metadata = ProduceBlockV4Metadata::try_from(&headers)
+                        .map_err(Error::InvalidHeaders)?;
+                    let response_bytes = response.bytes().await?;
+                    let block_response =
+                        Self::parse_produce_block_v4_ssz(&response_bytes, &metadata)?;
                     Ok((block_response, metadata))
                 },
             )

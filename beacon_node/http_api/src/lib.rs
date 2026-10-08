@@ -2590,6 +2590,14 @@ pub async fn serve<T: BeaconChainTypes>(
         task_spawner_filter.clone(),
     );
 
+    // POST v4/validator/blocks/{slot}/with_bid
+    let post_validator_blocks_v4_with_bid = post_validator_blocks_v4_with_bid(
+        eth_v4.clone(),
+        chain_filter.clone(),
+        not_while_syncing_filter.clone(),
+        task_spawner_filter.clone(),
+    );
+
     // GET validator/blinded_blocks/{slot}
     let get_validator_blinded_blocks = get_validator_blinded_blocks(
         eth_v1.clone(),
@@ -3532,6 +3540,7 @@ pub async fn serve<T: BeaconChainTypes>(
                     .uor(post_validator_register_validator)
                     .uor(post_validator_builder_preferences)
                     .uor(post_validator_blocks_v4)
+                    .uor(post_validator_blocks_v4_with_bid)
                     .uor(post_validator_liveness_epoch)
                     .uor(post_lighthouse_liveness)
                     .uor(post_lighthouse_database_reconstruct)

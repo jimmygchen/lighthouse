@@ -20,6 +20,7 @@ serde = { workspace = true }
 ssz_types = { workspace = true }
 tracing = { workspace = true }
 types = { workspace = true }
+uuid = { workspace = true }
 yaml_serde = { workspace = true }
 
 [dev-dependencies]

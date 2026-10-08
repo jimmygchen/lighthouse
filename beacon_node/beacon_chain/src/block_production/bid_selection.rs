@@ -69,6 +69,11 @@ pub enum BidSource<E: EthSpec> {
         builder_url: SensitiveUrl,
         max_execution_payment: u64,
     },
+    /// A bid supplied by the caller for this specific proposal (beacon-APIs #627
+    /// `POST .../with_bid`), already verified against the production state before it became a
+    /// candidate. The caller vouches for the builder directly, so unlike `Direct` there is no
+    /// `max_execution_payment` clamp — its full `value + execution_payment` is trusted.
+    Supplied,
 }
 
 /// A payload-bid candidate: the committed bid, the proposer's boost for it, and its [`BidSource`].
@@ -121,6 +126,21 @@ impl<E: EthSpec> BidCandidate<E> {
         }
     }
 
+    /// A caller-supplied candidate (beacon-APIs #627 `with_bid`), already verified. Its trusted
+    /// value is unclamped (`value + execution_payment`), and it carries no acceptance floor: the
+    /// caller already chose this specific builder, so there's no separate policy to enforce.
+    pub fn supplied(
+        signed_bid: Arc<SignedExecutionPayloadBid<E>>,
+        builder_boost_factor: u64,
+    ) -> Self {
+        Self {
+            signed_bid,
+            builder_boost_factor,
+            min_bid: 0,
+            source: BidSource::Supplied,
+        }
+    }
+
     /// A direct-builder candidate under this builder's resolved policy.
     ///
     /// `max_execution_payment` is the largest `execution_payment` (gwei) the proposer trusts from this
@@ -163,6 +183,23 @@ impl<E: EthSpec> BidCandidate<E> {
             } => gwei_to_wei(bid.value()).saturating_add(gwei_to_wei(
                 bid.execution_payment().min(*max_execution_payment),
             )),
+            // Unclamped, unlike `Direct`: the caller already vouches for this specific builder.
+            // Summed in wei like `Direct`, not in gwei first: with no cap to keep the two terms
+            // small, a hostile `execution_payment` could saturate a u64 gwei sum well before it
+            // would ever approach `Uint256::MAX`.
+            BidSource::Supplied => {
+                gwei_to_wei(bid.value()).saturating_add(gwei_to_wei(bid.execution_payment()))
+            }
+        }
+    }
+
+    /// The `source` label for the `beacon_block_production_selected_bid_source_total` metric.
+    pub fn source_label(&self) -> &'static str {
+        match &self.source {
+            BidSource::Local { .. } => "local",
+            BidSource::Gossip => "gossip",
+            BidSource::Direct { .. } => "direct",
+            BidSource::Supplied => "supplied",
         }
     }
 
@@ -258,6 +295,7 @@ mod tests {
 
     const GOSSIP_BUILDER: u64 = 111;
     const DIRECT_BUILDER: u64 = 222;
+    const SUPPLIED_BUILDER: u64 = 333;
     const LOCAL_BUILDER: u64 = 0;
 
     const NEUTRAL_BOOST: u64 = 100;
@@ -327,6 +365,13 @@ mod tests {
         )
     }
 
+    fn supplied(value_gwei: u64, payment_gwei: u64, boost: u64) -> BidCandidate<TestSpec> {
+        BidCandidate::supplied(
+            signed_bid(SUPPLIED_BUILDER, value_gwei, payment_gwei),
+            boost,
+        )
+    }
+
     fn local(block_value_gwei: u64, should_override_builder: bool) -> BidCandidate<TestSpec> {
         BidCandidate::local(
             SignedExecutionPayloadBid::Gloas(SignedExecutionPayloadBidGloas {
@@ -350,16 +395,11 @@ mod tests {
 
     /// `(winning_builder_index, is_local, payload_value_wei, source_label)`.
     fn outcome(win: BidCandidate<TestSpec>) -> (u64, bool, Uint256, &'static str) {
-        let source = match &win.source {
-            BidSource::Local { .. } => "local",
-            BidSource::Gossip => "gossip",
-            BidSource::Direct { .. } => "direct",
-        };
         (
             win.signed_bid.message().builder_index(),
             win.is_local(),
             win.payload_value(),
-            source,
+            win.source_label(),
         )
     }
 
@@ -565,5 +605,83 @@ mod tests {
         ])
         .unwrap();
         assert_eq!(outcome(win), (DIRECT_BUILDER, false, gwei(1), "direct"));
+    }
+
+    #[test]
+    fn supplied_zero_boost_always_loses_to_local() {
+        // Boost 0 ⇒ ranked value 0 regardless of the bid's own value ⇒ local always wins.
+        let win = select_payload_bid(vec![local(1, false), supplied(1000, 1000, 0)]).unwrap();
+        assert_eq!(outcome(win), (LOCAL_BUILDER, true, gwei(1), "local"));
+    }
+
+    #[test]
+    fn supplied_neutral_boost_ranks_by_unclamped_value() {
+        // Neutral boost, value 2 + payment 4 = 6 (unclamped, unlike `Direct`) ⇒ beats local 5.
+        let win = select_payload_bid(vec![local(5, false), supplied(2, 4, NEUTRAL_BOOST)]).unwrap();
+        assert_eq!(outcome(win), (SUPPLIED_BUILDER, false, gwei(6), "supplied"));
+
+        // And loses to a strictly higher local build.
+        let win =
+            select_payload_bid(vec![local(10, false), supplied(2, 4, NEUTRAL_BOOST)]).unwrap();
+        assert_eq!(outcome(win), (LOCAL_BUILDER, true, gwei(10), "local"));
+    }
+
+    #[test]
+    fn supplied_max_boost_always_beats_nonzero_local() {
+        // `u64::MAX` boost multiplies even a tiny trusted value past any realistic local build.
+        let win =
+            select_payload_bid(vec![local(1_000_000, false), supplied(1, 0, u64::MAX)]).unwrap();
+        assert_eq!(outcome(win), (SUPPLIED_BUILDER, false, gwei(1), "supplied"));
+
+        // A zero-value supplied bid still ranks 0 even at max boost, so it loses to local.
+        let win = select_payload_bid(vec![local(1, false), supplied(0, 0, u64::MAX)]).unwrap();
+        assert_eq!(outcome(win), (LOCAL_BUILDER, true, gwei(1), "local"));
+    }
+
+    /// `value + execution_payment` must be summed in wei (each term converted first, like
+    /// `Direct`), not in gwei first. `value_gwei = payment_gwei = u64::MAX` would
+    /// saturate a `u64` gwei sum to `u64::MAX` before ever converting to wei — understating the
+    /// true total by half. A local build priced just above that saturated (and wrong) total, but
+    /// below the correct, doubled one, tells the two computations apart.
+    #[test]
+    fn supplied_trusted_value_sums_in_wei_not_saturating_gwei() {
+        let saturated_gwei_sum_as_wei = gwei(u64::MAX);
+        let correct_wei_sum = saturated_gwei_sum_as_wei.saturating_mul(Uint256::from(2u64));
+        assert!(
+            correct_wei_sum > saturated_gwei_sum_as_wei,
+            "the correct total must exceed the saturated one for this test to distinguish them"
+        );
+
+        let local_block_value = saturated_gwei_sum_as_wei + Uint256::from(1u64);
+        let local_candidate = BidCandidate::local(
+            SignedExecutionPayloadBid::Gloas(SignedExecutionPayloadBidGloas {
+                message: ExecutionPayloadBidGloas {
+                    builder_index: LOCAL_BUILDER,
+                    ..Default::default()
+                },
+                signature: Signature::empty(),
+            }),
+            ExecutionPayloadData {
+                payload: ExecutionPayloadGloas::default(),
+                execution_requests: ExecutionRequestsGloas::default(),
+                builder_index: LOCAL_BUILDER,
+                slot: Slot::new(0),
+                blobs_and_proofs: (VariableList::empty(), VariableList::empty()),
+            },
+            local_block_value,
+            false,
+        );
+
+        let win = select_payload_bid(vec![
+            local_candidate,
+            supplied(u64::MAX, u64::MAX, NEUTRAL_BOOST),
+        ])
+        .unwrap();
+
+        // Summing in gwei first would saturate the supplied bid's trusted value to
+        // `saturated_gwei_sum_as_wei`, below `local_block_value`, and local would win instead.
+        assert_eq!(win.source_label(), "supplied");
+        assert_eq!(win.signed_bid.message().builder_index(), SUPPLIED_BUILDER);
+        assert!(!win.is_local());
     }
 }

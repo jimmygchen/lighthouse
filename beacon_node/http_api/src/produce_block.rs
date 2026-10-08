@@ -12,6 +12,7 @@ use beacon_chain::{
     BeaconBlockResponseWrapper, BeaconChain, BeaconChainTypes, PayloadEnvelopeContents,
     ProduceBlockVerification,
 };
+use bls::Signature;
 use eth2::types::{self as api_types, ProduceBlockV3Metadata, SkipRandaoVerification};
 use eth2::{
     beacon_response::ForkVersionedResponse,
@@ -49,6 +50,58 @@ pub fn get_randao_verification(
     Ok(randao_verification)
 }
 
+/// Validates the request is for Gloas or later (`produceBlockV4`'s minimum fork; the error text is
+/// endpoint-specific) and decodes `include_payload`. Shared by `produceBlockV4` and its `with_bid`
+/// counterpart, which both check these before any endpoint-specific query parameter.
+fn require_gloas_and_include_payload<T: BeaconChainTypes>(
+    chain: &BeaconChain<T>,
+    slot: Slot,
+    query: &api_types::ValidatorBlocksQuery,
+    wrong_fork_message: &str,
+) -> Result<bool, warp::Rejection> {
+    let fork_name = chain.spec.fork_name_at_slot::<T::EthSpec>(slot);
+    if !fork_name.gloas_enabled() {
+        return Err(warp_utils::reject::custom_bad_request(
+            wrong_fork_message.to_string(),
+        ));
+    }
+
+    query.include_payload.ok_or_else(|| {
+        warp_utils::reject::custom_bad_request(
+            "include_payload query parameter is required".to_string(),
+        )
+    })
+}
+
+/// Decodes the randao reveal, its verification mode and the graffiti settings. Shared by
+/// `produceBlockV4` and its `with_bid` counterpart, which both decode these last, after any
+/// endpoint-specific query parameter.
+struct RandaoAndGraffiti {
+    randao_reveal: Signature,
+    randao_verification: ProduceBlockVerification,
+    graffiti_settings: GraffitiSettings,
+}
+
+fn decode_randao_and_graffiti(
+    query: &api_types::ValidatorBlocksQuery,
+) -> Result<RandaoAndGraffiti, warp::Rejection> {
+    let randao_reveal = query.randao_reveal.decompress().map_err(|e| {
+        warp_utils::reject::custom_bad_request(format!(
+            "randao reveal is not a valid BLS signature: {:?}",
+            e
+        ))
+    })?;
+
+    let randao_verification = get_randao_verification(query, randao_reveal.is_infinity())?;
+    let graffiti_settings = GraffitiSettings::new(query.graffiti, query.graffiti_policy);
+
+    Ok(RandaoAndGraffiti {
+        randao_reveal,
+        randao_verification,
+        graffiti_settings,
+    })
+}
+
 #[instrument(
     name = "lh_produce_block_v4",
     skip_all,
@@ -61,40 +114,28 @@ pub async fn produce_block_v4<T: BeaconChainTypes>(
     query: api_types::ValidatorBlocksQuery,
     builder_config: api_types::BuilderConfig,
 ) -> Result<Response, warp::Rejection> {
-    // `produceBlockV4` is the Gloas block-production endpoint.
-    let fork_name = chain.spec.fork_name_at_slot::<T::EthSpec>(slot);
-    if !fork_name.gloas_enabled() {
-        return Err(warp_utils::reject::custom_bad_request(
-            "produceBlockV4 is only valid for Gloas and later".to_string(),
-        ));
-    }
-
-    let include_payload = query.include_payload.ok_or_else(|| {
-        warp_utils::reject::custom_bad_request(
-            "include_payload query parameter is required".to_string(),
-        )
-    })?;
+    let include_payload = require_gloas_and_include_payload(
+        &chain,
+        slot,
+        &query,
+        "produceBlockV4 is only valid for Gloas and later",
+    )?;
 
     // The resolved builder config is threaded into block production, where it drives direct-builder
-    // bid requests and the gossip/direct bid policy (see `produce_block_on_state_gloas`).
+    // bid requests and the gossip/direct bid policy (see `produce_block_on_state_gloas`). Gloas
+    // takes its bid boost policy from `builder_config` (global for gossip, per-builder for direct),
+    // so the V3-style `builder_boost_factor` query param is not used on this path.
     debug!(
         %slot,
         builders = builder_config.builders.len(),
         "Received produceBlockV4 request"
     );
 
-    let randao_reveal = query.randao_reveal.decompress().map_err(|e| {
-        warp_utils::reject::custom_bad_request(format!(
-            "randao reveal is not a valid BLS signature: {:?}",
-            e
-        ))
-    })?;
-
-    let randao_verification = get_randao_verification(&query, randao_reveal.is_infinity())?;
-
-    // Gloas takes its bid boost policy from `builder_config` (global for gossip, per-builder for
-    // direct), so the V3-style `builder_boost_factor` query param is not used on this path.
-    let graffiti_settings = GraffitiSettings::new(query.graffiti, query.graffiti_policy);
+    let RandaoAndGraffiti {
+        randao_reveal,
+        randao_verification,
+        graffiti_settings,
+    } = decode_randao_and_graffiti(&query)?;
 
     let (
         block,
@@ -110,6 +151,79 @@ pub async fn produce_block_v4<T: BeaconChainTypes>(
             graffiti_settings,
             randao_verification,
             builder_config,
+        )
+        .await
+        .map_err(|e| {
+            warp_utils::reject::custom_bad_request(format!("failed to fetch a block: {:?}", e))
+        })?;
+
+    let payload_contents = include_payload.then_some(payload_contents).flatten();
+
+    build_response_v4::<T>(
+        block,
+        consensus_block_value,
+        execution_payload_value,
+        payload_contents,
+        builder_url,
+        accept_header,
+        &chain.spec,
+    )
+}
+
+/// beacon-APIs #627 `POST v4/validator/blocks/{slot}/with_bid`: produces a block using a
+/// caller-supplied execution payload bid rather than the beacon node's own gossip/direct-builder
+/// selection. The response is built by [`build_response_v4`], identical to `produceBlockV4`.
+#[instrument(
+    name = "lh_produce_block_v4_with_bid",
+    skip_all,
+    fields(%slot)
+)]
+pub async fn produce_block_v4_with_bid<T: BeaconChainTypes>(
+    accept_header: Option<api_types::Accept>,
+    chain: Arc<BeaconChain<T>>,
+    slot: Slot,
+    query: api_types::ValidatorBlocksQuery,
+    bid: SignedExecutionPayloadBid<T::EthSpec>,
+) -> Result<Response, warp::Rejection> {
+    let include_payload = require_gloas_and_include_payload(
+        &chain,
+        slot,
+        &query,
+        "with_bid block production is only valid for Gloas and later",
+    )?;
+    let builder_boost_factor = query.builder_boost_factor.ok_or_else(|| {
+        warp_utils::reject::custom_bad_request(
+            "builder_boost_factor query parameter is required".to_string(),
+        )
+    })?;
+
+    debug!(
+        %slot,
+        builder_index = bid.message().builder_index(),
+        "Received produceBlockV4 with_bid request"
+    );
+
+    let RandaoAndGraffiti {
+        randao_reveal,
+        randao_verification,
+        graffiti_settings,
+    } = decode_randao_and_graffiti(&query)?;
+
+    let (
+        block,
+        _block_state,
+        consensus_block_value,
+        execution_payload_value,
+        payload_contents,
+        builder_url,
+    ) = chain
+        .produce_block_with_verification_gloas_with_bid(
+            randao_reveal,
+            slot,
+            graffiti_settings,
+            randao_verification,
+            Arc::new(bid),
+            builder_boost_factor,
         )
         .await
         .map_err(|e| {

@@ -41,6 +41,8 @@ pub enum Error {
     TooManyBuilderPubkeys(BuilderUrl),
     /// A builder entry contains an explicitly empty authentication value.
     EmptyAuthData(BuilderUrl),
+    /// A `header_streams` entry's `api_key` is not a well-formed UUID.
+    InvalidHeaderStreamApiKey(BuilderUrl),
 }
 
 /// A single builder in the config file: a direct bid request, with optional per-builder overrides
@@ -77,6 +79,24 @@ pub struct BuilderDefinition {
 
 fn default_builder_boost_factor() -> u64 {
     100
+}
+
+/// A header-stream target: a builder URL to open the MPBC bid websocket against, with the API key
+/// MPBC requires for that connection.
+///
+/// Held at the top level of the config file (not per-builder) so a keymanager re-save — which
+/// rewrites the whole file through `BuilderConfigFile` — keeps it. Matched to builders by `url`:
+/// `BuilderStore::stream_targets` opens a stream only for a builder that is both in a validator's
+/// resolved builder list AND listed here.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct HeaderStreamDefinition {
+    /// The builder URL to open the websocket header stream against.
+    pub url: BuilderUrl,
+    /// The MPBC API key for this builder's header stream, a UUID.
+    ///
+    /// Parsed as a UUID at load; the bytes are not otherwise verified by Lighthouse. The builder
+    /// performs the real check server-side when the stream connects.
+    pub api_key: String,
 }
 
 /// Serde helper: represent `Option<RequestAuthData>` as a `0x`-prefixed hex string in the config
@@ -212,6 +232,10 @@ pub struct BuilderConfigFile {
         deserialize_with = "deserialize_validator_configs_and_standardize_pubkeys"
     )]
     pub validator_configs: BTreeMap<String, ValidatorBuilderConfig>,
+    /// Header-stream targets: builder URLs to open the MPBC bid websocket against. Resolved against
+    /// each validator's builder list at `BuilderStore::stream_targets` time, not here.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub header_streams: Vec<HeaderStreamDefinition>,
 }
 
 fn deserialize_validator_configs_and_standardize_pubkeys<'de, D: Deserializer<'de>>(
@@ -238,6 +262,7 @@ impl Default for BuilderConfigFile {
             builder_boost_factor: default_builder_boost_factor(),
             builders: Vec::new(),
             validator_configs: BTreeMap::new(),
+            header_streams: Vec::new(),
         }
     }
 }
@@ -318,6 +343,12 @@ impl BuilderConfigFile {
 
         for config in self.validator_configs.values() {
             config.validate()?;
+        }
+
+        for header_stream in &self.header_streams {
+            if uuid::Uuid::parse_str(&header_stream.api_key).is_err() {
+                return Err(Error::InvalidHeaderStreamApiKey(header_stream.url.clone()));
+            }
         }
 
         Ok(())
@@ -525,6 +556,37 @@ mod tests {
                 "unset `{field}` should be omitted:\n{yaml}"
             );
         }
+    }
+
+    #[test]
+    fn header_streams_round_trip_and_validate_api_key() {
+        let mut config = BuilderConfigFile::default();
+        config.header_streams.push(HeaderStreamDefinition {
+            url: "https://builder.example.com".parse().unwrap(),
+            api_key: "2b5d1d6a-9d3e-4a2f-8e8b-9f2c2c1f8a11".to_string(),
+        });
+        config.validate().unwrap();
+
+        let yaml = yaml_serde::to_string(&config).unwrap();
+        assert!(yaml.contains("header_streams"));
+        let decoded: BuilderConfigFile = yaml_serde::from_str(&yaml).unwrap();
+        assert_eq!(decoded.header_streams, config.header_streams);
+
+        config.header_streams[0].api_key = "not-a-uuid".to_string();
+        assert!(matches!(
+            config.validate(),
+            Err(Error::InvalidHeaderStreamApiKey(_))
+        ));
+    }
+
+    #[test]
+    fn omits_empty_header_streams() {
+        let config = BuilderConfigFile::default();
+        let yaml = yaml_serde::to_string(&config).unwrap();
+        assert!(
+            !yaml.contains("header_streams"),
+            "empty header_streams should be omitted:\n{yaml}"
+        );
     }
 
     #[test]

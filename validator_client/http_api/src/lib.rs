@@ -83,7 +83,7 @@ impl From<String> for Error {
 /// A wrapper around all the items required to spawn the HTTP server.
 ///
 /// The server will gracefully handle the case where any fields are `None`.
-pub struct Context<T: SlotClock, E> {
+pub struct Context<T: SlotClock + 'static, E: EthSpec> {
     pub task_executor: TaskExecutor,
     pub api_secret: ApiSecret,
     pub block_service: Option<BlockService<LighthouseValidatorStore<T, E>, T>>,

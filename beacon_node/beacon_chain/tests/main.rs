@@ -19,3 +19,4 @@ mod sync_committee_verification;
 mod tests;
 mod unrealized_checkpoints;
 mod validator_monitor;
+mod with_bid;

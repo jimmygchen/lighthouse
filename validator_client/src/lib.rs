@@ -47,6 +47,7 @@ use validator_services::{
     block_service::{BlockService, BlockServiceBuilder},
     builder_preferences_service::BuilderPreferencesService,
     duties_service::{self, DutiesService, DutiesServiceBuilder},
+    header_stream_service::HeaderStreamService,
     latency_service,
     payload_attestation_service::PayloadAttestationService,
     preparation_service::{PreparationService, PreparationServiceBuilder},
@@ -99,6 +100,8 @@ pub struct ProductionValidatorClient<E: EthSpec> {
     validator_store: Arc<ValidatorStore<E>>,
     configured_builders: BuilderStore,
     builder_preferences_service: BuilderPreferencesService<ValidatorStore<E>, SystemTimeSlotClock>,
+    header_stream_service: HeaderStreamService<ValidatorStore<E>, SystemTimeSlotClock>,
+    enable_builder_header_streams: bool,
     slot_clock: SystemTimeSlotClock,
     http_api_listen_addr: Option<SocketAddr>,
     config: Config,
@@ -536,6 +539,23 @@ impl<E: EthSpec> ProductionValidatorClient<E> {
             .map_err(|e| format!("Unable to open or create builder definitions: {:?}", e))?;
         let request_auth_cache = RequestAuthCache::default();
 
+        // Only run the header-stream consumer when at least one `header_streams` entry is
+        // configured in `builder_definitions.yml` (and the flag hasn't disabled it outright).
+        // With none configured there is nothing to stream from, so this must not subscribe to
+        // `payload_attributes`, log, or touch block-production metrics.
+        let enable_builder_header_streams =
+            config.enable_builder_header_streams && configured_builders.has_header_streams();
+
+        let header_stream_service = HeaderStreamService::new(
+            duties_service.clone(),
+            validator_store.clone(),
+            configured_builders.clone(),
+            request_auth_cache.clone(),
+            beacon_nodes.clone(),
+            slot_clock.clone(),
+            context.executor.clone(),
+        );
+
         let mut block_service_builder = BlockServiceBuilder::new()
             .slot_clock(slot_clock.clone())
             .validator_store(validator_store.clone())
@@ -552,6 +572,11 @@ impl<E: EthSpec> ProductionValidatorClient<E> {
         // If we have proposer nodes, add them to the block service builder.
         if proposer_nodes_num > 0 {
             block_service_builder = block_service_builder.proposer_nodes(proposer_nodes.clone());
+        }
+
+        if enable_builder_header_streams {
+            block_service_builder =
+                block_service_builder.header_stream_bids(header_stream_service.bid_store());
         }
 
         let block_service = block_service_builder.build()?;
@@ -629,6 +654,8 @@ impl<E: EthSpec> ProductionValidatorClient<E> {
             validator_store,
             configured_builders: configured_builders.clone(),
             builder_preferences_service,
+            header_stream_service,
+            enable_builder_header_streams,
             config,
             slot_clock,
             http_api_listen_addr: None,
@@ -714,6 +741,13 @@ impl<E: EthSpec> ProductionValidatorClient<E> {
                 .clone()
                 .start_update_service()
                 .map_err(|e| format!("Unable to start builder preferences service: {}", e))?;
+
+            if self.enable_builder_header_streams {
+                self.header_stream_service
+                    .clone()
+                    .start_update_service()
+                    .map_err(|e| format!("Unable to start header-stream service: {}", e))?;
+            }
         }
 
         self.preparation_service

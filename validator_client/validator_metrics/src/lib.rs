@@ -45,6 +45,25 @@ pub const ATTESTATION_SELECTION_PROOFS: &str = "attestation_selection_proofs";
 pub const SUBSCRIPTIONS: &str = "subscriptions";
 pub const LOCAL_KEYSTORE: &str = "local_keystore";
 pub const WEB3SIGNER: &str = "web3signer";
+pub const BEACON_BLOCK_HTTP_POST_WITH_BID: &str = "beacon_block_http_post_with_bid";
+
+/* Builder header-stream outcomes */
+pub const CONNECTED: &str = "connected";
+pub const CONNECT_FAILED: &str = "connect_failed";
+pub const REOPENED_PARENT_CHANGE: &str = "reopened_parent_change";
+pub const REOPENED_EARLY_CLOSE: &str = "reopened_early_close";
+pub const CLOSED_BY_SERVER: &str = "closed_by_server";
+pub const STREAM_ERROR: &str = "error";
+pub const ACCEPTED: &str = "accepted";
+pub const DECODE_FAILED: &str = "decode_failed";
+pub const UNSUPPORTED_FORK: &str = "unsupported_fork";
+pub const CONTEXT_MISMATCH: &str = "context_mismatch";
+pub const OVER_PAYMENT_CAP: &str = "over_payment_cap";
+pub const BELOW_MIN_BID: &str = "below_min_bid";
+pub const STREAM_WITH_BID: &str = "stream_with_bid";
+pub const PRODUCE_V4: &str = "produce_v4";
+pub const INCLUDED: &str = "included";
+pub const REPLACED: &str = "replaced";
 
 pub use metrics::*;
 
@@ -295,5 +314,47 @@ pub static VC_BEACON_NODE_LATENCY_PRIMARY_ENDPOINT: LazyLock<Result<Histogram>> 
         try_create_histogram(
             "vc_beacon_node_latency_primary_endpoint",
             "Round-trip latency for the primary BN endpoint",
+        )
+    });
+
+/*
+ * Builder header-stream metrics
+ */
+pub static BUILDER_HEADER_STREAM_CONNECTIONS_TOTAL: LazyLock<Result<IntCounterVec>> =
+    LazyLock::new(|| {
+        try_create_int_counter_vec(
+            "vc_builder_header_stream_connections_total",
+            "Total count of builder header-stream connection attempts, by outcome",
+            &["outcome"],
+        )
+    });
+pub static BUILDER_HEADER_STREAM_FRAMES_TOTAL: LazyLock<Result<IntCounterVec>> =
+    LazyLock::new(|| {
+        try_create_int_counter_vec(
+            "vc_builder_header_stream_frames_total",
+            "Total count of builder header-stream frames received, by outcome",
+            &["outcome"],
+        )
+    });
+pub static BUILDER_HEADER_STREAM_BID_AGE: LazyLock<Result<Histogram>> = LazyLock::new(|| {
+    try_create_histogram(
+        "vc_builder_header_stream_bid_age_seconds",
+        "Age of the best streamed builder bid when used for block production",
+    )
+});
+pub static BLOCK_PRODUCTION_BID_SOURCE_TOTAL: LazyLock<Result<IntCounterVec>> =
+    LazyLock::new(|| {
+        try_create_int_counter_vec(
+            "vc_block_production_bid_source_total",
+            "Total count of block production attempts, by bid source",
+            &["source"],
+        )
+    });
+pub static BLOCK_PRODUCTION_SUPPLIED_BID_TOTAL: LazyLock<Result<IntCounterVec>> =
+    LazyLock::new(|| {
+        try_create_int_counter_vec(
+            "vc_block_production_supplied_bid_total",
+            "Total count of supplied-bid block production outcomes",
+            &["outcome"],
         )
     });

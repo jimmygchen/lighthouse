@@ -1,12 +1,13 @@
+use crate::header_stream_service::StreamBidStore;
 use crate::request_auth_cache::RequestAuthCache;
 use beacon_node_fallback::{ApiTopic, BeaconNodeFallback, Error as FallbackError, Errors};
-use bls::PublicKeyBytes;
+use bls::{PublicKeyBytes, SignatureBytes};
 use builder_store::BuilderStore;
 use builder_types::SignedRequestAuth;
 use eth2::BeaconNodeHttpClient;
 use eth2::types::{
-    BlockAndEnvelope, GraffitiPolicy, ProduceBlockV4Response,
-    SignedExecutionPayloadEnvelopeContents,
+    BlockAndEnvelope, BuilderConfig, GraffitiPolicy, ProduceBlockV4Metadata,
+    ProduceBlockV4Response, SignedExecutionPayloadEnvelopeContents,
 };
 use graffiti_file::{GraffitiFile, determine_graffiti};
 use logging::crit;
@@ -25,6 +26,7 @@ use types::{
     BeaconBlock, BlobsList, BlockType, ChainSpec, EthSpec, ExecutionPayloadEnvelope, ForkName,
     Graffiti, Hash256, KzgProofs, Slot, consts::gloas::BUILDER_INDEX_SELF_BUILD,
 };
+use validator_metrics::inc_counter_vec;
 use validator_store::{Error as ValidatorStoreError, SignedBlock, UnsignedBlock, ValidatorStore};
 
 /// Hard deadline on signing a single builder's request auth during block production.
@@ -85,7 +87,7 @@ impl From<Errors<BlockError>> for BlockError {
 
 /// Builds a `BlockService`.
 #[derive(Default)]
-pub struct BlockServiceBuilder<S, T> {
+pub struct BlockServiceBuilder<S: ValidatorStore, T> {
     validator_store: Option<Arc<S>>,
     slot_clock: Option<Arc<T>>,
     beacon_nodes: Option<Arc<BeaconNodeFallback<T>>>,
@@ -98,6 +100,7 @@ pub struct BlockServiceBuilder<S, T> {
     configured_builders: Option<BuilderStore>,
     request_auth_cache: Option<RequestAuthCache>,
     stateless_block_production: bool,
+    header_stream_bids: Option<Arc<StreamBidStore<S::E>>>,
 }
 
 impl<S: ValidatorStore, T: SlotClock + 'static> BlockServiceBuilder<S, T> {
@@ -115,6 +118,7 @@ impl<S: ValidatorStore, T: SlotClock + 'static> BlockServiceBuilder<S, T> {
             configured_builders: None,
             request_auth_cache: None,
             stateless_block_production: false,
+            header_stream_bids: None,
         }
     }
 
@@ -178,6 +182,13 @@ impl<S: ValidatorStore, T: SlotClock + 'static> BlockServiceBuilder<S, T> {
         self
     }
 
+    /// The header-stream service's shared bid store, queried at proposal time for a streamed
+    /// builder bid. `None` (the default) disables the stream-bid path entirely.
+    pub fn header_stream_bids(mut self, header_stream_bids: Arc<StreamBidStore<S::E>>) -> Self {
+        self.header_stream_bids = Some(header_stream_bids);
+        self
+    }
+
     pub fn build(self) -> Result<BlockService<S, T>, String> {
         Ok(BlockService {
             inner: Arc::new(Inner {
@@ -207,6 +218,7 @@ impl<S: ValidatorStore, T: SlotClock + 'static> BlockServiceBuilder<S, T> {
                     .request_auth_cache
                     .ok_or("Cannot build BlockService without request_auth_cache")?,
                 stateless_block_production: self.stateless_block_production,
+                header_stream_bids: self.header_stream_bids,
             }),
         })
     }
@@ -263,7 +275,7 @@ impl<T: SlotClock> ProposerFallback<T> {
 }
 
 /// Helper to minimise `Arc` usage.
-pub struct Inner<S, T> {
+pub struct Inner<S: ValidatorStore, T> {
     validator_store: Arc<S>,
     slot_clock: Arc<T>,
     pub beacon_nodes: Arc<BeaconNodeFallback<T>>,
@@ -281,6 +293,34 @@ pub struct Inner<S, T> {
     /// Produce Gloas blocks with `include_payload=true` and publish the self-built envelope from
     /// the response, rather than fetching it from the beacon node that built the block.
     stateless_block_production: bool,
+    /// The header-stream service's shared bid store. `None` when the header-stream consumer is
+    /// disabled, in which case block production always uses the ordinary `produceBlockV4` flow.
+    header_stream_bids: Option<Arc<StreamBidStore<S::E>>>,
+}
+
+/// Whether `response`'s block carries exactly `supplied_bid` as its `signed_execution_payload_bid`.
+fn response_carries_bid<E: EthSpec>(
+    response: &ProduceBlockV4Response<E>,
+    supplied_bid: &eth2::types::SignedExecutionPayloadBid<E>,
+) -> bool {
+    let block = match response {
+        ProduceBlockV4Response::BlockOnly(block) => block,
+        ProduceBlockV4Response::BlockAndEnvelope(contents) => &contents.block,
+    };
+    let Ok(returned) = block.body().signed_execution_payload_bid() else {
+        return false;
+    };
+    match (returned, supplied_bid) {
+        (
+            eth2::types::SignedExecutionPayloadBidRef::Gloas(returned),
+            eth2::types::SignedExecutionPayloadBid::Gloas(supplied),
+        ) => returned == supplied,
+        (
+            eth2::types::SignedExecutionPayloadBidRef::Heze(returned),
+            eth2::types::SignedExecutionPayloadBid::Heze(supplied),
+        ) => returned == supplied,
+        _ => false,
+    }
 }
 
 /// The envelope, KZG proofs and blobs returned with a self-built block when `include_payload=true`.
@@ -403,11 +443,11 @@ impl<E: EthSpec> EnvelopeAction<E> {
 }
 
 /// Attempts to produce attestations for any block producer(s) at the start of the epoch.
-pub struct BlockService<S, T> {
+pub struct BlockService<S: ValidatorStore, T> {
     inner: Arc<Inner<S, T>>,
 }
 
-impl<S, T> Clone for BlockService<S, T> {
+impl<S: ValidatorStore, T> Clone for BlockService<S, T> {
     fn clone(&self) -> Self {
         Self {
             inner: self.inner.clone(),
@@ -415,7 +455,7 @@ impl<S, T> Clone for BlockService<S, T> {
     }
 }
 
-impl<S, T> Deref for BlockService<S, T> {
+impl<S: ValidatorStore, T> Deref for BlockService<S, T> {
     type Target = Inner<S, T>;
 
     fn deref(&self) -> &Self::Target {
@@ -606,6 +646,211 @@ impl<S: ValidatorStore + 'static, T: SlotClock + 'static> BlockService<S, T> {
         Ok(Some(block_root))
     }
 
+    /// Resolve the validator's builder config for this proposal, signing each builder's request
+    /// auth via the cache. Sent in the POST `produceBlockV4` body (the same body is reused on the
+    /// SSZ-to-JSON fallback and on every proposer-fallback BN). With no builders configured this
+    /// resolves to an empty list, so the proposal still falls back to a local or p2p payload.
+    /// Per-builder sign failures are logged and omitted inside `builder_config`, and each sign runs
+    /// under `REQUEST_AUTH_SIGN_TIMEOUT`, so neither a failed nor a stalled signer ever fails (or
+    /// stalls) the proposal.
+    ///
+    /// Resolved lazily, only when a `produceBlockV4` call is actually about to be made (the stream
+    /// path's `with_bid` call never needs it), so a streamed bid never pays this signing cost on
+    /// its critical path.
+    async fn resolve_builder_config(
+        &self,
+        slot: Slot,
+        validator_pubkey: PublicKeyBytes,
+    ) -> BuilderConfig {
+        let builder_config = self
+            .configured_builders
+            .builder_config(&validator_pubkey, |auth_data| async move {
+                sign_request_auth_with_deadline(self.request_auth_cache.get_or_sign(
+                    slot,
+                    validator_pubkey,
+                    auth_data,
+                    |request_auth_v1| {
+                        self.validator_store
+                            .sign_request_auth_v1(validator_pubkey, request_auth_v1)
+                    },
+                ))
+                .await
+            })
+            .await;
+        debug!(
+            slot = slot.as_u64(),
+            builders = builder_config.builders.len(),
+            "Resolved builder config for block production"
+        );
+        builder_config
+    }
+
+    /// Runs `ssz_attempt` across all proposer-fallback nodes first, falling back to `json_attempt`
+    /// if every SSZ attempt fails. Shared by [`Self::produce_block_v4_response`] and
+    /// [`Self::produce_block_with_bid`], which differ only in which beacon-node call and metric
+    /// they use.
+    async fn produce_block_ssz_then_json<FSsz, FutSsz, FJson, FutJson>(
+        proposer_fallback: &ProposerFallback<T>,
+        slot: Slot,
+        metric_label: &'static str,
+        fallback_warning: &'static str,
+        error_prefix: &'static str,
+        ssz_attempt: FSsz,
+        json_attempt: FJson,
+    ) -> Result<(ProduceBlockV4Response<S::E>, Option<String>), BlockError>
+    where
+        FSsz: Fn(BeaconNodeHttpClient) -> FutSsz + Clone,
+        FutSsz: Future<
+            Output = Result<(ProduceBlockV4Response<S::E>, ProduceBlockV4Metadata), eth2::Error>,
+        >,
+        FJson: Fn(BeaconNodeHttpClient) -> FutJson + Clone,
+        FutJson: Future<
+            Output = Result<(ProduceBlockV4Response<S::E>, ProduceBlockV4Metadata), eth2::Error>,
+        >,
+    {
+        let ssz_block_response = proposer_fallback
+            .request_proposers_last(|beacon_node| {
+                let ssz_attempt = ssz_attempt.clone();
+                async move {
+                    let _timer = validator_metrics::start_timer_vec(
+                        &validator_metrics::BLOCK_SERVICE_TIMES,
+                        &[metric_label],
+                    );
+                    ssz_attempt(beacon_node).await
+                }
+            })
+            .await;
+
+        match ssz_block_response {
+            Ok((ssz_block_response, metadata)) => Ok((ssz_block_response, metadata.builder_url)),
+            Err(e) => {
+                warn!(slot = slot.as_u64(), error = %e, "{}", fallback_warning);
+
+                proposer_fallback
+                    .request_proposers_last(|beacon_node| {
+                        let json_attempt = json_attempt.clone();
+                        async move {
+                            let _timer = validator_metrics::start_timer_vec(
+                                &validator_metrics::BLOCK_SERVICE_TIMES,
+                                &[metric_label],
+                            );
+                            let (json_block_response, metadata) =
+                                json_attempt(beacon_node).await.map_err(|e| {
+                                    BlockError::Recoverable(format!("{error_prefix}: {:?}", e))
+                                })?;
+
+                            Ok((json_block_response, metadata.builder_url))
+                        }
+                    })
+                    .await
+                    .map_err(BlockError::from)
+            }
+        }
+    }
+
+    /// Runs the ordinary `produceBlockV4` flow: SSZ across all proposer-fallback nodes first, then
+    /// JSON if every SSZ attempt fails. Returns the response and the `Eth-Builder-Url` echoed by
+    /// the winning beacon node.
+    #[allow(clippy::too_many_arguments)]
+    async fn produce_block_v4_response(
+        &self,
+        proposer_fallback: &ProposerFallback<T>,
+        slot: Slot,
+        randao_reveal: &SignatureBytes,
+        graffiti: Option<Graffiti>,
+        include_payload: bool,
+        builder_config: &BuilderConfig,
+        fork_name: ForkName,
+    ) -> Result<(ProduceBlockV4Response<S::E>, Option<String>), BlockError> {
+        Self::produce_block_ssz_then_json(
+            proposer_fallback,
+            slot,
+            validator_metrics::BEACON_BLOCK_HTTP_GET,
+            "SSZ V4 block production failed, falling back to JSON",
+            "Error from beacon node when producing block",
+            |beacon_node| async move {
+                beacon_node
+                    .post_validator_blocks_v4_ssz::<S::E>(
+                        slot,
+                        randao_reveal,
+                        graffiti.as_ref(),
+                        include_payload,
+                        builder_config,
+                        self.graffiti_policy,
+                        fork_name,
+                    )
+                    .await
+            },
+            |beacon_node| async move {
+                beacon_node
+                    .post_validator_blocks_v4::<S::E>(
+                        slot,
+                        randao_reveal,
+                        graffiti.as_ref(),
+                        include_payload,
+                        builder_config,
+                        self.graffiti_policy,
+                        fork_name,
+                    )
+                    .await
+            },
+        )
+        .await
+    }
+
+    /// Runs the `with_bid` flow (beacon-APIs #627): SSZ across all proposer-fallback nodes first,
+    /// then JSON if every SSZ attempt fails. Mirrors [`Self::produce_block_v4_response`] but
+    /// supplies `bid` instead of a `BuilderConfig`.
+    #[allow(clippy::too_many_arguments)]
+    async fn produce_block_with_bid(
+        &self,
+        proposer_fallback: &ProposerFallback<T>,
+        slot: Slot,
+        randao_reveal: &SignatureBytes,
+        graffiti: Option<Graffiti>,
+        builder_boost_factor: u64,
+        include_payload: bool,
+        bid: &eth2::types::SignedExecutionPayloadBid<S::E>,
+        fork_name: ForkName,
+    ) -> Result<(ProduceBlockV4Response<S::E>, Option<String>), BlockError> {
+        Self::produce_block_ssz_then_json(
+            proposer_fallback,
+            slot,
+            validator_metrics::BEACON_BLOCK_HTTP_POST_WITH_BID,
+            "SSZ with_bid block production failed, falling back to JSON",
+            "Error from beacon node when producing block with a supplied bid",
+            |beacon_node| async move {
+                beacon_node
+                    .post_validator_blocks_v4_with_bid_ssz::<S::E>(
+                        slot,
+                        randao_reveal,
+                        graffiti.as_ref(),
+                        builder_boost_factor,
+                        include_payload,
+                        bid,
+                        self.graffiti_policy,
+                        fork_name,
+                    )
+                    .await
+            },
+            |beacon_node| async move {
+                beacon_node
+                    .post_validator_blocks_v4_with_bid::<S::E>(
+                        slot,
+                        randao_reveal,
+                        graffiti.as_ref(),
+                        builder_boost_factor,
+                        include_payload,
+                        bid,
+                        self.graffiti_policy,
+                        fork_name,
+                    )
+                    .await
+            },
+        )
+        .await
+    }
+
     #[instrument(
         name = "lh_block_proposal_duty_cycle",
         skip_all,
@@ -670,100 +915,178 @@ impl<S: ValidatorStore + 'static, T: SlotClock + 'static> BlockService<S, T> {
         let (block_proposer, unsigned_block, builder_url, envelope_action) = if fork_name
             .gloas_enabled()
         {
-            // Resolve the validator's builder config for this proposal, signing each builder's
-            // request auth via the cache. Sent in the POST `produceBlockV4` body below (the same
-            // body is reused on the SSZ-to-JSON fallback and on every proposer-fallback BN). With
-            // no builders configured this resolves to an empty list, so the proposal still falls
-            // back to a local or p2p payload. Per-builder sign failures are logged and omitted
-            // inside `builder_config`, and each sign runs under `REQUEST_AUTH_SIGN_TIMEOUT`, so
-            // neither a failed nor a stalled signer ever fails (or stalls) the proposal.
-            let builder_config = self_ref
-                .configured_builders
-                .builder_config(&validator_pubkey, |auth_data| async move {
-                    sign_request_auth_with_deadline(self_ref.request_auth_cache.get_or_sign(
-                        slot,
-                        validator_pubkey,
-                        auth_data,
-                        |request_auth_v1| {
-                            self_ref
-                                .validator_store
-                                .sign_request_auth_v1(validator_pubkey, request_auth_v1)
-                        },
-                    ))
-                    .await
-                })
-                .await;
-            debug!(
-                slot = slot.as_u64(),
-                builders = builder_config.builders.len(),
-                "Resolved builder config for block production"
-            );
-            let builder_config_ref = &builder_config;
             let include_payload = self_ref.stateless_block_production;
 
-            // Use V4 block production for Gloas
-            // Request an SSZ block from all beacon nodes in order, returning on the first successful response.
-            // If all nodes fail, run a second pass falling back to JSON.
-            let ssz_block_response = proposer_fallback
-                .request_proposers_last(|beacon_node| async move {
-                    let _get_timer = validator_metrics::start_timer_vec(
-                        &validator_metrics::BLOCK_SERVICE_TIMES,
-                        &[validator_metrics::BEACON_BLOCK_HTTP_GET],
-                    );
-                    beacon_node
-                        .post_validator_blocks_v4_ssz::<S::E>(
-                            slot,
-                            randao_reveal_ref,
-                            graffiti.as_ref(),
-                            include_payload,
-                            builder_config_ref,
-                            self_ref.graffiti_policy,
-                            fork_name,
-                        )
-                        .await
-                })
-                .await;
+            // Use V4 block production for Gloas.
+            //
+            // If the header-stream service has a bid for this proposal, try `with_bid` first (#627)
+            // rather than the ordinary `produceBlockV4` flow. No stream bid, or no header-stream
+            // service configured at all, falls straight through to the existing flow unchanged.
+            //
+            // The builder config (and its per-builder request-auth signing) is resolved lazily,
+            // only immediately before a `produceBlockV4` call that actually needs it, so the
+            // stream path's `with_bid` call never carries that signing on its critical path.
+            let stream_choice = self_ref
+                .header_stream_bids
+                .as_ref()
+                .and_then(|store| store.best_for(slot, validator_pubkey));
 
-            // `builder_url` is the `Eth-Builder-Url` from the winning beacon node — echoed on publish
-            // so it forwards the block to the builder that won selection.
-            let (block_response, builder_url) = match ssz_block_response {
-                Ok((ssz_block_response, metadata)) => (ssz_block_response, metadata.builder_url),
-                Err(e) => {
-                    warn!(
-                        slot = slot.as_u64(),
-                        error = %e,
-                        "SSZ V4 block production failed, falling back to JSON"
-                    );
+            let (block_response, builder_url) = if let Some(choice) = stream_choice {
+                inc_counter_vec(
+                    &validator_metrics::BLOCK_PRODUCTION_BID_SOURCE_TOTAL,
+                    &[validator_metrics::STREAM_WITH_BID],
+                );
+                info!(
+                    slot = slot.as_u64(),
+                    value = choice.bid.message().value(),
+                    execution_payment = choice.bid.message().execution_payment(),
+                    bid_age_ms = choice.received_at.elapsed().as_millis() as u64,
+                    block_hash = ?choice.bid.message().block_hash(),
+                    "Supplying streamed builder bid for block production"
+                );
+                crate::header_stream_service::observe_bid_age(choice.received_at);
 
-                    proposer_fallback
-                        .request_proposers_last(|beacon_node| async move {
-                            let _get_timer = validator_metrics::start_timer_vec(
-                                &validator_metrics::BLOCK_SERVICE_TIMES,
-                                &[validator_metrics::BEACON_BLOCK_HTTP_GET],
+                let with_bid_result = self_ref
+                    .produce_block_with_bid(
+                        &proposer_fallback,
+                        slot,
+                        randao_reveal_ref,
+                        graffiti,
+                        choice.builder_boost_factor,
+                        include_payload,
+                        &choice.bid,
+                        fork_name,
+                    )
+                    .await;
+
+                match with_bid_result {
+                    Ok(with_bid_result) => {
+                        let supplied_matched =
+                            response_carries_bid(&with_bid_result.0, &choice.bid);
+
+                        if supplied_matched {
+                            inc_counter_vec(
+                                &validator_metrics::BLOCK_PRODUCTION_SUPPLIED_BID_TOTAL,
+                                &[validator_metrics::INCLUDED],
                             );
-                            let (json_block_response, metadata) = beacon_node
-                                .post_validator_blocks_v4::<S::E>(
-                                    slot,
-                                    randao_reveal_ref,
-                                    graffiti.as_ref(),
-                                    include_payload,
-                                    builder_config_ref,
-                                    self_ref.graffiti_policy,
-                                    fork_name,
-                                )
-                                .await
-                                .map_err(|e| {
-                                    BlockError::Recoverable(format!(
-                                        "Error from beacon node when producing block: {:?}",
-                                        e
-                                    ))
-                                })?;
+                            info!(
+                                slot = slot.as_u64(),
+                                "Streamed builder bid included in block"
+                            );
+                            (with_bid_result.0, Some(choice.builder_url))
+                        } else {
+                            inc_counter_vec(
+                                &validator_metrics::BLOCK_PRODUCTION_SUPPLIED_BID_TOTAL,
+                                &[validator_metrics::REPLACED],
+                            );
+                            warn!(
+                                slot = slot.as_u64(),
+                                "Beacon node replaced streamed builder bid"
+                            );
 
-                            Ok((json_block_response, metadata.builder_url))
-                        })
-                        .await
-                        .map_err(BlockError::from)?
+                            let within_retry_window = self_ref
+                                .slot_clock
+                                .start_of(slot)
+                                .is_some_and(|slot_start| {
+                                    self_ref.slot_clock.now_duration().is_some_and(|now| {
+                                        now < slot_start + Duration::from_secs(1)
+                                    })
+                                });
+
+                            if within_retry_window {
+                                inc_counter_vec(
+                                    &validator_metrics::BLOCK_PRODUCTION_BID_SOURCE_TOTAL,
+                                    &[validator_metrics::PRODUCE_V4],
+                                );
+                                let builder_config = self_ref
+                                    .resolve_builder_config(slot, validator_pubkey)
+                                    .await;
+                                match self_ref
+                                    .produce_block_v4_response(
+                                        &proposer_fallback,
+                                        slot,
+                                        randao_reveal_ref,
+                                        graffiti,
+                                        include_payload,
+                                        &builder_config,
+                                        fork_name,
+                                    )
+                                    .await
+                                {
+                                    Ok(v4_result) => v4_result,
+                                    Err(e) => {
+                                        // The produceBlockV4 retry failed: propose with the
+                                        // block with_bid already returned rather than failing
+                                        // the proposal — we already have a usable block.
+                                        warn!(
+                                            slot = slot.as_u64(),
+                                            error = ?e,
+                                            "produceBlockV4 retry failed after beacon node \
+                                             replaced streamed builder bid; proposing with the \
+                                             block returned by with_bid"
+                                        );
+                                        with_bid_result
+                                    }
+                                }
+                            } else {
+                                with_bid_result
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        // The streamed with_bid flow failed on every beacon node (any error,
+                        // including 404/400/415 or a timeout): fall back to the ordinary
+                        // produceBlockV4 flow in this same proposal rather than failing it.
+                        warn!(
+                            slot = slot.as_u64(),
+                            error = ?e,
+                            "with_bid failed on all beacon nodes; falling back to produceBlockV4"
+                        );
+                        inc_counter_vec(
+                            &validator_metrics::BLOCK_PRODUCTION_BID_SOURCE_TOTAL,
+                            &[validator_metrics::PRODUCE_V4],
+                        );
+                        let builder_config = self_ref
+                            .resolve_builder_config(slot, validator_pubkey)
+                            .await;
+                        self_ref
+                            .produce_block_v4_response(
+                                &proposer_fallback,
+                                slot,
+                                randao_reveal_ref,
+                                graffiti,
+                                include_payload,
+                                &builder_config,
+                                fork_name,
+                            )
+                            .await?
+                    }
                 }
+            } else {
+                // Only count this attempt when the header-stream service is actually active
+                // (i.e. configured with at least one `header_streams` entry) but simply had no
+                // bid for this proposal yet. With the service inactive altogether, this metric
+                // must not gain a new increment.
+                if self_ref.header_stream_bids.is_some() {
+                    inc_counter_vec(
+                        &validator_metrics::BLOCK_PRODUCTION_BID_SOURCE_TOTAL,
+                        &[validator_metrics::PRODUCE_V4],
+                    );
+                }
+                let builder_config = self_ref
+                    .resolve_builder_config(slot, validator_pubkey)
+                    .await;
+                self_ref
+                    .produce_block_v4_response(
+                        &proposer_fallback,
+                        slot,
+                        randao_reveal_ref,
+                        graffiti,
+                        include_payload,
+                        &builder_config,
+                        fork_name,
+                    )
+                    .await?
             };
 
             let (block_response, envelope_action) =
@@ -1227,24 +1550,30 @@ mod tests {
 
     impl TestHarness {
         async fn new_with_validators(num_validators: usize) -> Self {
-            Self::new(num_validators, false, None).await
+            Self::new(num_validators, false, None, None).await
         }
 
         async fn new_stateless() -> Self {
-            Self::new(1, true, None).await
+            Self::new(1, true, None, None).await
         }
 
         /// A stateless-mode service that publishes to the returned proposer node first.
         async fn new_stateless_with_proposer_node() -> (Self, MockBeaconNode<MainnetEthSpec>) {
             let proposer_node = MockBeaconNode::<MainnetEthSpec>::new().await;
-            let harness = Self::new(1, true, Some(&proposer_node)).await;
+            let harness = Self::new(1, true, Some(&proposer_node), None).await;
             (harness, proposer_node)
+        }
+
+        /// A service wired to `stream_bids` (the header-stream service's shared bid store).
+        async fn new_with_stream_bids(stream_bids: Arc<StreamBidStore<MainnetEthSpec>>) -> Self {
+            Self::new(1, false, None, Some(stream_bids)).await
         }
 
         async fn new(
             num_validators: usize,
             stateless_block_production: bool,
             proposer_node: Option<&MockBeaconNode<MainnetEthSpec>>,
+            stream_bids: Option<Arc<StreamBidStore<MainnetEthSpec>>>,
         ) -> Self {
             let harness = ValidatorClientHarness::new(num_validators).await;
 
@@ -1276,6 +1605,10 @@ mod tests {
                     vec![],
                     harness.spec.clone(),
                 )));
+            }
+
+            if let Some(stream_bids) = stream_bids {
+                builder = builder.header_stream_bids(stream_bids);
             }
 
             Self {
@@ -1640,7 +1973,7 @@ mod tests {
         with_contents: bool,
     ) {
         for decided_builder_index in [BUILDER_INDEX_SELF_BUILD, 7] {
-            let mut test_harness = TestHarness::new(1, stateless, None).await;
+            let mut test_harness = TestHarness::new(1, stateless, None, None).await;
             let slot = Slot::new(1);
             let block = self_build_block(&test_harness.harness.spec);
             let contents = local_contents(&block);
@@ -2188,5 +2521,370 @@ mod tests {
         // first_success tries 2 times, so each BN is hit twice
         mock_post_envelope_1.expect(2).assert();
         mock_post_envelope_2.expect(2).assert();
+    }
+
+    mod stream_bid {
+        use super::*;
+        use types::{
+            Address, ExecutionBlockHash, ExecutionPayloadBidGloas, SignedExecutionPayloadBid,
+            SignedExecutionPayloadBidGloas,
+        };
+
+        const STREAM_BUILDER_URL: &str = "https://stream-builder.example.com";
+
+        /// A Gloas bid distinguishable from the zero-valued default, won by `builder_index` 7 (not
+        /// a self-build), for `slot` and `parent_block_hash`.
+        fn stream_bid(
+            slot: Slot,
+            parent_block_hash: ExecutionBlockHash,
+        ) -> SignedExecutionPayloadBid<MainnetEthSpec> {
+            SignedExecutionPayloadBid::Gloas(SignedExecutionPayloadBidGloas {
+                message: ExecutionPayloadBidGloas {
+                    parent_block_hash,
+                    parent_block_root: Hash256::ZERO,
+                    block_hash: ExecutionBlockHash::repeat_byte(9),
+                    prev_randao: Hash256::ZERO,
+                    fee_recipient: Address::repeat_byte(1),
+                    gas_limit: 30_000_000,
+                    builder_index: 7,
+                    slot,
+                    value: 100,
+                    execution_payment: 5,
+                    blob_kzg_commitments: Default::default(),
+                    execution_requests_root: Hash256::ZERO,
+                },
+                signature: bls::Signature::empty(),
+            })
+        }
+
+        /// A Gloas block whose `signed_execution_payload_bid` is `bid`.
+        fn block_with_bid(
+            spec: &ChainSpec,
+            bid: SignedExecutionPayloadBid<MainnetEthSpec>,
+        ) -> BeaconBlock<MainnetEthSpec> {
+            let SignedExecutionPayloadBid::Gloas(bid) = bid else {
+                panic!("expected a Gloas bid");
+            };
+            let mut block = BeaconBlock::empty(spec);
+            let BeaconBlock::Gloas(gloas_block) = &mut block else {
+                panic!("expected Gloas block");
+            };
+            gloas_block.body.signed_execution_payload_bid = bid;
+            block
+        }
+
+        #[tokio::test]
+        async fn stream_bid_used_calls_with_bid_not_v4_and_echoes_builder_url() {
+            let store = Arc::new(StreamBidStore::<MainnetEthSpec>::default());
+            let mut test_harness = TestHarness::new_with_stream_bids(store.clone()).await;
+            let slot = Slot::new(1);
+            let pubkey = test_harness.harness.pubkeys[0];
+            let parent_hash = ExecutionBlockHash::zero();
+            let bid = stream_bid(slot, parent_hash);
+
+            store.open_context(slot, pubkey, Hash256::ZERO, parent_hash);
+            store.record_bid(
+                slot,
+                pubkey,
+                Hash256::ZERO,
+                parent_hash,
+                STREAM_BUILDER_URL.to_string(),
+                bid.clone(),
+                100,
+            );
+
+            let block = block_with_bid(&test_harness.harness.spec, bid);
+            let mock_with_bid = test_harness
+                .bn1()
+                .mock_post_validator_blocks_v4_with_bid_ssz(
+                    &block_only(&block),
+                    100,
+                    false,
+                    ForkName::Gloas,
+                    slot,
+                );
+            let mock_post_block = test_harness
+                .bn1()
+                .mock_post_beacon_blocks_v2_ssz(ForkName::Gloas);
+
+            test_harness.publish(slot).await;
+
+            mock_with_bid.expect(1).assert();
+            mock_post_block.expect(1).assert();
+            let urls = test_harness
+                .harness
+                .mock_beacon_node_1
+                .received_builder_urls
+                .lock()
+                .unwrap();
+            assert_eq!(urls.as_slice(), [Some(STREAM_BUILDER_URL.to_string())]);
+        }
+
+        #[tokio::test]
+        async fn stream_bid_replaced_retries_v4_once() {
+            let store = Arc::new(StreamBidStore::<MainnetEthSpec>::default());
+            let mut test_harness = TestHarness::new_with_stream_bids(store.clone()).await;
+            let slot = Slot::new(1);
+            let pubkey = test_harness.harness.pubkeys[0];
+            let parent_hash = ExecutionBlockHash::zero();
+            let supplied_bid = stream_bid(slot, parent_hash);
+
+            store.open_context(slot, pubkey, Hash256::ZERO, parent_hash);
+            store.record_bid(
+                slot,
+                pubkey,
+                Hash256::ZERO,
+                parent_hash,
+                STREAM_BUILDER_URL.to_string(),
+                supplied_bid.clone(),
+                100,
+            );
+
+            // The beacon node replaces the supplied bid with a different (default) one.
+            let replaced_block = BeaconBlock::empty(&test_harness.harness.spec);
+            let mock_with_bid = test_harness
+                .bn1()
+                .mock_post_validator_blocks_v4_with_bid_ssz(
+                    &block_only(&replaced_block),
+                    100,
+                    false,
+                    ForkName::Gloas,
+                    slot,
+                );
+            let mock_v4 = test_harness.bn1().mock_post_validator_blocks_v4_ssz(
+                &block_only(&replaced_block),
+                false,
+                ForkName::Gloas,
+                slot,
+            );
+            let mock_post_block = test_harness
+                .bn1()
+                .mock_post_beacon_blocks_v2_ssz(ForkName::Gloas);
+
+            test_harness.publish(slot).await;
+
+            mock_with_bid.expect(1).assert();
+            mock_v4.expect(1).assert();
+            mock_post_block.expect(1).assert();
+        }
+
+        #[tokio::test]
+        async fn no_stream_bid_uses_v4_unchanged() {
+            // A store with no entry for this (slot, pubkey): the stream path must not engage.
+            let store = Arc::new(StreamBidStore::<MainnetEthSpec>::default());
+            let mut test_harness = TestHarness::new_with_stream_bids(store).await;
+            let slot = Slot::new(1);
+            let block = BeaconBlock::empty(&test_harness.harness.spec);
+
+            let mock_with_bid = test_harness
+                .bn1()
+                .mock_post_validator_blocks_v4_with_bid_ssz(
+                    &block_only(&block),
+                    100,
+                    false,
+                    ForkName::Gloas,
+                    slot,
+                );
+            let mock_v4 = test_harness.bn1().mock_post_validator_blocks_v4_ssz(
+                &block_only(&block),
+                false,
+                ForkName::Gloas,
+                slot,
+            );
+            let mock_post_block = test_harness
+                .bn1()
+                .mock_post_beacon_blocks_v2_ssz(ForkName::Gloas);
+
+            test_harness.publish(slot).await;
+
+            mock_with_bid.expect(0).assert();
+            mock_v4.expect(1).assert();
+            mock_post_block.expect(1).assert();
+        }
+
+        /// If `with_bid` fails on every beacon node (SSZ and JSON, on every BN), block production
+        /// must fall back to the existing `produceBlockV4` flow in the same proposal rather than
+        /// failing it.
+        #[tokio::test]
+        async fn with_bid_fails_on_all_bns_falls_back_to_v4() {
+            let store = Arc::new(StreamBidStore::<MainnetEthSpec>::default());
+            let mut test_harness = TestHarness::new_with_stream_bids(store.clone()).await;
+            let slot = Slot::new(1);
+            let pubkey = test_harness.harness.pubkeys[0];
+            let parent_hash = ExecutionBlockHash::zero();
+            let bid = stream_bid(slot, parent_hash);
+
+            store.open_context(slot, pubkey, Hash256::ZERO, parent_hash);
+            store.record_bid(
+                slot,
+                pubkey,
+                Hash256::ZERO,
+                parent_hash,
+                STREAM_BUILDER_URL.to_string(),
+                bid.clone(),
+                100,
+            );
+
+            // Every with_bid attempt (SSZ then JSON, on both BNs) fails.
+            let mock_with_bid_ssz_err_1 = test_harness
+                .harness
+                .mock_beacon_node_1
+                .mock_post_validator_blocks_v4_with_bid_ssz_error(slot, false);
+            let mock_with_bid_json_err_1 = test_harness
+                .harness
+                .mock_beacon_node_1
+                .mock_post_validator_blocks_v4_with_bid_error(slot, false);
+            let mock_with_bid_ssz_err_2 = test_harness
+                .harness
+                .mock_beacon_node_2
+                .mock_post_validator_blocks_v4_with_bid_ssz_error(slot, false);
+            let mock_with_bid_json_err_2 = test_harness
+                .harness
+                .mock_beacon_node_2
+                .mock_post_validator_blocks_v4_with_bid_error(slot, false);
+
+            // The fallback produceBlockV4 flow succeeds with an ordinary (no supplied bid) block.
+            let fallback_block = BeaconBlock::empty(&test_harness.harness.spec);
+            let mock_v4 = test_harness.bn1().mock_post_validator_blocks_v4_ssz(
+                &block_only(&fallback_block),
+                false,
+                ForkName::Gloas,
+                slot,
+            );
+            let mock_post_block = test_harness
+                .bn1()
+                .mock_post_beacon_blocks_v2_ssz(ForkName::Gloas);
+
+            test_harness.publish(slot).await;
+
+            mock_with_bid_ssz_err_1.expect_at_least(1).assert();
+            mock_with_bid_json_err_1.expect_at_least(1).assert();
+            mock_with_bid_ssz_err_2.expect_at_least(1).assert();
+            mock_with_bid_json_err_2.expect_at_least(1).assert();
+            mock_v4.expect(1).assert();
+            mock_post_block.expect(1).assert();
+        }
+
+        /// If the `produceBlockV4` retry (after the beacon node replaced the supplied bid) itself
+        /// fails on every beacon node, the proposal must go ahead with the block `with_bid` already
+        /// returned rather than failing.
+        #[tokio::test]
+        async fn v4_retry_fails_proposes_with_bid_block() {
+            let store = Arc::new(StreamBidStore::<MainnetEthSpec>::default());
+            let mut test_harness = TestHarness::new_with_stream_bids(store.clone()).await;
+            let slot = Slot::new(1);
+            let pubkey = test_harness.harness.pubkeys[0];
+            let parent_hash = ExecutionBlockHash::zero();
+            let supplied_bid = stream_bid(slot, parent_hash);
+
+            store.open_context(slot, pubkey, Hash256::ZERO, parent_hash);
+            store.record_bid(
+                slot,
+                pubkey,
+                Hash256::ZERO,
+                parent_hash,
+                STREAM_BUILDER_URL.to_string(),
+                supplied_bid.clone(),
+                100,
+            );
+
+            // The beacon node replaces the supplied bid with a different (default) one.
+            let replaced_block = BeaconBlock::empty(&test_harness.harness.spec);
+            let mock_with_bid = test_harness
+                .bn1()
+                .mock_post_validator_blocks_v4_with_bid_ssz(
+                    &block_only(&replaced_block),
+                    100,
+                    false,
+                    ForkName::Gloas,
+                    slot,
+                );
+
+            // The produceBlockV4 retry then fails on every beacon node (SSZ and JSON).
+            let mock_v4_ssz_err_1 = test_harness
+                .harness
+                .mock_beacon_node_1
+                .mock_post_validator_blocks_v4_ssz_error(slot, false);
+            let mock_v4_json_err_1 = test_harness
+                .harness
+                .mock_beacon_node_1
+                .mock_post_validator_blocks_v4_error(slot, false);
+            let mock_v4_ssz_err_2 = test_harness
+                .harness
+                .mock_beacon_node_2
+                .mock_post_validator_blocks_v4_ssz_error(slot, false);
+            let mock_v4_json_err_2 = test_harness
+                .harness
+                .mock_beacon_node_2
+                .mock_post_validator_blocks_v4_error(slot, false);
+
+            let mock_post_block = test_harness
+                .bn1()
+                .mock_post_beacon_blocks_v2_ssz(ForkName::Gloas);
+
+            test_harness.publish(slot).await;
+
+            mock_with_bid.expect(1).assert();
+            mock_v4_ssz_err_1.expect_at_least(1).assert();
+            mock_v4_json_err_1.expect_at_least(1).assert();
+            mock_v4_ssz_err_2.expect_at_least(1).assert();
+            mock_v4_json_err_2.expect_at_least(1).assert();
+            mock_post_block.expect(1).assert();
+
+            // The published block is the one `with_bid` returned (the replaced block), not a
+            // fresh produceBlockV4 result.
+            let published = test_harness
+                .harness
+                .mock_beacon_node_1
+                .received_full_blocks
+                .lock()
+                .unwrap();
+            assert_eq!(published.len(), 1);
+            assert_eq!(
+                published[0].signed_block().canonical_root(),
+                replaced_block.canonical_root()
+            );
+        }
+
+        /// With no header-stream service wired up at all (mirrors production with no
+        /// `header_streams` entries configured), an ordinary Gloas proposal must not touch
+        /// `BLOCK_PRODUCTION_BID_SOURCE_TOTAL{produce_v4}` — nextest gives each test its own
+        /// process, so a before/after delta on this global counter is reliable here.
+        #[tokio::test]
+        async fn no_header_stream_service_does_not_increment_bid_source_metric() {
+            let mut test_harness = TestHarness::new_with_validators(1).await;
+            let slot = Slot::new(1);
+            let block = BeaconBlock::empty(&test_harness.harness.spec);
+
+            let mock_v4 = test_harness.bn1().mock_post_validator_blocks_v4_ssz(
+                &block_only(&block),
+                false,
+                ForkName::Gloas,
+                slot,
+            );
+            let mock_post_block = test_harness
+                .bn1()
+                .mock_post_beacon_blocks_v2_ssz(ForkName::Gloas);
+
+            let produce_v4_count = || {
+                validator_metrics::get_int_counter(
+                    &validator_metrics::BLOCK_PRODUCTION_BID_SOURCE_TOTAL,
+                    &[validator_metrics::PRODUCE_V4],
+                )
+                .map(|c| c.get())
+                .unwrap_or(0)
+            };
+            let before = produce_v4_count();
+
+            test_harness.publish(slot).await;
+
+            assert_eq!(
+                produce_v4_count(),
+                before,
+                "no header-stream service configured must not increment this metric"
+            );
+            mock_v4.expect(1).assert();
+            mock_post_block.expect(1).assert();
+        }
     }
 }

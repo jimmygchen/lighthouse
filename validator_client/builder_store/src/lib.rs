@@ -1,11 +1,11 @@
 mod builder_definitions;
 use builder_definitions::BuilderConfigFile;
 pub use builder_definitions::{
-    BuilderDefinition, Error, ResolvedBuilderConfig, ValidatorBuilderConfig,
-    ValidatorBuilderDefinition,
+    BuilderDefinition, Error, HeaderStreamDefinition, ResolvedBuilderConfig,
+    ValidatorBuilderConfig, ValidatorBuilderDefinition,
 };
 use builder_types::{
-    BuilderConfig, BuilderEntry, BuilderPubkeys, RequestAuthData, SignedRequestAuth,
+    BuilderConfig, BuilderEntry, BuilderPubkeys, BuilderUrl, RequestAuthData, SignedRequestAuth,
 };
 use parking_lot::{RwLock, RwLockUpgradableReadGuard};
 use ssz_types::VariableList;
@@ -18,6 +18,27 @@ use tracing::error;
 pub struct BuilderStore {
     config: Arc<RwLock<BuilderConfigFile>>,
     validators_dir: PathBuf,
+}
+
+/// One builder to open an MPBC header-stream websocket against, resolved for a specific proposer.
+///
+/// Returned only for a builder that is both in the proposer's resolved builder list AND has a
+/// matching `header_streams` entry (matched by URL) — see [`BuilderStore::stream_targets`].
+#[derive(Debug, Clone, PartialEq)]
+pub struct StreamTarget {
+    /// The builder URL to open the websocket header stream against.
+    pub url: BuilderUrl,
+    /// The MPBC API key for this builder's header stream.
+    pub api_key: String,
+    /// This builder's resolved request-auth data (explicit override, or the URL's default
+    /// hostname), to sign a `SignedRequestAuth` per proposal.
+    pub auth_data: RequestAuthData,
+    /// Maximum trusted execution-layer payment (gwei) accepted from this builder.
+    pub max_execution_payment: u64,
+    /// Minimum total payment (gwei, trusted value) for this builder's streamed bid to be used.
+    pub min_bid: u64,
+    /// Boost factor applied to this builder's streamed bid when comparing against a local payload.
+    pub builder_boost_factor: u64,
 }
 
 impl BuilderStore {
@@ -143,6 +164,52 @@ impl BuilderStore {
             min_bid,
             builder_boost_factor,
         }
+    }
+
+    /// Resolve `validator_pubkey`'s header-stream targets: the builders in their resolved builder
+    /// list whose URL also has a `header_streams` entry.
+    ///
+    /// A validator with no direct builders configured (or none matching a `header_streams` entry)
+    /// resolves to an empty list, so no stream is opened for them.
+    pub fn stream_targets(&self, validator_pubkey: &bls::PublicKeyBytes) -> Vec<StreamTarget> {
+        let config = self.config.read();
+        let resolved = config.resolved_for(validator_pubkey);
+        config
+            .header_streams
+            .iter()
+            .filter_map(|header_stream| {
+                let builder = resolved
+                    .builders
+                    .iter()
+                    .find(|builder| builder.url == header_stream.url)?;
+                let auth_data = builder
+                    .auth_data
+                    .clone()
+                    .map(Ok)
+                    .unwrap_or_else(|| builder.url.to_default_auth_data())
+                    .ok()?;
+                Some(StreamTarget {
+                    url: builder.url.clone(),
+                    api_key: header_stream.api_key.clone(),
+                    auth_data,
+                    max_execution_payment: builder.max_execution_payment,
+                    min_bid: builder.min_bid.unwrap_or(resolved.min_bid),
+                    builder_boost_factor: builder
+                        .builder_boost_factor
+                        .unwrap_or(resolved.builder_boost_factor),
+                })
+            })
+            .collect()
+    }
+
+    /// Whether at least one `header_streams` entry is configured, regardless of whether any
+    /// validator's resolved builder list currently matches it.
+    ///
+    /// Used to gate whether the header-stream consumer service runs at all: with none configured
+    /// there is nothing for it to open a stream against, so it should not subscribe to
+    /// `payload_attributes`, log, or affect block-production metrics.
+    pub fn has_header_streams(&self) -> bool {
+        !self.config.read().header_streams.is_empty()
     }
 
     pub fn insert(&self, builder: BuilderDefinition) -> Result<(), Error> {
@@ -495,6 +562,142 @@ mod tests {
             }));
         assert_eq!(signed.builders[0].auth.message.data, explicit);
         assert_eq!(signed.builders[0].max_execution_payment, 9);
+    }
+
+    #[test]
+    fn stream_targets_only_match_header_streams_in_resolved_builder_list() {
+        let directory = tempdir().unwrap();
+        let store = BuilderStore::open_or_create(directory.path()).unwrap();
+        let validator = Keypair::random().pk.compress();
+
+        // A global builder the validator does not use, plus one it does.
+        store
+            .insert(global_builder("https://unused-builder.example", 9))
+            .unwrap();
+        let mut used = global_builder("https://used-builder.example", 9);
+        used.min_bid = Some(42);
+        used.builder_boost_factor = Some(150);
+        store.insert(used).unwrap();
+
+        // `header_streams` lists both the used builder and a builder the validator never resolves.
+        store
+            .persist_update(|candidate| {
+                candidate
+                    .header_streams
+                    .push(builder_definitions::HeaderStreamDefinition {
+                        url: "https://used-builder.example".parse().unwrap(),
+                        api_key: "2b5d1d6a-9d3e-4a2f-8e8b-9f2c2c1f8a11".to_string(),
+                    });
+                candidate
+                    .header_streams
+                    .push(builder_definitions::HeaderStreamDefinition {
+                        url: "https://never-configured.example".parse().unwrap(),
+                        api_key: "11111111-1111-1111-1111-111111111111".to_string(),
+                    });
+                Ok(true)
+            })
+            .unwrap();
+
+        let targets = store.stream_targets(&validator);
+        assert_eq!(
+            targets.len(),
+            1,
+            "only the resolved+listed builder should match"
+        );
+        assert_eq!(
+            targets[0].url.as_str().unwrap(),
+            "https://used-builder.example"
+        );
+        assert_eq!(targets[0].api_key, "2b5d1d6a-9d3e-4a2f-8e8b-9f2c2c1f8a11");
+        assert_eq!(targets[0].max_execution_payment, 9);
+        assert_eq!(targets[0].min_bid, 42);
+        assert_eq!(targets[0].builder_boost_factor, 150);
+        assert_eq!(&*targets[0].auth_data, b"used-builder.example");
+    }
+
+    #[test]
+    fn stream_targets_empty_when_no_direct_builders_configured() {
+        let directory = tempdir().unwrap();
+        let store = BuilderStore::open_or_create(directory.path()).unwrap();
+        let validator = Keypair::random().pk.compress();
+        store
+            .persist_update(|candidate| {
+                candidate
+                    .header_streams
+                    .push(builder_definitions::HeaderStreamDefinition {
+                        url: "https://builder.example".parse().unwrap(),
+                        api_key: "2b5d1d6a-9d3e-4a2f-8e8b-9f2c2c1f8a11".to_string(),
+                    });
+                Ok(true)
+            })
+            .unwrap();
+
+        assert!(store.stream_targets(&validator).is_empty());
+    }
+
+    #[test]
+    fn has_header_streams_reflects_top_level_entries() {
+        let directory = tempdir().unwrap();
+        let store = BuilderStore::open_or_create(directory.path()).unwrap();
+
+        // Nothing configured yet: the header-stream consumer has nothing to run against.
+        assert!(!store.has_header_streams());
+
+        store
+            .persist_update(|candidate| {
+                candidate
+                    .header_streams
+                    .push(builder_definitions::HeaderStreamDefinition {
+                        url: "https://builder.example".parse().unwrap(),
+                        api_key: "2b5d1d6a-9d3e-4a2f-8e8b-9f2c2c1f8a11".to_string(),
+                    });
+                Ok(true)
+            })
+            .unwrap();
+
+        // At least one entry is configured, independent of any validator's resolved builders.
+        assert!(store.has_header_streams());
+    }
+
+    #[test]
+    fn header_streams_survive_a_keymanager_style_save() {
+        let directory = tempdir().unwrap();
+        let store = BuilderStore::open_or_create(directory.path()).unwrap();
+        let validator = Keypair::random().pk.compress();
+        store
+            .persist_update(|candidate| {
+                candidate
+                    .header_streams
+                    .push(builder_definitions::HeaderStreamDefinition {
+                        url: "https://builder.example".parse().unwrap(),
+                        api_key: "2b5d1d6a-9d3e-4a2f-8e8b-9f2c2c1f8a11".to_string(),
+                    });
+                Ok(true)
+            })
+            .unwrap();
+
+        // A keymanager-style save: set (then delete) a per-validator override, which rewrites the
+        // whole config file through `BuilderConfigFile::save`.
+        store
+            .set_validator_config(
+                &validator,
+                ValidatorBuilderConfig {
+                    builders: Some(vec![]),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        store.delete_validator_config(&validator).unwrap();
+
+        let reloaded = BuilderStore::open_or_create(directory.path()).unwrap();
+        let file = builder_definitions::BuilderConfigFile::open(directory.path()).unwrap();
+        assert_eq!(file.header_streams.len(), 1);
+        assert_eq!(
+            file.header_streams[0].api_key,
+            "2b5d1d6a-9d3e-4a2f-8e8b-9f2c2c1f8a11"
+        );
+        // And the reopened store still resolves it once a matching builder exists.
+        drop(reloaded);
     }
 
     #[test]

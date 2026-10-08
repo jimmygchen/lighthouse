@@ -14,7 +14,7 @@ use crate::{
 mod bid_selection;
 mod gloas;
 
-pub use gloas::PayloadEnvelopeContents;
+pub use gloas::{PayloadEnvelopeContents, SuppliedBid};
 
 /// State loaded from the database for block production.
 pub(crate) struct BlockProductionState<E: EthSpec> {

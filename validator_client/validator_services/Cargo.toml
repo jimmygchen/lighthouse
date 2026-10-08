@@ -14,21 +14,28 @@ builder_store = { workspace = true }
 builder_types = { workspace = true }
 either = { workspace = true }
 eth2 = { workspace = true }
+ethereum_ssz = { workspace = true }
 futures = { workspace = true }
 graffiti_file = { workspace = true }
+hex = { workspace = true }
+http = "1"
 logging = { workspace = true }
 parking_lot = { workspace = true }
 reqwest = { workspace = true }
+rustls = { workspace = true }
 safe_arith = { workspace = true }
 serde = { workspace = true }
 slot_clock = { workspace = true }
 task_executor = { workspace = true }
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["net", "io-util", "time"] }
+tokio-tungstenite = { workspace = true }
 tracing = { workspace = true }
 tree_hash = { workspace = true }
 types = { workspace = true }
+url = { workspace = true }
 validator_metrics = { workspace = true }
 validator_store = { workspace = true }
+webpki-roots = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "sync", "signal", "macros", "test-util"] }

@@ -86,6 +86,9 @@ pub struct Config {
     pub enable_beacon_head_monitor: bool,
     /// Enables the payload available monitor which attempts to trigger attestations as soon as payload is available.
     pub enable_payload_available_monitor: bool,
+    /// Enables the builder header-stream consumer (opens a websocket per configured header-stream
+    /// target ahead of our own proposals, and supplies the best bid via `with_bid`).
+    pub enable_builder_header_streams: bool,
     /// Defines the number of validators per `validator/register_validator` request sent to the BN.
     pub validator_registration_batch_size: usize,
     /// Whether we are running with distributed network support.
@@ -142,6 +145,7 @@ impl Default for Config {
             enable_latency_measurement_service: true,
             enable_beacon_head_monitor: true,
             enable_payload_available_monitor: true,
+            enable_builder_header_streams: true,
             validator_registration_batch_size: 500,
             distributed: false,
             stateless_block_production: false,
@@ -393,6 +397,8 @@ impl Config {
         config.enable_beacon_head_monitor = !validator_client_config.disable_beacon_head_monitor;
         config.enable_payload_available_monitor =
             !validator_client_config.disable_payload_available_monitor;
+        config.enable_builder_header_streams =
+            !validator_client_config.disable_builder_header_streams;
 
         config.validator_registration_batch_size =
             validator_client_config.validator_registration_batch_size;

@@ -11,7 +11,7 @@ spec-minimal = ["types/spec-minimal"]
 
 [dependencies]
 bytes = { workspace = true }
-enr = { workspace = true }
+enr = { workspace = true, features = ["ed25519", "k256"] }
 eth2_config = { workspace = true }
 fixed_bytes = { workspace = true }
 kzg = { workspace = true }

@@ -194,6 +194,27 @@ pub static BLOCK_PRODUCTION_TIMES: LazyLock<Result<Histogram>> = LazyLock::new(|
         "Full runtime of block production",
     )
 });
+/// A proposer-supplied execution payload bid (`POST .../with_bid`, beacon-APIs #627) by outcome:
+/// `used` (won selection), `invalid` (failed verification, fell back to gossip/local), or
+/// `outranked_by_local` (verified fine but the local build won selection instead).
+pub static BLOCK_PRODUCTION_SUPPLIED_BID_TOTAL: LazyLock<Result<IntCounterVec>> =
+    LazyLock::new(|| {
+        try_create_int_counter_vec(
+            "beacon_block_production_supplied_bid_total",
+            "Count of proposer-supplied execution payload bids by outcome",
+            &["outcome"],
+        )
+    });
+/// The source of the winning payload bid for a produced block: `local`, `gossip`, `direct`, or
+/// `supplied`.
+pub static BLOCK_PRODUCTION_SELECTED_BID_SOURCE_TOTAL: LazyLock<Result<IntCounterVec>> =
+    LazyLock::new(|| {
+        try_create_int_counter_vec(
+            "beacon_block_production_selected_bid_source_total",
+            "Count of winning payload bids selected for block production by source",
+            &["source"],
+        )
+    });
 pub static BLOCK_PRODUCTION_FORK_CHOICE_TIMES: LazyLock<Result<Histogram>> = LazyLock::new(|| {
     try_create_histogram(
         "beacon_block_production_fork_choice_seconds",

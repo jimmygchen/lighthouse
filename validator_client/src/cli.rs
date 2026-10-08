@@ -524,6 +524,18 @@ pub struct ValidatorClient {
 
     #[clap(
         long,
+        help = "Disable the builder header-stream consumer. When header-stream targets are \
+                configured in builder_definitions.yml, Lighthouse opens a websocket to each \
+                ahead of its own proposals and, when a bid arrives in time, supplies it to the \
+                beacon node via `with_bid` instead of the ordinary block-production flow. This \
+                is enabled by default whenever at least one header-stream target is configured.",
+        display_order = 0,
+        help_heading = FLAG_HEADER
+    )]
+    pub disable_builder_header_streams: bool,
+
+    #[clap(
+        long,
         help = "Disable Lighthouse's slashing protection for all web3signer keys. This can \
                 reduce the I/O burden on the VC but is only safe if slashing protection \
                 is enabled on the remote signer and is implemented correctly. DO NOT ENABLE \

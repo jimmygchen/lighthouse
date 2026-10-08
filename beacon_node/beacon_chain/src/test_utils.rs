@@ -1308,6 +1308,7 @@ where
                     graffiti_settings,
                     ProduceBlockVerification::VerifyRandao,
                     eth2::types::BuilderConfig::empty(),
+                    None,
                 )
                 .await
                 .unwrap();
@@ -3082,6 +3083,7 @@ where
             "Processing execution payload envelope"
         );
         let payload_block_hash = signed_envelope.message.payload.block_hash;
+        let payload_gas_limit = signed_envelope.message.payload.gas_limit;
 
         state_processing::envelope_processing::verify_execution_payload_envelope(
             state,
@@ -3164,6 +3166,14 @@ where
             .store
             .do_atomically_with_block_and_blobs_cache(ops)
             .expect("should persist envelope and columns");
+
+        // Production registers the gas limit on envelope import (see
+        // `import_execution_payload_envelope`); without it, any direct/supplied bid building on
+        // this payload as a FULL parent can never resolve its gas limit baseline and verification
+        // fails with `ParentExecutionPayloadUnknown` regardless of the bid's own validity.
+        self.chain
+            .observed_execution_payloads
+            .insert(payload_block_hash, payload_gas_limit);
 
         // Update fork choice so it knows the payload was received.
         self.chain

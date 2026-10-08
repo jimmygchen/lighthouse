@@ -5111,6 +5111,158 @@ impl ApiTester {
         self
     }
 
+    /// An intentionally-invalid supplied bid (default fields: a zero parent block hash that can
+    /// never match the real one) for exercising the `with_bid` JSON/SSZ request-body round trip.
+    /// Business validity is covered by the `beacon_chain` harness tests
+    /// (`with_bid::valid_supplied_bid_is_used` and its fallback siblings); this only needs to
+    /// decode successfully and then fall back to the local build, exactly like a plain v4 request.
+    fn invalid_with_bid_body(slot: Slot) -> SignedExecutionPayloadBid<E> {
+        SignedExecutionPayloadBid::Gloas(SignedExecutionPayloadBidGloas {
+            message: ExecutionPayloadBidGloas {
+                slot,
+                ..Default::default()
+            },
+            signature: Signature::empty(),
+        })
+    }
+
+    pub async fn test_block_production_v4_with_bid_json(self) -> Self {
+        self.run_block_production_v4_with_bid(false).await
+    }
+
+    pub async fn test_block_production_v4_with_bid_ssz(self) -> Self {
+        self.run_block_production_v4_with_bid(true).await
+    }
+
+    /// JSON/SSZ round trip for `POST v4/validator/blocks/{slot}/with_bid`: the supplied bid fails
+    /// verification (see [`Self::invalid_with_bid_body`]), so the response is the local-build
+    /// fallback — identical in shape to the plain v4 response ([`Self::assert_v4_block_metadata`]).
+    async fn run_block_production_v4_with_bid(self, ssz: bool) -> Self {
+        if !self.chain.spec.is_gloas_scheduled() {
+            return self;
+        }
+
+        let fork = self.chain.canonical_head.cached_head().head_fork();
+        let genesis_validators_root = self.chain.genesis_validators_root;
+        let slot = self.chain.slot().unwrap();
+        let epoch = self.chain.epoch().unwrap();
+
+        let (_sk, randao_reveal) = self
+            .proposer_setup(slot, epoch, &fork, genesis_validators_root)
+            .await;
+        let bid = Self::invalid_with_bid_body(slot);
+
+        let (response, metadata) = if ssz {
+            self.client
+                .post_validator_blocks_v4_with_bid_ssz::<E>(
+                    slot,
+                    &randao_reveal,
+                    None,
+                    100,
+                    false,
+                    &bid,
+                    None,
+                    ForkName::Gloas,
+                )
+                .await
+                .unwrap()
+        } else {
+            self.client
+                .post_validator_blocks_v4_with_bid::<E>(
+                    slot,
+                    &randao_reveal,
+                    None,
+                    100,
+                    false,
+                    &bid,
+                    None,
+                    ForkName::Gloas,
+                )
+                .await
+                .unwrap()
+        };
+        let block = response.into_block();
+        assert_eq!(
+            block
+                .body()
+                .signed_execution_payload_bid()
+                .unwrap()
+                .message()
+                .builder_index(),
+            BUILDER_INDEX_SELF_BUILD,
+            "an invalid supplied bid should fall back to the local self-build"
+        );
+
+        self.assert_v4_block_metadata(&block, &metadata, slot);
+
+        self.chain.slot_clock.set_slot(slot.as_u64() + 1);
+
+        self
+    }
+
+    /// `builder_boost_factor` and `include_payload` are both required query parameters on
+    /// `with_bid` (unlike plain v4, where `builder_boost_factor` lives in the JSON/SSZ body via
+    /// `BuilderConfig` and is optional).
+    pub async fn test_block_production_v4_with_bid_missing_required_query_returns_400(
+        self,
+    ) -> Self {
+        if !self.chain.spec.is_gloas_scheduled() {
+            return self;
+        }
+
+        let fork = self.chain.canonical_head.cached_head().head_fork();
+        let genesis_validators_root = self.chain.genesis_validators_root;
+        let slot = self.chain.slot().unwrap();
+        let epoch = self.chain.epoch().unwrap();
+
+        let (_sk, randao_reveal) = self
+            .proposer_setup(slot, epoch, &fork, genesis_validators_root)
+            .await;
+        let bid = Self::invalid_with_bid_body(slot);
+
+        for missing_param in ["builder_boost_factor", "include_payload"] {
+            let mut url = self
+                .client
+                .post_validator_blocks_v4_with_bid_path(
+                    slot,
+                    &randao_reveal,
+                    None,
+                    SkipRandaoVerification::No,
+                    100,
+                    false,
+                    None,
+                )
+                .await
+                .unwrap();
+            let query_pairs = url
+                .query_pairs()
+                .filter(|(key, _)| key != missing_param)
+                .map(|(key, value)| (key.into_owned(), value.into_owned()))
+                .collect::<Vec<_>>();
+            url.query_pairs_mut().clear();
+            for (key, value) in &query_pairs {
+                url.query_pairs_mut().append_pair(key, value);
+            }
+
+            let response = reqwest::Client::new()
+                .post(url)
+                .header(CONSENSUS_VERSION_HEADER, ForkName::Gloas.to_string())
+                .json(&bid)
+                .send()
+                .await
+                .unwrap();
+            assert_eq!(
+                response.status(),
+                StatusCode::BAD_REQUEST,
+                "missing `{missing_param}` should 400"
+            );
+        }
+
+        self.chain.slot_clock.set_slot(slot.as_u64() + 1);
+
+        self
+    }
+
     pub async fn test_block_production_v4_zero_length_entry_fields_return_400(self) -> Self {
         if !self.chain.spec.is_gloas_scheduled() {
             return self;
@@ -10325,6 +10477,21 @@ async fn block_production_v4() {
         .test_block_production_v4_with_payload()
         .await
         .test_block_production_v4_with_payload_ssz()
+        .await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn block_production_v4_with_bid() {
+    if !fork_name_from_env().is_some_and(|f| f.gloas_enabled()) {
+        return;
+    }
+    ApiTester::new_with_hard_forks()
+        .await
+        .test_block_production_v4_with_bid_json()
+        .await
+        .test_block_production_v4_with_bid_ssz()
+        .await
+        .test_block_production_v4_with_bid_missing_required_query_returns_400()
         .await;
 }
 

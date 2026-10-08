@@ -2,7 +2,10 @@ use eth2::types::{
     GenericResponse, ProduceBlockV4Response, PublishBlockRequest, RootData,
     SignedExecutionPayloadEnvelopeContents, SubmittedBuilderPreferences, SyncingData,
 };
-use eth2::{BLOB_DATA_INCLUDED_HEADER, BeaconNodeHttpClient, CONSENSUS_VERSION_HEADER, Timeouts};
+use eth2::{
+    BLOB_DATA_INCLUDED_HEADER, BUILDER_URL_HEADER, BeaconNodeHttpClient, CONSENSUS_VERSION_HEADER,
+    Timeouts,
+};
 use mockito::{Matcher, Mock, Server, ServerGuard};
 use regex::Regex;
 use reqwest::StatusCode;
@@ -26,6 +29,9 @@ pub struct MockBeaconNode<E: EthSpec> {
     _phantom: PhantomData<E>,
     pub received_blinded_blocks: Arc<Mutex<Vec<SignedBlindedBeaconBlock<E>>>>,
     pub received_full_blocks: Arc<Mutex<Vec<PublishBlockRequest<E>>>>,
+    /// The `Eth-Builder-Url` header seen on each `POST /eth/v2/beacon/blocks` (SSZ) request, in
+    /// order, aligned with `received_full_blocks`.
+    pub received_builder_urls: Arc<Mutex<Vec<Option<String>>>>,
     pub execution_payload_envelope: Arc<Mutex<Vec<SignedExecutionPayloadEnvelope<E>>>>,
     pub execution_payload_envelope_contents:
         Arc<Mutex<Vec<SignedExecutionPayloadEnvelopeContents<E>>>>,
@@ -49,6 +55,7 @@ impl<E: EthSpec> MockBeaconNode<E> {
             _phantom: PhantomData,
             received_blinded_blocks: Arc::new(Mutex::new(Vec::new())),
             received_full_blocks: Arc::new(Mutex::new(Vec::new())),
+            received_builder_urls: Arc::new(Mutex::new(Vec::new())),
             execution_payload_envelope: Arc::new(Mutex::new(Vec::new())),
             execution_payload_envelope_contents: Arc::new(Mutex::new(Vec::new())),
             payload_attestation_message: Arc::new(Mutex::new(Vec::new())),
@@ -234,8 +241,9 @@ impl<E: EthSpec> MockBeaconNode<E> {
         fork_name: ForkName,
         slot: Slot,
     ) -> Mock {
+        // Anchored so this never also matches `/with_bid` on the same slot.
         let path_pattern =
-            Regex::new(&format!(r"^/eth/v4/validator/blocks/{}", slot.as_u64())).unwrap();
+            Regex::new(&format!(r"^/eth/v4/validator/blocks/{}$", slot.as_u64())).unwrap();
 
         let (payload_included, data) = match response {
             ProduceBlockV4Response::BlockOnly(block) => (false, serde_json::json!(block)),
@@ -279,8 +287,9 @@ impl<E: EthSpec> MockBeaconNode<E> {
         fork_name: ForkName,
         slot: Slot,
     ) -> Mock {
+        // Anchored so this never also matches `/with_bid` on the same slot.
         let path_pattern =
-            Regex::new(&format!(r"^/eth/v4/validator/blocks/{}", slot.as_u64())).unwrap();
+            Regex::new(&format!(r"^/eth/v4/validator/blocks/{}$", slot.as_u64())).unwrap();
 
         let (payload_included, ssz_bytes) = match response {
             ProduceBlockV4Response::BlockOnly(block) => (false, block.as_ssz_bytes()),
@@ -314,8 +323,125 @@ impl<E: EthSpec> MockBeaconNode<E> {
         slot: Slot,
         include_payload: bool,
     ) -> Mock {
+        // Anchored so this never also matches `/with_bid` on the same slot.
         let path_pattern =
-            Regex::new(&format!(r"^/eth/v4/validator/blocks/{}", slot.as_u64())).unwrap();
+            Regex::new(&format!(r"^/eth/v4/validator/blocks/{}$", slot.as_u64())).unwrap();
+
+        self.server
+            .mock("POST", Matcher::Regex(path_pattern.to_string()))
+            .match_query(Matcher::UrlEncoded(
+                "include_payload".into(),
+                include_payload.to_string(),
+            ))
+            .match_header("accept", "application/octet-stream")
+            .with_status(500)
+            .with_body(r#"{"message":"Internal server error"}"#)
+            .create()
+    }
+
+    /// Mocks `POST /eth/v4/validator/blocks/{slot}` (JSON) returning error, matching the given
+    /// `include_payload` query value.
+    pub fn mock_post_validator_blocks_v4_error(
+        &mut self,
+        slot: Slot,
+        include_payload: bool,
+    ) -> Mock {
+        // Anchored so this never also matches `/with_bid` on the same slot.
+        let path_pattern =
+            Regex::new(&format!(r"^/eth/v4/validator/blocks/{}$", slot.as_u64())).unwrap();
+
+        self.server
+            .mock("POST", Matcher::Regex(path_pattern.to_string()))
+            .match_query(Matcher::UrlEncoded(
+                "include_payload".into(),
+                include_payload.to_string(),
+            ))
+            .match_header("accept", "application/json")
+            .with_status(500)
+            .with_body(r#"{"message":"Internal server error"}"#)
+            .create()
+    }
+
+    /// Mocks `POST /eth/v4/validator/blocks/{slot}/with_bid` (SSZ), matching the given
+    /// `builder_boost_factor`/`include_payload` query values and answering with `response`.
+    pub fn mock_post_validator_blocks_v4_with_bid_ssz(
+        &mut self,
+        response: &ProduceBlockV4Response<E>,
+        builder_boost_factor: u64,
+        include_payload: bool,
+        fork_name: ForkName,
+        slot: Slot,
+    ) -> Mock {
+        let path_pattern = Regex::new(&format!(
+            r"^/eth/v4/validator/blocks/{}/with_bid$",
+            slot.as_u64()
+        ))
+        .unwrap();
+
+        let (payload_included, ssz_bytes) = match response {
+            ProduceBlockV4Response::BlockOnly(block) => (false, block.as_ssz_bytes()),
+            ProduceBlockV4Response::BlockAndEnvelope(contents) => (true, contents.as_ssz_bytes()),
+        };
+
+        self.server
+            .mock("POST", Matcher::Regex(path_pattern.to_string()))
+            .match_query(Matcher::AllOf(vec![
+                Matcher::UrlEncoded(
+                    "builder_boost_factor".into(),
+                    builder_boost_factor.to_string(),
+                ),
+                Matcher::UrlEncoded("include_payload".into(), include_payload.to_string()),
+            ]))
+            .match_header("accept", "application/octet-stream")
+            .with_status(200)
+            .with_header("Eth-Consensus-Version", &fork_name.to_string())
+            .with_header("Eth-Consensus-Block-Value", "0")
+            .with_header("Eth-Execution-Payload-Value", "0")
+            .with_header(
+                "Eth-Execution-Payload-Included",
+                &payload_included.to_string(),
+            )
+            .with_body(ssz_bytes)
+            .create()
+    }
+
+    /// Mocks `POST /eth/v4/validator/blocks/{slot}/with_bid` (JSON) returning error, matching the
+    /// given `include_payload` query value.
+    pub fn mock_post_validator_blocks_v4_with_bid_error(
+        &mut self,
+        slot: Slot,
+        include_payload: bool,
+    ) -> Mock {
+        let path_pattern = Regex::new(&format!(
+            r"^/eth/v4/validator/blocks/{}/with_bid$",
+            slot.as_u64()
+        ))
+        .unwrap();
+
+        self.server
+            .mock("POST", Matcher::Regex(path_pattern.to_string()))
+            .match_query(Matcher::UrlEncoded(
+                "include_payload".into(),
+                include_payload.to_string(),
+            ))
+            .match_header("accept", "application/json")
+            .with_status(500)
+            .with_body(r#"{"message":"Internal server error"}"#)
+            .create()
+    }
+
+    /// Mocks `POST /eth/v4/validator/blocks/{slot}/with_bid` (SSZ) returning error, matching the
+    /// given `include_payload` query value.
+    pub fn mock_post_validator_blocks_v4_with_bid_ssz_error(
+        &mut self,
+        slot: Slot,
+        include_payload: bool,
+    ) -> Mock {
+        let path_pattern = Regex::new(&format!(
+            r"^/eth/v4/validator/blocks/{}/with_bid$",
+            slot.as_u64()
+        ))
+        .unwrap();
 
         self.server
             .mock("POST", Matcher::Regex(path_pattern.to_string()))
@@ -462,12 +588,20 @@ impl<E: EthSpec> MockBeaconNode<E> {
         let path_pattern = Regex::new(r"^/eth/v2/beacon/blocks$").unwrap();
 
         let received_full_blocks = Arc::clone(&self.received_full_blocks);
+        let received_builder_urls = Arc::clone(&self.received_builder_urls);
 
         self.server
             .mock("POST", Matcher::Regex(path_pattern.to_string()))
             .match_header("content-type", "application/octet-stream")
             .with_status(200)
             .with_body_from_request(move |request| {
+                let builder_url = request
+                    .header(BUILDER_URL_HEADER)
+                    .first()
+                    .and_then(|value| value.to_str().ok())
+                    .map(str::to_string);
+                received_builder_urls.lock().unwrap().push(builder_url);
+
                 let body = request.body().expect("Failed to get request body");
                 let block = PublishBlockRequest::<E>::from_ssz_bytes(body, fork_name)
                     .expect("Failed to deserialize PublishBlockRequest from SSZ");
