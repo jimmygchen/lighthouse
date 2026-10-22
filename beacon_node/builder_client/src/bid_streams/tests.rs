@@ -1048,3 +1048,104 @@ fn tls_client_config_builds() {
     // Building with an explicit provider avoids the process-default provider panic.
     tls_client_config().unwrap();
 }
+
+/// A stream to an `https` builder connects over TLS and receives its bid. A builder whose
+/// certificate is not trusted gets no connection.
+#[tokio::test]
+async fn wss_stream_connects_over_tls() {
+    let certified = rcgen::generate_simple_self_signed(vec!["localhost".to_string()]).unwrap();
+    let cert = certified.cert.der().clone();
+    let key = rustls::pki_types::PrivateKeyDer::Pkcs8(rustls::pki_types::PrivatePkcs8KeyDer::from(
+        certified.key_pair.serialize_der(),
+    ));
+    let server_config = rustls::ServerConfig::builder_with_provider(Arc::new(
+        rustls::crypto::ring::default_provider(),
+    ))
+    .with_safe_default_protocol_versions()
+    .unwrap()
+    .with_no_client_auth()
+    .with_single_cert(vec![cert.clone()], key)
+    .unwrap();
+    let acceptor = tokio_rustls::TlsAcceptor::from(Arc::new(server_config));
+
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let handshakes = Arc::new(AtomicUsize::new(0));
+    let server_handshakes = handshakes.clone();
+    tokio::spawn(async move {
+        while let Ok((stream, _)) = listener.accept().await {
+            let (acceptor, handshakes) = (acceptor.clone(), server_handshakes.clone());
+            tokio::spawn(async move {
+                let Ok(tls_stream) = acceptor.accept(stream).await else {
+                    return;
+                };
+                handshakes.fetch_add(1, Ordering::SeqCst);
+                let Ok(mut ws_stream) = tokio_tungstenite::accept_async(tls_stream).await else {
+                    return;
+                };
+                let _ = ws_stream.send(bid(STREAM_VALUE)).await;
+                while let Some(Ok(message)) = ws_stream.next().await {
+                    if message.is_close() {
+                        break;
+                    }
+                }
+            });
+        }
+    });
+
+    let runtime = TestRuntime::default();
+    let url = format!("https://localhost:{port}");
+    let open = |bid_streams: &BidStreams<E>| {
+        let preference = preference(&url);
+        bid_streams.store_preferences(
+            std::slice::from_ref(&preference),
+            Slot::new(SLOT - 1),
+            Slot::new(SLOT + 64),
+        );
+        bid_streams.open_streams(
+            &context(parent_a()),
+            Slot::new(SLOT - 1),
+            &clock_starting(Slot::new(SLOT), slot_start_soon()),
+        )
+    };
+    let state = |bid_streams: &BidStreams<E>| {
+        let key = EntryKey {
+            slot: Slot::new(SLOT),
+            proposer_pubkey: PublicKeyBytes::empty(),
+            url: url.parse().unwrap(),
+        };
+        bid_streams.streams.lock().get(&key).map(|handle| {
+            let mailbox = handle.mailbox.lock();
+            let value = mailbox
+                .latest
+                .as_ref()
+                .map(|latest| bid_value(&latest.bid_ssz));
+            (mailbox.status, value)
+        })
+    };
+
+    // Trusting the builder's certificate: the stream connects over TLS and gets the bid.
+    let mut roots = rustls::RootCertStore::empty();
+    roots.add(cert).unwrap();
+    let mut trusting = BidStreams::<E>::new(runtime.task_executor.clone(), "test").unwrap();
+    trusting.tls_config = Arc::new(
+        rustls::ClientConfig::builder_with_provider(Arc::new(
+            rustls::crypto::ring::default_provider(),
+        ))
+        .with_safe_default_protocol_versions()
+        .unwrap()
+        .with_root_certificates(roots)
+        .with_no_client_auth(),
+    );
+    assert_eq!(open(&trusting), 1);
+    wait_for(|| state(&trusting) == Some((StreamStatus::Connected, Some(STREAM_VALUE)))).await;
+    assert_eq!(handshakes.load(Ordering::SeqCst), 1);
+
+    // With the default roots the self-signed certificate is rejected, so the stream never
+    // connects and the builder would be requested over HTTP.
+    let untrusting = BidStreams::<E>::new(runtime.task_executor.clone(), "test").unwrap();
+    assert_eq!(open(&untrusting), 1);
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    assert_eq!(state(&untrusting), Some((StreamStatus::Pending, None)));
+    assert_eq!(handshakes.load(Ordering::SeqCst), 1);
+}

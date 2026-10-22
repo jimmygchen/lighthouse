@@ -35,5 +35,7 @@ webpki-roots = { workspace = true }
 arbitrary = { workspace = true }
 builder_types = { workspace = true, features = ["arbitrary"] }
 mockito = { workspace = true }
+rcgen = { workspace = true }
 tokio = { workspace = true, features = ["io-util", "net", "time"] }
+tokio-rustls = { workspace = true }
 types = { workspace = true, features = ["arbitrary"] }
