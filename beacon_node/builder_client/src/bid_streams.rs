@@ -61,7 +61,7 @@ use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
 use tokio_tungstenite::tungstenite::protocol::{CloseFrame, WebSocketConfig};
 use tokio_tungstenite::tungstenite::{self, Bytes, Message};
 use tokio_tungstenite::{Connector, MaybeTlsStream, WebSocketStream, client_async_tls_with_config};
-use tracing::{debug, info, warn};
+use tracing::{debug, warn};
 
 /// The bid message type, the only one defined.
 const BID_MESSAGE_TYPE: u8 = 0x01;
@@ -637,7 +637,9 @@ impl<S: SlotClock> StreamTask<S> {
         self.set_status(stream_status);
 
         if outcome == "unsupported" {
-            info!(
+            // Logged at every proposal, so kept out of the default logs. The handshake metric
+            // counts these.
+            debug!(
                 builder_url = %self.builder_url,
                 slot = %self.ctx.slot,
                 status = status.as_u16(),
